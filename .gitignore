@@ -1,0 +1,18 @@
+backend/.env
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Dependencies and build output (all packages)
+node_modules
+dist
+*.log
+.DS_Store
+
+# Local DB (use migrations / seed; do not commit real data)
+backend/data/*.db
+# SQLite hot backups (timestamped copies)
+backend/data/backups/
+
+# Supabase CLI
+supabase/.temp/

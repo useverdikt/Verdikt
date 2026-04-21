@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Verdikt — Pitch Deck v11</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:     #080b11;
+    --raise:  #0d111a;
+    --border: #1a2035;
+    --text:   #e8eaf0;
+    --mid:    #6b7280;
+    --dim:    #2a3045;
+    --green:  #22c55e;
+    --red:    #ef4444;
+    --cyan:   #06b6d4;
+    --accent: #8b5cf6;
+    --accentL:#a78bfa;
+    --pink:   #ec4899;
+    --amber:  #f59e0b;
+    --serif:  'DM Serif Display', serif;
+    --sans:   'Outfit', sans-serif;
+    --mono:   'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Print / screen layout ── */
+  .deck {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 60px 40px 120px;
+  }
+
+  /* ── Slide ── */
+  .slide {
+    min-height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 60px 64px;
+    margin-bottom: 24px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .slide-num {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+  }
+
+  /* ── Type ── */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mid);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: 52px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  h1 em { color: var(--accentL); font-style: italic; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 36px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  h2 em { color: var(--accentL); font-style: italic; }
+
+  .lead {
+    font-size: 18px;
+    color: var(--mid);
+    font-weight: 300;
+    max-width: 560px;
+    line-height: 1.65;
+  }
+
+  .lead strong { color: var(--text); font-weight: 500; }
+
+  /* ── Pull quote ── */
+  .pullquote {
+    font-family: var(--serif);
+    font-size: 28px;
+    line-height: 1.35;
+    color: var(--text);
+    border-left: 3px solid var(--accentL);
+    padding-left: 28px;
+    margin: 24px 0;
+    max-width: 680px;
+  }
+
+  .pullquote-note {
+    font-size: 13px;
+    color: var(--mid);
+    margin-top: 16px;
+    font-weight: 300;
+  }
+
+  /* ── Grid cards ── */
+  .three-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-top: 32px;
+  }
+  .four-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 20px;
+    margin-top: 32px;
+  }
+
+  .col-card {
+    background: var(--raise);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 22px;
+  }
+
+  .col-icon {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .col-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--accentL);
+    letter-spacing: 0.16em;
+    margin-bottom: 8px;
+  }
+
+  .col-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .col-body {
+    font-size: 13px;
+    color: var(--mid);
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  /* ── Cost rows ── */
+  .cost-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 28px;
+  }
+
+  .cost-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 18px 20px;
+    background: var(--raise);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .cost-row-situation {
+    font-size: 14px;
+    color: var(--mid);
+    font-weight: 300;
+    line-height: 1.55;
+  }
+
+  .cost-row-consequence {
+    font-size: 13px;
+    color: var(--red);
+    font-weight: 400;
+    line-height: 1.55;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Verdict states ── */
+  .verdict-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 28px;
+  }
+
+  .verdict-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-radius: 8px;
+    max-width: 600px;
+  }
+
+  .verdict-badge .v-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .verdict-badge .v-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  .verdict-badge .v-desc {
+    font-size: 12px;
+    color: var(--mid);
+    font-weight: 300;
+  }
+
+  /* ── Override record ── */
+  .override-record {
+    background: var(--raise);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-top: 28px;
+    max-width: 620px;
+  }
+
+  .override-record-header {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--amber);
+    letter-spacing: 0.16em;
+    margin-bottom: 14px;
+  }
+
+  .override-record-body {
+    font-size: 13px;
+    color: var(--mid);
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  .override-record-body strong { color: var(--text); font-weight: 500; }
+
+  .override-record-footer {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Comparison table ── */
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 28px;
+    font-size: 13px;
+  }
+
+  .comp-table th {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--mid);
+    padding: 10px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .comp-table td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--mid);
+    font-weight: 300;
+  }
+
+  .comp-table td:first-child { color: var(--text); font-weight: 400; }
+
+  .comp-table .yes { color: var(--green); font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; }
+  .comp-table .no  { color: var(--dim);   font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; }
+
+  /* ── Persona grid ── */
+  .persona-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 28px;
+  }
+
+  .persona-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 20px;
+  }
+
+  .persona-role {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    margin-bottom: 10px;
+  }
+
+  .persona-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .persona-before {
+    font-size: 12px;
+    color: var(--mid);
+    font-weight: 300;
+    line-height: 1.6;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .persona-after {
+    font-size: 12px;
+    color: var(--text);
+    font-weight: 400;
+    line-height: 1.6;
+  }
+
+  /* ── Why now ── */
+  .reasons {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 28px;
+  }
+
+  .reason {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 18px 20px;
+    background: var(--raise);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .reason-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .reason-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .reason-body {
+    font-size: 13px;
+    color: var(--mid);
+    font-weight: 300;
+    line-height: 1.55;
+  }
+
+  /* ── Vision ── */
+  .vision-line {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--mid);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    font-weight: 300;
+  }
+
+  .vision-line.active {
+    color: var(--text);
+    font-size: 26px;
+  }
+
+  /* ── Ask slide ── */
+  .ask-row {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+  }
+
+  .ask-item {
+    flex: 1;
+    background: var(--raise);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 22px;
+  }
+
+  .ask-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--accentL);
+    letter-spacing: 0.16em;
+    margin-bottom: 10px;
+  }
+
+  .ask-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .ask-detail {
+    font-size: 12px;
+    color: var(--mid);
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  /* ── Slide 1 specific ── */
+  .s1 { background: radial-gradient(ellipse at 30% 60%, rgba(139,92,246,0.06) 0%, transparent 70%); }
+  .s1 h1 { font-size: 64px; }
+  .tagline { font-size: 20px; color: var(--mid); font-weight: 300; margin-top: 12px; max-width: 520px; line-height: 1.5; }
+  .for-row { display: flex; gap: 24px; margin-top: 36px; }
+  .for-pill { font-family: var(--mono); font-size: 10px; color: var(--accentL); background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.2); padding: 6px 14px; border-radius: 20px; letter-spacing: 0.1em; }
+
+  /* ── Moat slide ── */
+  .moat-points { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; }
+  .moat-point { display: flex; gap: 16px; align-items: flex-start; }
+  .moat-bullet { width: 6px; height: 6px; border-radius: 50%; background: var(--accentL); flex-shrink: 0; margin-top: 7px; box-shadow: 0 0 8px rgba(167,139,250,0.5); }
+  .moat-text { font-size: 16px; color: var(--text); font-weight: 300; line-height: 1.55; }
+  .moat-text strong { font-weight: 600; }
+
+  .moat-closer {
+    margin-top: 36px;
+    padding: 20px 24px;
+    background: rgba(139,92,246,0.06);
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 10px;
+    font-size: 15px;
+    color: var(--accentL);
+    font-weight: 300;
+    max-width: 540px;
+    line-height: 1.6;
+  }
+
+  /* ── Footer ── */
+  .deck-footer {
+    text-align: center;
+    padding: 40px 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+  }
+
+  @media print {
+    /* Re-map all CSS variables to a clean light palette */
+    :root {
+      --bg:      #ffffff;
+      --raise:   #f8f9fb;
+      --border:  #e5e7eb;
+      --text:    #0f1117;
+      --mid:     #6b7280;
+      --dim:     #d1d5db;
+      --green:   #059669;
+      --red:     #dc2626;
+      --cyan:    #0891b2;
+      --accent:  #7c3aed;
+      --accentL: #8b5cf6;
+      --pink:    #db2777;
+      --amber:   #d97706;
+    }
+
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    body { background: #fff; }
+
+    .deck { padding: 0; max-width: 100%; }
+
+    .slide {
+      border: 1px solid #e5e7eb;
+      border-radius: 0;
+      min-height: 100vh;
+      padding: 80px;
+      margin-bottom: 0;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .deck-footer {
+      page-break-before: avoid;
+      break-before: avoid;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- ── Slide 1: Cover ── -->
+  <div class="slide s1">
+    <div class="slide-num">01 / 13</div>
+    <div class="eyebrow">Verdikt · 2026</div>
+    <h1>Release intelligence<br/><em>for AI teams that ship fast.</em></h1>
+    <p class="tagline">Deterministic certification + confidence-backed recommendation + post-deploy alignment. Verdikt turns release decisions into a closed-loop system.</p>
+    <div class="for-row">
+      <span class="for-pill">AI PRODUCT TEAM</span>
+      <span class="for-pill">HEAD OF AI / ML</span>
+      <span class="for-pill">CTO · FOUNDER</span>
+    </div>
+  </div>
+
+  <!-- ── Slide 2: The Question ── -->
+  <div class="slide">
+    <div class="slide-num">02 / 13</div>
+    <div class="eyebrow">The question that changes the conversation</div>
+    <div class="pullquote">"If a release degraded in production tomorrow, could you show what risk was flagged before shipping, what the quality scores were, who signed off, and why?"</div>
+    <p class="pullquote-note">If the answer is no, that is the pitch. Not Verdikt. That question.</p>
+  </div>
+
+  <!-- ── Slide 3: The Gap ── -->
+  <div class="slide">
+    <div class="slide-num">03 / 13</div>
+    <div class="eyebrow">The gap</div>
+    <h2>The eval tooling exists.<br/><em>The intelligence loop doesn't.</em></h2>
+    <p class="lead" style="margin-top:16px">AI product teams already run Braintrust, LangSmith, hallucination checks, and latency monitoring. <strong>The signals exist.</strong> What is missing is the layer that decides, explains confidence, and validates prediction versus production reality.</p>
+
+    <div class="three-col" style="margin-top:36px">
+      <div class="col-card">
+        <div class="col-label">What you have</div>
+        <div class="col-title">Eval scores</div>
+        <div class="col-body">Braintrust, LangSmith, and APM tell you the numbers. None of them issue a verdict or make anyone accountable for the decision to ship.</div>
+      </div>
+      <div class="col-card">
+        <div class="col-label">What's missing</div>
+        <div class="col-title">A release intelligence layer</div>
+        <div class="col-body">No confidence-backed recommendation, no alignment tracking, and no calibrated learning from misses or over-blocks.</div>
+      </div>
+      <div class="col-card">
+        <div class="col-label">The consequence</div>
+        <div class="col-title">Decision quality gap</div>
+        <div class="col-body">Overrides are informal, predictions are not validated post-deploy, and the system cannot improve confidence over time. That is the gap Verdikt closes.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slide 4: The Cost ── -->
+  <div class="slide">
+    <div class="slide-num">04 / 13</div>
+    <div class="eyebrow">The cost of not having it</div>
+    <h2>This is already<br/><em>in your AI incident history.</em></h2>
+
+    <div class="cost-rows">
+      <div class="cost-row">
+        <div class="cost-row-situation">A model update ships without an eval gate. Quality drops. Nobody sees it until users complain — three releases later.</div>
+        <div class="cost-row-consequence">SILENT AI REGRESSION — weeks of user-facing degradation before detection, no record of who approved it</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-row-situation">An AI feature degrades in production. Engineers reconstruct eval scores, model version, and who approved the release from Slack and eval logs.</div>
+        <div class="cost-row-consequence">HOURS OF SENIOR ENG TIME — per incident, every incident, permanently avoidable with a 30-second lookup</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-row-situation">An eval threshold fails. The release is time-sensitive. Someone says "let's ship." No name on the decision. No written justification. No record it happened.</div>
+        <div class="cost-row-consequence">INFORMAL AI OVERRIDE — risk accepted without accountability, nothing documented</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-row-situation">An enterprise customer or investor asks what your release quality governance looks like. The honest answer is: informal eval runs and gut feel.</div>
+        <div class="cost-row-consequence">NO DEFENSIBLE RECORD — a critical blocker in serious procurement and Series B+ fundraising conversations</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slide 5: The Solution ── -->
+  <div class="slide">
+    <div class="slide-num">05 / 13</div>
+    <div class="eyebrow">The solution</div>
+    <h2>A closed-loop system for every<br/><em>AI release decision.</em></h2>
+
+    <div class="four-col">
+      <div class="col-card">
+        <div class="col-label">01 — Decide</div>
+        <div class="col-title">Verdict against your thresholds</div>
+        <div class="col-body">You set the quality standard. Verdikt evaluates every AI signal against it and issues an unambiguous verdict.</div>
+      </div>
+      <div class="col-card">
+        <div class="col-label">02 — Explain</div>
+        <div class="col-title">Confidence + reasoning</div>
+        <div class="col-body">Verdikt returns a confidence score, risk band, and structured reasoning, with action recommendations for rollout decisions.</div>
+      </div>
+      <div class="col-card">
+        <div class="col-label">03 — Validate</div>
+        <div class="col-title">Production alignment</div>
+        <div class="col-body">Post-deploy outcomes are inferred from VCS activity (reverts, hotfixes, incident PRs) and compared to pre-release prediction.</div>
+      </div>
+      <div class="col-card">
+        <div class="col-label">04 — Learn</div>
+        <div class="col-title">Calibration over time</div>
+        <div class="col-body">MISS and OVER_BLOCK patterns adjust future confidence and drive threshold suggestions. The system gets more accurate release by release.</div>
+      </div>
+    </div>
+
+    <div class="verdict-row" style="margin-top:28px">
+      <div class="verdict-badge" style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2)">
+        <div class="v-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+        <div class="v-label" style="color:var(--green)">CERTIFIED</div>
+        <div class="v-desc">All signals met threshold. Release is cleared to ship.</div>
+      </div>
+      <div class="verdict-badge" style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2)">
+        <div class="v-dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></div>
+        <div class="v-label" style="color:var(--red)">UNCERTIFIED</div>
+        <div class="v-desc">One or more signals below threshold. Override required to proceed.</div>
+      </div>
+      <div class="verdict-badge" style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2)">
+        <div class="v-dot" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></div>
+        <div class="v-label" style="color:var(--amber)">CERTIFIED WITH OVERRIDE</div>
+        <div class="v-desc">Shipped below threshold. Named owner. Written justification. On record.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slide 6: The Moat ── -->
+  <div class="slide">
+    <div class="slide-num">06 / 13</div>
+    <div class="eyebrow">Override accountability</div>
+    <h2>The approver can be human or policy.<br/><em>The record is always there.</em></h2>
+
+    <div class="moat-points">
+      <div class="moat-point">
+        <div class="moat-bullet"></div>
+        <div class="moat-text"><strong>Named owner.</strong> Every below-threshold ship requires a named individual with title. Risk is owned by a person, not absorbed anonymously by the team.</div>
+      </div>
+      <div class="moat-point">
+        <div class="moat-bullet"></div>
+        <div class="moat-text"><strong>Mandatory written justification.</strong> Scope of impact. Committed mitigations. Documented rationale — entered at the moment of decision, not reconstructed later.</div>
+      </div>
+      <div class="moat-point">
+        <div class="moat-bullet"></div>
+        <div class="moat-text"><strong>Configurable override authority.</strong> You decide who can override — Tech Lead, Release Manager, QE Lead, VP Engineering, CTO. Configure approval authority to match your org. QE defines the standard; they are not the bottleneck.</div>
+      </div>
+      <div class="moat-point">
+        <div class="moat-bullet"></div>
+        <div class="moat-text"><strong>Permanent, non-editable audit record.</strong> What was written at the moment of override remains on record. Changes are append-only and tamper-evident.</div>
+      </div>
+      <div class="moat-point">
+        <div class="moat-bullet"></div>
+        <div class="moat-text"><strong>Release-ready accountability model.</strong> Model, prompt, and configuration changes move quickly, where ownership can blur. Verdikt records the approver as a named person or role with explicit justification.</div>
+      </div>
+    </div>
+
+    <div class="moat-closer">Once an organisation requires named override accountability, they do not remove it. Removing it means publicly choosing to remove accountability.</div>
+  </div>
+
+  <!-- ── Slide 7: Day in the Life ── -->
+  <div class="slide">
+    <div class="slide-num">07 / 13</div>
+    <div class="eyebrow">A release with Verdikt</div>
+    <h2>The same release process.<br/><em>With intelligence that closes the loop.</em></h2>
+
+    <div style="margin-top:28px;display:flex;flex-direction:column;gap:0">
+
+      <div style="display:flex;gap:0;align-items:stretch">
+        <div style="display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(107,114,128,0.1);border:1px solid rgba(107,114,128,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--mid);flex-shrink:0">⊞</div>
+          <div style="width:1px;flex:1;background:var(--border);margin:4px 0"></div>
+        </div>
+        <div style="padding:0 0 22px 18px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span style="font-family:var(--mono);font-size:9px;color:var(--mid);letter-spacing:0.12em">01</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text)">CI completes</span>
+          </div>
+          <div style="font-size:13px;color:var(--mid);font-weight:300;line-height:1.55">Your existing pipeline runs as normal. Tests, builds, and checks continue unchanged.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0;align-items:stretch">
+        <div style="display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--cyan);flex-shrink:0">◎</div>
+          <div style="width:1px;flex:1;background:var(--border);margin:4px 0"></div>
+        </div>
+        <div style="padding:0 0 22px 18px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span style="font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:0.12em">02</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text)">Signals aggregated</span>
+          </div>
+          <div style="font-size:13px;color:var(--mid);font-weight:300;line-height:1.55">Verdikt pulls quality data from connected sources — Braintrust, LangSmith, Datadog, and Sentry. Eval signals are treated as first-class release inputs.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0;align-items:stretch">
+        <div style="display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--accentL);flex-shrink:0">⊹</div>
+          <div style="width:1px;flex:1;background:var(--border);margin:4px 0"></div>
+        </div>
+        <div style="padding:0 0 22px 18px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span style="font-family:var(--mono);font-size:9px;color:var(--accentL);letter-spacing:0.12em">03</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text)">Thresholds evaluated</span>
+          </div>
+          <div style="font-size:13px;color:var(--mid);font-weight:300;line-height:1.55">Each signal is evaluated against your defined thresholds across four categories.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0;align-items:stretch">
+        <div style="display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--green);flex-shrink:0">◈</div>
+          <div style="width:1px;flex:1;background:var(--border);margin:4px 0"></div>
+        </div>
+        <div style="padding:0 0 22px 18px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:0.12em">04</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text)">Verdict + recommendation issued</span>
+          </div>
+          <div style="font-size:13px;color:var(--mid);font-weight:300;line-height:1.55">Deterministic status plus confidence score, structured reasoning, and recommended rollout action. Unambiguous, attributable, and timestamped.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0;align-items:stretch">
+        <div style="display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--amber);flex-shrink:0">◐</div>
+        </div>
+        <div style="padding:0 0 0 18px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span style="font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:0.12em">05</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text)">Production alignment computed</span>
+          </div>
+          <div style="font-size:13px;color:var(--mid);font-weight:300;line-height:1.55">After deploy, Verdikt infers production health from VCS signals and classifies CORRECT, MISS, or OVER_BLOCK. Confidence is recalibrated for future releases.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="lead" style="font-size:13px;margin-top:4px">No process disruption. No tooling replacement. This is not another dashboard; it is a release intelligence system attached to your existing flow.</p>
+  </div>
+
+  <!-- ── Slide 8: What It Replaces ── -->
+  <div class="slide">
+    <div class="slide-num">08 / 13</div>
+    <div class="eyebrow">Positioning</div>
+    <h2>Sits above your stack.<br/><em>Replaces nothing. Connects everything.</em></h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px">
+      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);border-radius:12px;padding:24px 22px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--red);letter-spacing:0.16em;margin-bottom:16px">VERDIKT DOES NOT</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--dim);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✕</span><span style="font-size:13px;color:var(--mid);font-weight:300">Replace CI or your build pipeline</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--dim);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✕</span><span style="font-size:13px;color:var(--mid);font-weight:300">Replace observability (Datadog, Sentry)</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--dim);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✕</span><span style="font-size:13px;color:var(--mid);font-weight:300">Replace test tooling (BrowserStack, Braintrust)</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--dim);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✕</span><span style="font-size:13px;color:var(--mid);font-weight:300">Replace release management or deployment</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--dim);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✕</span><span style="font-size:13px;color:var(--mid);font-weight:300">Add new testing or eval steps</span></div>
+        </div>
+      </div>
+      <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);border-radius:12px;padding:24px 22px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:0.16em;margin-bottom:16px">VERDIKT DOES</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--green);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✓</span><span style="font-size:13px;color:var(--text);font-weight:400">Issue deterministic certification for each release from your existing signals</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--green);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✓</span><span style="font-size:13px;color:var(--text);font-weight:400">Generate confidence-backed recommendations with structured reasoning and actions</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--green);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✓</span><span style="font-size:13px;color:var(--text);font-weight:400">Infer post-deploy outcomes via VCS and compute CORRECT / MISS / OVER_BLOCK</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--green);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px">✓</span><span style="font-size:13px;color:var(--text);font-weight:400">Track loop-readiness and tune thresholds with historical simulation and learning signals</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slide 9: Implementation ── -->
+  <div class="slide">
+    <div class="slide-num">09 / 13</div>
+    <div class="eyebrow">Getting started</div>
+    <h2>Setup in 30 minutes.<br/><em>No process disruption.</em></h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:28px">
+      <div style="background:var(--raise);border:1px solid var(--border);border-radius:10px;padding:20px 18px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:0.14em;margin-bottom:10px">Step 1</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Define thresholds</div>
+        <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.6">Your QE Lead sets quality baselines per signal category. Defaults provided — adjust to match your current standards.</div>
+      </div>
+      <div style="background:var(--raise);border:1px solid var(--border);border-radius:10px;padding:20px 18px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--accentL);letter-spacing:0.14em;margin-bottom:10px">Step 2</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Connect signals + idempotency</div>
+        <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.6">Integrate existing tools and CI ingest with idempotency keys so retries never corrupt verdict state.</div>
+      </div>
+      <div style="background:var(--raise);border:1px solid var(--border);border-radius:10px;padding:20px 18px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:0.14em;margin-bottom:10px">Step 3</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Shadow mode + simulation</div>
+        <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.6">Run parallel certification and simulate threshold changes against release history before enforcing gates.</div>
+      </div>
+      <div style="background:var(--raise);border:1px solid var(--border);border-radius:10px;padding:20px 18px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:0.14em;margin-bottom:10px">Step 4</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Certification live + loop monitor</div>
+        <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.6">Gate enabled, recommendations active, VCS monitoring windows open, and loop-readiness tracked in the intelligence hub.</div>
+      </div>
+    </div>
+
+    <p class="lead" style="font-size:13px;margin-top:24px">Who configures it: <strong>AI Product Lead or Head of QE</strong> owns threshold setup. Minimal engineering lift for onboarding. No release pipeline redesign required.</p>
+  </div>
+
+  <!-- ── Slide 10: Why Now ── -->
+  <div class="slide">
+    <div class="slide-num">10 / 13</div>
+    <div class="eyebrow">Why now</div>
+    <h2>Four pressures that are<br/><em>already in your roadmap.</em></h2>
+
+    <div class="reasons">
+      <div class="reason">
+        <div class="reason-icon">◐</div>
+        <div>
+          <div class="reason-title">Release velocity is accelerating</div>
+          <div class="reason-body">Model updates and prompt changes now ship multiple times a week. Without a formal decision layer, quality regressions reach users before anyone notices — and nobody clearly owns the risk.</div>
+        </div>
+      </div>
+      <div class="reason">
+        <div class="reason-icon">⊞</div>
+        <div>
+          <div class="reason-title">Quality fails silently</div>
+          <div class="reason-body">A model regression rarely throws an exception or fails CI. It degrades user experience quietly across sessions until someone notices later.</div>
+        </div>
+      </div>
+      <div class="reason">
+        <div class="reason-icon">◈</div>
+        <div>
+          <div class="reason-title">AI accountability is increasingly ambiguous</div>
+          <div class="reason-body">In AI teams, "who approved this change" becomes murky as delivery speeds up. Traditional named-human approval often breaks down. Accountability is the unresolved gap.</div>
+        </div>
+      </div>
+      <div class="reason">
+        <div class="reason-icon">⊹</div>
+        <div>
+          <div class="reason-title">Enterprise AI scrutiny is increasing</div>
+          <div class="reason-body">Enterprise customers and Series B+ investors now ask how you govern release quality. "We have eval runs and code review" is not a defensible answer. Governance evidence is increasingly expected in security, diligence, and procurement conversations.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slide 11: Who It's For ── -->
+  <div class="slide">
+    <div class="slide-num">11 / 13</div>
+    <div class="eyebrow">Who it's for</div>
+    <h2>Built for the people<br/><em>accountable for release quality.</em></h2>
+
+    <div class="persona-grid">
+      <div class="persona-card" style="border-color:rgba(6,182,212,0.2)">
+        <div class="persona-role" style="color:var(--cyan)">QE LEADER — CHAMPION / OPERATIONAL OWNER</div>
+        <div class="persona-title">QE Leader</div>
+        <div class="persona-before">AI features ship fast and often. When quality degrades, your team is pulled into incidents, while the decision record is scattered across tools and chat.</div>
+        <div class="persona-after">Defines release standards and enforces one certifiable process. Every below-threshold ship has named ownership on record, so silent regressions stop being invisible.</div>
+      </div>
+      <div class="persona-card" style="border-color:rgba(167,139,250,0.2)">
+        <div class="persona-role" style="color:var(--accentL)">VP ENGINEERING — ECONOMIC BUYER</div>
+        <div class="persona-title">VP Engineering</div>
+        <div class="persona-before">Accountable for what ships, but the quality bar often lives in someone's head, not in a system. When a model update breaks production, reconstruction is slow and brittle.</div>
+        <div class="persona-after">Gets a documented quality record for every release. Incident reconstruction starts with facts: eval scores, threshold state, who accepted risk, and why.</div>
+      </div>
+      <div class="persona-card" style="border-color:rgba(236,72,153,0.2)">
+        <div class="persona-role" style="color:var(--pink)">CTO · FOUNDER — STRATEGIC CHAMPION</div>
+        <div class="persona-title">CTO / Founder</div>
+        <div class="persona-before">Enterprise customers ask about AI governance. Investors ask how you certify model quality. Informal eval runs and gut feel are no longer enough.</div>
+        <div class="persona-after">Every release is certified against defined thresholds. Every override is accountable and on record. A defensible quality process becomes a commercial advantage.</div>
+      </div>
+    </div>
+
+    <p class="lead" style="margin-top:24px;font-size:14px"><strong>Entry point:</strong> One AI product. One release cycle. The AI Product Lead or Head of QE owns setup. Setup takes 30 minutes.</p>
+  </div>
+
+  <!-- ── Slide 12: Who Else Feels the Cost ── -->
+  <div class="slide">
+    <div class="slide-num">12 / 13</div>
+    <div class="eyebrow">Confidence compounding</div>
+    <h2>Engineering decides.<br/><em>The whole organisation gains confidence.</em></h2>
+
+    <div class="pullquote" style="font-size:20px;margin-top:24px;margin-bottom:28px">"When releases are unstable, customer-facing teams absorb the impact first. By the time we hear about it, trust is already damaged."</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:var(--raise);border:1px solid var(--border);border-radius:10px;padding:20px 22px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--mid);letter-spacing:0.14em;margin-bottom:14px">WHERE RELEASE RISK SHOWS UP</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
+            <span style="font-size:14px;color:var(--text);font-weight:500">Customer Success</span>
+            <span style="font-size:12px;color:var(--mid);font-weight:300">— explains instability to clients</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
+            <span style="font-size:14px;color:var(--text);font-weight:500">Implementation</span>
+            <span style="font-size:12px;color:var(--mid);font-weight:300">— manages fallout during onboarding</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
+            <span style="font-size:14px;color:var(--text);font-weight:500">Support</span>
+            <span style="font-size:12px;color:var(--mid);font-weight:300">— handles user reports before eng knows</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
+            <span style="font-size:14px;color:var(--text);font-weight:500">Sales</span>
+            <span style="font-size:12px;color:var(--mid);font-weight:300">— defends product quality in deals</span>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;color:var(--dim);font-weight:300">They are not release decision-makers, but they feel bad releases first.</div>
+      </div>
+
+      <div style="background:rgba(167,139,250,0.05);border:1px solid rgba(167,139,250,0.15);border-radius:10px;padding:20px 22px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--accentL);letter-spacing:0.14em;margin-bottom:14px">HOW CONFIDENCE COMPOUNDS</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <div style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:3px">A defensible answer</div>
+            <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.55">"This release was certified against agreed quality standards before it shipped."</div>
+          </div>
+          <div>
+            <div style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:3px">A documented record</div>
+            <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.55">Who approved it, what the quality state was, and what the justification was — immediately accessible.</div>
+          </div>
+          <div>
+            <div style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:3px">Institutional confidence</div>
+            <div style="font-size:12px;color:var(--mid);font-weight:300;line-height:1.55">Trust in releases stops being blind faith. It becomes evidence-backed.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slide 13: Ask ── -->
+  <div class="slide">
+    <div class="slide-num">13 / 13</div>
+    <div class="eyebrow">The ask</div>
+    <h2>One project.<br/><em>One release cycle. One closed loop.</em></h2>
+    <p class="lead" style="margin-top:12px;max-width:580px">Run Verdikt on one project for one release cycle. At the end, you will have deterministic certification, confidence-backed recommendations, production alignment, and a measurable loop-readiness baseline.</p>
+
+    <div style="margin-top:36px;display:flex;flex-direction:column;gap:10px;max-width:520px">
+      <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--border)">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--accentL);letter-spacing:0.12em;width:120px;flex-shrink:0;margin-top:3px">WHAT WE NEED</div>
+        <div style="font-size:14px;color:var(--text);font-weight:300">Access to your QE Lead and one project to run alongside your existing release process.</div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--border)">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--accentL);letter-spacing:0.12em;width:120px;flex-shrink:0;margin-top:3px">WHAT YOU GET</div>
+        <div style="font-size:14px;color:var(--text);font-weight:300">A live release intelligence loop: certification, recommendation confidence, production alignment, and calibration data for better future decisions.</div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--accentL);letter-spacing:0.12em;width:120px;flex-shrink:0;margin-top:3px">WHAT DOESN'T CHANGE</div>
+        <div style="font-size:14px;color:var(--text);font-weight:300">Your pipeline. Your tooling. Your release cadence. Nothing is replaced. Verdikt sits above it.</div>
+      </div>
+    </div>
+
+    <p style="margin-top:32px;font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.1em">useverdikt.com · hello@useverdikt.com</p>
+  </div>
+
+</div>
+
+<div class="deck-footer">VERDIKT · BUYER DECK v11 · CONFIDENTIAL</div>
+
+</body>
+</html>

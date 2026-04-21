@@ -1,0 +1,41 @@
+{
+  "name": "verdikt-backend",
+  "version": "0.1.0",
+  "description": "Verdikt MVP backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node --test test/backend.test.js",
+    "test:local-pg": "bash scripts/test-local-pg.sh",
+    "lint": "eslint \"src/**/*.js\"",
+    "lint:fix": "eslint \"src/**/*.js\" --fix",
+    "db:backup": "node scripts/backup-db.js",
+    "seed:demos": "node scripts/seed-demo-users.js",
+    "seed:demos:supabase": "node scripts/ensure-demo-supabase-auth.js",
+    "provision:user": "node scripts/provision-user.js",
+    "test:e2e": "bash scripts/test-e2e.sh",
+    "test:e2e:live": "start-server-and-test start http://127.0.0.1:8787/health test:e2e",
+    "seed:synth": "bash scripts/synth-seed.sh",
+    "seed:e2e": "bash scripts/synth-e2e-seed.sh",
+    "seed:demo:full": "bash scripts/seed-ws-demo-scenarios.sh"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.10.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.2",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "globals": "^17.5.0",
+    "start-server-and-test": "^2.0.8",
+    "supertest": "^7.1.4"
+  }
+}

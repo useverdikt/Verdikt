@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Verdikt — Public Certification Record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fafafa;--surface:#ffffff;--raise:#f4f5f7;
+  --border:#e5e7eb;--borderD:#d1d5db;
+  --text:#0f1117;--mid:#6b7280;--dim:#9ca3af;--dimmer:#d1d5db;
+  --accent:#7c3aed;--accentL:#8b5cf6;
+  --green:#059669;--greenBg:#f0fdf4;--greenBorder:#bbf7d0;
+  --red:#dc2626;--redBg:#fef2f2;--redBorder:#fecaca;
+  --amber:#d97706;--amberBg:#fffbeb;--amberBorder:#fde68a;
+  --mono:'DM Mono',monospace;--serif:'DM Serif Display',serif;--sans:'DM Sans',sans-serif;
+}
+
+/* ── Dark demo controls (outside the record) ── */
+body{background:#0a0b0e;font-family:var(--sans);min-height:100vh}
+::selection{background:var(--accent);color:#fff}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2a2f45;border-radius:2px}
+
+/* ── Demo chrome ── */
+.demo-chrome{
+  padding:28px 32px 0;
+  display:flex;align-items:center;justify-content:space-between;
+  max-width:900px;margin:0 auto;
+}
+.demo-label{font-family:var(--mono);font-size:10px;color:#475569;letter-spacing:0.15em;text-transform:uppercase}
+.demo-states{display:flex;gap:8px}
+.demo-state-btn{
+  font-family:var(--mono);font-size:11px;
+  padding:6px 14px;border-radius:6px;
+  border:1px solid #1c2030;background:transparent;
+  cursor:pointer;transition:all 0.15s;letter-spacing:0.05em;
+  color:#475569;
+}
+.demo-state-btn:hover{border-color:#252b3a;color:#94a3b8}
+.demo-state-btn.active-certified{border-color:rgba(5,150,105,0.4);background:rgba(5,150,105,0.08);color:#34d399}
+.demo-state-btn.active-uncertified{border-color:rgba(220,38,38,0.4);background:rgba(220,38,38,0.08);color:#f87171}
+.demo-state-btn.active-override{border-color:rgba(217,119,6,0.4);background:rgba(217,119,6,0.08);color:#fbbf24}
+
+/* ── Record page wrapper ── */
+.record-page{
+  max-width:900px;margin:20px auto 40px;
+  background:var(--surface);
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 32px 80px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.04);
+}
+
+/* ── Record header ── */
+.rec-header{
+  padding:20px 40px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);
+}
+.rec-header-left{display:flex;align-items:center;gap:12px}
+.verdikt-mark{
+  display:flex;align-items:center;gap:8px;
+}
+.verdikt-mark-svg{line-height:0;display:flex;align-items:center}
+.verdikt-mark-svg svg{display:block;flex-shrink:0}
+.verdikt-mark-name{font-family:var(--serif);font-size:16px;color:var(--text);letter-spacing:-0.02em}
+.rec-header-divider{width:1px;height:18px;background:var(--border)}
+.rec-header-type{font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.1em;text-transform:uppercase}
+.rec-header-url{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:0.03em}
+
+/* ── Stamp hero ── */
+.rec-hero{
+  padding:56px 40px 48px;
+  position:relative;overflow:hidden;
+}
+.rec-hero-bg-certified{background:linear-gradient(135deg,#f0fdf4 0%,#ffffff 60%)}
+.rec-hero-bg-uncertified{background:linear-gradient(135deg,#fef2f2 0%,#ffffff 60%)}
+.rec-hero-bg-override{background:linear-gradient(135deg,#fffbeb 0%,#ffffff 60%)}
+
+.rec-hero-inner{
+  display:grid;grid-template-columns:1fr auto;
+  gap:40px;align-items:center;
+}
+.rec-meta{margin-bottom:8px}
+.rec-meta-project{
+  font-family:var(--mono);font-size:11px;
+  color:var(--mid);letter-spacing:0.12em;
+  text-transform:uppercase;margin-bottom:8px;
+}
+.rec-version{
+  font-family:var(--serif);
+  font-size:clamp(32px,4vw,52px);
+  color:var(--text);
+  line-height:1;letter-spacing:-0.03em;
+  margin-bottom:10px;
+}
+.rec-info-row{
+  display:flex;align-items:center;gap:16px;
+  flex-wrap:wrap;margin-top:6px;
+}
+.rec-info-item{
+  font-family:var(--mono);font-size:11px;
+  color:var(--mid);display:flex;align-items:center;gap:5px;
+}
+.rec-info-item::before{content:"·";color:var(--dimmer);margin-right:2px}
+.rec-info-item:first-child::before{display:none}
+.rec-release-type{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--raise);border:1px solid var(--border);
+  border-radius:4px;padding:3px 9px;
+  font-family:var(--mono);font-size:11px;color:var(--mid);
+}
+
+/* ── The stamp ── */
+.stamp-wrap{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.stamp{
+  width:170px;height:170px;
+  border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  position:relative;
+  transform:rotate(-8deg);
+}
+.stamp-certified{
+  border:3px solid var(--green);
+  background:var(--greenBg);
+  box-shadow:0 0 0 6px rgba(5,150,105,0.06),inset 0 0 0 2px rgba(5,150,105,0.12);
+}
+.stamp-uncertified{
+  border:3px solid var(--red);
+  background:var(--redBg);
+  box-shadow:0 0 0 6px rgba(220,38,38,0.06),inset 0 0 0 2px rgba(220,38,38,0.12);
+}
+.stamp-override{
+  border:3px solid var(--amber);
+  background:var(--amberBg);
+  box-shadow:0 0 0 6px rgba(217,119,6,0.06),inset 0 0 0 2px rgba(217,119,6,0.12);
+}
+.stamp-icon{font-size:34px;margin-bottom:6px;line-height:1}
+.stamp-text{
+  font-family:var(--mono);font-size:11px;font-weight:500;
+  letter-spacing:0.12em;text-transform:uppercase;
+  text-align:center;line-height:1.4;padding:0 12px;
+}
+.stamp-certified .stamp-text{color:var(--green)}
+.stamp-uncertified .stamp-text{color:var(--red)}
+.stamp-override .stamp-text{color:var(--amber)}
+.stamp-date{
+  margin-top:8px;font-family:var(--mono);font-size:9px;
+  color:var(--dim);letter-spacing:0.08em;
+}
+
+/* ── Failing signals callout ── */
+.failing-callout{
+  margin:0 40px;
+  background:var(--redBg);border:1px solid var(--redBorder);
+  border-radius:10px;padding:16px 20px;margin-bottom:0;
+}
+.failing-callout-title{
+  font-family:var(--mono);font-size:10px;color:var(--red);
+  font-weight:600;letter-spacing:0.12em;margin-bottom:10px;
+}
+.failing-list{display:flex;flex-direction:column;gap:6px}
+.failing-row{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:13px;
+}
+.failing-sig{color:var(--text);font-weight:500}
+.failing-val{font-family:var(--mono);font-size:12px;color:var(--red)}
+.failing-thresh{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:6px}
+
+/* ── Override record ── */
+.override-record{
+  margin:24px 40px 0;
+  background:var(--amberBg);border:1px solid var(--amberBorder);
+  border-radius:10px;padding:20px 24px;
+}
+.override-record-title{
+  font-family:var(--mono);font-size:10px;color:var(--amber);
+  font-weight:600;letter-spacing:0.12em;margin-bottom:14px;
+}
+.override-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px}
+.override-field-label{font-family:var(--mono);font-size:10px;color:var(--mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px}
+.override-field-value{font-size:13px;color:var(--text);line-height:1.5}
+.override-justification{
+  border-top:1px solid var(--amberBorder);
+  padding-top:14px;margin-top:2px;
+}
+.override-just-text{
+  font-size:13px;color:var(--mid);line-height:1.7;
+  font-style:italic;
+}
+.override-immutable{
+  margin-top:10px;
+  font-family:var(--mono);font-size:10px;color:var(--dim);
+  display:flex;align-items:center;gap:5px;
+}
+
+/* ── Signal grid ── */
+.sig-section{padding:32px 40px}
+.sig-section-title{
+  font-family:var(--mono);font-size:10px;color:var(--mid);
+  letter-spacing:0.14em;text-transform:uppercase;
+  margin-bottom:20px;padding-bottom:12px;
+  border-bottom:1px solid var(--border);
+}
+.sig-cats{display:flex;flex-direction:column;gap:10px}
+.sig-cat{
+  background:var(--raise);border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;
+}
+.sig-cat-header{
+  padding:12px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sig-cat-left{display:flex;align-items:center;gap:8px}
+.sig-cat-icon{font-size:13px}
+.sig-cat-name{font-size:13px;font-weight:600;color:var(--text)}
+.sig-cat-status{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:0.08em;display:flex;align-items:center;gap:5px;
+}
+.sig-rows{display:grid;grid-template-columns:1fr 1fr}
+.sig-row{
+  padding:10px 18px;
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;
+}
+.sig-row:nth-child(even){border-right:none}
+.sig-row:nth-last-child(-n+2){border-bottom:none}
+.sig-row-single{
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.sig-row-single:last-child{border-bottom:none}
+.sig-name{font-size:12px;color:var(--mid)}
+.sig-val{
+  font-family:var(--mono);font-size:12px;font-weight:500;
+  display:flex;align-items:center;gap:5px;flex-shrink:0;
+}
+.sig-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dot-pass{background:var(--green)}
+.dot-fail{background:var(--red)}
+.dot-waived{background:var(--amber)}
+.sig-thresh{font-size:10px;color:var(--dim);font-family:var(--mono);margin-left:3px}
+
+/* ── Record footer ── */
+.rec-footer{
+  padding:20px 40px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--raise);
+}
+.rec-footer-immutable{
+  font-family:var(--mono);font-size:11px;
+  color:var(--dim);display:flex;align-items:center;gap:6px;
+}
+.rec-footer-link{
+  font-family:var(--mono);font-size:11px;
+  color:var(--accent);text-decoration:none;
+  letter-spacing:0.04em;
+}
+.rec-footer-link:hover{text-decoration:underline}
+
+/* ── Badge section ── */
+.badge-section{
+  max-width:900px;margin:0 auto 40px;
+  padding:32px 0;
+}
+.badge-section-title{
+  font-family:var(--mono);font-size:10px;color:#475569;
+  letter-spacing:0.15em;text-transform:uppercase;
+  margin-bottom:24px;padding:0 8px;
+}
+.badge-demos{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:28px;padding:0 8px}
+.badge-group{display:flex;flex-direction:column;gap:8px}
+.badge-group-label{font-family:var(--mono);font-size:9px;color:#334155;letter-spacing:0.1em;text-transform:uppercase}
+
+/* ── SVG Badges ── */
+.badge-svg-wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+
+/* ── Embed snippet ── */
+.embed-block{
+  background:#0e1016;border:1px solid #1c2030;
+  border-radius:10px;overflow:hidden;margin:0 8px;
+}
+.embed-block-header{
+  padding:10px 16px;border-bottom:1px solid #1c2030;
+  font-family:var(--mono);font-size:11px;color:#475569;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.embed-copy{
+  font-family:var(--mono);font-size:11px;color:#a78bfa;
+  background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);
+  border-radius:4px;padding:3px 10px;cursor:pointer;transition:all 0.15s;
+}
+.embed-copy:hover{background:rgba(124,58,237,0.18)}
+.embed-code{padding:16px;font-family:var(--mono);font-size:12px;color:#7dd3fc;line-height:1.7;overflow-x:auto}
+.embed-code .str{color:#86efac}.embed-code .attr{color:#c084fc}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.record-page{animation:fadeUp 0.35s ease}
+
+@media (max-width: 900px){
+  .demo-chrome{padding:16px 12px 0;flex-direction:column;align-items:flex-start;gap:10px}
+  .demo-states{flex-wrap:wrap}
+  .record-page{margin:12px 8px 24px;border-radius:12px}
+  .rec-header{padding:14px 12px;flex-direction:column;align-items:flex-start;gap:10px}
+  .rec-header-divider{display:none}
+  .rec-hero{padding:28px 12px}
+  .rec-hero-inner{grid-template-columns:1fr;gap:14px}
+  .stamp{width:132px;height:132px}
+  .failing-callout{margin:0 12px}
+  .override-record{margin:18px 12px 0;padding:14px}
+  .override-fields{grid-template-columns:1fr;gap:12px}
+  .sig-section{padding:18px 12px}
+  .sig-rows{grid-template-columns:1fr}
+  .sig-row{border-right:none}
+  .sig-row:nth-last-child(-n+2){border-bottom:1px solid var(--border)}
+  .rec-footer{padding:14px 12px;flex-direction:column;align-items:flex-start;gap:10px}
+}
+
+@media print {
+  body { background: #fff !important; }
+  .demo-chrome { display: none !important; }
+  .badge-section { display: none !important; }
+  .no-print { display: none !important; }
+  .record-page { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
+  .rec-hero { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .stamp { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sig-pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sig-cat-hd { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .failing-row { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .override-block { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sig-section { break-inside: avoid; }
+  .rec-footer { border-top: 1px solid #e5e7eb; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Demo controls ── -->
+<div class="demo-chrome">
+  <div class="demo-label">Demo — three certification states</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="demo-states">
+      <button class="demo-state-btn active-certified" id="btn-certified" onclick="setDemo('certified')">CERTIFIED</button>
+      <button class="demo-state-btn" id="btn-uncertified" onclick="setDemo('uncertified')">UNCERTIFIED</button>
+      <button class="demo-state-btn" id="btn-override" onclick="setDemo('override')">CERTIFIED WITH OVERRIDE</button>
+    </div>
+    <button onclick="downloadPDF()" style="font-family:'DM Mono',monospace;font-size:11px;padding:6px 16px;border-radius:6px;border:1px solid rgba(124,58,237,0.45);background:rgba(124,58,237,0.12);color:#a78bfa;cursor:pointer;letter-spacing:0.05em;transition:all 0.15s">⬇ Download PDF</button>
+  </div>
+</div>
+
+<!-- ── Record page ── -->
+<div class="record-page" id="record-page"></div>
+
+<!-- ── Badge section ── -->
+<div class="badge-section">
+  <div class="badge-section-title">Embeddable badges — drop into any PR, doc, or release note</div>
+  <div class="badge-demos">
+    <div class="badge-group">
+      <div class="badge-group-label">SVG badges</div>
+      <div class="badge-svg-wrap" id="badge-svg-wrap">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+  </div>
+  <div class="embed-block">
+    <div class="embed-block-header">
+      <span>Embed snippet — Markdown / HTML</span>
+      <button class="embed-copy" onclick="copyEmbed()">Copy</button>
+    </div>
+    <div class="embed-code" id="embed-code"></div>
+  </div>
+</div>
+
+<script>
+// ── Demo data ──────────────────────────────────────────────────────────────
+const DEMOS = {
+  certified: {
+    state: 'certified',
+    version: 'v2.14.0',
+    project: 'Verdikt · Discover AI',
+    env: 'UAT',
+    releaseType: '✦ Prompt / UX Update',
+    certifiedBy: 'Jordan Blake, AI Product Lead',
+    date: '2026-02-28',
+    time: '09:14 UTC',
+    failing: [],
+    override: null,
+    waiver: { reason: null },
+    signals: {
+      tests: [
+        { name: 'Smoke tests', status: 'pass', val: 'PASS', thresh: 'PASS required', hg: true },
+        { name: 'E2E regression', status: 'pass', val: 'PASS', thresh: 'PASS required' },
+      ],
+      performance: [
+        { name: 'Cold startup', status: 'pass', val: '2.4s', thresh: '≤3.0s' },
+        { name: 'Screen load', status: 'pass', val: '1.1s', thresh: '≤1.5s' },
+        { name: 'Frame rate', status: 'pass', val: '61fps', thresh: '≥58fps' },
+        { name: 'JS error rate', status: 'pass', val: '0.2%', thresh: '≤0.5%' },
+        { name: 'API p95', status: 'pass', val: '218ms', thresh: '≤300ms' },
+        { name: 'API p99', status: 'pass', val: '445ms', thresh: '≤600ms' },
+        { name: 'Error under load', status: 'pass', val: '0.4%', thresh: '≤1.0%' },
+        { name: 'Stress recovery', status: 'pass', val: '18s', thresh: '≤30s' },
+      ],
+      stability: [
+        { name: 'Crash rate', status: 'pass', val: '0.08%', thresh: '≤0.1%' },
+        { name: 'ANR rate', status: 'pass', val: '0.03%', thresh: '≤0.05%' },
+        { name: 'API error rate', status: 'pass', val: '0.6%', thresh: '≤1.0%' },
+        { name: 'OOM rate', status: 'pass', val: '0.1%', thresh: '≤0.2%' },
+      ],
+      ai: [
+        { name: 'Accuracy', status: 'pass', val: '91%', thresh: '≥85%' },
+        { name: 'Safety', status: 'pass', val: '94%', thresh: '≥90%' },
+        { name: 'Tone', status: 'pass', val: '90%', thresh: '≥85%' },
+        { name: 'Hallucination', status: 'pass', val: '96%', thresh: '≥90%' },
+        { name: 'Relevance', status: 'pass', val: '85%', thresh: '≥82%' },
+      ],
+    },
+  },
+
+  uncertified: {
+    state: 'uncertified',
+    version: 'v2.10.0',
+    project: 'Verdikt · Discover AI',
+    env: 'UAT',
+    releaseType: '✦ Prompt / UX Update',
+    certifiedBy: null,
+    date: '2026-01-03',
+    time: '10:15 UTC',
+    failing: [
+      { cat: 'Delivery Reliability Checks', name: 'Smoke tests', val: 'FAIL', thresh: 'PASS required', hg: true },
+      { cat: 'Delivery Reliability Checks', name: 'E2E regression', val: 'FAIL', thresh: 'PASS required' },
+      { cat: 'Performance', name: 'Cold startup', val: '4.2s', thresh: '≤3.0s' },
+      { cat: 'Delivery Reliability', name: 'Crash rate', val: '0.18%', thresh: '≤0.1%' },
+      { cat: 'AI Eval', name: 'Accuracy', val: '71%', thresh: '≥85%' },
+    ],
+    override: null,
+    waiver: { reason: null },
+    signals: {
+      tests: [
+        { name: 'Smoke tests', status: 'fail', val: 'FAIL', thresh: 'PASS required', hg: true },
+        { name: 'E2E regression', status: 'fail', val: 'FAIL', thresh: 'PASS required' },
+      ],
+      performance: [
+        { name: 'Cold startup', status: 'fail', val: '4.2s', thresh: '≤3.0s' },
+        { name: 'Screen load', status: 'fail', val: '2.1s', thresh: '≤1.5s' },
+        { name: 'Frame rate', status: 'fail', val: '54fps', thresh: '≥58fps' },
+        { name: 'JS error rate', status: 'fail', val: '1.2%', thresh: '≤0.5%' },
+        { name: 'API p95', status: 'fail', val: '412ms', thresh: '≤300ms' },
+        { name: 'API p99', status: 'fail', val: '890ms', thresh: '≤600ms' },
+        { name: 'Error under load', status: 'fail', val: '2.4%', thresh: '≤1.0%' },
+        { name: 'Stress recovery', status: 'fail', val: '55s', thresh: '≤30s' },
+      ],
+      stability: [
+        { name: 'Crash rate', status: 'fail', val: '0.18%', thresh: '≤0.1%' },
+        { name: 'ANR rate', status: 'fail', val: '0.09%', thresh: '≤0.05%' },
+        { name: 'API error rate', status: 'fail', val: '2.1%', thresh: '≤1.0%' },
+        { name: 'OOM rate', status: 'fail', val: '0.4%', thresh: '≤0.2%' },
+      ],
+      ai: [
+        { name: 'Accuracy', status: 'fail', val: '71%', thresh: '≥85%' },
+        { name: 'Safety', status: 'pass', val: '89%', thresh: '≥90%' },
+        { name: 'Tone', status: 'pass', val: '85%', thresh: '≥85%' },
+        { name: 'Hallucination', status: 'pass', val: '91%', thresh: '≥90%' },
+        { name: 'Relevance', status: 'fail', val: '68%', thresh: '≥82%' },
+      ],
+    },
+  },
+
+  override: {
+    state: 'override',
+    version: 'v2.12.0',
+    project: 'Verdikt · Discover AI',
+    env: 'STAGING',
+    releaseType: '◐ Model / Prompt Update',
+    certifiedBy: 'Alex Baird, VP Engineering',
+    date: '2026-01-31',
+    time: '16:55 UTC',
+    failing: [
+      { cat: 'AI Eval', name: 'Accuracy', val: '79%', thresh: '≥85%' },
+      { cat: 'AI Eval', name: 'Relevance', val: '74%', thresh: '≥82%' },
+    ],
+    override: {
+      owner: 'Alex Baird',
+      title: 'VP Engineering',
+      reason: 'Accuracy regression isolated to edge case in legacy profile format. Affects <0.3% of users. Model patch scheduled within 48 hrs. Risk accepted at VP Engineering level.',
+      ts: '2026-01-31 16:55 UTC',
+    },
+    waiver: { reason: 'Model / Prompt Update — AI eval suite covers regression surface. E2E regression not warranted for prompt-only changes.', waivedBy: 'Alex Baird, VP Engineering' },
+    signals: {
+      tests: [
+        { name: 'Smoke tests', status: 'pass', val: 'PASS', thresh: 'PASS required', hg: true },
+        { name: 'E2E regression', status: 'waived', val: 'WAIVED', thresh: 'Waivable for this release type' },
+      ],
+      performance: [
+        { name: 'Cold startup', status: 'pass', val: '2.8s', thresh: '≤3.0s' },
+        { name: 'Screen load', status: 'pass', val: '1.4s', thresh: '≤1.5s' },
+        { name: 'Frame rate', status: 'pass', val: '59fps', thresh: '≥58fps' },
+        { name: 'JS error rate', status: 'pass', val: '0.4%', thresh: '≤0.5%' },
+        { name: 'API p95', status: 'pass', val: '267ms', thresh: '≤300ms' },
+        { name: 'API p99', status: 'pass', val: '512ms', thresh: '≤600ms' },
+        { name: 'Error under load', status: 'pass', val: '0.8%', thresh: '≤1.0%' },
+        { name: 'Stress recovery', status: 'pass', val: '26s', thresh: '≤30s' },
+      ],
+      stability: [
+        { name: 'Crash rate', status: 'pass', val: '0.11%', thresh: '≤0.1%' },
+        { name: 'ANR rate', status: 'pass', val: '0.04%', thresh: '≤0.05%' },
+        { name: 'API error rate', status: 'pass', val: '0.9%', thresh: '≤1.0%' },
+        { name: 'OOM rate', status: 'pass', val: '0.18%', thresh: '≤0.2%' },
+      ],
+      ai: [
+        { name: 'Accuracy', status: 'fail', val: '79%', thresh: '≥85%' },
+        { name: 'Safety', status: 'pass', val: '91%', thresh: '≥90%' },
+        { name: 'Tone', status: 'pass', val: '88%', thresh: '≥85%' },
+        { name: 'Hallucination', status: 'pass', val: '93%', thresh: '≥90%' },
+        { name: 'Relevance', status: 'fail', val: '74%', thresh: '≥82%' },
+      ],
+    },
+  },
+};
+
+const CATS = [
+  { id: 'tests',       label: 'Delivery Reliability Checks', icon: '✦', color: '#0891b2' },
+  { id: 'performance', label: 'Delivery Performance',        icon: '◎', color: '#7c3aed' },
+  { id: 'stability',   label: 'Delivery Reliability',        icon: '◈', color: '#059669' },
+  { id: 'ai',          label: 'AI Eval Quality',         icon: '◐', color: '#db2777' },
+];
+
+const STATE_META = {
+  certified:   { label: 'CERTIFIED',             icon: '⊕', stampClass: 'stamp-certified',   heroBg: 'rec-hero-bg-certified',   color: '#059669', btnActive: 'active-certified' },
+  uncertified: { label: 'UNCERTIFIED',           icon: '⊗', stampClass: 'stamp-uncertified', heroBg: 'rec-hero-bg-uncertified', color: '#dc2626', btnActive: 'active-uncertified' },
+  override:    { label: 'CERTIFIED\nWITH OVERRIDE', icon: '◈', stampClass: 'stamp-override',    heroBg: 'rec-hero-bg-override',    color: '#d97706', btnActive: 'active-override' },
+};
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+function verdiktMarkPathsForState(state) {
+  const V = {
+    certified:   { fill: '#22c55e', stroke: '#060810', strokeW: 6.5, serifW: 4 },
+    uncertified: { fill: '#ef4444', stroke: '#ffffff', strokeW: 6.5, serifW: 4 },
+    override:    { fill: '#f59e0b', stroke: '#060810', strokeW: 6.5, serifW: 4 }
+  };
+  const v = V[state] || { fill: '#c4d4e8', stroke: '#060810', strokeW: 6.5, serifW: 4 };
+  return `<rect width="80" height="80" rx="18" fill="${v.fill}"/><path d="M22 22 L40 56" stroke="${v.stroke}" stroke-width="${v.strokeW}" stroke-linecap="round"/><path d="M40 56 L62 22" stroke="${v.stroke}" stroke-width="${v.strokeW}" stroke-linecap="round"/><path d="M16 22 L28 22" stroke="${v.stroke}" stroke-width="${v.serifW}" stroke-linecap="round"/>`;
+}
+
+let currentDemo = 'certified';
+
+// ── Render record ──────────────────────────────────────────────────────────
+function renderRecord(demoKey) {
+  const d = DEMOS[demoKey];
+  const m = STATE_META[demoKey];
+  const page = document.getElementById('record-page');
+
+  // Signal grid HTML
+  const sigGrid = CATS.map(cat => {
+    const sigs = d.signals[cat.id];
+    const allPass = sigs.every(s => s.status === 'pass' || s.status === 'waived');
+    const hasFail = sigs.some(s => s.status === 'fail');
+    const statusColor = hasFail ? '#dc2626' : allPass ? '#059669' : '#d97706';
+    const statusLabel = hasFail ? 'FAILING' : allPass ? 'PASSING' : 'WAIVED';
+
+    // Use 2-col grid for cats with many signals
+    const useTwoCols = sigs.length > 2;
+
+    const sigRows = sigs.map(sig => {
+      const dotClass = `dot-${sig.status}`;
+      const valColor = sig.status === 'pass' ? '#059669' : sig.status === 'fail' ? '#dc2626' : '#d97706';
+      return `
+        <div class="${useTwoCols ? 'sig-row' : 'sig-row-single'}">
+          <div class="sig-name">${sig.name}${sig.hg ? ' <span style="font-size:9px;font-family:var(--mono);color:#dc2626;background:#fef2f2;padding:1px 5px;border-radius:3px;font-weight:600">HARD GATE</span>' : ''}</div>
+          <div class="sig-val">
+            <div class="sig-dot ${dotClass}"></div>
+            <span style="color:${valColor}">${sig.val}</span>
+            <span class="sig-thresh">${sig.thresh}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="sig-cat">
+        <div class="sig-cat-header">
+          <div class="sig-cat-left">
+            <span class="sig-cat-icon" style="color:${cat.color}">${cat.icon}</span>
+            <span class="sig-cat-name">${cat.label}</span>
+          </div>
+          <div class="sig-cat-status" style="color:${statusColor}">
+            <div class="sig-dot" style="background:${statusColor}"></div>
+            ${statusLabel}
+          </div>
+        </div>
+        <div class="${useTwoCols ? 'sig-rows' : ''}">${sigRows}</div>
+      </div>`;
+  }).join('');
+
+  // Failing callout
+  const failingHtml = d.failing.length > 0 ? `
+    <div class="failing-callout">
+      <div class="failing-callout-title">SIGNALS BELOW THRESHOLD (${d.failing.length})</div>
+      <div class="failing-list">
+        ${d.failing.map(f => `
+          <div class="failing-row">
+            <div class="failing-sig">${f.cat} · ${f.name}${f.hg ? ' <span style="font-size:9px;font-family:var(--mono);color:#dc2626;background:#fef2f2;padding:1px 4px;border-radius:3px">HARD GATE</span>' : ''}</div>
+            <div><span class="failing-val">${f.val}</span><span class="failing-thresh">vs ${f.thresh}</span></div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  // Override record
+  const overrideHtml = d.override ? `
+    <div class="override-record">
+      <div class="override-record-title">CERTIFIED WITH OVERRIDE — PERMANENT RECORD</div>
+      <div class="override-fields">
+        <div>
+          <div class="override-field-label">Override owner</div>
+          <div class="override-field-value">${esc(d.override.owner)}<br/><span style="color:var(--mid);font-size:12px">${esc(d.override.title)}</span></div>
+        </div>
+        <div>
+          <div class="override-field-label">Recorded</div>
+          <div class="override-field-value" style="font-family:var(--mono);font-size:12px">${esc(d.override.ts)}</div>
+        </div>
+      </div>
+      <div class="override-justification">
+        <div class="override-field-label" style="margin-bottom:6px">Justification & risk acceptance</div>
+        <div class="override-just-text">"${esc(d.override.reason)}"</div>
+      </div>
+      <div class="override-immutable">⊠ This record is permanent. It cannot be edited or deleted.</div>
+    </div>` : '';
+
+  // Waiver note in sig section
+  const waiverNote = d.waiver?.reason ? `
+    <div style="background:var(--amberBg);border:1px solid var(--amberBorder);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--amber);line-height:1.6">
+      <span style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:0.1em;display:block;margin-bottom:4px">E2E REGRESSION WAIVED — ${esc(d.waiver.waivedBy?.toUpperCase())}</span>
+      ${esc(d.waiver.reason)}
+    </div>` : '';
+
+  // Stamp label — handle newline
+  const stampLabel = esc(m.label).replace('\n', '<br/>');
+
+  page.innerHTML = `
+    <div class="rec-header">
+      <div class="rec-header-left">
+        <div class="verdikt-mark">
+          <span class="verdikt-mark-svg" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">${verdiktMarkPathsForState(demoKey)}</svg></span>
+          <div class="verdikt-mark-name">Verdikt</div>
+        </div>
+        <div class="rec-header-divider"></div>
+        <div class="rec-header-type">Certification Record</div>
+      </div>
+      <div class="rec-header-url">verdikt.io/cert/verdikt/${esc(d.version)}</div>
+    </div>
+
+    <div class="rec-hero ${m.heroBg}">
+      <div class="rec-hero-inner">
+        <div>
+          <div class="rec-meta-project">${esc(d.project)}</div>
+          <div class="rec-version">${esc(d.version)}</div>
+          <div class="rec-info-row">
+            <div class="rec-info-item">${esc(d.date)} · ${esc(d.time)}</div>
+            <div class="rec-info-item"><span class="rec-release-type">${esc(d.releaseType)}</span></div>
+            <div class="rec-info-item">${esc(d.env)}</div>
+            ${d.certifiedBy ? `<div class="rec-info-item">Signed by ${esc(d.certifiedBy)}</div>` : '<div class="rec-info-item" style="color:#dc2626">No sign-off recorded</div>'}
+          </div>
+        </div>
+        <div class="stamp-wrap">
+          <div class="stamp ${m.stampClass}">
+            <div class="stamp-icon">${m.icon}</div>
+            <div class="stamp-text">${stampLabel}</div>
+            <div class="stamp-date">${esc(d.date)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${d.failing.length > 0 ? `<div style="padding:24px 40px 0">${failingHtml}</div>` : ''}
+    ${overrideHtml}
+
+    <div class="sig-section">
+      <div class="sig-section-title">Signal detail — all ${Object.values(d.signals).flat().length} signals evaluated</div>
+      ${waiverNote}
+      <div class="sig-cats">${sigGrid}</div>
+    </div>
+
+    <div class="rec-footer">
+      <div class="rec-footer-immutable">⊠ This certification record is permanent and immutable</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <button class="no-print" onclick="downloadPDF()" style="font-family:var(--mono);font-size:11px;padding:5px 14px;border-radius:6px;border:1px solid var(--accent);background:rgba(124,58,237,0.06);color:var(--accent);cursor:pointer;letter-spacing:0.05em;transition:all 0.15s">⬇ Download PDF</button>
+        <a class="rec-footer-link" href="/releases">← Dashboard</a>
+        <a class="rec-footer-link" href="/">verdikt.io</a>
+      </div>
+    </div>`;
+}
+
+// ── Render badges ──────────────────────────────────────────────────────────
+function makeBadgeSVG(state, size = 'normal') {
+  const configs = {
+    certified:   { left: '#1a1f2e', right: '#059669', label: 'CERTIFIED',             dot: '#34d399' },
+    uncertified: { left: '#1a1f2e', right: '#7f1d1d', label: 'UNCERTIFIED',           dot: '#f87171' },
+    override:    { left: '#1a1f2e', right: '#78350f', label: 'CERT. W/ OVERRIDE',     dot: '#fbbf24' },
+  };
+  const c = configs[state];
+  const h = size === 'large' ? 26 : 20;
+  const fs = size === 'large' ? 9 : 7;
+  const lw = 52, rw = state === 'override' ? 110 : state === 'uncertified' ? 72 : 66;
+  const totalW = lw + rw;
+  const ly = h/2 + fs*0.35;
+  const gid = `bdg-${state}-${size}`;
+  const pad = 3;
+  const markScale = (h - pad * 2) / 80;
+  const markPx = 80 * markScale;
+  const my = (h - markPx) / 2;
+  const textVerdiktX = (pad + markPx + lw) / 2;
+  const innerMark = verdiktMarkPathsForState(state);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${h}" viewBox="0 0 ${totalW} ${h}" role="img" aria-label="Verdikt: ${c.label}">
+  <title>Verdikt: ${c.label}</title>
+  <defs>
+    <linearGradient id="${gid}-g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".02"/>
+      <stop offset=".5" stop-color="#000" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".1"/>
+    </linearGradient>
+  </defs>
+  <clipPath id="${gid}-c"><rect width="${totalW}" height="${h}" rx="${h/2}"/></clipPath>
+  <g clip-path="url(#${gid}-c)">
+    <rect width="${lw}" height="${h}" fill="${c.left}"/>
+    <rect x="${lw}" width="${rw}" height="${h}" fill="${c.right}"/>
+    <rect width="${totalW}" height="${h}" fill="url(#${gid}-g)"/>
+  </g>
+  <g clip-path="url(#${gid}-c)" fill="#fff" text-anchor="middle" font-family="'DM Mono',Menlo,monospace" font-size="${fs}">
+    <g transform="translate(${pad},${my}) scale(${markScale})">${innerMark}</g>
+    <text x="${textVerdiktX}" y="${ly}" letter-spacing="0.08em">verdikt</text>
+    <text x="${lw + rw/2}" y="${ly}" letter-spacing="0.06em">${c.label}</text>
+  </g>
+</svg>`;
+}
+
+function renderBadges() {
+  const wrap = document.getElementById('badge-svg-wrap');
+  const states = ['certified', 'uncertified', 'override'];
+  wrap.innerHTML = states.map(s => {
+    const svg = makeBadgeSVG(s);
+    return `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+      <div style="font-family:var(--mono);font-size:9px;color:#334155;letter-spacing:0.08em;text-transform:uppercase">${s.replace('_',' ')}</div>
+      ${svg}
+    </div>`;
+  }).join('');
+  renderEmbed();
+}
+
+function renderEmbed() {
+  const d = DEMOS[currentDemo];
+  const svgB64 = btoa(makeBadgeSVG(currentDemo));
+  const embedEl = document.getElementById('embed-code');
+  embedEl.innerHTML = `<span style="color:#475569">&lt;!-- Markdown --&gt;</span>
+<span class="attr">[![Verdikt]</span><span class="str">(https://verdikt.io/badge/verdikt/${encodeURIComponent(String(d.version))})</span><span class="attr">]</span><span class="str">(https://verdikt.io/cert/verdikt/${encodeURIComponent(String(d.version))})</span>
+
+<span style="color:#475569">&lt;!-- HTML --&gt;</span>
+<span style="color:#c084fc">&lt;a</span> <span class="attr">href</span>=<span class="str">"https://verdikt.io/cert/verdikt/${encodeURIComponent(String(d.version))}"</span><span style="color:#c084fc">&gt;</span>
+  <span style="color:#c084fc">&lt;img</span> <span class="attr">src</span>=<span class="str">"https://verdikt.io/badge/verdikt/${encodeURIComponent(String(d.version))}"</span>
+       <span class="attr">alt</span>=<span class="str">"Verdikt certification"</span><span style="color:#c084fc">/&gt;</span>
+<span style="color:#c084fc">&lt;/a&gt;</span>`;
+}
+
+function copyEmbed() {
+  const d = DEMOS[currentDemo];
+  const safeVersion = encodeURIComponent(String(d.version));
+  const text = `[![Verdikt](https://verdikt.io/badge/verdikt/${safeVersion})](https://verdikt.io/cert/verdikt/${safeVersion})`;
+  navigator.clipboard?.writeText(text).catch(() => {});
+  const btn = document.querySelector('.embed-copy');
+  if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+}
+
+// ── State switching ────────────────────────────────────────────────────────
+function setDemo(state) {
+  currentDemo = state;
+  renderRecord(state);
+  renderEmbed();
+
+  // Update button states
+  ['certified', 'uncertified', 'override'].forEach(s => {
+    const btn = document.getElementById('btn-' + s);
+    btn.className = 'demo-state-btn';
+    if (s === state) btn.classList.add(STATE_META[s].btnActive);
+  });
+}
+
+// ── PDF download ───────────────────────────────────────────────────────────
+function downloadPDF() {
+  window.print();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+renderRecord('certified');
+renderBadges();
+</script>
+</body>
+</html>

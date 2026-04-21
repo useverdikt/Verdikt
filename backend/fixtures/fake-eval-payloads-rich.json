@@ -1,0 +1,252 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "purpose": "Rich, production-realistic eval fixtures for Verdikt e2e testing.",
+    "not_production_data": true,
+    "default_thresholds": {
+      "accuracy": { "min": 85, "max": null },
+      "safety": { "min": 90, "max": null },
+      "tone": { "min": 85, "max": null },
+      "hallucination": { "min": 90, "max": null },
+      "relevance": { "min": 82, "max": null },
+      "p95latency": { "min": null, "max": 300 },
+      "p99latency": { "min": null, "max": 600 }
+    },
+    "maps_to_endpoints": [
+      "POST /api/releases/:releaseId/signals",
+      "POST /api/releases/:releaseId/signals/integrations",
+      "POST /api/workspaces/:workspaceId/integrations/evals"
+    ]
+  },
+  "threshold_profiles": {
+    "standard_defaults": {
+      "accuracy": { "min": 85, "max": null },
+      "safety": { "min": 90, "max": null },
+      "tone": { "min": 85, "max": null },
+      "hallucination": { "min": 90, "max": null },
+      "relevance": { "min": 82, "max": null },
+      "p95latency": { "min": null, "max": 300 },
+      "p99latency": { "min": null, "max": 600 }
+    },
+    "enterprise_conservative": {
+      "accuracy": { "min": 92, "max": null },
+      "safety": { "min": 97, "max": null },
+      "tone": { "min": 90, "max": null },
+      "hallucination": { "min": 95, "max": null },
+      "relevance": { "min": 88, "max": null },
+      "p95latency": { "min": null, "max": 250 },
+      "p99latency": { "min": null, "max": 500 }
+    },
+    "safety_critical": {
+      "accuracy": { "min": 90, "max": null },
+      "safety": { "min": 99, "max": null },
+      "tone": { "min": 88, "max": null },
+      "hallucination": { "min": 96, "max": null },
+      "relevance": { "min": 85, "max": null },
+      "p95latency": { "min": null, "max": 400 },
+      "p99latency": { "min": null, "max": 800 }
+    },
+    "startup_iterative": {
+      "accuracy": { "min": 78, "max": null },
+      "safety": { "min": 88, "max": null },
+      "tone": { "min": 78, "max": null },
+      "hallucination": { "min": 82, "max": null },
+      "relevance": { "min": 76, "max": null },
+      "p95latency": { "min": null, "max": 450 },
+      "p99latency": { "min": null, "max": 900 }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "model_update_gpt4_class_certified",
+      "release_type": "model_update",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "braintrust", "endpoint": "integrations", "payload": { "metrics": { "exact_match": 91, "harmlessness": 97, "answer_relevance": 88, "groundedness": 93, "style": 89, "p95_latency": 245, "latency_p99": 490 } } },
+        { "provider": "generic", "endpoint": "signals", "payload": { "source": "internal_benchmark_v12", "signals": { "accuracy": 91, "safety": 97, "tone": 89, "hallucination": 93, "relevance": 88, "p95latency": 245, "p99latency": 490 } } }
+      ]
+    },
+    {
+      "id": "model_patch_safety_emphasis_certified",
+      "release_type": "model_patch",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "openai_evals", "endpoint": "integrations", "payload": { "results": { "accuracy": 88, "safety": 99, "tone": 91, "groundedness": 96, "relevance": 85 } } }
+      ]
+    },
+    {
+      "id": "prompt_update_healthy_certified",
+      "release_type": "prompt_update",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "braintrust", "endpoint": "integrations", "payload": { "metrics": { "exact_match": 87, "harmlessness": 94, "style": 93, "answer_relevance": 89, "groundedness": 91, "p95_latency": 198, "latency_p99": 390 } } }
+      ]
+    },
+    {
+      "id": "prompt_update_sycophancy_regression_uncertified",
+      "release_type": "prompt_update",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["tone"],
+      "samples": [
+        { "provider": "generic", "endpoint": "signals", "payload": { "source": "sycophancy_eval_v3", "signals": { "accuracy": 87, "safety": 93, "tone": 77, "hallucination": 91, "relevance": 86, "p95latency": 204, "p99latency": 410 } } }
+      ]
+    },
+    {
+      "id": "latency_regression_uncertified",
+      "release_type": "model_update",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["p95latency", "p99latency"],
+      "samples": [
+        { "provider": "helicone", "endpoint": "integrations", "payload": { "metrics": { "p95_latency": 412, "p99_latency": 810, "answer_relevance": 91, "error_rate": 0.2 } } }
+      ]
+    },
+    {
+      "id": "rag_pipeline_hallucination_spike_uncertified",
+      "release_type": "model_patch",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["accuracy", "hallucination", "relevance"],
+      "samples": [
+        { "provider": "braintrust", "endpoint": "integrations", "payload": { "metrics": { "exact_match": 81, "harmlessness": 95, "style": 88, "groundedness": 74, "answer_relevance": 79, "p95_latency": 268, "latency_p99": 530 } } }
+      ]
+    },
+    {
+      "id": "safety_patch_post_redteam_certified",
+      "release_type": "safety_patch",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "openai_evals", "endpoint": "integrations", "payload": { "results": { "accuracy": 90, "safety": 99, "tone": 88, "groundedness": 94, "relevance": 86 } } }
+      ]
+    },
+    {
+      "id": "safety_critical_regression_uncertified",
+      "release_type": "model_update",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["safety"],
+      "samples": [
+        { "provider": "generic", "endpoint": "signals", "payload": { "source": "automated_red_team_v8", "signals": { "accuracy": 91, "safety": 84, "tone": 88, "hallucination": 93, "relevance": 87, "p95latency": 261, "p99latency": 520 } } }
+      ]
+    },
+    {
+      "id": "fine_tune_capability_retention_uncertified",
+      "release_type": "model_patch",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["accuracy", "hallucination"],
+      "samples": [
+        { "provider": "openai_evals", "endpoint": "integrations", "payload": { "results": { "accuracy": 76, "safety": 93, "tone": 90, "groundedness": 82, "relevance": 88 } } }
+      ]
+    },
+    {
+      "id": "code_generation_update_certified",
+      "release_type": "model_update",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "openai_evals", "endpoint": "integrations", "payload": { "results": { "accuracy": 87, "safety": 96, "tone": 86, "groundedness": 91, "relevance": 89 } } }
+      ]
+    },
+    {
+      "id": "policy_change_content_moderation_certified",
+      "release_type": "policy_change",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "braintrust", "endpoint": "integrations", "payload": { "metrics": { "exact_match": 89, "harmlessness": 96, "style": 92, "groundedness": 93, "answer_relevance": 87, "p95_latency": 234, "latency_p99": 460 } } }
+      ]
+    },
+    {
+      "id": "multimodal_vision_update_certified",
+      "release_type": "model_update",
+      "expected_verdict": "CERTIFIED",
+      "expected_failing_signals": [],
+      "samples": [
+        { "provider": "openai_evals", "endpoint": "integrations", "payload": { "results": { "accuracy": 86, "safety": 95, "tone": 88, "groundedness": 90, "relevance": 84 } } }
+      ]
+    },
+    {
+      "id": "multi_signal_borderline_cascade_uncertified",
+      "release_type": "model_update",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["accuracy", "tone", "hallucination", "relevance"],
+      "samples": [
+        { "provider": "generic", "endpoint": "signals", "payload": { "source": "rc2_composite_eval", "signals": { "accuracy": 83, "safety": 92, "tone": 82, "hallucination": 88, "relevance": 80, "p95latency": 278, "p99latency": 555 } } }
+      ]
+    },
+    {
+      "id": "all_signals_failing_hard_block",
+      "release_type": "model_update",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["accuracy", "safety", "tone", "hallucination", "relevance", "p95latency", "p99latency"],
+      "samples": [
+        { "provider": "generic", "endpoint": "signals", "payload": { "source": "early_rc_eval", "signals": { "accuracy": 61, "safety": 72, "tone": 68, "hallucination": 63, "relevance": 58, "p95latency": 680, "p99latency": 1240 } } }
+      ]
+    },
+    {
+      "id": "missing_ai_signals_policy_block",
+      "release_type": "model_update",
+      "expected_verdict": "UNCERTIFIED",
+      "expected_failing_signals": ["accuracy", "safety", "tone", "hallucination", "relevance"],
+      "samples": [
+        { "provider": "helicone", "endpoint": "integrations", "payload": { "metrics": { "p95_latency": 242, "p99_latency": 485, "error_rate": 0.3 } } }
+      ]
+    }
+  ],
+  "override_fixtures": [
+    {
+      "id": "override_latency_regression",
+      "scenario_ref": "latency_regression_uncertified",
+      "approver_type": "PERSON",
+      "approver_name": "Priya Sharma",
+      "approver_role": "VP Engineering",
+      "justification": "Latency regression isolated to long-context path; accepted with mitigation window.",
+      "metadata": { "impact_summary": "Long-context latency breach.", "mitigation_plan": "Batching + cache tuning.", "follow_up_due_date": "2026-04-16" }
+    },
+    {
+      "id": "override_sycophancy_regression",
+      "scenario_ref": "prompt_update_sycophancy_regression_uncertified",
+      "approver_type": "PERSON",
+      "approver_name": "Marcus Webb",
+      "approver_role": "Head of AI",
+      "justification": "Tone regression accepted temporarily while prompt revision is in progress.",
+      "metadata": { "impact_summary": "Sycophancy increase on adversarial set.", "mitigation_plan": "Revise prompt bundle.", "follow_up_due_date": "2026-04-14" }
+    },
+    {
+      "id": "override_rag_hallucination_borderline",
+      "scenario_ref": "rag_pipeline_hallucination_spike_uncertified",
+      "approver_type": "PERSON",
+      "approver_name": "Aisha Okafor",
+      "approver_role": "Release Manager",
+      "justification": "Regression limited to long-tail queries; retriever patch in progress.",
+      "metadata": { "impact_summary": "Hallucination spike on tail queries.", "mitigation_plan": "BM25 fallback.", "follow_up_due_date": "2026-04-11" }
+    },
+    {
+      "id": "override_multi_signal_borderline",
+      "scenario_ref": "multi_signal_borderline_cascade_uncertified",
+      "approver_type": "PERSON",
+      "approver_name": "Jordan Pierce",
+      "approver_role": "CTO",
+      "justification": "Near-threshold deltas accepted due to time-sensitive enterprise dependency.",
+      "metadata": { "impact_summary": "Four signals slightly below threshold.", "mitigation_plan": "Re-run tune + recertify.", "follow_up_due_date": "2026-04-23" }
+    },
+    {
+      "id": "override_capability_retention_finetune",
+      "scenario_ref": "fine_tune_capability_retention_uncertified",
+      "approver_type": "PERSON",
+      "approver_name": "Takeshi Mori",
+      "approver_role": "VP Engineering",
+      "justification": "General benchmark regression accepted for domain-specific deployment only.",
+      "metadata": { "impact_summary": "General-domain regression, domain fit strong.", "mitigation_plan": "Split domain/general eval suites.", "follow_up_due_date": "2026-04-23" }
+    }
+  ],
+  "e2e_sequences": [
+    { "id": "clean_ship_certified", "label": "Happy path", "steps": ["create_release_webhook", "ingest_eval_signals", "check_gate", "verify_audit"] },
+    { "id": "override_and_ship", "label": "Override flow", "steps": ["create_release", "ingest_eval_signals", "submit_override", "check_gate_default", "check_gate_strict"] },
+    { "id": "safety_block_no_override", "label": "Safety hard block", "steps": ["create_release", "ingest_eval_signals", "check_gate"] },
+    { "id": "multi_provider_merge", "label": "Multi-provider merge", "steps": ["create_release", "ingest_braintrust_quality", "ingest_helicone_latency", "verify_certified"] },
+    { "id": "missing_evals_policy_block", "label": "Missing evals policy block", "steps": ["create_release", "ingest_latency_only", "check_gate"] },
+    { "id": "safety_patch_full_lifecycle", "label": "Safety patch lifecycle", "steps": ["create_broken_release", "ingest_failing_safety_signals", "create_patched_release", "ingest_patched_signals", "check_gate", "verify_audit_trail"] }
+  ]
+}

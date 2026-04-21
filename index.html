@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Verdikt — Release Intelligence System</title>
+<meta name="description" content="Verdikt analyses release risk before you ship, certifies every release against your quality bar, and records accountability for every decision."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070809;--surface:#0c0d10;--raise:#111318;
+  --border:#1c2030;--borderL:#252b3a;
+  --accent:#7c3aed;--accentL:#a78bfa;--accentD:#5b21b6;
+  --green:#10b981;--amber:#f59e0b;--red:#ef4444;--cyan:#06b6d4;
+  --text:#f0f2f8;--mid:#8a93a8;--dim:#3a4258;
+  --mono:'DM Mono',monospace;--serif:'DM Serif Display',serif;--sans:'DM Sans',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;overflow-x:hidden}
+::selection{background:var(--accent);color:#fff}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
+body::before{content:"";position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:0.6}
+.display{font-family:var(--serif);line-height:1.05;letter-spacing:-0.02em}
+
+/* ── Nav ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid transparent;transition:all 0.4s}
+nav.scrolled{background:rgba(7,8,9,0.92);border-bottom-color:var(--border);backdrop-filter:blur(12px)}
+.nav-logo{display:flex;align-items:center;gap:10px}
+.nav-logo-mark{width:32px;height:32px;display:flex;align-items:center;justify-content:center;line-height:0;flex-shrink:0}
+.nav-logo-mark svg{display:block;width:100%;height:100%}
+.nav-logo-name{font-family:var(--serif);font-size:20px;color:var(--text);letter-spacing:-0.02em}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{color:var(--mid);font-size:14px;text-decoration:none;transition:color 0.2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{background:var(--accent);color:#fff;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;transition:all 0.2s;letter-spacing:0.01em}
+.nav-cta:hover{background:var(--accentD);transform:translateY(-1px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accentL);outline-offset:2px;border-radius:6px}
+
+/* ── Hero ── */
+.hero{display:flex;flex-direction:column;justify-content:flex-start;padding:120px 48px 64px;position:relative;overflow:hidden}
+.hero-glow{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(ellipse at center,var(--accent) 0%,transparent 70%);opacity:0.06;pointer-events:none}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:80px 80px;opacity:0.3;pointer-events:none;mask-image:radial-gradient(ellipse at 50% 0%,black 0%,transparent 70%)}
+.hero-inner{max-width:1200px;margin:0 auto;width:100%;position:relative;z-index:1}
+.hero-eyebrow{font-family:var(--mono);font-size:11px;color:var(--accentL);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:10px;opacity:0;animation:fadeUp 0.6s 0.1s ease forwards}
+.hero-eyebrow::before{content:"";width:24px;height:1px;background:var(--accentL)}
+.hero-headline{font-size:clamp(52px,7vw,96px);font-family:var(--serif);color:var(--text);line-height:1.0;letter-spacing:-0.03em;margin-bottom:8px;opacity:0;animation:fadeUp 0.6s 0.2s ease forwards}
+.hero-headline em{font-style:italic;color:var(--accentL)}
+.hero-tagline{font-family:var(--mono);font-size:11px;color:var(--accentL);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;opacity:0;animation:fadeUp 0.6s 0.25s ease forwards}
+.hero-definition{font-size:clamp(17px,1.8vw,22px);color:var(--mid);max-width:600px;line-height:1.6;margin-bottom:20px;font-weight:300;opacity:0;animation:fadeUp 0.6s 0.3s ease forwards}
+.hero-definition strong{color:var(--text);font-weight:500}
+.hero-proposition{font-size:16px;color:var(--mid);max-width:580px;line-height:1.75;margin-bottom:28px;font-weight:300;opacity:0;animation:fadeUp 0.6s 0.35s ease forwards}
+.hero-proposition strong{color:var(--text);font-weight:500}
+.hero-for{font-family:var(--mono);font-size:11px;color:var(--text);letter-spacing:0.15em;margin-bottom:28px;opacity:0;animation:fadeUp 0.6s 0.4s ease forwards}
+.hero-actions{display:flex;gap:16px;align-items:center;opacity:0;animation:fadeUp 0.6s 0.45s ease forwards}
+.hero-cta-note{font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.08em;margin-top:12px;opacity:0;animation:fadeUp 0.6s 0.5s ease forwards}
+.btn-primary{background:var(--accent);color:#fff;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;border:none;cursor:pointer;font-family:var(--sans)}
+.btn-primary:hover{background:var(--accentD);transform:translateY(-2px);box-shadow:0 8px 32px rgba(124,58,237,0.4)}
+.btn-ghost{color:var(--mid);font-size:14px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:color 0.2s;padding:14px 0}
+.btn-ghost:hover{color:var(--text)}
+.cert-states{margin-top:28px;opacity:0;animation:fadeUp 0.6s 0.6s ease forwards}
+.cert-states-label{font-family:var(--mono);font-size:10px;color:var(--mid);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px}
+.cert-stamps{display:flex;gap:12px;flex-wrap:wrap}
+.cert-stamp{display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border-radius:6px;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:0.08em;border:1px solid;transition:transform 0.2s;cursor:default}
+.cert-stamp:hover{transform:translateY(-2px)}
+.cert-stamp.certified{background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.3);color:var(--green)}
+.cert-stamp.uncertified{background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.3);color:var(--red)}
+.cert-stamp.override{background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.3);color:var(--amber)}
+.cert-stamp-dot{width:7px;height:7px;border-radius:50%}
+.certified .cert-stamp-dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+.uncertified .cert-stamp-dot{background:var(--red);box-shadow:0 0 8px var(--red)}
+.override .cert-stamp-dot{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+
+/* ── Sections ── */
+section{padding:56px 48px;position:relative;z-index:1}
+.section-inner{max-width:1200px;margin:0 auto}
+.section-label{font-family:var(--mono);font-size:10px;color:var(--accentL);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.section-label::before{content:"";width:20px;height:1px;background:var(--accentL)}
+.section-title{font-family:var(--serif);font-size:clamp(36px,4vw,56px);color:var(--text);line-height:1.1;letter-spacing:-0.02em;margin-bottom:16px}
+.section-title em{font-style:italic;color:var(--accentL)}
+.section-body{font-size:17px;color:var(--mid);max-width:640px;line-height:1.8;font-weight:300}
+.section-body strong{color:var(--text);font-weight:500}
+
+/* ── Problem ── */
+.problem{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.problem-statement{font-family:var(--serif);font-size:clamp(28px,3.2vw,46px);color:var(--text);line-height:1.15;letter-spacing:-0.02em;max-width:860px;margin-bottom:16px}
+.problem-statement em{font-style:italic;color:var(--red)}
+.problem-counter{font-size:16px;color:var(--mid);max-width:640px;line-height:1.75;font-weight:300;margin-bottom:36px}
+.problem-two-col{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.problem-col{background:var(--bg);padding:28px 32px}
+.problem-col-label{font-family:var(--mono);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:16px}
+.problem-col.have .problem-col-label{color:var(--green)}
+.problem-col.missing .problem-col-label{color:var(--red)}
+.problem-item{font-size:14px;color:var(--mid);line-height:1.65;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;font-weight:300}
+.problem-item::before{flex-shrink:0;margin-top:3px;width:6px;height:6px;border-radius:50%;content:""}
+.problem-col.have .problem-item::before{background:rgba(16,185,129,0.5)}
+.problem-col.missing .problem-item::before{background:rgba(239,68,68,0.4)}
+.problem-close{font-size:16px;color:var(--text);font-weight:500;max-width:640px;line-height:1.7;margin-top:28px}
+
+/* ── The question ── */
+.question-section{background:var(--raise);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.question-block{max-width:780px;margin:0 auto;padding:16px 0}
+.question-intro{font-family:var(--mono);font-size:10px;color:var(--accentL);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.question-intro::before{content:"";width:20px;height:1px;background:var(--accentL);flex-shrink:0}
+.question-text{font-family:var(--serif);font-size:clamp(22px,2.6vw,34px);color:var(--text);line-height:1.25;letter-spacing:-0.02em;margin-bottom:24px}
+.question-bullets{list-style:none;margin-bottom:24px}
+.question-bullets li{font-size:15px;color:var(--text);line-height:1.65;font-weight:300;padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:12px}
+.question-bullets li:first-child{border-top:1px solid var(--border)}
+.question-bullets li::before{content:"·";color:var(--accentL);font-size:22px;line-height:1;flex-shrink:0}
+.question-verdict{font-size:16px;color:var(--mid);font-weight:300;line-height:1.75;max-width:680px;padding-top:4px}
+.question-verdict strong{color:var(--text);font-weight:500}
+.question-verdict em{font-style:italic;color:var(--accentL)}
+
+/* ── What Verdikt is ── */
+.what-section{border-top:1px solid var(--border)}
+.what-intro{font-size:16px;color:var(--mid);max-width:600px;line-height:1.75;font-weight:300;margin-bottom:32px}
+.what-intro strong{color:var(--text);font-weight:500}
+.what-states{background:var(--raise);border:1px solid var(--borderL);border-radius:12px;padding:28px 32px;max-width:640px}
+.what-states-label{font-family:var(--mono);font-size:10px;color:var(--mid);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px}
+.what-state-row{display:flex;align-items:baseline;gap:16px;padding:10px 0;border-bottom:1px solid var(--border)}
+.what-state-row:first-of-type{border-top:1px solid var(--border)}
+.what-state-badge{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.08em;white-space:nowrap;flex-shrink:0}
+.certified-badge{color:var(--green)}
+.uncertified-badge{color:var(--red)}
+.override-badge{color:var(--amber)}
+.what-state-desc{font-size:13px;color:var(--mid);font-weight:300;line-height:1.5}
+
+/* ── How it works ── */
+.how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:28px}
+.how-step{background:var(--surface);padding:32px 28px;position:relative}
+.how-step-num{font-family:var(--serif);font-size:52px;color:var(--borderL);line-height:1;margin-bottom:14px;transition:color 0.3s}
+.how-step:hover .how-step-num{color:var(--accentL)}
+.how-step-title{font-family:var(--serif);font-size:22px;color:var(--text);margin-bottom:12px;letter-spacing:-0.01em}
+.how-step-body{font-size:14px;color:var(--mid);line-height:1.7;font-weight:300}
+.how-step-tag{margin-top:20px;display:inline-block;font-family:var(--mono);font-size:10px;color:var(--accentL);background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);padding:3px 10px;border-radius:4px;letter-spacing:0.1em}
+
+/* ── Why it matters (without / with) ── */
+.why-section{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.why-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:28px}
+.why-col{background:var(--bg);padding:28px 32px}
+.why-col-label{font-family:var(--mono);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:16px}
+.why-col.without .why-col-label{color:var(--red)}
+.why-col.with .why-col-label{color:var(--green)}
+.why-item{font-size:13px;color:var(--mid);line-height:1.65;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;font-weight:300}
+.why-item::before{content:"";flex-shrink:0;margin-top:7px;width:6px;height:6px;border-radius:50%}
+.why-col.without .why-item::before{background:rgba(239,68,68,0.4)}
+.why-col.with .why-item::before{background:rgba(16,185,129,0.5)}
+
+/* ── Override demo ── */
+.override-section{border-top:1px solid var(--border)}
+.override-layout{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}
+.override-demo{background:var(--raise);border:1px solid var(--borderL);border-radius:16px;overflow:hidden;max-width:720px}
+.override-demo-header{background:var(--surface);padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.override-demo-title{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:0.12em;text-transform:uppercase}
+.override-demo-body{padding:28px}
+.override-field{margin-bottom:20px}
+.override-label{font-family:var(--mono);font-size:10px;color:var(--mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px}
+.override-value{font-size:14px;color:var(--text);line-height:1.6}
+.override-stamp{margin-top:24px;padding:14px 18px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.25);border-radius:8px;display:flex;align-items:center;gap:12px}
+.override-stamp-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);flex-shrink:0}
+.override-stamp-text{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:0.06em}
+.override-immutable{margin-top:12px;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:0.1em;display:flex;align-items:center;gap:6px}
+.override-immutable::before{content:"⊠";color:var(--dim);font-size:12px}
+
+/* ── Audience ── */
+.audience{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.audience-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.audience-card{border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color 0.2s}
+.audience-card:hover{border-color:var(--borderL)}
+.audience-card-header{padding:16px 20px;border-bottom:1px solid var(--border)}
+.audience-role{font-family:var(--serif);font-size:20px;color:var(--text);letter-spacing:-0.01em}
+.audience-tag{font-family:var(--mono);font-size:10px;margin-top:6px;letter-spacing:0.1em}
+.audience-body{padding:18px 20px;background:var(--bg)}
+.audience-value{font-size:13px;color:var(--text);line-height:1.7;margin-bottom:12px}
+.audience-outcome{font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.05em;line-height:1.6;padding-top:12px;border-top:1px solid var(--border)}
+
+/* ── AI callout ── */
+.ai-callout{border-top:1px solid var(--border)}
+.ai-callout-inner{background:var(--raise);border:1px solid var(--borderL);border-radius:12px;padding:28px 36px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start;max-width:860px}
+.ai-callout-tag{font-family:var(--mono);font-size:10px;color:var(--accentL);letter-spacing:0.18em;text-transform:uppercase;white-space:nowrap;padding-top:4px}
+.ai-callout-content{display:block}
+.ai-callout-title{font-family:var(--serif);font-size:22px;color:var(--text);letter-spacing:-0.01em;margin-bottom:10px}
+.ai-callout-body{font-size:14px;color:var(--mid);line-height:1.75;font-weight:300}
+.ai-callout-body strong{color:var(--text);font-weight:500}
+
+/* ── Ticker ── */
+.ticker{
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:14px 0;background:var(--surface);overflow:hidden
+}
+.ticker-track{
+  display:flex;align-items:center;gap:32px;width:max-content;
+  animation:marquee 32s linear infinite;will-change:transform
+}
+.ticker-group{display:flex;align-items:center;gap:32px}
+.ticker-item{
+  font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.12em;
+  text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;gap:10px
+}
+.ticker-item::before{content:"·";color:var(--accentL)}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ── CTA ── */
+.cta-section{padding:72px 48px;text-align:center;position:relative;overflow:hidden}
+.cta-glow{position:absolute;bottom:-200px;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(ellipse at center,var(--accent) 0%,transparent 70%);opacity:0.08;pointer-events:none}
+.cta-inner{max-width:640px;margin:0 auto;position:relative;z-index:1}
+.cta-eyebrow{font-family:var(--mono);font-size:10px;color:var(--accentL);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:16px}
+.cta-title{font-family:var(--serif);font-size:clamp(36px,4.5vw,56px);color:var(--text);line-height:1.05;letter-spacing:-0.03em;margin-bottom:16px}
+.cta-title em{font-style:italic;color:var(--accentL)}
+.cta-sub{font-size:17px;color:var(--mid);margin-bottom:32px;line-height:1.75;font-weight:300;max-width:520px;margin-left:auto;margin-right:auto}
+.cta-link{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#fff;padding:16px 36px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;transition:all 0.2s}
+.cta-link:hover{background:var(--accentD);transform:translateY(-2px);box-shadow:0 8px 32px rgba(124,58,237,0.4)}
+.cta-note{margin-top:24px;font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.08em}
+
+/* ── Footer ── */
+footer{border-top:1px solid var(--border);padding:24px 48px;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+.footer-logo{display:flex;align-items:center;gap:8px}
+.footer-logo-name{font-family:var(--serif);font-size:16px;color:var(--mid)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:12px;color:var(--mid);text-decoration:none;transition:color 0.2s;font-family:var(--mono)}
+.footer-links a:hover{color:var(--text)}
+.footer-copy{font-family:var(--mono);font-size:11px;color:var(--mid);letter-spacing:0.06em}
+
+/* ── Animations ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.reveal{opacity:0;transform:translateY(24px);transition:opacity 0.7s ease,transform 0.7s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:0.1s}
+.reveal-delay-2{transition-delay:0.2s}
+.reveal-delay-3{transition-delay:0.3s}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  nav{padding:0 24px}.nav-links{display:none}
+  .hero{padding:88px 24px 44px}
+  section{padding:40px 24px}
+  .how-steps,.audience-cards{grid-template-columns:1fr}
+  .problem-two-col,.why-grid,.override-layout{grid-template-columns:1fr}
+  .ai-callout-inner{grid-template-columns:1fr;gap:16px}
+  .cta-section{padding:48px 24px}
+  footer{flex-direction:column;gap:20px;text-align:center;padding:24px}
+}
+@media(max-width:560px){
+  nav{padding:0 14px;height:56px}
+  .nav-logo-mark{width:26px;height:26px}
+  .nav-logo-name{font-size:16px}
+  nav > a[href="verdikt-login.html"]{display:none}
+  .nav-cta{padding:7px 12px;font-size:12px}
+  .hero{padding:76px 14px 36px}
+  section{padding:32px 14px}
+  .hero-actions{flex-direction:column;align-items:stretch}
+  .btn-primary,.btn-ghost{justify-content:center}
+  .problem-col,.why-col,.override-demo-body,.what-states{padding:18px 14px}
+  .ticker-group{gap:20px}
+  .ticker-track{gap:20px}
+  .footer-links{flex-wrap:wrap;justify-content:center;gap:14px}
+}
+@media (prefers-reduced-motion: reduce){
+  .ticker-track{animation:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav id="nav">
+  <div class="nav-logo">
+    <div class="nav-logo-mark" aria-hidden="true"><svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="18" fill="#c4d4e8"/><path d="M22 22 L40 56" stroke="#060810" stroke-width="6.5" stroke-linecap="round"/><path d="M40 56 L62 22" stroke="#060810" stroke-width="6.5" stroke-linecap="round"/><path d="M16 22 L28 22" stroke="#060810" stroke-width="4" stroke-linecap="round"/></svg></div>
+    <span class="nav-logo-name">Verdikt</span>
+  </div>
+  <div class="nav-links">
+    <a href="#problem" aria-label="Jump to the problem section">The problem</a>
+    <a href="#how" aria-label="Jump to how it works section">How it works</a>
+    <a href="#audience" aria-label="Jump to who it's for section">Who it's for</a>
+  </div>
+  <a href="verdikt-login.html" aria-label="Open sign in page" style="font-size:13px;color:var(--mid);text-decoration:none;transition:color 0.2s;margin-right:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--mid)'">Sign in</a>
+  <a href="/request-access" aria-label="Join waitlist" class="nav-cta">Join waitlist →</a>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Release Intelligence System</div>
+
+    <h1 class="hero-headline display">Know the risk<br/><em>before you ship.</em></h1>
+    <div class="hero-tagline">Release intelligence + certification infrastructure + permanent accountability</div>
+
+    <p class="hero-definition">
+      Verdikt analyses release signals before shipping, turns them into auditable go/no-go decisions, and keeps explicit ownership on record.
+    </p>
+    <p class="hero-proposition">
+      Start with threshold suggestions, then enforce your quality bar consistently as you ship.
+    </p>
+
+    <div class="hero-for">Built for AI teams where release decisions have consequences</div>
+
+    <div class="hero-actions">
+      <a href="/request-access" aria-label="Join waitlist" class="btn-primary">
+        Join waitlist
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a href="#problem" aria-label="Read the problem section" class="btn-ghost">
+        See the problem
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    <div class="hero-cta-note">Closed beta — get on the list.</div>
+
+    <div class="cert-states">
+      <div class="cert-states-label">Three states. Every release receives one.</div>
+      <div class="cert-stamps">
+        <div class="cert-stamp certified"><div class="cert-stamp-dot"></div>CERTIFIED</div>
+        <div class="cert-stamp uncertified"><div class="cert-stamp-dot"></div>UNCERTIFIED</div>
+        <div class="cert-stamp override"><div class="cert-stamp-dot"></div>CERTIFIED WITH OVERRIDE</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Problem ── -->
+<section class="problem" id="problem">
+  <div class="section-inner">
+    <div class="section-label reveal">The gap</div>
+    <p class="problem-statement display reveal reveal-delay-1">AI products ship fast.<br/><em>Quality gaps are silent.</em></p>
+    <p class="problem-counter reveal reveal-delay-2">Your team may already have eval pipelines, hallucination detection, and latency monitoring. What's missing is the intelligence layer that turns those signals into clear release decisions before shipping.</p>
+
+    <div class="problem-two-col reveal reveal-delay-3">
+      <div class="problem-col have">
+        <div class="problem-col-label">What you have</div>
+        <div class="problem-item">Model evaluation (Braintrust, LangSmith)</div>
+        <div class="problem-item">Hallucination &amp; safety detection</div>
+        <div class="problem-item">Latency &amp; performance monitoring</div>
+        <div class="problem-item">Eval pipelines and signal runners</div>
+      </div>
+      <div class="problem-col missing">
+        <div class="problem-col-label">What you don't have</div>
+        <div class="problem-item">Threshold intelligence from your own release history</div>
+        <div class="problem-item">A certification verdict before each release</div>
+        <div class="problem-item">A permanent record of who approved shipping below threshold</div>
+      </div>
+    </div>
+
+    <p class="problem-close reveal">Verdikt closes that gap.</p>
+  </div>
+</section>
+
+<!-- ── The question ── -->
+<section class="question-section">
+  <div class="section-inner">
+    <div class="question-block reveal">
+      <div class="question-intro">The question that changes the conversation</div>
+      <p class="question-text display">If a model update degraded in production tomorrow, could you immediately answer:</p>
+      <ul class="question-bullets">
+        <li>What were the eval scores when it shipped?</li>
+        <li>Which signals were below threshold?</li>
+        <li>Who approved shipping it anyway?</li>
+        <li>What justification did they record?</li>
+      </ul>
+      <p class="question-verdict">If the answer is no, you don't have release intelligence. You have <em>release guesswork.</em> Verdikt is what's missing.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── What Verdikt is ── -->
+<section class="what-section" id="what">
+  <div class="section-inner">
+    <div class="section-label reveal">What Verdikt is</div>
+    <h2 class="section-title reveal reveal-delay-1">Intelligence before the decision.<br/><em>Accountability after it.</em></h2>
+    <p class="what-intro reveal reveal-delay-2">
+      Verdikt sits in your release flow: threshold suggestions from your own data, formal certification verdicts, and named accountability for below-threshold decisions. It does not replace your eval or monitoring stack. It turns those signals into decisions.
+    </p>
+    <div class="what-states reveal reveal-delay-3">
+      <div class="what-states-label">Three outcomes. Every release receives exactly one.</div>
+      <div class="what-state-row"><span class="what-state-badge certified-badge">CERTIFIED</span><span class="what-state-desc">All signals cleared threshold. Safe to ship.</span></div>
+      <div class="what-state-row"><span class="what-state-badge uncertified-badge">UNCERTIFIED</span><span class="what-state-desc">One or more signals failed. Release is blocked.</span></div>
+      <div class="what-state-row"><span class="what-state-badge override-badge">CERTIFIED WITH OVERRIDE</span><span class="what-state-desc">Shipped below threshold. Named owner on record. Justification filed.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Ticker ── -->
+<div class="ticker">
+  <div class="ticker-track">
+    <div class="ticker-group">
+      <span class="ticker-item">Release intelligence before shipping</span>
+      <span class="ticker-item">Status, not a score — one decision per release</span>
+      <span class="ticker-item">Threshold suggestions from release history</span>
+      <span class="ticker-item">Named accountability on every override</span>
+      <span class="ticker-item">First certification in under 30 minutes</span>
+      <span class="ticker-item">Thresholds for accuracy, safety, tone, hallucination</span>
+    </div>
+    <div class="ticker-group" aria-hidden="true">
+      <span class="ticker-item">Release intelligence before shipping</span>
+      <span class="ticker-item">Status, not a score — one decision per release</span>
+      <span class="ticker-item">Threshold suggestions from release history</span>
+      <span class="ticker-item">Named accountability on every override</span>
+      <span class="ticker-item">First certification in under 30 minutes</span>
+      <span class="ticker-item">Thresholds for accuracy, safety, tone, hallucination</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── How it works ── -->
+<section id="how">
+  <div class="section-inner">
+    <div class="section-label reveal">How it works</div>
+    <h2 class="section-title reveal reveal-delay-1">When you're ready to ship a release,<br/><em>intelligence and certification are right there.</em></h2>
+    <p class="section-body reveal reveal-delay-2">Your eval pipeline runs as normal. Verdikt sits in your release flow: suggestions to tune thresholds, clear verdicts at ship time, and a permanent accountability record for overrides.</p>
+    <div class="how-steps reveal reveal-delay-3">
+
+      <div class="how-step">
+        <div class="how-step-num display">01</div>
+        <div class="how-step-title display">You define the standard</div>
+        <div class="how-step-body">Set thresholds per signal category. Verdikt suggests where to tighten or raise based on release history. You decide what to apply.</div>
+        <div class="how-step-tag">THRESHOLDS</div>
+      </div>
+
+      <div class="how-step">
+        <div class="how-step-num display">02</div>
+        <div class="how-step-title display">Verdikt issues the verdict</div>
+        <div class="how-step-body">Every release is evaluated against your thresholds. If all signals pass — CERTIFIED. If thresholds fail — UNCERTIFIED. One status, visible to everyone.</div>
+        <div class="how-step-tag">VERDICT</div>
+      </div>
+
+      <div class="how-step">
+        <div class="how-step-num display">03</div>
+        <div class="how-step-title display">Overrides require named accountability</div>
+        <div class="how-step-body">If a team chooses to ship below threshold: a named owner is required, structured justification is mandatory, and the record is permanent.</div>
+        <div class="how-step-tag">OVERRIDE</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Why it matters ── -->
+<section class="why-section">
+  <div class="section-inner">
+    <div class="section-label reveal">Why this matters</div>
+    <h2 class="section-title reveal reveal-delay-1">For AI products,<br/><em>the stakes are different.</em></h2>
+    <div class="why-grid reveal reveal-delay-2">
+      <div class="why-col without">
+        <div class="why-col-label">Without certification</div>
+        <div class="why-item">Model regressions reach users before anyone notices</div>
+        <div class="why-item">Incident diagnosis means digging through eval logs and Slack</div>
+        <div class="why-item">Feature overrides happen with no record, no justification</div>
+        <div class="why-item">Enterprise customers have no answer for your release quality process</div>
+      </div>
+      <div class="why-col with">
+        <div class="why-col-label">With Verdikt</div>
+        <div class="why-item">Every release certified against defined eval thresholds</div>
+        <div class="why-item">Incident reconstruction: eval scores, threshold state, who accepted risk</div>
+        <div class="why-item">Override accountability is explicit, attributed, and permanent</div>
+        <div class="why-item">Your release quality process is auditable and defensible from day one</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Override demo ── -->
+<section class="override-section">
+  <div class="section-inner">
+    <div class="override-layout">
+      <div>
+        <div class="section-label reveal">Override accountability in practice</div>
+        <h2 class="section-title reveal reveal-delay-1">The decision stays human.<br/><em>The record is always there.</em></h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom:24px">When a team ships below threshold, Verdikt requires structured owner context and keeps a permanent record of the decision and rationale.</p>
+        <p class="section-body reveal reveal-delay-2">Once an organisation requires that every release decision has a permanent record, they do not remove it.</p>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <div class="override-demo">
+          <div class="override-demo-header">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber)"></div>
+            <div class="override-demo-title">Certified with override · v2.12.0</div>
+          </div>
+          <div id="override-human" class="override-demo-body">
+            <div class="override-field">
+              <div class="override-label">Release</div>
+              <div class="override-value" style="font-family:var(--mono);font-size:13px;color:var(--mid)">v2.12.0 · Model / Prompt Update · 2026-01-31</div>
+            </div>
+            <div class="override-field">
+              <div class="override-label">Record metadata</div>
+              <div class="override-value" style="font-family:var(--mono);font-size:12px;color:var(--mid)">Timestamp 2026-01-31 14:22 UTC · Env pre-prod → prod · Deploy ID dep_9f2c8a</div>
+            </div>
+            <div class="override-field">
+              <div class="override-label">Failing signals</div>
+              <div class="override-value">accuracy 79% <span style="color:var(--mid);font-size:12px">(threshold ≥85%)</span><br/>relevance 74% <span style="color:var(--mid);font-size:12px">(threshold ≥82%)</span></div>
+            </div>
+            <div class="override-field">
+              <div class="override-label">Approved by <span style="font-family:var(--mono);font-size:9px;background:rgba(107,114,128,0.12);color:var(--mid);padding:1px 6px;border-radius:3px;margin-left:6px;letter-spacing:0.06em">PERSON</span></div>
+              <div class="override-value">Alex Baird, Release Manager</div>
+            </div>
+            <div class="override-field" style="margin-bottom:0">
+              <div class="override-label">Justification</div>
+              <div class="override-value" style="font-size:13px;color:var(--mid)">"Accuracy regression isolated to edge case in legacy profile format. Affects &lt;0.3% of users. Model patch scheduled within 48 hrs. Risk accepted at VP Engineering level."</div>
+            </div>
+            <div class="override-field" style="margin-top:10px;margin-bottom:0">
+              <div class="override-label">Follow-up</div>
+              <div class="override-value" style="font-family:var(--mono);font-size:12px;color:var(--mid)">Policy breached: ACCURACY_FLOOR · Model patch due: 2026-02-02 · Post-incident review: scheduled</div>
+            </div>
+            <div class="override-stamp">
+              <div class="override-stamp-dot"></div>
+              <div class="override-stamp-text">CERTIFIED WITH OVERRIDE · ALEX BAIRD</div>
+            </div>
+            <div class="override-immutable">This record is permanent. It cannot be edited or deleted.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Audience ── -->
+<section class="audience" id="audience">
+  <div class="section-inner">
+    <div class="section-label reveal">Who it's for</div>
+    <h2 class="section-title reveal reveal-delay-1">Built for teams<br/><em>shipping AI products.</em></h2>
+    <div class="audience-cards">
+
+      <div class="audience-card reveal reveal-delay-1">
+        <div class="audience-card-header" style="background:rgba(124,58,237,0.08);border-bottom-color:rgba(124,58,237,0.2)">
+          <div class="audience-role display">QE Leaders</div>
+          <div class="audience-tag" style="color:var(--accentL)">Champion / operational owner</div>
+        </div>
+        <div class="audience-body">
+          <div class="audience-value">You own release quality standards across teams. Verdikt gives you one enforceable process at release time: clear verdict, explicit exceptions, and a permanent record of ownership.</div>
+          <div class="audience-outcome">Every release certified — no more silent regressions</div>
+        </div>
+      </div>
+
+      <div class="audience-card reveal reveal-delay-2">
+        <div class="audience-card-header" style="background:rgba(16,185,129,0.06);border-bottom-color:rgba(16,185,129,0.15)">
+          <div class="audience-role display">VP Engineering</div>
+          <div class="audience-tag" style="color:var(--green)">Economic buyer / accountable executive</div>
+        </div>
+        <div class="audience-body">
+          <div class="audience-value">When quality is below threshold, someone still decides to ship. Verdikt makes those exceptions attributable, reviewable, and defensible in incident reviews, board updates, and customer diligence.</div>
+          <div class="audience-outcome">The quality bar becomes enforceable, not advisory</div>
+        </div>
+      </div>
+
+      <div class="audience-card reveal reveal-delay-3">
+        <div class="audience-card-header" style="background:rgba(245,158,11,0.06);border-bottom-color:rgba(245,158,11,0.15)">
+          <div class="audience-role display">CTO / Founder</div>
+          <div class="audience-tag" style="color:var(--amber)">Strategic sponsor</div>
+        </div>
+        <div class="audience-body">
+          <div class="audience-value">As delivery becomes more autonomous, approval clarity breaks down. Verdikt gives leadership a durable accountability layer for model, prompt, and code releases — without slowing teams down.</div>
+          <div class="audience-outcome">Certification becomes a competitive advantage</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── AI accountability section ── -->
+<section class="ai-callout">
+  <div class="section-inner">
+    <div class="section-label reveal">Why this matters now</div>
+    <div class="ai-callout-inner reveal reveal-delay-1">
+        <div class="ai-callout-tag">Intelligence + accountability</div>
+      <div class="ai-callout-content">
+        <div class="ai-callout-title display">Most teams can collect signals. Few can turn them into consistent decisions.</div>
+        <p class="ai-callout-body">Verdikt closes that gap with threshold intelligence and a formal certification decision at release time.</p>
+        <p class="ai-callout-body" style="margin-top:12px"><strong>Then it keeps accountability permanent</strong> with named overrides, structured justification, and immutable records.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Why not DIY ── -->
+<section class="problem" id="diy">
+  <div class="section-inner">
+    <div class="section-label reveal">Why not build it internally?</div>
+    <p class="problem-statement display reveal reveal-delay-1">Dashboards are easy to build.<br/><em>Reliable release decisions are not.</em></p>
+    <p class="problem-counter reveal reveal-delay-2">The hard part is combining intelligence and governance: suggestions teams trust, clear release verdicts, and immutable accountability records when risk is accepted.</p>
+    <div class="why-grid reveal reveal-delay-3">
+      <div class="why-col without">
+        <div class="why-col-label">What teams build themselves</div>
+        <div class="why-item">Release metrics and charts</div>
+        <div class="why-item">Custom scripts and alerts</div>
+        <div class="why-item">Ad hoc overrides in chat or meetings</div>
+        <div class="why-item">Inconsistent ownership across teams</div>
+      </div>
+      <div class="why-col with">
+        <div class="why-col-label">What Verdikt gives you</div>
+        <div class="why-item">Quality bar definition + enforcement</div>
+        <div class="why-item">Threshold suggestions from release history</div>
+        <div class="why-item">Immutable audit trail for each release</div>
+        <div class="why-item">Organization-wide trust in every decision</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section" id="cta">
+  <div class="cta-glow"></div>
+  <div class="cta-inner">
+    <div class="cta-eyebrow reveal">Get on the list</div>
+    <h2 class="cta-title display reveal reveal-delay-1">See your first release certified.<br/><em>Then improve with every one after.</em></h2>
+    <p class="cta-sub reveal reveal-delay-2">Closed beta — we onboard design partners in small batches. Same certification loop when you&apos;re in.</p>
+    <div class="reveal reveal-delay-3">
+      <a href="/request-access" aria-label="Join waitlist" class="cta-link">
+        Join waitlist
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    <div class="cta-note reveal">hello@useverdikt.com</div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="footer-logo">
+    <div class="nav-logo-mark" style="width:24px;height:24px" aria-hidden="true"><svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="18" fill="#c4d4e8"/><path d="M22 22 L40 56" stroke="#060810" stroke-width="6.5" stroke-linecap="round"/><path d="M40 56 L62 22" stroke="#060810" stroke-width="6.5" stroke-linecap="round"/><path d="M16 22 L28 22" stroke="#060810" stroke-width="4" stroke-linecap="round"/></svg></div>
+    <span class="footer-logo-name">Verdikt</span>
+  </div>
+  <div class="footer-links">
+    <a href="#what" aria-label="Jump to product section">Product</a>
+    <a href="#how" aria-label="Jump to how it works section">How it works</a>
+    <a href="#audience" aria-label="Jump to who it's for section">Who it's for</a>
+    <a href="mailto:hello@useverdikt.com" aria-label="Email Verdikt">hello@useverdikt.com</a>
+  </div>
+  <div class="footer-copy">© 2026 Verdikt · Release Intelligence System</div>
+</footer>
+
+<script>
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => nav.classList.toggle('scrolled', window.scrollY > 20), {passive:true});
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+}, {threshold:0.1, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+document.querySelectorAll('.cert-stamp').forEach(stamp => {
+  stamp.addEventListener('mouseenter', () => {
+    const dot = stamp.querySelector('.cert-stamp-dot');
+    dot.style.transform = 'scale(1.4)'; dot.style.transition = 'transform 0.15s ease';
+  });
+  stamp.addEventListener('mouseleave', () => {
+    stamp.querySelector('.cert-stamp-dot').style.transform = 'scale(1)';
+  });
+});
+</script>
+</body>
+</html>
