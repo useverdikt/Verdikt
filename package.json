@@ -1,0 +1,25 @@
+{
+  "name": "verdikt-mvp-v1",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "cd frontend && npx concurrently -k -n api,vite -c cyan,magenta \"npm run start --prefix ../backend\" \"npm run dev\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "start:backend": "npm --prefix backend start",
+    "build": "npm --prefix frontend run build",
+    "prod:check": "npm run build && npm run test",
+    "prod:check:e2e": "npm run build && npm run test && npm run test:e2e",
+    "test:e2e": "npm --prefix frontend run test:e2e",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "npm --prefix backend test",
+    "test:frontend": "npm --prefix frontend test",
+    "seed:demos": "npm --prefix backend run seed:demos"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "puppeteer": "^24.40.0"
+  }
+}

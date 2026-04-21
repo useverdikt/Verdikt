@@ -1,0 +1,158 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: #060810;
+}
+
+#root {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: #c4d4e8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #18243a; border-radius: 2px; }
+
+/* ── Animations ─────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { transform: scale(0.97); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes vdk-spin {
+  to { transform: rotate(360deg); }
+}
+
+.fade-up  { animation: fadeUp  0.3s ease forwards; }
+.fade-in  { animation: fadeIn  0.2s ease forwards; }
+.scale-in { animation: scaleIn 0.2s ease forwards; }
+
+/* ── Verdict hero orb ───────────────────────────────────────────────────── */
+.verdict-hero-orb {
+  animation: scaleIn 0.42s cubic-bezier(0.2,0.9,0.4,1) forwards;
+  flex-shrink: 0;
+}
+
+/* ── Signal category card hover ─────────────────────────────────────────── */
+.signal-category-card-wrap {
+  transition: box-shadow .22s cubic-bezier(.2,.9,.4,1), transform .22s cubic-bezier(.2,.9,.4,1);
+}
+.signal-category-card-wrap:hover { transform: translateY(-1px); }
+
+/* ── Auth session gate ──────────────────────────────────────────────────── */
+.auth-session-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px;
+  color: #c4d4e8;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+}
+.auth-session-gate-inner { text-align: center; max-width: 320px; }
+.auth-session-gate-inner p { margin-bottom: 16px; color: #384d60; line-height: 1.5; }
+
+.auth-session-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 16px;
+  border: 2px solid #18243a;
+  border-top-color: #22c55e;
+  border-radius: 50%;
+  animation: vdk-spin 0.7s linear infinite;
+}
+.auth-session-retry {
+  padding: 10px 20px;
+  border-radius: 7px;
+  border: 1px solid #18243a;
+  background: #090d14;
+  color: #6e87a2;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+.auth-session-retry:hover { background: #0d1520; color: #c4d4e8; }
+.auth-session-retry:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+/* ── Form elements ──────────────────────────────────────────────────────── */
+button, input, textarea, select {
+  font-family: 'DM Sans', sans-serif;
+}
+input::placeholder,
+textarea::placeholder { color: #243050; }
+
+/* ── Focus rings ────────────────────────────────────────────────────────── */
+.sidebar-bulk-btn:focus { outline: none; }
+.sidebar-bulk-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+/* ── Left-panel buttons ─────────────────────────────────────────────────── */
+.left-panel-btn {
+  transition: color .14s ease, background-color .14s ease, border-color .14s ease, opacity .14s ease;
+}
+.left-panel-btn:hover { color: #c4d4e8 !important; }
+
+/* ── Sidebar interactive states ─────────────────────────────────────────── */
+.sidebar-day-header:hover  { background: #0d1520 !important; }
+.sidebar-day-active .sidebar-day-name  { color: #22c55e !important; }
+.sidebar-day-active .sidebar-day-count { background: rgba(34,197,94,.1) !important; color: #22c55e !important; }
+
+.sidebar-release-row:hover { background: #0d1520 !important; color: #c4d4e8 !important; }
+
+.sidebar-cta-primary:hover { background: #0d1520 !important; color: #c4d4e8 !important; }
+.sidebar-cta-primary:hover .sidebar-role-gate { color: #6e87a2 !important; background: #0d1520 !important; }
+.sidebar-cta-secondary:hover { background: #2563eb !important; }
+
+.sidebar-confirm-yes:hover { background: rgba(245,158,11,.18) !important; }
+.sidebar-confirm-no:hover  { background: #0d1520 !important; color: #c4d4e8 !important; }
+
+/* vdk nav hover — active state is applied via inline styles in Sidebar.jsx */
+.vdk-nav-item:hover:not(.vdk-nav-active) {
+  background: #0d1520 !important;
+  color: #c4d4e8 !important;
+}
+.vdk-nav-item:hover .vdk-nav-icon { opacity: 1 !important; }
+
+/* vdk sidebar release list */
+.vdk-sb-day-header:hover { background: #0d1520 !important; }
+.vdk-sb-release:hover:not(.vdk-sb-release-active) {
+  background: rgba(17,26,40,.7) !important;
+  color: #c4d4e8 !important;
+}
+.vdk-sb-btn:hover { opacity: 1 !important; }
+.vdk-sb-btn-primary:hover { background: #d4e4f5 !important; }
+
+.left-panel-sync:hover {
+  color: #c4d4e8 !important;
+  border-color: #243050 !important;
+  background: #0d1520 !important;
+}
+.left-panel-signout:hover { color: #ef4444 !important; }
+
+@media (max-width: 900px) {
+  button { min-height: 40px; }
+}

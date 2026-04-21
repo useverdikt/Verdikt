@@ -1,0 +1,2 @@
+-- Optional: seed data for `supabase db reset` (local dev).
+-- Example: INSERT demo users only after linking auth.users — keep empty for cloud-only workflows.

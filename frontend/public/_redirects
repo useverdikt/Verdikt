@@ -1,0 +1,3 @@
+# SPA fallback for client-side routes (/releases, /trends, /thresholds, /audit).
+# Netlify and Cloudflare Pages both honor this file when it is in the published site root (Vite copies public/ → dist/).
+/*    /index.html   200

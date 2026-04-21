@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdikt — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060810;--bg2:#090d14;--bg3:#0d1520;--bg4:#111a28;--bg5:#0b1019;
+  --border:#18243a;--border2:#243050;--border3:#1c2d44;
+  --fg:#c4d4e8;--fg2:#6e87a2;--fg3:#384d60;--fg4:#1e2e42;
+  --certified:#22c55e;--cert-dim:rgba(34,197,94,.10);--cert-glow:rgba(34,197,94,.15);
+  --uncertified:#ef4444;--uncerti-dim:rgba(239,68,68,.10);
+  --override:#f59e0b;--over-dim:rgba(245,158,11,.10);
+  --blue:#3b82f6;--blue-dim:rgba(59,130,246,.10);
+  --purple:#a78bfa;--purple-dim:rgba(167,139,250,.10);
+  --sidebar-w:52px;--settings-w:224px;--header-h:52px;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'DM Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Courier New',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;display:flex}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");opacity:.5}
+
+/* ── APP ICON RAIL ── */
+.app-rail{width:var(--sidebar-w);flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:14px 0;height:100vh;gap:2px;z-index:20}
+.rail-logo{width:32px;height:32px;display:flex;align-items:center;justify-content:center;line-height:0;margin-bottom:16px;flex-shrink:0;cursor:pointer}
+.rail-logo svg{display:block;width:100%;height:100%}
+.rail-btn{width:36px;height:36px;border-radius:7px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg3);transition:background .15s,color .15s;border:none;background:none;position:relative}
+.rail-btn:hover{background:var(--bg3);color:var(--fg2)}
+.rail-btn.active{background:var(--bg4);color:var(--fg);border:1px solid var(--border2)}
+.rail-btn svg{width:16px;height:16px}
+.rail-spacer{flex:1}
+.rail-divider{width:28px;height:1px;background:var(--border);margin:6px 0}
+
+/* ── SETTINGS SIDEBAR ── */
+.settings-sidebar{width:var(--settings-w);flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.ss-head{padding:16px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ss-title{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--fg);line-height:1.1;margin-bottom:2px}
+.ss-ws{font-family:var(--mono);font-size:10px;color:var(--fg3);letter-spacing:.06em}
+
+/* governance readiness */
+.readiness{margin:12px 12px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+.readiness-head{padding:8px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--fg3);background:var(--bg3)}
+.readiness-item{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border);font-size:11.5px;color:var(--fg2)}
+.readiness-item:last-child{border-bottom:none}
+.ri-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ri-dot.ok{background:var(--certified);box-shadow:0 0 5px var(--cert-glow)}
+.ri-dot.warn{background:var(--override)}
+.ri-dot.empty{background:var(--fg4);border:1px solid var(--border2)}
+
+/* nav */
+.ss-nav{flex:1;overflow-y:auto;padding:10px 10px;display:flex;flex-direction:column;gap:1px}
+.ss-nav::-webkit-scrollbar{width:3px}.ss-nav::-webkit-scrollbar-track{background:transparent}.ss-nav::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.nav-group-label{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--fg3);padding:14px 8px 6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;font-size:12.5px;color:var(--fg2);cursor:pointer;transition:background .12s,color .12s;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:var(--bg3);color:var(--fg)}
+.nav-item.active{background:var(--bg4);color:var(--fg);border:1px solid var(--border2)}
+.nav-item svg{width:13px;height:13px;opacity:.5;flex-shrink:0;transition:opacity .12s}
+.nav-item:hover svg,.nav-item.active svg{opacity:1}
+.nav-badge{margin-left:auto;font-family:var(--mono);font-size:9px;font-weight:500;padding:2px 5px;border-radius:3px;background:var(--over-dim);color:var(--override)}
+.nav-danger{color:var(--uncertified) !important}
+.nav-danger svg{color:var(--uncertified)}
+
+.ss-footer{padding:12px;border-top:1px solid var(--border);flex-shrink:0}
+.user-row{display:flex;align-items:center;gap:9px}
+.user-av{width:26px;height:26px;border-radius:50%;background:var(--bg4);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:var(--fg2);flex-shrink:0}
+.user-name{font-size:12px;font-weight:500;color:var(--fg)}
+.user-email{font-size:10.5px;color:var(--fg3)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:0}
+
+/* topbar */
+.topbar{height:var(--header-h);flex-shrink:0;border-bottom:1px solid var(--border);background:var(--bg2);padding:0 28px;display:flex;align-items:center;gap:12px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--fg3)}
+.breadcrumb a{color:var(--fg3);text-decoration:none;transition:color .15s}
+.breadcrumb a:hover{color:var(--fg2)}
+.breadcrumb-sep{color:var(--fg4)}
+.breadcrumb-current{color:var(--certified)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.topbar-action{font-family:var(--mono);font-size:11px;color:var(--fg3);padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:none;cursor:pointer;transition:color .15s,border-color .15s}
+.topbar-action:hover{color:var(--fg);border-color:var(--border2)}
+
+/* content */
+.content{flex:1;overflow-y:auto;padding:32px 36px}
+.content::-webkit-scrollbar{width:4px}.content::-webkit-scrollbar-track{background:transparent}.content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── SECTION ── */
+.section{display:none}.section.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.section-eyebrow{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3);margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.section-eyebrow::before{content:'';display:block;width:24px;height:1px;background:var(--border2)}
+.section-h1{font-family:var(--serif);font-size:clamp(32px,3vw,46px);font-weight:600;line-height:1.08;letter-spacing:-.01em;color:#e8f0f8;margin-bottom:12px}
+.section-h1 em{font-style:italic;font-weight:400;color:var(--fg2)}
+.section-desc{font-size:14.5px;font-weight:300;color:var(--fg2);line-height:1.7;max-width:580px;margin-bottom:32px}
+
+/* ── SETTING BLOCK ── */
+.sblock{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.sblock-head{padding:20px 22px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.sblock-title{font-size:14px;font-weight:500;color:var(--fg);margin-bottom:4px}
+.sblock-desc{font-size:12.5px;font-weight:300;color:var(--fg2);line-height:1.6;max-width:560px}
+.sblock-body{padding:18px 22px}
+.sblock-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3)}
+.footer-note{font-family:var(--mono);font-size:10.5px;color:var(--fg3)}
+
+/* ── INPUTS ── */
+.field{margin-bottom:16px}
+.field:last-child{margin-bottom:0}
+.field-label{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--fg3);display:block;margin-bottom:7px}
+.inp{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 14px;font-family:var(--sans);font-size:13.5px;color:var(--fg);outline:none;transition:border-color .15s}
+.inp:focus{border-color:var(--border2)}
+.inp::placeholder{color:var(--fg3)}
+.inp.mono{font-family:var(--mono);font-size:12.5px;color:var(--fg2)}
+.inp.ro{opacity:.55;cursor:not-allowed}
+.field-hint{font-size:11.5px;color:var(--fg3);margin-top:6px;line-height:1.55;font-weight:300}
+.field-hint code{font-family:var(--mono);font-size:10.5px;background:var(--bg4);padding:1px 5px;border-radius:3px;border:1px solid var(--border)}
+
+/* ── BUTTONS ── */
+.btn-save{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:9px 20px;border-radius:6px;border:none;background:var(--fg);color:var(--bg);cursor:pointer;transition:opacity .15s;white-space:nowrap}
+.btn-save:hover{opacity:.88}.btn-save:disabled{opacity:.35;cursor:not-allowed}
+.btn-secondary{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:9px 16px;border-radius:6px;border:1px solid var(--border2);background:none;color:var(--fg2);cursor:pointer;transition:color .15s,background .15s}
+.btn-secondary:hover{background:var(--bg3);color:var(--fg)}
+.btn-ghost{font-family:var(--mono);font-size:11px;font-weight:500;padding:7px 14px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--fg3);cursor:pointer;transition:color .15s,border-color .15s}
+.btn-ghost:hover{color:var(--fg2);border-color:var(--border2)}
+.btn-ghost.accent{color:var(--certified);border-color:rgba(34,197,94,.25)}
+.btn-ghost.accent:hover{background:var(--cert-dim)}
+.btn-danger{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:9px 16px;border-radius:6px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);color:var(--uncertified);cursor:pointer;transition:background .15s}
+.btn-danger:hover{background:rgba(239,68,68,.12)}
+
+/* ── TOGGLE ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
+.toggle-row:first-child{padding-top:0}.toggle-row:last-child{border-bottom:none;padding-bottom:0}
+.toggle-info{flex:1}
+.toggle-label{font-size:13.5px;color:var(--fg);font-weight:400;margin-bottom:3px}
+.toggle-desc{font-size:12px;color:var(--fg2);font-weight:300;line-height:1.55}
+.toggle{position:relative;flex-shrink:0;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{width:38px;height:22px;border-radius:11px;background:var(--border2);transition:background .2s;position:relative}
+.toggle-track::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--fg3);transition:transform .2s,background .2s}
+.toggle input:checked + .toggle-track{background:var(--certified)}
+.toggle input:checked + .toggle-track::after{transform:translateX(16px);background:#fff}
+
+/* ── CHIPS ── */
+.chips{display:flex;gap:8px}
+.chip{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.06em;padding:8px 18px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--fg3);cursor:pointer;transition:all .15s}
+.chip:hover{border-color:var(--border2);color:var(--fg2)}
+.chip.active{border-color:var(--certified);background:var(--cert-dim);color:var(--certified)}
+
+/* ── THRESHOLD ROWS ── */
+.thresh-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid var(--border)}
+.thresh-row:first-child{padding-top:0}.thresh-row:last-child{border-bottom:none;padding-bottom:0}
+.thresh-meta{flex:1}
+.thresh-label{font-size:13px;color:var(--fg);font-weight:400;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.thresh-desc{font-size:11.5px;color:var(--fg2);font-weight:300;line-height:1.5}
+.thresh-cond{font-family:var(--mono);font-size:8.5px;font-weight:500;letter-spacing:.08em;padding:2px 6px;border-radius:3px;background:var(--over-dim);color:var(--override)}
+.thresh-ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.thresh-dir{font-family:var(--mono);font-size:13px;color:var(--fg3);min-width:14px;text-align:center}
+.thresh-inp{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:12px;color:var(--fg);outline:none;width:72px;text-align:right;transition:border-color .15s}
+.thresh-inp:focus{border-color:var(--border2)}
+.thresh-unit{font-family:var(--mono);font-size:11px;color:var(--fg3);min-width:24px}
+.thresh-ai-wrap{display:flex;flex-direction:column;gap:5px}
+.thresh-ai-row{display:flex;align-items:center;gap:6px}
+.thresh-ai-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.08em;color:var(--fg3);min-width:52px}
+.thresh-select{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:11.5px;color:var(--fg);outline:none;cursor:pointer}
+.thresh-select:focus{border-color:var(--border2)}
+
+/* ── SUGGESTION CARD ── */
+.suggest-card{border:1px solid var(--border);border-radius:8px;padding:14px 16px;background:var(--bg3);margin-bottom:8px}
+.suggest-signal{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--fg);margin-bottom:4px}
+.suggest-reason{font-size:12px;color:var(--fg2);font-weight:300;line-height:1.55;margin-bottom:10px}
+.suggest-delta{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;margin-bottom:12px}
+.suggest-from{color:var(--fg3)}.suggest-arrow{color:var(--fg4)}.suggest-to{color:var(--certified)}
+.suggest-conf{font-size:10px;color:var(--fg3);margin-left:auto}
+.suggest-actions{display:flex;gap:8px}
+
+/* ── MEMBERS ── */
+.member-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.member-row:last-child{border-bottom:none}
+.member-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:500;color:#fff;flex-shrink:0}
+.member-name{font-size:13px;font-weight:500;color:var(--fg)}
+.member-email{font-size:11px;color:var(--fg3)}
+.member-info{flex:1}
+.member-status{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;flex-shrink:0}
+.status-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.member-role{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;font-family:var(--mono);font-size:11px;color:var(--fg);outline:none;cursor:pointer}
+.btn-remove{background:none;border:none;color:var(--fg3);cursor:pointer;padding:4px;font-size:14px;line-height:1;transition:color .15s;border-radius:3px}
+.btn-remove:hover{color:var(--uncertified)}
+
+/* ── INVITE ROW ── */
+.invite-row{display:flex;gap:8px;align-items:flex-start}
+.invite-row .inp{flex:1}
+.invite-role{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font-family:var(--mono);font-size:11.5px;color:var(--fg);outline:none;cursor:pointer}
+
+/* ── ROLE CARDS ── */
+.role-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.role-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px}
+.role-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:6px}
+.role-badge{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.09em;padding:3px 7px;border-radius:3px}
+.role-readonly{font-family:var(--mono);font-size:8.5px;font-weight:500;letter-spacing:.06em;padding:2px 5px;border-radius:3px;background:var(--border);color:var(--fg3)}
+.role-perm{font-size:11.5px;font-weight:300;line-height:1.5;padding:4px 0;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:7px;color:var(--fg2)}
+.role-perm:last-child{border-bottom:none}
+.role-perm::before{content:'';display:block;width:4px;height:4px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.role-perm.yes::before{background:var(--certified)}.role-perm.yes{color:var(--fg)}
+.role-perm.no::before{background:var(--fg4)}.role-perm.no{color:var(--fg3)}
+
+/* ── API KEY ROWS ── */
+.api-key-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+.api-key-row:last-child{border-bottom:none}
+.api-key-name{font-size:13px;font-weight:500;color:var(--fg);margin-bottom:2px}
+.api-key-meta{font-family:var(--mono);font-size:10.5px;color:var(--fg3)}
+.api-key-val{font-family:var(--mono);font-size:11.5px;color:var(--fg3);background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.api-key-copy,.api-key-revoke{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.api-key-copy{background:none;border:1px solid var(--border2);color:var(--fg2)}.api-key-copy:hover{color:var(--fg)}
+.api-key-revoke{background:none;border:1px solid rgba(239,68,68,.2);color:var(--uncertified)}.api-key-revoke:hover{background:var(--uncerti-dim)}
+
+/* ── SOURCE ROWS ── */
+.source-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+.source-row:last-child{border-bottom:none}
+.source-icon{width:34px;height:34px;border-radius:7px;background:var(--bg4);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.source-name{font-size:13px;font-weight:500;color:var(--fg);margin-bottom:2px}
+.source-detail{font-size:11.5px;color:var(--fg2);font-weight:300}
+.source-info{flex:1}
+.source-status{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;flex-shrink:0;white-space:nowrap}
+
+/* ── TRIGGER MODES ── */
+.trigger-option{display:flex;align-items:flex-start;gap:12px;padding:13px 16px;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;cursor:pointer;transition:all .15s;background:none;width:100%;text-align:left}
+.trigger-option:hover{border-color:var(--border2);background:var(--bg3)}
+.trigger-option.active{border-color:rgba(34,197,94,.3);background:var(--cert-dim)}
+.trigger-icon{font-size:14px;margin-top:1px;flex-shrink:0;color:var(--fg3)}
+.trigger-option.active .trigger-icon{color:var(--certified)}
+.trigger-name{font-size:13px;font-weight:500;color:var(--fg2);margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.trigger-option.active .trigger-name{color:var(--fg)}
+.trigger-active-tag{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.08em;padding:2px 6px;border-radius:3px;background:var(--cert-dim);color:var(--certified)}
+.trigger-desc{font-size:12px;font-weight:300;color:var(--fg3);line-height:1.55}
+
+/* ── BASELINE STRATEGY ── */
+.strategy-option{display:flex;align-items:flex-start;gap:12px;padding:11px 14px;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;cursor:pointer;transition:all .15s;background:none;width:100%;text-align:left}
+.strategy-option:hover{border-color:var(--border2)}
+.strategy-option.active{border-color:rgba(167,139,250,.3);background:var(--purple-dim)}
+.strategy-radio{font-size:12px;color:var(--fg3);flex-shrink:0;margin-top:1px}
+.strategy-option.active .strategy-radio{color:var(--purple)}
+.strategy-name{font-size:13px;font-weight:500;color:var(--fg2);margin-bottom:3px}
+.strategy-option.active .strategy-name{color:var(--fg)}
+.strategy-desc{font-size:12px;font-weight:300;color:var(--fg3);line-height:1.5}
+
+/* ── GOVERNANCE OPTIONS ── */
+.gov-option{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
+.gov-option:last-child{border-bottom:none}
+.gov-label{font-size:13.5px;color:var(--fg);font-weight:400;margin-bottom:3px}
+.gov-desc{font-size:12px;color:var(--fg2);font-weight:300;line-height:1.5}
+.gov-select{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11.5px;color:var(--fg);outline:none;cursor:pointer;flex-shrink:0}
+.gov-locked{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--uncertified);flex-shrink:0}
+.gov-locked-dot{width:5px;height:5px;border-radius:50%;background:var(--uncertified)}
+
+/* ── INTEGRITY RESULT ── */
+.integrity-result{display:inline-flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;margin-bottom:14px}
+.integrity-result.ok{background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2)}
+.integrity-result.fail{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2)}
+.integrity-icon{font-size:16px}
+.integrity-label{font-size:13px;font-weight:500}
+.integrity-sub{font-size:11.5px;color:var(--fg2);margin-top:2px;font-weight:300}
+
+/* ── WEBHOOK CONFIG ── */
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:14px 16px;font-family:var(--mono);font-size:11.5px;color:var(--fg2);overflow-x:auto;line-height:1.7;margin-top:8px}
+.code-block .key{color:var(--fg3)}.code-block .val{color:var(--certified)}.code-block .url{color:var(--blue)}
+
+/* ── DANGER ── */
+.danger-action{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;border-bottom:1px solid var(--border)}
+.danger-action:last-child{border-bottom:none}
+.danger-title{font-size:13.5px;font-weight:500;color:var(--fg);margin-bottom:4px}
+.danger-desc{font-size:12px;color:var(--fg2);font-weight:300;line-height:1.55;max-width:440px}
+
+/* ── BILLING ── */
+.plan-card{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.plan-name{font-family:var(--serif);font-size:32px;font-weight:600;color:var(--fg);margin-bottom:4px}
+.plan-detail{font-family:var(--mono);font-size:11px;color:var(--fg2)}
+.btn-upgrade{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:500;padding:11px 22px;border-radius:7px;background:var(--fg);color:var(--bg);border:none;cursor:pointer;transition:opacity .15s;text-decoration:none;white-space:nowrap}
+.btn-upgrade:hover{opacity:.88}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--fg);display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .25s,transform .25s;z-index:1000;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ── APP RAIL ── -->
+<div class="app-rail">
+  <div class="rail-logo" aria-hidden="true" title="Verdikt"><svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="18" fill="#c4d4e8"/><path d="M22 22 L40 56" stroke="#060810" stroke-width="6.5" stroke-linecap="round"/><path d="M40 56 L62 22" stroke="#060810" stroke-width="6.5" stroke-linecap="round"/><path d="M16 22 L28 22" stroke="#060810" stroke-width="4" stroke-linecap="round"/></svg></div>
+  <button class="rail-btn" onclick="nav('/releases')" title="Releases">
+    <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+  </button>
+  <button class="rail-btn" title="Intelligence">
+    <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.2"/><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+  </button>
+  <button class="rail-btn" title="Audit">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M2 12h12M2 8h9M2 4h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+  </button>
+  <div class="rail-spacer"></div>
+  <div class="rail-divider"></div>
+  <button class="rail-btn active" title="Settings">
+    <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+  </button>
+  <div class="rail-divider"></div>
+  <button class="rail-btn" title="Sign out" onclick="toast('Signed out')">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M10 2h4v12h-4M7 5l-3 3 3 3M4 8h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<!-- ── SETTINGS SIDEBAR ── -->
+<div class="settings-sidebar">
+  <div class="ss-head">
+    <div class="ss-title">Settings</div>
+    <div class="ss-ws">Meridian AI</div>
+  </div>
+
+  <div class="readiness">
+    <div class="readiness-head">Governance readiness</div>
+    <div class="readiness-item">
+      <span>Eval source connected</span>
+      <div class="ri-dot empty" id="ri-eval"></div>
+    </div>
+    <div class="readiness-item">
+      <span>Thresholds configured</span>
+      <div class="ri-dot ok" id="ri-thresh"></div>
+    </div>
+    <div class="readiness-item">
+      <span>Release trigger active</span>
+      <div class="ri-dot ok" id="ri-trigger"></div>
+    </div>
+    <div class="readiness-item">
+      <span>Override policy set</span>
+      <div class="ri-dot warn" id="ri-policy"></div>
+    </div>
+  </div>
+
+  <nav class="ss-nav">
+    <div class="nav-group-label">Workspace</div>
+    <button class="nav-item active" onclick="show('general',this)">
+      <svg viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.1"/><rect x="8.5" y="1.5" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.1"/><rect x="1.5" y="8.5" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.1"/><rect x="8.5" y="8.5" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.1"/></svg>
+      General
+    </button>
+    <button class="nav-item" onclick="show('team',this)">
+      <svg viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2.2" stroke="currentColor" stroke-width="1.1"/><path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="11" cy="5" r="1.5" stroke="currentColor" stroke-width="1.1"/><path d="M10 11c0-1.1.45-2.1 1.18-2.82" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      Team &amp; Roles
+    </button>
+    <button class="nav-item" onclick="show('thresholds',this)">
+      <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Quality Thresholds
+    </button>
+
+    <div class="nav-group-label">Integration</div>
+    <button class="nav-item" onclick="show('api',this)">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 10h10M5 1l-2 12M9 1l-2 12" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      API &amp; Signal Sources
+    </button>
+    <button class="nav-item" onclick="show('trigger',this)">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M7 1L8.8 5.5H13.5L9.6 8.3L11 13L7 10.5L3 13L4.4 8.3L.5 5.5H5.2L7 1Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      Release Trigger
+    </button>
+    <button class="nav-item" onclick="show('notifications',this)">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M7 1.5a4.5 4.5 0 0 0-4.5 4.5v3L1 11h12l-1.5-2V6A4.5 4.5 0 0 0 7 1.5zM5.5 11a1.5 1.5 0 0 0 3 0" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      Notifications
+      <span class="nav-badge">1</span>
+    </button>
+    <button class="nav-item" onclick="show('governance',this)">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M7 1l1 3h3l-2.5 1.8.9 3L7 7 4.6 8.8l.9-3L3 4h3L7 1Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M2 13h10" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      Governance
+    </button>
+
+    <div class="nav-group-label">Account</div>
+    <button class="nav-item" onclick="show('billing',this)">
+      <svg viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M1 6.5h12" stroke="currentColor" stroke-width="1.1"/></svg>
+      Plan &amp; Billing
+    </button>
+    <button class="nav-item nav-danger" onclick="show('danger',this)">
+      <svg viewBox="0 0 14 14" fill="none" style="color:var(--uncertified)"><circle cx="7" cy="8" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M7 5v3M7 10.5v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Danger zone
+    </button>
+  </nav>
+
+  <div class="ss-footer">
+    <div class="user-row">
+      <div class="user-av" style="background:#0891b2">AB</div>
+      <div><div class="user-name">Alex Baird</div><div class="user-email">alex@meridianai.com</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="breadcrumb">
+      <a href="#">Meridian AI</a>
+      <span class="breadcrumb-sep">›</span>
+      <a href="#">GPT-4o Assist v3</a>
+      <span class="breadcrumb-sep">›</span>
+      <span class="breadcrumb-current" id="bc-section">General</span>
+    </div>
+    <div class="topbar-right">
+      <button class="topbar-action" onclick="toast('Documentation opened')">Docs ↗</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══════════════════ GENERAL ══════════════════ -->
+    <div class="section active" id="s-general">
+      <div class="section-eyebrow">Workspace</div>
+      <h1 class="section-h1">General</h1>
+      <p class="section-desc">Workspace identity and core configuration. Changes here affect how Verdikt presents certification records, audit trail entries, and the public badge.</p>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Workspace identity</div>
+            <div class="sblock-desc">Name and project shown on certification records and the public badge. The slug appears in every public certification URL.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="field">
+            <label class="field-label">Organisation name</label>
+            <input class="inp ro" value="Meridian AI" readonly title="Set during setup. Contact support to correct.">
+            <div class="field-hint">Set during workspace setup. Cannot be changed — contact support if this needs to be corrected.</div>
+          </div>
+          <div class="field">
+            <label class="field-label">Workspace slug</label>
+            <input class="inp mono" id="slug-inp" value="meridian-ai" oninput="markDirty('general')">
+            <div class="field-hint">Used in certification record URLs: <code>useverdikt.com/cert/<strong id="slug-preview">meridian-ai</strong>/v2.14.0</code></div>
+          </div>
+          <div class="field">
+            <label class="field-label">API base URL</label>
+            <input class="inp mono" type="url" placeholder="https://api.yourdomain.com" oninput="markDirty('general')">
+            <div class="field-hint">Dashboard and login call this origin. Save, then reload open tabs so they pick up the new value.</div>
+          </div>
+        </div>
+        <div class="sblock-footer">
+          <span class="footer-note" id="note-general">No unsaved changes</span>
+          <button class="btn-save" id="save-general" disabled onclick="saveSection('general')">Save changes</button>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Pre-production certification</div>
+            <div class="sblock-desc">Primary tier for new certification sessions and the workspace badge. Staging and UAT both inform ship decisions — pick the gate that matches your process. Staging is usually the last stop before release.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="chips">
+            <div class="chip" id="chip-staging" onclick="setChip('staging')" role="button">STAGING</div>
+            <div class="chip active" id="chip-uat" onclick="setChip('uat')" role="button">UAT</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Production observation</div>
+            <div class="sblock-desc">When enabled, Verdikt gathers post-release monitoring and feedback from production for loop readiness, alignment, and Intelligence. Pre-production certification is unchanged.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Gather production-side intelligence</div>
+              <div class="toggle-desc">Opt in — off by default until you choose to connect post-deploy data.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked onchange="toast('Production observation ' + (this.checked ? 'enabled' : 'disabled'))"><div class="toggle-track"></div></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Certification record visibility</div>
+            <div class="sblock-desc">Who can view public certification records at <code style="font-family:var(--mono);font-size:11px">useverdikt.com/cert/meridian-ai/{version}</code>.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Public certification records</div>
+              <div class="toggle-desc">Anyone with the URL can view the certification record. Disable to require login.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked onchange="toast('Record visibility updated')"><div class="toggle-track"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Show signal detail on public record</div>
+              <div class="toggle-desc">Include per-signal pass/fail detail. Disable to show only the certification state.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked onchange="toast('Signal visibility updated')"><div class="toggle-track"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Show override justification publicly</div>
+              <div class="toggle-desc">Include the written justification on the public record. Always visible internally.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked onchange="toast('Override visibility updated')"><div class="toggle-track"></div></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ TEAM ══════════════════ -->
+    <div class="section" id="s-team">
+      <div class="section-eyebrow">Governance</div>
+      <h1 class="section-h1">Team &amp; <em>Roles</em></h1>
+      <p class="section-desc">You decide who can approve a release. Every override is permanently on record — named, justified, and timestamped. Who holds override authority is configurable per workspace.</p>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Override authority</div>
+            <div class="sblock-desc">Configure who can submit an override request and who must sign off before an overridden release ships.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="gov-option">
+            <div>
+              <div class="gov-label">Override submission</div>
+              <div class="gov-desc">Minimum role required to submit an override request</div>
+            </div>
+            <select class="gov-select" onchange="toast('Override governance updated')">
+              <option>AI Product Lead</option>
+              <option>ML / AI Engineer</option>
+              <option>Tech Lead</option>
+            </select>
+          </div>
+          <div class="gov-option">
+            <div>
+              <div class="gov-label">Override approval</div>
+              <div class="gov-desc">Who must sign off before an overridden release ships</div>
+            </div>
+            <select class="gov-select" onchange="toast('Override governance updated')">
+              <option>VP Engineering</option>
+              <option>CTO / Founder</option>
+              <option>AI Product Lead or VP Engineering</option>
+            </select>
+          </div>
+          <div class="gov-option">
+            <div>
+              <div class="gov-label">Smoke gate override</div>
+              <div class="gov-desc">Smoke test failures are permanently UNCERTIFIED — override is not available for P0 signal failures</div>
+            </div>
+            <div class="gov-locked"><div class="gov-locked-dot"></div>LOCKED · NO OVERRIDE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Members</div>
+            <div class="sblock-desc">5 active · 2 pending invites</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="member-row">
+            <div class="member-av" style="background:#0891b2">AB</div>
+            <div class="member-info"><div class="member-name">Alex Baird</div><div class="member-email">alex@meridianai.com</div></div>
+            <div class="member-status" style="color:var(--certified)"><div class="status-dot" style="background:var(--certified)"></div>Active</div>
+            <select class="member-role" onchange="toast('Role updated')"><option selected>VP Engineering</option><option>CTO / Founder</option><option>AI Product Lead</option></select>
+            <div style="width:24px"></div>
+          </div>
+          <div class="member-row">
+            <div class="member-av" style="background:#3b82f6">JB</div>
+            <div class="member-info"><div class="member-name">Jordan Blake</div><div class="member-email">jordan@meridianai.com</div></div>
+            <div class="member-status" style="color:var(--certified)"><div class="status-dot" style="background:var(--certified)"></div>Active</div>
+            <select class="member-role" onchange="toast('Role updated')"><option selected>AI Product Lead</option><option>VP Engineering</option><option>ML / AI Engineer</option></select>
+            <button class="btn-remove" onclick="toast('Jordan Blake removed')">✕</button>
+          </div>
+          <div class="member-row">
+            <div class="member-av" style="background:#059669">PN</div>
+            <div class="member-info"><div class="member-name">Priya Nair</div><div class="member-email">priya@meridianai.com</div></div>
+            <div class="member-status" style="color:var(--certified)"><div class="status-dot" style="background:var(--certified)"></div>Active</div>
+            <select class="member-role" onchange="toast('Role updated')"><option selected>ML / AI Engineer</option><option>AI Product Lead</option><option>Engineer</option></select>
+            <button class="btn-remove" onclick="toast('Priya Nair removed')">✕</button>
+          </div>
+          <div class="member-row">
+            <div class="member-av" style="background:#6b7280">MO</div>
+            <div class="member-info"><div class="member-name">Mina Okafor</div><div class="member-email">mina.okafor@meridianai.com</div></div>
+            <div class="member-status" style="color:var(--override)"><div class="status-dot" style="background:var(--override)"></div>Pending invite</div>
+            <select class="member-role" onchange="toast('Role updated')"><option selected>ML / AI Engineer</option><option>Engineer</option></select>
+            <button class="btn-remove" onclick="toast('Invite revoked')">✕</button>
+          </div>
+        </div>
+        <div class="sblock-footer" style="flex-direction:column;align-items:stretch;gap:12px">
+          <div class="footer-note">Invite a new member</div>
+          <div class="invite-row">
+            <input class="inp" placeholder="colleague@company.com" id="invite-email">
+            <select class="invite-role"><option>AI Product Lead</option><option>ML / AI Engineer</option><option>Engineer</option><option>VP Engineering</option></select>
+            <button class="btn-save" onclick="sendInvite()">Send invite</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Role permissions</div>
+            <div class="sblock-desc">What each role can do inside Verdikt. Override authority is configurable above.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="role-cards">
+            <div class="role-card">
+              <div class="role-card-head"><span class="role-badge" style="background:rgba(107,114,128,.15);color:#9ca3af">ENGINEER</span><span class="role-readonly">READ ONLY</span></div>
+              <div class="role-perm yes">View verdicts &amp; audit trail</div>
+              <div class="role-perm yes">View signal trends</div>
+              <div class="role-perm no">Submit releases</div>
+              <div class="role-perm no">Configure thresholds</div>
+              <div class="role-perm no">Approve overrides</div>
+            </div>
+            <div class="role-card">
+              <div class="role-card-head"><span class="role-badge" style="background:rgba(6,182,212,.12);color:#06b6d4">AI PRODUCT LEAD</span></div>
+              <div class="role-perm yes">Submit releases &amp; signals</div>
+              <div class="role-perm yes">Certify releases</div>
+              <div class="role-perm yes">Configure thresholds</div>
+              <div class="role-perm no">Approve overrides</div>
+            </div>
+            <div class="role-card">
+              <div class="role-card-head"><span class="role-badge" style="background:rgba(110,135,162,.15);color:#6e87a2">VP ENGINEERING</span></div>
+              <div class="role-perm yes">All QE Leader permissions</div>
+              <div class="role-perm yes">Approve overrides</div>
+              <div class="role-perm yes">Named on every override record</div>
+              <div class="role-perm yes">Manage team &amp; roles</div>
+            </div>
+            <div class="role-card">
+              <div class="role-card-head"><span class="role-badge" style="background:rgba(236,72,153,.12);color:#ec4899">CTO / FOUNDER</span></div>
+              <div class="role-perm yes">All VP Engineering permissions</div>
+              <div class="role-perm yes">Override authority — highest level</div>
+              <div class="role-perm yes">Billing &amp; workspace deletion</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ THRESHOLDS ══════════════════ -->
+    <div class="section" id="s-thresholds">
+      <div class="section-eyebrow">Workspace</div>
+      <h1 class="section-h1">Quality <em>Thresholds</em></h1>
+      <p class="section-desc">Pass/fail criteria applied to every release. AI Eval Quality thresholds are the primary output-quality gate. Changes take effect on the next certification session.</p>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Delivery reliability</div><div class="sblock-desc">Pass rate floors for smoke and E2E regression suites.</div></div></div>
+        <div class="sblock-body">
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">Smoke tests</div><div class="thresh-desc">Required on every release. P0 failure = hard block, no override.</div></div>
+            <div class="thresh-ctrl"><span class="thresh-dir">≥</span><input class="thresh-inp" type="number" value="100" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div>
+          </div>
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">E2E regression <span class="thresh-cond">CONDITIONAL</span></div><div class="thresh-desc">Required for new features. Waivable for bug fixes and hotfixes.</div></div>
+            <div class="thresh-ctrl"><span class="thresh-dir">≥</span><input class="thresh-inp" type="number" value="95" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Runtime performance</div><div class="sblock-desc">Operational runtime gate for client and API responsiveness.</div></div></div>
+        <div class="sblock-body">
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">API p95 latency</div><div class="thresh-desc">95th percentile API response time under load</div></div>
+            <div class="thresh-ctrl"><span class="thresh-dir">≤</span><input class="thresh-inp" type="number" value="300" oninput="markDirty('thresholds')"><span class="thresh-unit">ms</span></div>
+          </div>
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">API p99 latency</div><div class="thresh-desc">99th percentile API response time under load</div></div>
+            <div class="thresh-ctrl"><span class="thresh-dir">≤</span><input class="thresh-inp" type="number" value="600" oninput="markDirty('thresholds')"><span class="thresh-unit">ms</span></div>
+          </div>
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">Error rate under load</div><div class="thresh-desc">5xx rate at peak concurrent users</div></div>
+            <div class="thresh-ctrl"><span class="thresh-dir">≤</span><input class="thresh-inp" type="number" value="1.0" step="0.1" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">AI eval quality</div><div class="sblock-desc">Absolute floor and maximum regression delta from the last certified release. Both conditions must pass.</div></div></div>
+        <div class="sblock-body">
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">Accuracy</div><div class="thresh-desc">Factual correctness of AI responses</div></div>
+            <div class="thresh-ctrl"><div class="thresh-ai-wrap"><div class="thresh-ai-row"><span class="thresh-ai-lbl">FLOOR</span><span class="thresh-dir">≥</span><input class="thresh-inp" type="number" value="85" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div><div class="thresh-ai-row"><span class="thresh-ai-lbl">MAX DROP</span><span class="thresh-dir">−</span><input class="thresh-inp" type="number" value="5" oninput="markDirty('thresholds')"><span class="thresh-unit">pts</span></div></div></div>
+          </div>
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">Hallucination</div><div class="thresh-desc">Responses grounded in available context</div></div>
+            <div class="thresh-ctrl"><div class="thresh-ai-wrap"><div class="thresh-ai-row"><span class="thresh-ai-lbl">FLOOR</span><span class="thresh-dir">≥</span><input class="thresh-inp" type="number" value="90" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div><div class="thresh-ai-row"><span class="thresh-ai-lbl">MAX DROP</span><span class="thresh-dir">−</span><input class="thresh-inp" type="number" value="5" oninput="markDirty('thresholds')"><span class="thresh-unit">pts</span></div></div></div>
+          </div>
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">Safety</div><div class="thresh-desc">Absence of harmful or prohibited content</div></div>
+            <div class="thresh-ctrl"><div class="thresh-ai-wrap"><div class="thresh-ai-row"><span class="thresh-ai-lbl">FLOOR</span><span class="thresh-dir">≥</span><input class="thresh-inp" type="number" value="90" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div><div class="thresh-ai-row"><span class="thresh-ai-lbl">MAX DROP</span><span class="thresh-dir">−</span><input class="thresh-inp" type="number" value="5" oninput="markDirty('thresholds')"><span class="thresh-unit">pts</span></div></div></div>
+          </div>
+          <div class="thresh-row">
+            <div class="thresh-meta"><div class="thresh-label">Relevance</div><div class="thresh-desc">Response addresses user intent</div></div>
+            <div class="thresh-ctrl"><div class="thresh-ai-wrap"><div class="thresh-ai-row"><span class="thresh-ai-lbl">FLOOR</span><span class="thresh-dir">≥</span><input class="thresh-inp" type="number" value="82" oninput="markDirty('thresholds')"><span class="thresh-unit">%</span></div><div class="thresh-ai-row"><span class="thresh-ai-lbl">MAX DROP</span><span class="thresh-dir">−</span><input class="thresh-inp" type="number" value="5" oninput="markDirty('thresholds')"><span class="thresh-unit">pts</span></div></div></div>
+          </div>
+        </div>
+        <div class="sblock-footer">
+          <span class="footer-note" id="note-thresholds">No unsaved changes</span>
+          <button class="btn-save" id="save-thresholds" disabled onclick="saveSection('thresholds')">Save thresholds</button>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Threshold suggestions</div><div class="sblock-desc">Data-driven suggestions based on recent release outcomes and MISS/OVER_BLOCK patterns from the alignment table.</div></div></div>
+        <div class="sblock-body">
+          <div class="suggest-card">
+            <div class="suggest-signal">accuracy</div>
+            <div class="suggest-reason">v2.15.1 was certified at 86.1% — 1.1% above floor — and produced a MISS. Raising the floor reduces the risk of certifying near-threshold signals.</div>
+            <div class="suggest-delta"><span class="suggest-from">floor: 85%</span><span class="suggest-arrow">→</span><span class="suggest-to">89%</span><span class="suggest-conf">84% confidence</span></div>
+            <div class="suggest-actions">
+              <button class="btn-save" style="font-size:11px;padding:7px 16px" onclick="toast('Suggestion applied — accuracy floor raised to 89%')">Apply</button>
+              <button class="btn-secondary" style="font-size:11px;padding:7px 14px" onclick="toast('Suggestion dismissed')">Dismiss</button>
+            </div>
+          </div>
+          <div style="font-size:11.5px;color:var(--fg3);font-family:var(--mono)">1 suggestion available in current analysis window.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ API ══════════════════ -->
+    <div class="section" id="s-api">
+      <div class="section-eyebrow">Integration</div>
+      <h1 class="section-h1">API &amp; <em>Signal Sources</em></h1>
+      <p class="section-desc">API keys and connected signal sources. Treat API keys like passwords — never commit them to source control. Every signal submission is scoped to this workspace.</p>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div><div class="sblock-title">API keys</div><div class="sblock-desc">Use these in your release or eval pipeline to POST signals to Verdikt.</div></div>
+          <button class="btn-ghost accent" onclick="toast('Key generation — use the full app')">+ Generate key</button>
+        </div>
+        <div class="sblock-body">
+          <div class="api-key-row">
+            <div style="flex:1"><div class="api-key-name">Release / Eval · Production</div><div class="api-key-meta">Created 2026-01-15 · Last used 2 hours ago</div></div>
+            <div class="api-key-val">vdk_live_4f9a2b••••••••••••••••••••</div>
+            <button class="api-key-copy" onclick="toast('API key copied')">Copy</button>
+            <button class="api-key-revoke" onclick="toast('Key revoked')">Revoke</button>
+          </div>
+          <div class="api-key-row">
+            <div style="flex:1"><div class="api-key-name">Local development</div><div class="api-key-meta">Created 2026-01-20 · Never used</div></div>
+            <div class="api-key-val">vdk_test_9e2c1d••••••••••••••••••••</div>
+            <button class="api-key-copy" onclick="toast('API key copied')">Copy</button>
+            <button class="api-key-revoke" onclick="toast('Key revoked')">Revoke</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div><div class="sblock-title">Signal sources</div><div class="sblock-desc">Connected integrations that feed signal data into Verdikt at verdict time.</div></div>
+          <button class="btn-ghost" onclick="toast('Integration docs opened')">+ Add source</button>
+        </div>
+        <div class="sblock-body">
+          <div class="source-row">
+            <div class="source-icon">✦</div>
+            <div class="source-info"><div class="source-name">Braintrust</div><div class="source-detail">AI eval scores — accuracy, safety, tone, hallucination, relevance</div></div>
+            <div class="source-status" style="color:var(--certified)"><div class="status-dot" style="background:var(--certified);box-shadow:0 0 5px var(--cert-glow)"></div>Connected</div>
+            <button class="btn-ghost" onclick="toast('Braintrust disconnected')">Disconnect</button>
+          </div>
+          <div class="source-row">
+            <div class="source-icon">◐</div>
+            <div class="source-info"><div class="source-name">LangSmith</div><div class="source-detail">LLM eval traces — quality, faithfulness, correctness</div></div>
+            <div class="source-status" style="color:var(--fg3)"><div class="status-dot" style="background:var(--fg3)"></div>Not connected</div>
+            <button class="btn-ghost accent" onclick="toast('LangSmith connection guide opened')">Connect</button>
+          </div>
+          <div class="source-row">
+            <div class="source-icon">⚡</div>
+            <div class="source-info"><div class="source-name">Sentry</div><div class="source-detail">Crash rate, error rate, exception volume</div></div>
+            <div class="source-status" style="color:var(--certified)"><div class="status-dot" style="background:var(--certified)"></div>Connected</div>
+            <button class="btn-ghost" onclick="toast('Sentry disconnected')">Disconnect</button>
+          </div>
+          <div class="source-row">
+            <div class="source-icon">◈</div>
+            <div class="source-info"><div class="source-name">Datadog</div><div class="source-detail">API latency and runtime health metrics</div></div>
+            <div class="source-status" style="color:var(--fg3)"><div class="status-dot" style="background:var(--fg3)"></div>Not connected</div>
+            <button class="btn-ghost accent" onclick="toast('Datadog connection guide opened')">Connect</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Inbound webhook</div><div class="sblock-desc">POST signal data to this endpoint from any release or eval automation platform. Include your API key in the <code style="font-family:var(--mono);font-size:11px">X-Verdikt-Key</code> header.</div></div></div>
+        <div class="sblock-body">
+          <div class="field">
+            <label class="field-label">Endpoint URL</label>
+            <div style="display:flex;gap:8px">
+              <input class="inp mono" readonly value="https://api.useverdikt.com/v1/verdikt/ingest" style="color:var(--blue)">
+              <button class="btn-secondary" onclick="toast('Endpoint URL copied')">Copy</button>
+            </div>
+          </div>
+          <div class="code-block">
+<span class="key">POST</span> <span class="url">https://api.useverdikt.com/v1/verdikt/ingest</span>
+<span class="key">X-Verdikt-Key:</span> <span class="val">vdk_live_4f9a2b...</span>
+
+{
+  <span class="key">"release_ref"</span>: <span class="val">"v2.17.0"</span>,
+  <span class="key">"signal"</span>: <span class="val">"accuracy"</span>,
+  <span class="key">"value"</span>: <span class="val">91.2</span>
+}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ TRIGGER ══════════════════ -->
+    <div class="section" id="s-trigger">
+      <div class="section-eyebrow">Integration</div>
+      <h1 class="section-h1">Release <em>Trigger</em></h1>
+      <p class="section-desc">How Verdikt knows when to open a certification window for a release candidate. Choose the method that fits your team's workflow. You can change this at any time without affecting past records.</p>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Trigger mode</div><div class="sblock-desc">Select how Verdikt detects that a release candidate is ready for certification.</div></div></div>
+        <div class="sblock-body">
+          <button class="trigger-option" onclick="setTrigger(this,'manual')">
+            <span class="trigger-icon">✎</span>
+            <div><div class="trigger-name">Manual declaration</div><div class="trigger-desc">Anyone with certification authority clicks "Start certification" in Verdikt for a specific build or model version. No integration required.</div></div>
+          </button>
+          <button class="trigger-option active" onclick="setTrigger(this,'env')">
+            <span class="trigger-icon">◎</span>
+            <div><div class="trigger-name">Environment promotion <span class="trigger-active-tag">ACTIVE</span></div><div class="trigger-desc">Any deployment to a designated release candidate environment (e.g. pre-prod) opens a certification window automatically.</div></div>
+          </button>
+          <button class="trigger-option" onclick="setTrigger(this,'label')">
+            <span class="trigger-icon">◈</span>
+            <div><div class="trigger-name">GitHub label</div><div class="trigger-desc">Applying a label (e.g. <code style="font-family:var(--mono);font-size:11px">verdikt:rc</code>) to a PR or release in GitHub triggers a certification window.</div></div>
+          </button>
+          <button class="trigger-option" onclick="setTrigger(this,'webhook')">
+            <span class="trigger-icon">⌥</span>
+            <div><div class="trigger-name">Pipeline webhook</div><div class="trigger-desc">Your release or eval pipeline POSTs to Verdikt when a model version is ready to certify. Most precise option.</div></div>
+          </button>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Environment configuration</div><div class="sblock-desc">Configure the selected trigger mode.</div></div></div>
+        <div class="sblock-body">
+          <div class="field" style="max-width:340px">
+            <label class="field-label">Certification environment</label>
+            <input class="inp" value="pre-prod" oninput="markDirty('trigger')">
+            <div class="field-hint">Deployments to this environment automatically open a certification window. Use a controlled release-candidate environment, not production.</div>
+          </div>
+        </div>
+        <div class="sblock-footer">
+          <span class="footer-note" id="note-trigger">No unsaved changes</span>
+          <button class="btn-save" id="save-trigger" disabled onclick="saveSection('trigger')">Save trigger settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ NOTIFICATIONS ══════════════════ -->
+    <div class="section" id="s-notifications">
+      <div class="section-eyebrow">Alerts</div>
+      <h1 class="section-h1">Notifications</h1>
+      <p class="section-desc">Configure where Verdikt sends alerts for certification events. Webhooks fire within seconds of a verdict being issued.</p>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Slack</div><div class="sblock-desc">Post certification events — CERTIFIED, UNCERTIFIED, WITH OVERRIDE — to a Slack channel of your choice.</div></div></div>
+        <div class="sblock-body">
+          <div class="field">
+            <label class="field-label">Webhook URL</label>
+            <div style="display:flex;gap:8px">
+              <input class="inp mono" placeholder="https://hooks.slack.com/services/...">
+              <button class="btn-save" onclick="toast('Slack connected — test message sent')">Connect</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Email alerts</div><div class="sblock-desc">Send email notifications for certification events to team members with the relevant role.</div></div></div>
+        <div class="sblock-body">
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="toggle-label">UNCERTIFIED — notify release owner</div><div class="toggle-desc">Email the submitter when a release fails certification.</div></div>
+            <label class="toggle"><input type="checkbox" checked onchange="toast('Email preference updated')"><div class="toggle-track"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="toggle-label">Override submitted — notify approvers</div><div class="toggle-desc">Alert override approvers when a request is pending their sign-off.</div></div>
+            <label class="toggle"><input type="checkbox" checked onchange="toast('Email preference updated')"><div class="toggle-track"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="toggle-label">MISS alignment — notify QE Lead</div><div class="toggle-desc">Alert the QE Leader when a certified release receives a MISS alignment classification.</div></div>
+            <label class="toggle"><input type="checkbox" onchange="toast('Email preference updated')"><div class="toggle-track"></div></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ GOVERNANCE ══════════════════ -->
+    <div class="section" id="s-governance">
+      <div class="section-eyebrow">Trust &amp; Integrity</div>
+      <h1 class="section-h1">Governance</h1>
+      <p class="section-desc">Cryptographic signing, baseline hardening, outbound verdict delivery, and audit integrity enforcement. These settings define the trust boundary of every certification Verdikt issues.</p>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Baseline strategy</div><div class="sblock-desc">Controls how regression baselines are computed for delta-threshold evaluation. Applies to all AI Eval Quality signals.</div></div></div>
+        <div class="sblock-body">
+          <button class="strategy-option" onclick="setStrategy(this)">
+            <span class="strategy-radio">○</span>
+            <div><div class="strategy-name">Median (N releases)</div><div class="strategy-desc">Uses the median of the N most recent certified releases per signal. Robust to outliers.</div></div>
+          </button>
+          <button class="strategy-option" onclick="setStrategy(this)">
+            <span class="strategy-radio">○</span>
+            <div><div class="strategy-name">Trimmed mean (N releases)</div><div class="strategy-desc">Drops the top and bottom 10% of values before averaging. Best for large windows.</div></div>
+          </button>
+          <button class="strategy-option active" onclick="setStrategy(this)">
+            <span class="strategy-radio">◉</span>
+            <div><div class="strategy-name">Last certified <span class="trigger-active-tag" style="background:var(--purple-dim);color:var(--purple)">ACTIVE</span></div><div class="strategy-desc">Classic mode — uses the single most recent certified release as the baseline.</div></div>
+          </button>
+          <button class="strategy-option" onclick="setStrategy(this)">
+            <span class="strategy-radio">○</span>
+            <div><div class="strategy-name">Pinned golden release</div><div class="strategy-desc">Manually pin a specific certified release as the immutable golden baseline.</div></div>
+          </button>
+        </div>
+        <div class="sblock-footer">
+          <button class="btn-save" onclick="toast('Baseline policy saved')">Save baseline policy</button>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head">
+          <div>
+            <div class="sblock-title">Outbound verdict webhook <span style="margin-left:8px;font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.08em;padding:2px 6px;border-radius:3px;background:var(--cert-dim);color:var(--certified);vertical-align:middle">ACTIVE</span></div>
+            <div class="sblock-desc">Verdikt POSTs a signed verdict payload to this URL whenever a release is certified or rejected. Use to close the CI/CD loop without polling.</div>
+          </div>
+        </div>
+        <div class="sblock-body">
+          <div class="field" style="max-width:520px">
+            <label class="field-label">Endpoint URL</label>
+            <input class="inp mono" value="https://ci.meridianai.com/verdikt-hook" oninput="markDirty('governance')">
+          </div>
+          <div class="field" style="max-width:520px;margin-top:14px">
+            <label class="field-label">Signing secret <span style="color:var(--fg3);font-weight:300;font-family:var(--sans);letter-spacing:0;text-transform:none;font-size:11px">(optional)</span></label>
+            <input class="inp mono" type="password" placeholder="Verdikt signs with HMAC-SHA256" oninput="markDirty('governance')">
+            <div class="field-hint">Verdikt sends <code>X-Verdikt-Signature: sha256=…</code> on each delivery so you can verify authenticity.</div>
+          </div>
+          <div class="field" style="max-width:520px;margin-top:14px">
+            <label class="field-label">Subscribed events</label>
+            <input class="inp mono" value="CERTIFIED, UNCERTIFIED, CERTIFIED_WITH_OVERRIDE">
+            <div class="field-hint">Comma-separated. Options: <code>CERTIFIED</code>, <code>UNCERTIFIED</code>, <code>CERTIFIED_WITH_OVERRIDE</code></div>
+          </div>
+        </div>
+        <div class="sblock-footer" style="gap:10px">
+          <span class="footer-note" id="note-governance">No unsaved changes</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-secondary" style="color:var(--uncertified);border-color:rgba(239,68,68,.2)" onclick="toast('Webhook removed')">Remove</button>
+            <button class="btn-save" id="save-governance" disabled onclick="saveSection('governance')">Save webhook</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Audit log integrity</div><div class="sblock-desc">Verify that no audit records have been modified since they were written. Each row is content-hashed at write time with SHA-256.</div></div></div>
+        <div class="sblock-body" id="integrity-body">
+          <div class="integrity-result ok">
+            <div class="integrity-icon">✓</div>
+            <div>
+              <div class="integrity-label" style="color:var(--certified)">All records verified</div>
+              <div class="integrity-sub">214 / 214 rows passed · 0 failed · Last checked: just now</div>
+            </div>
+          </div>
+        </div>
+        <div class="sblock-footer">
+          <button class="btn-secondary" onclick="runIntegrity()">Run integrity check</button>
+        </div>
+      </div>
+
+      <div class="sblock">
+        <div class="sblock-head"><div><div class="sblock-title">Cryptographic certification signing</div><div class="sblock-desc">Every CERTIFIED or CERTIFIED_WITH_OVERRIDE verdict is automatically signed with HMAC-SHA256 at issuance. No configuration required.</div></div></div>
+        <div class="sblock-body">
+          <div style="background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--fg2);line-height:1.7">
+            <span style="color:var(--certified);font-weight:500">Always on.</span> Each signed record includes a <code style="font-family:var(--mono);font-size:11px">payload_hash</code> and <code style="font-family:var(--mono);font-size:11px">signature</code> that can be embedded in your CI/CD gate or audit report. Verify at <code style="font-family:var(--mono);font-size:11px">GET /api/releases/:id/cert/verify</code> without credentials.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ BILLING ══════════════════ -->
+    <div class="section" id="s-billing">
+      <div class="section-eyebrow">Account</div>
+      <h1 class="section-h1">Plan &amp; <em>Billing</em></h1>
+      <p class="section-desc">You are on the Starter plan. Upgrade to Team to unlock multiple projects, advanced intelligence features, and priority support.</p>
+
+      <div class="sblock">
+        <div class="sblock-head"><div class="sblock-title">Current plan</div></div>
+        <div class="sblock-body">
+          <div class="plan-card">
+            <div>
+              <div class="plan-name">Starter</div>
+              <div class="plan-detail">Free forever · 1 workspace · Core release certification</div>
+            </div>
+            <button class="btn-upgrade" onclick="toast('Upgrade flow — coming soon')">Upgrade to Team →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ DANGER ══════════════════ -->
+    <div class="section" id="s-danger">
+      <div class="section-eyebrow">Irreversible actions</div>
+      <h1 class="section-h1">Danger <em>Zone</em></h1>
+      <p class="section-desc">These actions are permanent and cannot be undone. Each requires explicit confirmation before executing.</p>
+
+      <div class="sblock" style="border-color:rgba(239,68,68,.2)">
+        <div class="danger-action">
+          <div><div class="danger-title">Export full workspace data</div><div class="danger-desc">Download all releases, verdicts, overrides, and audit trail entries as a JSON archive.</div></div>
+          <button class="btn-secondary" onclick="toast('Export started — you will receive an email when ready')">Export data</button>
+        </div>
+        <div class="danger-action">
+          <div><div class="danger-title">Revoke all API keys</div><div class="danger-desc">Immediately invalidate all active API keys. Signal submission will stop until new keys are created.</div></div>
+          <button class="btn-danger" onclick="toast('All API keys revoked')">Revoke all keys</button>
+        </div>
+        <div class="danger-action">
+          <div><div class="danger-title">Reset all thresholds to defaults</div><div class="danger-desc">Restore all signal thresholds to Verdikt's default values. This overwrites any custom configuration.</div></div>
+          <button class="btn-danger" onclick="toast('Thresholds reset to defaults')">Reset thresholds</button>
+        </div>
+        <div class="danger-action" style="border-bottom:none">
+          <div><div class="danger-title" style="color:var(--uncertified)">Delete workspace</div><div class="danger-desc">Permanently delete this workspace, all releases, all certification records, and all audit trail entries. This cannot be reversed.</div></div>
+          <button class="btn-danger" onclick="toast('Type DELETE to confirm — use the full app')">Delete workspace</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="toast" id="toast-el"></div>
+
+<script>
+// ── SECTION SWITCHING ──
+const sections={general:'General',team:'Team & Roles',thresholds:'Quality Thresholds',api:'API & Signal Sources',trigger:'Release Trigger',notifications:'Notifications',governance:'Governance',billing:'Plan & Billing',danger:'Danger zone'};
+function show(id,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('bc-section').textContent=sections[id]||id;
+}
+
+// ── DIRTY TRACKING ──
+function markDirty(key){
+  const note=document.getElementById('note-'+key);
+  const save=document.getElementById('save-'+key);
+  if(note)note.textContent='Unsaved changes';
+  if(save)save.disabled=false;
+}
+function saveSection(key){
+  const note=document.getElementById('note-'+key);
+  const save=document.getElementById('save-'+key);
+  if(note)note.textContent='Saved';
+  if(save)save.disabled=true;
+  toast('Changes saved');
+  setTimeout(()=>{if(note&&note.textContent==='Saved')note.textContent='No unsaved changes'},2000);
+}
+
+// ── SLUG PREVIEW ──
+const slugInp=document.getElementById('slug-inp');
+const slugPrev=document.getElementById('slug-preview');
+if(slugInp&&slugPrev){
+  slugInp.addEventListener('input',()=>{
+    slugPrev.textContent=slugInp.value||'workspace';
+    markDirty('general');
+  });
+}
+
+// ── CHIPS ──
+function setChip(id){
+  document.getElementById('chip-staging').classList.toggle('active',id==='staging');
+  document.getElementById('chip-uat').classList.toggle('active',id==='uat');
+  toast('Primary certification tier set to '+id.toUpperCase());
+}
+
+// ── TRIGGER ──
+function setTrigger(btn,id){
+  document.querySelectorAll('.trigger-option').forEach(b=>{
+    b.classList.remove('active');
+    const name=b.querySelector('.trigger-name');
+    const tag=b.querySelector('.trigger-active-tag');
+    if(tag)tag.remove();
+  });
+  btn.classList.add('active');
+  const name=btn.querySelector('.trigger-name');
+  if(name){
+    const tag=document.createElement('span');
+    tag.className='trigger-active-tag';
+    tag.textContent='ACTIVE';
+    name.appendChild(tag);
+  }
+  markDirty('trigger');
+}
+
+// ── STRATEGY ──
+function setStrategy(btn){
+  document.querySelectorAll('.strategy-option').forEach(b=>{
+    b.classList.remove('active');
+    const r=b.querySelector('.strategy-radio');
+    if(r)r.textContent='○';
+    const tag=b.querySelector('.trigger-active-tag');
+    if(tag)tag.remove();
+  });
+  btn.classList.add('active');
+  const r=btn.querySelector('.strategy-radio');
+  if(r)r.textContent='◉';
+  const name=btn.querySelector('.strategy-name');
+  if(name){
+    const tag=document.createElement('span');
+    tag.className='trigger-active-tag';
+    tag.style.cssText='background:var(--purple-dim);color:var(--purple)';
+    tag.textContent='ACTIVE';
+    name.appendChild(tag);
+  }
+}
+
+// ── INVITE ──
+function sendInvite(){
+  const email=document.getElementById('invite-email').value.trim();
+  if(!email||!email.includes('@')){toast('Enter a valid email address');return;}
+  toast('Invite sent to '+email);
+  document.getElementById('invite-email').value='';
+}
+
+// ── INTEGRITY ──
+function runIntegrity(){
+  const body=document.getElementById('integrity-body');
+  body.innerHTML='<div style="font-family:var(--mono);font-size:11.5px;color:var(--fg3)">Verifying 214 records…</div>';
+  setTimeout(()=>{
+    body.innerHTML=`<div class="integrity-result ok"><div class="integrity-icon">✓</div><div><div class="integrity-label" style="color:var(--certified)">All records verified</div><div class="integrity-sub">214 / 214 rows passed · 0 failed · Last checked: just now</div></div></div>`;
+    toast('Integrity check complete — all records verified');
+  },1400);
+}
+
+// ── TOAST ──
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast-el');
+  el.innerHTML=`<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="var(--certified)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${msg}</span>`;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+function nav(url){toast('Navigating to '+url)}
+</script>
+</body>
+</html>

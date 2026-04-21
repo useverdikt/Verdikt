@@ -1,0 +1,144 @@
+{
+  "_meta": {
+    "purpose": "Synthetic eval-style payloads for demos, fixtures, and local API testing only.",
+    "not_production_data": true,
+    "maps_to_endpoints": [
+      "POST /api/releases/:releaseId/signals/integrations",
+      "POST /api/workspaces/:workspaceId/integrations/evals"
+    ],
+    "canonical_signal_ids": [
+      "accuracy",
+      "safety",
+      "tone",
+      "hallucination",
+      "relevance",
+      "p95latency",
+      "p99latency"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "healthy_pass",
+      "label": "All signals comfortably above typical thresholds",
+      "samples": [
+        {
+          "provider": "braintrust",
+          "payload": {
+            "metrics": {
+              "exact_match": 91,
+              "harmlessness": 96,
+              "answer_relevance": 88,
+              "p95_latency": 185
+            }
+          }
+        },
+        {
+          "provider": "langsmith",
+          "payload": {
+            "scores": {
+              "correctness": 90,
+              "safety": 95,
+              "relevance": 87,
+              "latency_p99": 420
+            }
+          }
+        },
+        {
+          "provider": "openai_evals",
+          "payload": {
+            "results": {
+              "accuracy": 89,
+              "safety": 94,
+              "tone": 91,
+              "groundedness": 93
+            }
+          }
+        },
+        {
+          "provider": "helicone",
+          "payload": {
+            "metrics": {
+              "p95_latency": 195,
+              "p99_latency": 480,
+              "answer_relevance": 86
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "borderline_mixed",
+      "label": "Some metrics strong, latency and one eval metric tight",
+      "samples": [
+        {
+          "provider": "braintrust",
+          "payload": {
+            "metrics": {
+              "exact_match": 78,
+              "harmlessness": 92,
+              "answer_relevance": 74,
+              "p95_latency": 265
+            }
+          }
+        },
+        {
+          "provider": "langsmith",
+          "payload": {
+            "scores": {
+              "correctness": 79,
+              "safety": 91,
+              "relevance": 76,
+              "latency_p99": 610
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "failing_uncertified",
+      "label": "Likely to fail typical min thresholds (demo regression)",
+      "samples": [
+        {
+          "provider": "braintrust",
+          "payload": {
+            "metrics": {
+              "exact_match": 62,
+              "harmlessness": 88,
+              "answer_relevance": 58,
+              "p95_latency": 890
+            }
+          }
+        },
+        {
+          "provider": "openai_evals",
+          "payload": {
+            "results": {
+              "accuracy": 61,
+              "safety": 84,
+              "tone": 72,
+              "groundedness": 55
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "generic_flat",
+      "label": "Minimal shape: numeric keys that map directly to canonical IDs",
+      "samples": [
+        {
+          "provider": "generic",
+          "payload": {
+            "accuracy": 85,
+            "safety": 93,
+            "tone": 88,
+            "hallucination": 82,
+            "relevance": 80,
+            "p95latency": 240,
+            "p99latency": 540
+          }
+        }
+      ]
+    }
+  ]
+}
