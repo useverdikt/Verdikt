@@ -9,8 +9,8 @@ const path = require("path");
  * - Backend-only image: `backend/shared/` (copied by `scripts/sync-shared.cjs` on postinstall).
  */
 const candidates = [
-  path.join(__dirname, "..", "..", "..", "shared", "config.js"),
-  path.join(__dirname, "..", "..", "shared", "config.js")
+  path.join(__dirname, "..", "..", "shared", "config.js"),
+  path.join(__dirname, "..", "..", "..", "shared", "config.js")
 ];
 
 let loaded;
@@ -23,8 +23,8 @@ for (const p of candidates) {
 
 if (!loaded) {
   throw new Error(
-    `Cannot find shared/config.js. For Railway, either set the service root to the repository root ` +
-      `(see railway.toml) or run install so backend/postinstall copies ../shared into backend/shared.\n` +
+    `Cannot find shared/config.js. Expected backend/shared/config.js (committed copy of repo shared/) ` +
+      `or monorepo ../shared. After editing ../shared/config.json run: cd backend && npm run sync-shared\n` +
       `Tried:\n${candidates.map((c) => `  - ${c}`).join("\n")}`
   );
 }

@@ -1,0 +1,135 @@
+{
+  "defaultCollectionWindowMinutes": 120,
+  "allowedReleaseTypes": [
+    "prompt_update",
+    "model_patch",
+    "safety_patch",
+    "policy_change",
+    "model_update"
+  ],
+  "aiSignalIds": ["accuracy", "safety", "tone", "hallucination", "relevance"],
+  "aiSignalDefinitions": {
+    "accuracy": {
+      "label": "Accuracy",
+      "direction": "min",
+      "description": "Factual correctness against expected answers."
+    },
+    "safety": {
+      "label": "Safety",
+      "direction": "min",
+      "description": "Absence of unsafe or policy-violating responses."
+    },
+    "tone": {
+      "label": "Tone",
+      "direction": "min",
+      "description": "Alignment with expected voice and style."
+    },
+    "hallucination": {
+      "label": "Hallucination",
+      "direction": "min",
+      "description": "Grounding in provided context and sources."
+    },
+    "relevance": {
+      "label": "Relevance",
+      "direction": "min",
+      "description": "How directly responses address user intent."
+    }
+  },
+  "signalAliasMap": {
+    "accuracy": "accuracy",
+    "exact_match": "accuracy",
+    "correctness": "accuracy",
+    "safety": "safety",
+    "harmlessness": "safety",
+    "tone": "tone",
+    "style": "tone",
+    "hallucination": "hallucination",
+    "groundedness": "hallucination",
+    "relevance": "relevance",
+    "answer_relevance": "relevance",
+    "p95latency": "p95latency",
+    "p95_latency": "p95latency",
+    "latency_p95": "p95latency",
+    "p99latency": "p99latency",
+    "p99_latency": "p99latency",
+    "latency_p99": "p99latency",
+    "crashrate": "crashrate",
+    "crash_rate": "crashrate",
+    "errorrate": "errorrate",
+    "error_rate": "errorrate",
+    "anrrate": "anrrate",
+    "anr_rate": "anrrate"
+  },
+  "defaultThresholdSeedRows": [
+    ["accuracy", 85, null],
+    ["safety", 90, null],
+    ["tone", 85, null],
+    ["hallucination", 90, null],
+    ["relevance", 82, null],
+    ["accuracy_delta", 5, null],
+    ["safety_delta", 5, null],
+    ["tone_delta", 5, null],
+    ["hallucination_delta", 5, null],
+    ["relevance_delta", 5, null],
+    ["p95latency", null, 300],
+    ["p99latency", null, 600]
+  ],
+  "releaseTypes": [
+    {
+      "id": "prompt_update",
+      "label": "Prompt / UX Update",
+      "icon": "✦",
+      "regressionRequired": true
+    },
+    {
+      "id": "model_patch",
+      "label": "Model Patch",
+      "icon": "⊘",
+      "regressionRequired": false
+    },
+    {
+      "id": "safety_patch",
+      "label": "Safety Hotfix",
+      "icon": "⚡",
+      "regressionRequired": false
+    },
+    {
+      "id": "policy_change",
+      "label": "Routing / Policy Change",
+      "icon": "◎",
+      "regressionRequired": null
+    },
+    {
+      "id": "model_update",
+      "label": "Model Version Update",
+      "icon": "◐",
+      "regressionRequired": false
+    }
+  ],
+  "defaultThresholds": {
+    "smoke": 100,
+    "e2e_regression": 95,
+    "startup": 3.0,
+    "screenload": 1.5,
+    "fps": 58,
+    "jserrors": 0.5,
+    "p95latency": 300,
+    "p99latency": 600,
+    "errorunderload": 1.0,
+    "recovery": 30,
+    "crashrate": 0.1,
+    "anrrate": 0.05,
+    "errorrate": 1.0,
+    "oomrate": 0.2,
+    "accuracy": 85,
+    "safety": 90,
+    "tone": 85,
+    "hallucination": 90,
+    "relevance": 82,
+    "accuracy_delta": 5,
+    "safety_delta": 5,
+    "tone_delta": 5,
+    "hallucination_delta": 5,
+    "relevance_delta": 5
+  }
+}
