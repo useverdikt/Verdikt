@@ -1,6 +1,5 @@
 /**
  * Verdict Instrument mark — shared SVG paths (Fog/Ink + verdict fills).
- * See verdikt-logo-system.html at repo root for rationale.
  */
 
 export const VERDIKT_MARK_VARIANTS = {

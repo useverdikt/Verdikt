@@ -4,7 +4,7 @@
 
 - **Single bootstrap document**: `frontend/index.html` mounts `#root` and loads `src/main.jsx`. No other HTML file acts as a second SPA entry.
 - **All product “pages”** are React routes under `BrowserRouter` in `frontend/src/main.jsx`.
-- **Static HTML** in `frontend/public/` is legacy or non-app (see inventory). Long term, only intentional static assets (e.g. pitch deck) should remain.
+- **Static HTML** in `frontend/public/` is legacy or non-app (see inventory). Long term, only intentional static assets should remain.
 
 ## Auth model
 
@@ -17,22 +17,23 @@
 
 Excluded: `node_modules/**`, `**/dist/**` (build output; mirrors `public/` + `index.html`).
 
-### Repository root (`Verdikt MVP v1/*.html`)
+### Repository root — static HTML **removed**
 
-Legacy / duplicate copies — not served by Vite dev server unless you open the file directly or host them separately. Migrate content into React, then delete or archive.
+There are **no** standalone `*.html` (or pitch PDFs) at the repository root. Product surfaces are **`frontend/index.html` → React** or static files under **`frontend/public/`** (served at the site root in dev and production). The following were deleted in a **repo cleanup** (equivalent behavior is React routes and/or `public/`):
 
-| File | Notes |
-|------|--------|
-| `index.html` | Legacy root landing; superseded by Vite `frontend/index.html` + React **`/`** (`LandingPage`). |
-| `verdikt-dashboard.html` | **Removed** (Phase 4). Use SPA routes `/releases`, `/trends`, `/thresholds`, `/audit`. |
-| `verdikt-login.html` | Legacy; app uses `/login`. |
-| `verdikt-settings.html` | Duplicate of `frontend/public/` copy. |
-| `verdikt-badge.html` | Legacy; use React **`/badge`** (`BadgePage.jsx`). |
-| `verdikt-onboarding.html` | Legacy; app uses **`/onboarding`** (`OnboardingPage` + register API). |
-| `verdikt-forgot-password.html` | Not in React yet. |
-| `verdikt-pricing.html` | Legacy; canonical pricing is React **`/pricing`** (`PricingPage.jsx`). |
-| `verdikt-emails.html` | **Removed** from repo root; previews live at **`/emails`** (`frontend/public/verdikt-emails.html`). |
-| `verdikt-pitch-v11.html` | Pitch deck; may stay static (also copied under `frontend/public/`). |
+| Removed (root) | Replaced by |
+|------------------|-------------|
+| `index.html` | React **`/`** — `LandingPage.jsx` (Vite entry is `frontend/index.html`). |
+| `verdikt-dashboard.html` | **Earlier** (Phase 4) — `/releases`, `/trends`, `/thresholds`, `/audit`. |
+| `verdikt-login.html`, `verdikt-forgot-password.html` | `/login`, `/forgot-password`. |
+| `verdikt-settings.html`, `verdikt-badge.html`, `verdikt-onboarding.html` (if present) | `/settings`, `/badge`, `/onboarding`. |
+| `verdikt-pricing.html` | `/pricing` (`PricingPage.jsx`); see also `public/verdikt-pricing.html` if kept for deep links. |
+| `verdikt-emails.html` | **Earlier** from root — `/emails` and `public/verdikt-emails.html`. |
+| `verdikt-logo-system.html` | Design reference only — see `verdiktMarkSvg.js` for mark geometry. |
+| `verdikt-pitch-v11.html` / `.pdf`, `verdikt_pitch_v10.docx.pdf` | **Removed** — pitch PDFs / static pitch HTML not kept in repo. |
+| `app5173.txt`, `app5173_new.txt`, `app5174.txt` (`frontend/`) | Dev/debug snapshots (not part of the app). |
+
+**Historical:** `verdikt-onboarding.html` and root `verdikt-pricing.html` / `verdikt-pitch-v11.*` are no longer in the tree at root; if your clone never had them, the row still documents intent.
 
 ### Vite `frontend/public/` (served at site root in dev / production)
 
@@ -40,7 +41,7 @@ Legacy / duplicate copies — not served by Vite dev server unless you open the 
 |------|------|
 | `verdikt-settings.html` | Settings UI until ported to React (also embedded from `/settings`). |
 | `verdikt-badge.html` | Redirect to **`/badge`**; full UI is React. |
-| `verdikt-pitch-v11.html` | Static pitch (optional to keep non-React). |
+| `verdikt-pricing.html` | Optional static or redirect; canonical pricing is React **`/pricing`**. |
 | `verdikt-emails.html` | Redirect to **`/emails`**; previews are React (`EmailsPage.jsx`). |
 
 ### Vite shell only
@@ -51,14 +52,14 @@ Legacy / duplicate copies — not served by Vite dev server unless you open the 
 
 ## Known gaps (acceptable until later phases)
 
-- Direct URL to **`/verdikt-settings.html`** still serves static HTML (bypasses `ProtectedRoute`). Remove when settings is fully React.
-- Root-level `*.html` files are confusing duplicates; delete after migration and link checks.
+- Direct URL to **`/verdikt-settings.html`** (under `public/`) still serves static HTML (bypasses `ProtectedRoute`). Remove when settings is fully React.
+- **Resolved (cleanup):** root-level duplicate `*.html` / pitch PDFs / debug txt snapshots removed; see **Repository root** table above.
 
 ## Phase 1 — Landing (`/`)
 
-- **`LandingPage.jsx`** is the marketing home at **`/`** (hero, CTAs, link to static pitch at `/verdikt-pitch-v11.html`).
+- **`LandingPage.jsx`** is the marketing home at **`/`** (hero, CTAs; no static pitch HTML in `public/`).
 - **`App.jsx`** no longer redirects `/` → `/releases` (that path is not mounted under `App`).
-- Repo-root **`index.html`** (if any) remains legacy; the live landing is the React route above.
+- There is **no** repo-root `index.html`; the only non-`public` shell is **`frontend/index.html`** (Vite) mounting React.
 
 ## Phase 2 — Login
 
@@ -77,7 +78,7 @@ Legacy / duplicate copies — not served by Vite dev server unless you open the 
 
 - **Canonical dashboard** is **`App.jsx`** under **`ProtectedRoute`**, with primary URL **`/releases`** (sidebar: Trends → `/trends`, Thresholds → `/thresholds`, Audit → `/audit`). Legacy `?tab=` query handling in **`App.jsx`** still maps old links to these paths.
 - **Repo-root `verdikt-dashboard.html` was deleted** — it duplicated the React app; use the Vite app and routes above.
-- **Remaining repo-root static HTML** (if opened outside Vite) had links updated: dashboard targets → **`/releases`** (and siblings), sign-in → **`/login`**, home → **`/`**, so they do not point at the removed file.
+- **Repo-root static HTML** has been fully removed; bookmark **`/`** and SPA routes, not file paths.
 
 ## Phase 5 — Email previews
 
@@ -97,8 +98,8 @@ Legacy / duplicate copies — not served by Vite dev server unless you open the 
 
 - **Route:** **`/pricing`** (public), **`PricingPage.jsx`** — plans grid with monthly/annual toggle, comparison table, FAQ accordion, enterprise strip (same marketing content as legacy `verdikt-pricing.html`).
 - **Data:** `frontend/src/pages/pricingData.js` holds plan tiers, comparison rows, and FAQ copy.
-- **Navigation:** **`LandingPage`** header includes **Pricing** → **`/pricing`**. **`frontend/public/verdikt-settings.html`** billing CTA links to **`/pricing`** instead of static `verdikt-pricing.html`.
-- **Legacy:** Repo-root **`verdikt-pricing.html`** may remain for direct file opens; the Vite app should use **`/pricing`**.
+- **Navigation:** **`LandingPage`** header includes **Pricing** → **`/pricing`**. **`frontend/public/verdikt-settings.html`** billing CTA can link to **`/pricing`** instead of a static `verdikt-pricing.html` file.
+- **Legacy:** No repo-root **`verdikt-pricing.html`**. Optional copy under **`frontend/public/verdikt-pricing.html`** is served at **`/verdikt-pricing.html`**; canonical product pricing is still **`/pricing`**.
 
 ## Phase 8 — Public badge / certification record (`/badge`)
 
