@@ -7,7 +7,7 @@
 
 const path = require("path");
 const { queryOne, queryAll, run, transaction } = require("../database");
-const sharedPkg = require(path.join(__dirname, "..", "..", "..", "shared", "config.js"));
+const sharedPkg = require("../lib/sharedPkg");
 const { nowIso } = require("../lib/time");
 const { ensureInboundWebhookSecret } = require("./inboundWebhookSecrets");
 

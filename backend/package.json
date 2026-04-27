@@ -4,6 +4,7 @@
   "description": "Verdikt MVP backend",
   "main": "src/server.js",
   "scripts": {
+    "postinstall": "node scripts/sync-shared.cjs",
     "start": "node src/server.js",
     "dev": "node src/server.js",
     "test": "node --test test/backend.test.js",

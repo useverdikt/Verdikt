@@ -10,7 +10,7 @@
 
 const path = require("path");
 const { queryOne, queryAll } = require("../database");
-const sharedPkg = require(path.join(__dirname, "..", "..", "..", "shared", "config.js"));
+const sharedPkg = require("../lib/sharedPkg");
 const { normaliseSignalKey } = sharedPkg;
 const { analyzeReleaseDeltas } = require("./delta");
 const { AI_SIGNAL_IDS, SIGNAL_ALIAS_MAP } = require("../config");

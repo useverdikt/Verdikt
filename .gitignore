@@ -16,3 +16,6 @@ backend/data/backups/
 
 # Supabase CLI
 supabase/.temp/
+
+# Vendored copy of monorepo `shared/` for backend-only deploys (see backend/scripts/sync-shared.cjs)
+backend/shared/
