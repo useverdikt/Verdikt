@@ -53,7 +53,7 @@ const AI_MODEL =
   (AI_PROVIDER === "gemini" ? "gemini-2.0-flash" : "claude-3-5-haiku-latest");
 const AI_PROVIDER_API_KEY =
   AI_PROVIDER === "gemini" ? process.env.GEMINI_API_KEY || "" : process.env.ANTHROPIC_API_KEY || "";
-const sharedPkg = require(path.join(__dirname, "..", "..", "..", "shared", "config.js"));
+const sharedPkg = require("../lib/sharedPkg");
 const DEFAULT_COLLECTION_WINDOW_MINUTES = sharedPkg.defaultCollectionWindowMinutes;
 const WEBHOOK_RATE_LIMIT_PER_MINUTE = Number(process.env.WEBHOOK_RATE_LIMIT_PER_MINUTE || 120);
 const ALLOWED_RELEASE_TYPES = sharedPkg.getAllowedReleaseTypesSet();

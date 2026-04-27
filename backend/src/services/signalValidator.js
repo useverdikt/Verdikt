@@ -6,7 +6,7 @@
  */
 
 const path = require("path");
-const sharedPkg = require(path.join(__dirname, "..", "..", "..", "shared", "config.js"));
+const sharedPkg = require("../lib/sharedPkg");
 const { queryAll, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 
