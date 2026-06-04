@@ -1,0 +1,12 @@
+{
+  "framework": "vite",
+  "installCommand": "npm --prefix frontend ci --include=dev",
+  "buildCommand": "npm --prefix frontend run build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
