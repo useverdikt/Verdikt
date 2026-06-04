@@ -1,11 +1,10 @@
-# Deploy the API from the monorepo root so `shared/` is on disk at runtime.
-# In Railway: set this repo as connected; leave "Root Directory" empty or "." so this file applies.
-# If you instead set Root Directory to `backend/` only, `postinstall` copies `../shared` into `backend/shared/`.
+# Railway service rootDirectory is `backend/`, so commands run from backend already.
+# Do not use `--prefix backend` here or npm will look for `backend/backend/`.
 
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci --prefix backend"
+buildCommand = "npm ci"
 
 [deploy]
-startCommand = "npm start --prefix backend"
+startCommand = "npm start"
 restartPolicyType = "on_failure"
