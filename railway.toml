@@ -3,7 +3,9 @@
 
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci"
+# Dependencies are installed in the Nixpacks install phase already.
+# Running npm ci again in build can fail with EBUSY on /app/node_modules/.cache.
+buildCommand = "echo 'No build step (Node backend)'"
 
 [deploy]
 startCommand = "npm start"
