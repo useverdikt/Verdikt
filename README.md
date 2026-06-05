@@ -10,7 +10,7 @@ Release intelligence for AI product teams: certify releases against thresholds, 
 
 <p align="center">
   <a href="https://useverdikt.com"><img alt="Live App" src="https://img.shields.io/badge/App-useverdikt.com-111827?style=flat&logo=vercel&logoColor=white"></a>
-  <a href="https://verdikt-production-fdef.up.railway.app/health/ready"><img alt="API Ready Endpoint" src="https://img.shields.io/badge/API-ready-16a34a?style=flat&logo=railway&logoColor=white"></a>
+  <img alt="API Route" src="https://img.shields.io/badge/API-api.useverdikt.com-16a34a?style=flat&logo=railway&logoColor=white">
   <img alt="Frontend" src="https://img.shields.io/badge/frontend-React%20%2B%20Vite-2563eb?style=flat&logo=react&logoColor=white">
   <img alt="Backend" src="https://img.shields.io/badge/backend-Express-111827?style=flat&logo=express&logoColor=white">
   <img alt="Database" src="https://img.shields.io/badge/database-Supabase%20Postgres-059669?style=flat&logo=supabase&logoColor=white">
@@ -19,8 +19,8 @@ Release intelligence for AI product teams: certify releases against thresholds, 
 ## Live Environment
 
 - App: [https://useverdikt.com](https://useverdikt.com)
-- API: [https://verdikt-production-fdef.up.railway.app/health](https://verdikt-production-fdef.up.railway.app/health)
-- API readiness: [https://verdikt-production-fdef.up.railway.app/health/ready](https://verdikt-production-fdef.up.railway.app/health/ready)
+- API base (public route): `https://api.useverdikt.com` (recommended custom domain)
+- Health endpoints: `/health` and `/health/ready`
 
 ## Why Verdikt
 
@@ -45,7 +45,7 @@ Verdikt gives engineering, product, and compliance stakeholders a shared decisio
 ```mermaid
 flowchart LR
     U[User Browser] --> V[Vercel Frontend<br/>useverdikt.com]
-    V -->|VITE_API_BASE| R[Railway API<br/>verdikt-production-fdef.up.railway.app]
+    V -->|VITE_API_BASE| R[Railway API<br/>api.useverdikt.com]
     R --> D[(Supabase Postgres)]
 ```
 
@@ -123,7 +123,7 @@ For e2e on a fresh machine, run `npx playwright install` once.
 
 - Build target: `frontend/`
 - Required env:
-  - `VITE_API_BASE=https://verdikt-production-fdef.up.railway.app`
+  - `VITE_API_BASE=https://api.useverdikt.com`
   - `VITE_SUPABASE_URL=...`
   - `VITE_SUPABASE_ANON_KEY=...`
 
@@ -152,8 +152,8 @@ For e2e on a fresh machine, run `npx playwright install` once.
 After each deploy:
 
 ```bash
-curl -i "https://verdikt-production-fdef.up.railway.app/health"
-curl -i "https://verdikt-production-fdef.up.railway.app/health/ready"
+curl -i "https://api.useverdikt.com/health"
+curl -i "https://api.useverdikt.com/health/ready"
 ```
 
 Expected:

@@ -47,11 +47,11 @@ node scripts/write-supabase-local-env.mjs
 
 ## Hosted Auth URLs (dashboard)
 
-For a **cloud** project: **Authentication → URL configuration** — add **Site URL** and **Redirect URLs** for your app (e.g. `http://localhost:5173`, `https://<your-app>.vercel.app`, and Vercel preview URLs if you use them). This is not stored in `config.toml` for hosted Supabase.
+For a **cloud** project: **Authentication → URL configuration** — add **Site URL** and **Redirect URLs** for your app (e.g. `http://localhost:5173`, `https://useverdikt.com`, and your preview environment URLs if you use them). This is not stored in `config.toml` for hosted Supabase.
 
 ## Environment
 
-- **Frontend (Vercel):** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (only the anon key in the browser).
+- **Frontend:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (only the anon key in the browser).
 - **Backend:** `SUPABASE_JWT_SECRET` (session exchange). **`DATABASE_URL`** for Postgres when Express should resolve users from Supabase DB (use the **pooler** connection string for server apps). Prefer the **anon/service role** separation documented by Supabase; never put the service role in Vite.
 
 ## Auth
