@@ -28,10 +28,13 @@ function publicUser(row) {
 }
 
 function cookieOpts(httpOnly) {
+  // Cross-origin deployment (frontend on Vercel, API on Railway) requires
+  // sameSite: "none" + secure: true so browsers accept Set-Cookie cross-site.
+  // In local dev (IS_PROD_LIKE=false) keep "lax" so http:// works without HTTPS.
   return {
     httpOnly,
     secure: IS_PROD_LIKE,
-    sameSite: "lax",
+    sameSite: IS_PROD_LIKE ? "none" : "lax",
     path: "/",
     maxAge: COOKIE_MAX_AGE_MS
   };
@@ -40,7 +43,8 @@ function cookieOpts(httpOnly) {
 function setAuthCookies(res, token) {
   const csrf = crypto.randomBytes(32).toString("hex");
   res.cookie(AUTH_COOKIE_NAME, token, cookieOpts(true));
-  res.cookie(CSRF_COOKIE_NAME, csrf, { ...cookieOpts(false), sameSite: "strict" });
+  // CSRF cookie must be readable by JS — sameSite "none" in prod, "strict" in dev
+  res.cookie(CSRF_COOKIE_NAME, csrf, { ...cookieOpts(false), sameSite: IS_PROD_LIKE ? "none" : "strict" });
 }
 
 function clearAuthCookies(res) {
