@@ -1,18 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiFetchInit, resolveApiOrigin } from "../settingsClient.js";
 
-const BASELINE_STRATEGIES = [
-  { id: "median_n", label: "Median (N releases)", desc: "Uses the median of the N most recent certified releases per signal. Robust to outliers." },
-  { id: "trimmed_mean_n", label: "Trimmed mean (N releases)", desc: "Drops the top and bottom 10% of values before averaging. Best for large windows." },
-  { id: "last_certified", label: "Last certified", desc: "Classic mode — uses the single most recent certified release as the baseline." },
-  { id: "pinned_golden", label: "Pinned golden release", desc: "Manually pin a specific certified release as the immutable golden baseline." }
-];
-
 export default function GovernancePanel({ section, wsId, toast }) {
-  const [, setBaselinePolicyState] = useState(null);
-  const [bpSaving, setBpSaving] = useState(false);
-  const [bpDraft, setBpDraft] = useState(null);
-
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [webhookEvents, setWebhookEvents] = useState("CERTIFIED,UNCERTIFIED,CERTIFIED_WITH_OVERRIDE");
@@ -26,15 +15,6 @@ export default function GovernancePanel({ section, wsId, toast }) {
 
   useEffect(() => {
     if (section !== "governance" || !wsId) return;
-    fetch(`${apiBase}/api/workspaces/${wsId}/baseline-policy`, apiFetchInit())
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) {
-          setBaselinePolicyState(data);
-          setBpDraft(data);
-        }
-      })
-      .catch(() => {});
     fetch(`${apiBase}/api/workspaces/${wsId}/outbound-webhook`, apiFetchInit())
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -46,38 +26,6 @@ export default function GovernancePanel({ section, wsId, toast }) {
       })
       .catch(() => {});
   }, [section, wsId, apiBase]);
-
-  async function saveBaselinePolicy() {
-    if (!bpDraft || !wsId) return;
-    setBpSaving(true);
-    try {
-      const res = await fetch(
-        `${apiBase}/api/workspaces/${wsId}/baseline-policy`,
-        apiFetchInit({
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            strategy: bpDraft.strategy,
-            window_n: Number(bpDraft.window_n),
-            pinned_release_id: bpDraft.pinned_release_id || null
-          })
-        })
-      );
-      if (res.ok) {
-        const d = await res.json();
-        setBaselinePolicyState(d);
-        setBpDraft(d);
-        toast("Baseline policy saved");
-      } else {
-        const e = await res.json();
-        toast(e.error || "Save failed");
-      }
-    } catch {
-      toast("Network error");
-    } finally {
-      setBpSaving(false);
-    }
-  }
 
   async function saveWebhook() {
     if (!wsId || !webhookUrl) return;
@@ -154,71 +102,6 @@ export default function GovernancePanel({ section, wsId, toast }) {
         <p className="section-desc">
           Cryptographic signing, baseline hardening, outbound verdict delivery, and audit integrity enforcement. These settings define the trust boundary of every certification Verdikt issues.
         </p>
-      </div>
-
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">Baseline strategy</div>
-            <div className="sblock-desc">Controls how regression baselines are computed for delta-threshold evaluation.</div>
-          </div>
-        </div>
-        <div className="sblock-body">
-          {BASELINE_STRATEGIES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={`strategy-option${bpDraft?.strategy === s.id ? " active" : ""}`}
-              onClick={() => setBpDraft((d) => (d ? { ...d, strategy: s.id } : { strategy: s.id, window_n: 5 }))}
-            >
-              <span className="strategy-radio">{bpDraft?.strategy === s.id ? "◉" : "○"}</span>
-              <div>
-                <div className="strategy-name">
-                  {s.label}
-                  {bpDraft?.strategy === s.id ? (
-                    <span className="trigger-active-tag" style={{ background: "var(--purple-dim)", color: "var(--purple)" }}>
-                      ACTIVE
-                    </span>
-                  ) : null}
-                </div>
-                <div className="strategy-desc">{s.desc}</div>
-              </div>
-            </button>
-          ))}
-          {(bpDraft?.strategy === "median_n" || bpDraft?.strategy === "trimmed_mean_n") && (
-            <div className="field" style={{ maxWidth: 200, marginTop: 12 }}>
-              <label className="field-label">Window size (N releases)</label>
-              <input
-                className="inp"
-                type="number"
-                min={2}
-                max={20}
-                value={bpDraft?.window_n ?? 5}
-                onChange={(e) => setBpDraft((d) => (d ? { ...d, window_n: Number(e.target.value) } : d))}
-                style={{ marginTop: 6, width: "100%" }}
-              />
-              <div className="field-hint">How many prior certified releases to include in the baseline window (2–20).</div>
-            </div>
-          )}
-          {bpDraft?.strategy === "pinned_golden" && (
-            <div className="field" style={{ maxWidth: 340, marginTop: 12 }}>
-              <label className="field-label">Pinned release ID</label>
-              <input
-                className="inp mono"
-                placeholder="rel_..."
-                value={bpDraft?.pinned_release_id || ""}
-                onChange={(e) => setBpDraft((d) => (d ? { ...d, pinned_release_id: e.target.value } : d))}
-                style={{ marginTop: 6 }}
-              />
-              <div className="field-hint">Enter the release ID of the golden release to pin as the immutable baseline.</div>
-            </div>
-          )}
-        </div>
-        <div className="sblock-footer">
-          <button type="button" className="btn-primary" onClick={saveBaselinePolicy} disabled={bpSaving}>
-            {bpSaving ? "Saving…" : "Save baseline policy"}
-          </button>
-        </div>
       </div>
 
       <div className="sblock">
