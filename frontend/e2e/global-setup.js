@@ -28,6 +28,9 @@ function playwrightCookiesFromResponse(res) {
       value,
       domain: "127.0.0.1",
       path: "/",
+      // Playwright storageState expects a numeric expires value.
+      // -1 means session cookie (no explicit Expires/Max-Age).
+      expires: -1,
       httpOnly: lower.includes("httponly"),
       secure: false,
       sameSite: "Lax"
