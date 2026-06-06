@@ -99,7 +99,13 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
+      - name: Verify PostgreSQL connectivity for backend
+        working-directory: backend
+        run: |
+          node -e "const { Client } = require('pg'); (async () => { const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); const r = await c.query('select 1 as ok'); console.log('postgres ok:', r.rows[0].ok); await c.end(); })().catch((e) => { console.error(e); process.exit(1); });"
       - name: Install Playwright Chromium (system deps + browser)
         run: npx playwright install chromium --with-deps
       - name: Run E2E
+        env:
+          DEBUG: pw:webserver
         run: npm run test:e2e
