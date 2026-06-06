@@ -2,6 +2,15 @@ import React, { useEffect, useRef } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
 
+function currentWorkspaceSlug() {
+  const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
+  const slug = raw
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "workspace";
+}
+
 function useModalLayer(onClose) {
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -51,6 +60,7 @@ export default function CertificationRecordModal({
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
   const statusColor = { shipped: C.green, overridden: C.amber, blocked: C.red, pending: C.accent }[release.status] || C.accent;
   const statusLabel = { shipped: "CERTIFIED", overridden: "CERTIFIED WITH OVERRIDE", blocked: "UNCERTIFIED", pending: "PENDING" }[release.status] || "PENDING";
+  const certPath = `/cert/${currentWorkspaceSlug()}/${encodeURIComponent(String(release.version || ""))}`;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000e0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20, backdropFilter: "blur(6px)" }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
@@ -64,7 +74,7 @@ export default function CertificationRecordModal({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <a href="/badge" target="_blank" rel="noopener" style={{ fontSize: 11, color: C.accentBright, fontFamily: C.mono, fontWeight: 700, textDecoration: "none", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 6, padding: "5px 12px" }}>View public record →</a>
+            <a href={certPath} target="_blank" rel="noopener" style={{ fontSize: 11, color: C.accentBright, fontFamily: C.mono, fontWeight: 700, textDecoration: "none", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 6, padding: "5px 12px" }}>View public record →</a>
             {typeof onShareSnapshot === "function" && (
               <button
                 type="button"
