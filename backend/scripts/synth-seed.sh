@@ -2,7 +2,7 @@
 # Multi-startup synthetic data generator for realistic AI product flows.
 # Simulates 10 AI startups across:
 # - product surfaces: web app / mobile app / api-backend
-# - trigger modes: pipeline webhook, github label, jira transition, env promotion, manual declaration
+# - trigger modes: pipeline webhook, github label, jira transition, manual declaration
 # - signal ingestion: integration payload mapping, manual entry, csv-like batch imports
 # - providers: Braintrust, LangSmith, Datadog, Sentry
 #
@@ -26,7 +26,7 @@ fi
 
 release_types=("prompt_update" "model_patch" "model_update" "policy_change" "safety_patch")
 surfaces=("ai_web_app" "ai_mobile_app" "api_backend")
-trigger_modes=("pipeline_webhook" "github_label" "jira_transition" "env_promotion" "manual_declaration")
+trigger_modes=("pipeline_webhook" "github_label" "jira_transition" "manual_declaration")
 ingest_modes=("integration" "manual" "csv_like")
 providers=("braintrust" "langsmith" "datadog" "sentry")
 
@@ -86,7 +86,6 @@ create_release_by_mode() {
       pipeline_webhook) source="pipeline" ;;
       github_label) source="github_label" ;;
       jira_transition) source="jira_transition" ;;
-      env_promotion) source="env_promotion" ;;
       *) source="webhook" ;;
     esac
     local body sig

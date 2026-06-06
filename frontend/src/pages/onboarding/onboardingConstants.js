@@ -202,13 +202,6 @@ export const TRIGGER_MODES = [
     tag: "DEFAULT"
   },
   {
-    id: "env",
-    icon: "◎",
-    name: "Environment promotion",
-    desc: "Verdikt opens a certification window whenever a new build is deployed to a designated environment (e.g. staging). UAT remains a free-for-all.",
-    tag: "NO PIPELINE CHANGE"
-  },
-  {
     id: "label",
     icon: "◈",
     name: "GitHub label",
@@ -301,7 +294,6 @@ export function createInitialOnboardingState() {
     source: "integrations",
     trigger: {
       mode: "manual",
-      env: "staging",
       label: "verdikt:rc"
     },
     rel: {
