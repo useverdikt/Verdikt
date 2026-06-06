@@ -9,6 +9,24 @@ const AI_DIMS = [
   { k: "hallucination", label: "Hallucination", desc: "Responses grounded in available context" },
   { k: "relevance", label: "Relevance", desc: "Response addresses user intent" }
 ];
+const OPERATIONS_GUARDRAILS = [
+  { k: "smoke", label: "Smoke tests", desc: "Required on every release. P0 failure = hard block, no override.", le: false, unit: "%", step: 1 },
+  { k: "e2e_regression", label: "E2E regression", desc: "Required for new features. Waivable for bug fixes and hotfixes.", le: false, unit: "%", step: 1 },
+  { k: "crashrate", label: "Crash rate", desc: "Sessions ending in a crash", le: true, unit: "%", step: 0.01 },
+  { k: "errorrate", label: "API error rate", desc: "5xx errors as % of total API calls", le: true, unit: "%", step: 0.1 },
+  { k: "p95latency", label: "API p95 latency", desc: "95th percentile API response time under load", le: true, unit: "ms", step: 10 }
+];
+const ADVANCED_RUNTIME = [
+  { k: "startup", label: "Cold startup time", desc: "Time to interactive from cold launch", le: true, unit: "s", step: 0.1 },
+  { k: "screenload", label: "Key screen load", desc: "Primary screen render time", le: true, unit: "s", step: 0.1 },
+  { k: "fps", label: "Frame rate", desc: "Average FPS during key interactions", le: false, unit: "fps", step: 1 },
+  { k: "jserrors", label: "JS error rate", desc: "Uncaught JS errors per session", le: true, unit: "%", step: 0.1 },
+  { k: "p99latency", label: "API p99 latency", desc: "99th percentile API response time under load", le: true, unit: "ms", step: 10 },
+  { k: "errorunderload", label: "Error rate under load", desc: "5xx rate at peak concurrent users", le: true, unit: "%", step: 0.1 },
+  { k: "recovery", label: "Stress recovery time", desc: "Time to recover after stress test peak", le: true, unit: "s", step: 1 },
+  { k: "anrrate", label: "ANR rate", desc: "Android Not Responding rate", le: true, unit: "%", step: 0.01 },
+  { k: "oomrate", label: "OOM rate", desc: "Out of memory events per session", le: true, unit: "%", step: 0.01 }
+];
 
 export default function ThresholdsSettingsSection({
   section,
@@ -49,50 +67,77 @@ export default function ThresholdsSettingsSection({
           Quality <em>Thresholds</em>
         </h1>
         <p className="section-desc">
-          Pass/fail criteria applied to every release. AI Eval Quality thresholds are the primary output-quality gate. Changes take effect on the next certification session.
+          AI Eval Quality is the primary gate. Delivery and runtime checks remain as guardrails to prevent shipping a high-scoring model in a broken or unstable release.
         </p>
       </div>
 
       <div className="sblock">
         <div className="sblock-head">
           <div>
-            <div className="sblock-title">Delivery Reliability</div>
-            <div className="sblock-desc">Pass rate floors for smoke and E2E regression suites.</div>
+            <div className="sblock-title">AI Eval Quality (Primary Gate)</div>
+            <div className="sblock-desc">Absolute floor and maximum regression delta from the most recent certified baseline.</div>
           </div>
         </div>
         <div className="sblock-body" style={{ padding: "0 22px 18px" }}>
-          <div className="thresh-row">
-            <div className="thresh-meta">
-              <div className="thresh-label">Smoke tests</div>
-              <div className="thresh-desc">Required on every release. P0 failure = hard block, no override.</div>
-            </div>
-            <div className="thresh-ctrl">
-              <span className="thresh-dir">≥</span>
-              <input className="thresh-inp" type="number" min={0} max={100} step={1} value={num("smoke")} onChange={(e) => updateThresh("smoke", parseFloat(e.target.value))} />
-              <span className="thresh-unit">%</span>
-            </div>
-          </div>
-          <div className="thresh-row">
-            <div className="thresh-meta">
-              <div className="thresh-label">
-                E2E regression <span className="thresh-cond">CONDITIONAL</span>
+          {AI_DIMS.map((d) => (
+            <div key={d.k} className="thresh-row">
+              <div className="thresh-meta">
+                <div className="thresh-label">{d.label}</div>
+                <div className="thresh-desc">{d.desc}</div>
               </div>
-              <div className="thresh-desc">Required for new features. Waivable for bug fixes and hotfixes.</div>
+              <div className="thresh-ctrl">
+                <div className="thresh-ai-wrap">
+                  <div className="thresh-ai-row">
+                    <span className="thresh-ai-lbl">FLOOR</span>
+                    <span className="thresh-dir">≥</span>
+                    <input className="thresh-inp" type="number" min={0} max={100} step={1} value={num(d.k)} onChange={(e) => updateThresh(d.k, parseFloat(e.target.value))} />
+                    <span className="thresh-unit">%</span>
+                  </div>
+                  <div className="thresh-ai-row">
+                    <span className="thresh-ai-lbl">MAX DROP</span>
+                    <span className="thresh-dir">−</span>
+                    <input className="thresh-inp" type="number" min={0} max={100} step={1} value={num(`${d.k}_delta`)} onChange={(e) => updateThresh(`${d.k}_delta`, parseFloat(e.target.value))} />
+                    <span className="thresh-unit">pts</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="thresh-ctrl">
-              <span className="thresh-dir">≥</span>
-              <input className="thresh-inp" type="number" min={0} max={100} step={1} value={num("e2e_regression")} onChange={(e) => updateThresh("e2e_regression", parseFloat(e.target.value))} />
-              <span className="thresh-unit">%</span>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       <div className="sblock">
         <div className="sblock-head">
           <div>
-            <div className="sblock-title">Human Validation (Risk Scenarios)</div>
-            <div className="sblock-desc">Targeted human review for high-risk journeys and edge cases.</div>
+            <div className="sblock-title">Operational Guardrails</div>
+            <div className="sblock-desc">Lean set of non-AI checks to catch broken, unstable, or degraded releases.</div>
+          </div>
+        </div>
+        <div className="sblock-body" style={{ padding: "0 22px 18px" }}>
+          {OPERATIONS_GUARDRAILS.map((row) => (
+            <div key={row.k} className="thresh-row">
+              <div className="thresh-meta">
+                <div className="thresh-label">
+                  {row.label}
+                  {row.k === "e2e_regression" ? <span className="thresh-cond">CONDITIONAL</span> : null}
+                </div>
+                <div className="thresh-desc">{row.desc}</div>
+              </div>
+              <div className="thresh-ctrl">
+                <span className="thresh-dir">{row.le ? "≤" : "≥"}</span>
+                <input className="thresh-inp" type="number" min={0} step={row.step} value={num(row.k)} onChange={(e) => updateThresh(row.k, parseFloat(e.target.value))} />
+                <span className="thresh-unit">{row.unit}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sblock">
+        <div className="sblock-head">
+          <div>
+            <div className="sblock-title">Risk Scenario Review (Optional)</div>
+            <div className="sblock-desc">Use this only if your release process includes structured manual validation for high-risk scenarios.</div>
           </div>
         </div>
         <div className="sblock-body" style={{ padding: "0 22px 18px" }}>
@@ -128,21 +173,12 @@ export default function ThresholdsSettingsSection({
       <div className="sblock">
         <div className="sblock-head">
           <div>
-            <div className="sblock-title">Runtime Performance</div>
-            <div className="sblock-desc">Operational runtime gate for client/API responsiveness.</div>
+            <div className="sblock-title">Advanced Runtime Controls</div>
+            <div className="sblock-desc">Fine-tune extra performance and reliability thresholds when your team needs stricter operational controls.</div>
           </div>
         </div>
         <div className="sblock-body" style={{ padding: "0 22px 18px" }}>
-          {[
-            { k: "startup", label: "Cold startup time", desc: "Time to interactive from cold launch", le: true, unit: "s", step: 0.1 },
-            { k: "screenload", label: "Key screen load", desc: "Primary screen render time", le: true, unit: "s", step: 0.1 },
-            { k: "fps", label: "Frame rate", desc: "Average FPS during key interactions", le: false, unit: "fps", step: 1 },
-            { k: "jserrors", label: "JS error rate", desc: "Uncaught JS errors per session", le: true, unit: "%", step: 0.1 },
-            { k: "p95latency", label: "API p95 latency", desc: "95th percentile API response time under load", le: true, unit: "ms", step: 10 },
-            { k: "p99latency", label: "API p99 latency", desc: "99th percentile API response time under load", le: true, unit: "ms", step: 10 },
-            { k: "errorunderload", label: "Error rate under load", desc: "5xx rate at peak concurrent users", le: true, unit: "%", step: 0.1 },
-            { k: "recovery", label: "Stress recovery time", desc: "Time to recover after stress test peak", le: true, unit: "s", step: 1 }
-          ].map((row) => (
+          {ADVANCED_RUNTIME.map((row) => (
             <div key={row.k} className="thresh-row">
               <div className="thresh-meta">
                 <div className="thresh-label">{row.label}</div>
@@ -152,70 +188,6 @@ export default function ThresholdsSettingsSection({
                 <span className="thresh-dir">{row.le ? "≤" : "≥"}</span>
                 <input className="thresh-inp" type="number" min={0} step={row.step} value={num(row.k)} onChange={(e) => updateThresh(row.k, parseFloat(e.target.value))} />
                 <span className="thresh-unit">{row.unit}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">Runtime Reliability</div>
-            <div className="sblock-desc">Crash and error rate signals from production and pre-production.</div>
-          </div>
-        </div>
-        <div className="sblock-body" style={{ padding: "0 22px 18px" }}>
-          {[
-            { k: "crashrate", label: "Crash rate", desc: "Sessions ending in a crash", step: 0.01 },
-            { k: "anrrate", label: "ANR rate", desc: "Android Not Responding rate", step: 0.01 },
-            { k: "errorrate", label: "API error rate", desc: "5xx errors as % of total API calls", step: 0.1 },
-            { k: "oomrate", label: "OOM rate", desc: "Out of memory events per session", step: 0.01 }
-          ].map((row) => (
-            <div key={row.k} className="thresh-row">
-              <div className="thresh-meta">
-                <div className="thresh-label">{row.label}</div>
-                <div className="thresh-desc">{row.desc}</div>
-              </div>
-              <div className="thresh-ctrl">
-                <span className="thresh-dir">≤</span>
-                <input className="thresh-inp" type="number" min={0} step={row.step} value={num(row.k)} onChange={(e) => updateThresh(row.k, parseFloat(e.target.value))} />
-                <span className="thresh-unit">%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">AI Eval Quality</div>
-            <div className="sblock-desc">Absolute floor and maximum regression delta from the last certified release.</div>
-          </div>
-        </div>
-        <div className="sblock-body" style={{ padding: "0 22px 18px" }}>
-          {AI_DIMS.map((d) => (
-            <div key={d.k} className="thresh-row">
-              <div className="thresh-meta">
-                <div className="thresh-label">{d.label}</div>
-                <div className="thresh-desc">{d.desc}</div>
-              </div>
-              <div className="thresh-ctrl">
-                <div className="thresh-ai-wrap">
-                  <div className="thresh-ai-row">
-                    <span className="thresh-ai-lbl">FLOOR</span>
-                    <span className="thresh-dir">≥</span>
-                    <input className="thresh-inp" type="number" min={0} max={100} step={1} value={num(d.k)} onChange={(e) => updateThresh(d.k, parseFloat(e.target.value))} />
-                    <span className="thresh-unit">%</span>
-                  </div>
-                  <div className="thresh-ai-row">
-                    <span className="thresh-ai-lbl">MAX DROP</span>
-                    <span className="thresh-dir">−</span>
-                    <input className="thresh-inp" type="number" min={0} max={100} step={1} value={num(`${d.k}_delta`)} onChange={(e) => updateThresh(`${d.k}_delta`, parseFloat(e.target.value))} />
-                    <span className="thresh-unit">pts</span>
-                  </div>
-                </div>
               </div>
             </div>
           ))}
