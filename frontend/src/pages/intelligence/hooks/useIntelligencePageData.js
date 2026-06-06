@@ -35,14 +35,32 @@ export function useIntelligencePageData(wsId) {
     setBackfilling(true);
     setBackfillResult(null);
     try {
+      if (!wsId || String(wsId).trim() === "") {
+        setBackfillResult({ error: "Workspace not resolved. Sign out and sign in again." });
+        return;
+      }
       const res = await api(`/api/workspaces/${wsId}/recommendations/backfill`, {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" }
       });
-      const d = await res.json();
-      setBackfillResult(d);
-    } catch {
-      setBackfillResult({ error: "Backfill failed" });
+      const raw = await res.text();
+      let d = {};
+      try {
+        d = raw ? JSON.parse(raw) : {};
+      } catch {
+        d = {};
+      }
+      if (!res.ok) {
+        setBackfillResult({
+          error:
+            (typeof d.error === "string" && d.error) ||
+            `Backfill failed (${res.status})`
+        });
+        return;
+      }
+      setBackfillResult(d && typeof d === "object" ? d : { error: "Unexpected backfill response" });
+    } catch (e) {
+      setBackfillResult({ error: `Backfill failed (${String(e?.message || "network")})` });
     } finally {
       setBackfilling(false);
     }
