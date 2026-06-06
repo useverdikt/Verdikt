@@ -895,8 +895,10 @@
 .thresh-ctrl {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
+  justify-content: flex-end;
+  padding-right: 4px;
 }
 .thresh-dir {
   font-family: var(--mono);
@@ -925,7 +927,9 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--fg3);
-  min-width: 24px;
+  min-width: 32px;
+  text-align: left;
+  flex-shrink: 0;
 }
 .thresh-ai-wrap {
   display: flex;
