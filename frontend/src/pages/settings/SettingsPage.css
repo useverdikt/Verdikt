@@ -488,7 +488,7 @@
 }
 .section.active {
   display: block;
-  animation: settingsFadeIn 0.25s ease;
+  animation: none;
 }
 @keyframes settingsFadeIn {
   from {

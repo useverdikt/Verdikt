@@ -48,7 +48,7 @@ body,
 }
 
 .fade-up  { animation: fadeUp  0.3s ease forwards; }
-.fade-in  { animation: fadeIn  0.2s ease forwards; }
+.fade-in  { animation: none; opacity: 1; }
 .scale-in { animation: scaleIn 0.2s ease forwards; }
 
 /* ── Verdict hero orb ───────────────────────────────────────────────────── */
