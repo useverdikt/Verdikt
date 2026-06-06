@@ -53,6 +53,20 @@ const { computeAndPersistRecommendation, getRecommendation } = require("../servi
 const { upsertEnvChain, listEnvChains, deleteEnvChain, registerChainLink, getChainStatus, getChainsForRelease } = require("../services/envChain");
 const { issueStreamToken, validateStreamToken, attachStream } = require("../services/sseManager");
 const { getVcsIntegration, setVcsIntegration, deleteVcsIntegration } = require("../services/vcsWriteback");
+const {
+  DEFAULT_GITHUB_LABEL_NAME,
+  getGithubLabelTrigger,
+  setGithubLabelTrigger,
+  deleteGithubLabelTrigger
+} = require("../services/githubLabelTrigger");
+const {
+  hasGithubAppConfig,
+  createInstallState,
+  getWorkspaceInstallation,
+  listWorkspaceConnectedRepos,
+  replaceWorkspaceConnectedRepos,
+  listInstallationRepos
+} = require("../services/githubApp");
 const { computeOverrideAnalytics } = require("../services/overrideAnalytics");
 const { computeSignalReliability, getSignalReliability, getReliabilitySummary } = require("../services/signalReliability");
 const { ingestProductionSignals, getWorkspaceProductionHealth, getProductionObservations, computeOutcomeAlignment, setIncidentRef, OUTCOME_CRITERIA } = require("../services/productionFeedback");
@@ -149,6 +163,16 @@ module.exports = {
   getVcsIntegration,
   setVcsIntegration,
   deleteVcsIntegration,
+  DEFAULT_GITHUB_LABEL_NAME,
+  getGithubLabelTrigger,
+  setGithubLabelTrigger,
+  deleteGithubLabelTrigger,
+  hasGithubAppConfig,
+  createInstallState,
+  getWorkspaceInstallation,
+  listWorkspaceConnectedRepos,
+  replaceWorkspaceConnectedRepos,
+  listInstallationRepos,
   computeOverrideAnalytics,
   computeSignalReliability,
   getSignalReliability,
