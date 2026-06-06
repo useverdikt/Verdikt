@@ -23,16 +23,11 @@ export default function ReleaseView({
 }) {
   const setupChecklist = (() => {
     let thresholdsConfigured = false;
-    let triggerConfigured = false;
     try {
       const t = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");
       thresholdsConfigured = ["accuracy", "safety", "tone", "hallucination", "relevance"].every(
         (k) => t[k] !== undefined && t[k] !== null && t[k] !== ""
       );
-    } catch (_) {}
-    try {
-      const tr = JSON.parse(localStorage.getItem("vdk3_trigger") || "{}");
-      triggerConfigured = typeof tr?.mode === "string" && tr.mode.length > 0;
     } catch (_) {}
     const apiBaseConfigured =
       getSafeApiBase() === "" ||
@@ -41,7 +36,7 @@ export default function ReleaseView({
     const items = [
       { id: "api", label: "Connect signal sources", done: apiBaseConfigured, to: "/settings?section=api" },
       { id: "thresholds", label: "Configure quality thresholds", done: thresholdsConfigured, to: "/settings?section=thresholds" },
-      { id: "trigger", label: "Choose release trigger", done: triggerConfigured, to: "/settings?section=trigger" },
+      { id: "trigger", label: "Configure automation trigger (optional)", done: true, to: "/settings?section=trigger" },
     ];
     return { items, complete: items.every((i) => i.done) };
   })();

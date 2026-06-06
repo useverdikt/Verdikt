@@ -81,7 +81,7 @@ export default function SettingsWorkspaceShell({
             <div className="ri-dot empty" id="ready-thresh" />
           </div>
           <div className="readiness-item">
-            <span>Release trigger active</span>
+            <span>New release ready</span>
             <div className="ri-dot empty" id="ready-trigger" />
           </div>
           <div className="readiness-item">

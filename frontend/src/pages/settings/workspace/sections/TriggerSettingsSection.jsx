@@ -6,11 +6,10 @@ export default function TriggerSettingsSection({ section, wsId, triggerConfig, s
   const modeCfg = useMemo(() => {
     const m = triggerConfig.mode;
     const configs = {
-      manual: { title: "No configuration needed", body: "manual" },
       label: { title: "GitHub label configuration", body: "label" },
       webhook: { title: "Webhook endpoint", body: "webhook" }
     };
-    return configs[m] || configs.manual;
+    return configs[m] || { title: "Optional automation", body: "none" };
   }, [triggerConfig.mode]);
 
   return (
@@ -21,14 +20,14 @@ export default function TriggerSettingsSection({ section, wsId, triggerConfig, s
           Release <em>Trigger</em>
         </h1>
         <p className="section-desc">
-          How Verdikt knows when to open a certification window for a release candidate. Choose the method that fits your team&apos;s workflow. You can change this at any time without affecting past records.
+          Releases start from <strong>New release</strong> on the dashboard by default. Optionally connect GitHub or your pipeline here to open certification windows automatically. You can change this at any time without affecting past records.
         </p>
       </div>
       <div className="sblock">
         <div className="sblock-head">
           <div>
             <div className="sblock-title">Trigger mode</div>
-            <div className="sblock-desc">Select how Verdikt detects a release candidate is ready for certification.</div>
+            <div className="sblock-desc">Optional — choose an automation trigger, or continue using New release on the Releases page.</div>
           </div>
         </div>
         <div className="sblock-body">
@@ -59,9 +58,9 @@ export default function TriggerSettingsSection({ section, wsId, triggerConfig, s
           </div>
         </div>
         <div className="sblock-body">
-          {triggerConfig.mode === "manual" ? (
+          {modeCfg.body === "none" ? (
             <div style={{ background: "var(--raise)", border: "1px solid var(--border)", borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "var(--mid)", lineHeight: 1.65 }}>
-              Manual mode requires no integration. Any team member with certification authority can start a certification session from the dashboard at any time.
+              No automation trigger selected. Use <strong>New release</strong> on the Releases page, or choose GitHub label or Pipeline webhook above.
             </div>
           ) : null}
           {triggerConfig.mode === "label" ? (
