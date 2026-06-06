@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deterministic multi-scenario seed for workspace ws_demo (demo@verdikt.local).
-# Covers: webhook + manual ingest, COLLECTING, CERTIFIED, UNCERTIFIED (threshold +
+# Covers: release create + manual ingest, COLLECTING, CERTIFIED, UNCERTIFIED (threshold +
 # regression), override, production feedback + alignment, intelligence decisions/outcomes.
 #
 # Prerequisites: API up, migrations applied, npm run seed:demos (demo user vp_engineering).
@@ -40,19 +40,10 @@ AUTH=( -b "$COOKIE_JAR" )
 if [ -n "$CSRF" ]; then AUTH+=( -H "X-CSRF-Token: $CSRF" ); fi
 
 promote() {
-  local ref="$1" rt="$2" env="$3" win="${4:-120}" idem="$5"
-  local BODY
-  BODY=$(cat <<EOF
-{"workspace_id":"$WS","release_ref":"$ref","release_type":"$rt","environment":"$env","source":"demo_seed","mappings":{"eval_run_id":"eval/$ref","demo_tag":"$TAG"},"ai_context":{"demo_scenario":"$idem"},"collection_window_minutes":$win}
-EOF
-)
-  local SIG
-  SIG=$(sign_body "$BODY")
-  curl -sfS -X POST "$BASE/api/hooks/release-promoted" \
+  local ref="$1" rt="$2" env="$3" _win="${4:-120}" idem="$5"
+  curl -sfS -X POST "$BASE/api/workspaces/$WS/releases" "${AUTH[@]}" \
     -H "Content-Type: application/json" \
-    -H "x-verdikt-signature: sha256=$SIG" \
-    -H "x-idempotency-key: demo-full:$WS:$idem" \
-    -d "$BODY"
+    -d "{\"version\":\"$ref\",\"release_type\":\"$rt\",\"environment\":\"$env\",\"ai_context\":{\"demo_scenario\":\"$idem\",\"trigger_mode\":\"github_label\"}}"
 }
 
 eval_braintrust() {
@@ -173,4 +164,4 @@ echo "  -> intelligence annotations on $R2"
 
 echo "=== demo full seed complete (tag=$TAG) ==="
 echo "Releases touched: COLLECTING=$R1 CERT=$R2 BASELINE=$R_BASE ABS_FAIL=$R3 LAT_FAIL=$R4 REGRESS=$R5 OVERRIDE=$R6 MANUAL=$RM"
-echo "Use a new DEMO_SEED_TAG to avoid webhook idempotency reuse on re-runs."
+echo "Use a new DEMO_SEED_TAG to keep scenario ids unique on re-runs."

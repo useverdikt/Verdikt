@@ -1,4 +1,4 @@
--- Per-workspace HMAC secret for inbound webhooks (eval + release-promoted).
+-- Per-workspace HMAC secret for inbound webhooks (workspace eval ingest).
 -- Value is AES-256-GCM ciphertext (see backend/src/lib/encryption.js).
 
 CREATE TABLE IF NOT EXISTS workspace_inbound_webhook_secrets (

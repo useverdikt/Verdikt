@@ -70,8 +70,7 @@ export default function CollectingView({ release, onSimulate, onRunVerdict, sign
 
         <div style={{ padding: "8px 18px 12px", borderBottom: `1px solid ${C.border}`, background: C.raise }}>
           <div style={{ fontSize: 10, color: C.dim, lineHeight: 1.55 }}>
-            Names below are <span style={{ color: C.muted, fontWeight: 700 }}>demo lanes</span> for grouping signals. In production, ingest via{" "}
-            <span style={{ fontFamily: C.mono, color: C.accentBright }}>POST /api/hooks/release-promoted</span> (signed) and authenticated signal APIs - see{" "}
+            Names below are <span style={{ color: C.muted, fontWeight: 700 }}>demo lanes</span> for grouping signals. In production, create releases from dashboard or GitHub label triggers, and ingest via authenticated signal APIs - see{" "}
             <span style={{ fontFamily: C.mono, color: C.muted }}>backend/README.md</span> (MVP product surface).
           </div>
         </div>
