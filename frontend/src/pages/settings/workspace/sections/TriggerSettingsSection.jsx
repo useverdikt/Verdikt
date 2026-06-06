@@ -19,8 +19,7 @@ export default function TriggerSettingsSection({
   const modeCfg = useMemo(() => {
     const m = triggerConfig.mode;
     const configs = {
-      label: { title: "GitHub label configuration", body: "label" },
-      webhook: { title: "Webhook endpoint", body: "webhook" }
+      label: { title: "GitHub label configuration", body: "label" }
     };
     return configs[m] || { title: "Optional automation", body: "none" };
   }, [triggerConfig.mode]);
@@ -33,7 +32,7 @@ export default function TriggerSettingsSection({
           Release <em>Trigger</em>
         </h1>
         <p className="section-desc">
-          Releases start from <strong>New release</strong> on the dashboard by default. Optionally connect GitHub or your pipeline here to open certification windows automatically. You can change this at any time without affecting past records.
+          Releases start from <strong>New release</strong> on the dashboard by default. Optionally connect GitHub here to open certification windows automatically. You can change this at any time without affecting past records.
         </p>
       </div>
       <div className="sblock">
@@ -73,7 +72,7 @@ export default function TriggerSettingsSection({
         <div className="sblock-body">
           {modeCfg.body === "none" ? (
             <div style={{ background: "var(--raise)", border: "1px solid var(--border)", borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "var(--mid)", lineHeight: 1.65 }}>
-              No automation trigger selected. Use <strong>New release</strong> on the Releases page, or choose GitHub label or Pipeline webhook above.
+              No automation trigger selected. Use <strong>New release</strong> on the Releases page, or choose GitHub label above.
             </div>
           ) : null}
           {triggerConfig.mode === "label" ? (
@@ -139,21 +138,6 @@ export default function TriggerSettingsSection({
                   </div>
                 )}
               </div>
-            </div>
-          ) : null}
-          {triggerConfig.mode === "webhook" ? (
-            <div>
-              <div className="field">
-                <label className="field-label">Inbound endpoint</label>
-                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                  <input className="inp mono" readOnly style={{ color: "var(--accentL)" }} value={`https://api.useverdikt.com/api/workspaces/${wsId}/integrations/evals`} />
-                  <button type="button" className="btn-secondary" onClick={() => toast("Endpoint URL copied")}>
-                    Copy
-                  </button>
-                </div>
-                <div className="field-hint">POST signed payloads from your eval/release pipeline.</div>
-              </div>
-              <pre style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "var(--mid)", overflowX: "auto", margin: "8px 0 0" }}>{`POST https://api.useverdikt.com/api/workspaces/${wsId}/integrations/evals\n{\n  "provider": "braintrust",\n  "release_ref": "rc/model-v2.4.1",\n  "payload": { "metrics": { "exact_match": 83 } }\n}`}</pre>
             </div>
           ) : null}
         </div>

@@ -2,7 +2,7 @@
 # Multi-startup synthetic data generator for realistic AI product flows.
 # Simulates 10 AI startups across:
 # - product surfaces: web app / mobile app / api-backend
-# - trigger modes: pipeline webhook, github label, jira transition, manual declaration
+# - trigger modes: github label, jira transition, manual declaration
 # - signal ingestion: integration payload mapping, manual entry, csv-like batch imports
 # - providers: Braintrust, LangSmith, Datadog, Sentry
 #
@@ -26,7 +26,7 @@ fi
 
 release_types=("prompt_update" "model_patch" "model_update" "policy_change" "safety_patch")
 surfaces=("ai_web_app" "ai_mobile_app" "api_backend")
-trigger_modes=("pipeline_webhook" "github_label" "jira_transition" "manual_declaration")
+trigger_modes=("github_label" "jira_transition" "manual_declaration")
 ingest_modes=("integration" "manual" "csv_like")
 providers=("braintrust" "langsmith" "datadog" "sentry")
 
@@ -75,31 +75,10 @@ register_startup_user() {
 create_release_by_mode() {
   local token="$1" ws="$2" version="$3" release_type="$4" trigger="$5" surface="$6" provider="$7"
   local rel_json
-  if [ "$trigger" = "manual_declaration" ]; then
-    rel_json=$(curl -sfS -X POST "$BASE/api/workspaces/$ws/releases" \
-      -H "Authorization: Bearer $token" \
-      -H "Content-Type: application/json" \
-      -d "{\"version\":\"$version\",\"release_type\":\"$release_type\",\"environment\":\"pre-prod\",\"ai_context\":{\"surface\":\"$surface\",\"provider\":\"$provider\",\"trigger_mode\":\"$trigger\"}}")
-  else
-    local source
-    case "$trigger" in
-      pipeline_webhook) source="pipeline" ;;
-      github_label) source="github_label" ;;
-      jira_transition) source="jira_transition" ;;
-      *) source="webhook" ;;
-    esac
-    local body sig
-    body=$(cat <<EOF
-{"workspace_id":"$ws","release_ref":"rc/$version","release_type":"$release_type","environment":"pre-prod","source":"$source","mappings":{"eval_run_id":"eval/$version","sentry_release":"$version"},"ai_context":{"surface":"$surface","provider":"$provider","trigger_mode":"$trigger"},"collection_window_minutes":120}
-EOF
-)
-    sig=$(printf "%s" "$body" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | sed 's/^.* //')
-    rel_json=$(curl -sfS -X POST "$BASE/api/hooks/release-promoted" \
-      -H "Content-Type: application/json" \
-      -H "x-verdikt-signature: sha256=$sig" \
-      -H "x-idempotency-key: seed:$ws:$version:$trigger" \
-      -d "$body")
-  fi
+  rel_json=$(curl -sfS -X POST "$BASE/api/workspaces/$ws/releases" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "{\"version\":\"rc/$version\",\"release_type\":\"$release_type\",\"environment\":\"pre-prod\",\"ai_context\":{\"surface\":\"$surface\",\"provider\":\"$provider\",\"trigger_mode\":\"$trigger\"}}")
   local rel_id
   rel_id=$(echo "$rel_json" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const j=JSON.parse(s);console.log(j.id || (j.release && j.release.id) || '')})")
   echo "$rel_id"
