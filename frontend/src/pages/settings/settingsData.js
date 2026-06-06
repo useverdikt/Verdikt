@@ -4,7 +4,7 @@ export const SECTION_LABELS = {
   general: "General",
   team: "Team & Roles",
   thresholds: "Quality Thresholds",
-  api: "API & Signal Sources",
+  api: "Signal Sources",
   trigger: "Release Trigger",
   governance: "Governance",
   notifications: "Notifications",
@@ -76,11 +76,6 @@ export const ROLES = {
   cto: "CTO / Founder",
   engineer: "Engineer"
 };
-
-export const API_KEYS_SEED = [
-  { name: "Release/Eval Production", key: "vdk_live_4f9a2b••••••••••••••••••••", created: "2026-01-15", lastUsed: "2 hours ago" },
-  { name: "Local development", key: "vdk_test_9e2c1d••••••••••••••••••••", created: "2026-01-20", lastUsed: "Never" }
-];
 
 export const SOURCES_SEED = [
   {

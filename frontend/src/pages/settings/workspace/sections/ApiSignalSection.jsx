@@ -7,9 +7,6 @@ export default function ApiSignalSection({
   wsId,
   navigate,
   toast,
-  apiKeys,
-  setApiKeys,
-  setKeyGen,
   sources,
   setSources,
   expandedSource,
@@ -23,50 +20,11 @@ export default function ApiSignalSection({
       <div className="section-header">
         <div className="section-eyebrow">Integration</div>
         <h1 className="section-h1">
-          API &amp; <em>Signal Sources</em>
+          <em>Signal Sources</em>
         </h1>
         <p className="section-desc">
-          API keys and connected signal sources. Treat API keys like passwords — never commit them to source control. Every signal submission is scoped to this workspace.
+          Connect external signal sources and ingest data into this workspace.
         </p>
-      </div>
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">API keys</div>
-            <div className="sblock-desc">Use these in your release/eval pipeline to submit signals.</div>
-          </div>
-          <button type="button" className="btn-ghost accent" onClick={() => setKeyGen({ open: true, step: "name", name: "", full: "", copyLabel: "Copy" })}>
-            + Generate key
-          </button>
-        </div>
-        <div className="sblock-body">
-          {apiKeys.map((k, i) => (
-            <div key={k.name} className="api-key-row">
-              <div style={{ flex: 1 }}>
-                <div className="api-key-name">{k.name}</div>
-                <div className="api-key-created">
-                  Created {k.created} · Last used {k.lastUsed}
-                </div>
-              </div>
-              <div className="api-key-val">{k.key}</div>
-              <div className="api-key-actions">
-                <button type="button" className="api-key-copy" onClick={() => { navigator.clipboard?.writeText("vdk_live_fullkeywouldbehere"); toast(`API key "${k.name}" copied`); }}>
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  className="api-key-revoke"
-                  onClick={() => {
-                    setApiKeys((prev) => prev.filter((_, j) => j !== i));
-                    toast(`API key "${k.name}" revoked`);
-                  }}
-                >
-                  Revoke
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
       <div className="sblock">
         <div className="sblock-head">
@@ -219,32 +177,6 @@ export default function ApiSignalSection({
               </div>
             );
           })}
-        </div>
-      </div>
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">Inbound webhook</div>
-            <div className="sblock-desc">Send signal data to this endpoint from any release or eval automation platform.</div>
-          </div>
-        </div>
-        <div className="sblock-body">
-          <div className="field">
-            <label className="field-label">Endpoint URL</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input className="inp mono" readOnly style={{ color: "var(--accentL)" }} value="https://api.useverdikt.com/v1/verdikt/ingest" />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  navigator.clipboard?.writeText("https://api.useverdikt.com/v1/verdikt/ingest");
-                  toast("Webhook URL copied");
-                }}
-              >
-                Copy
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
