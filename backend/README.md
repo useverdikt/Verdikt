@@ -152,7 +152,6 @@ If assistive LLM is off or no key is set, the field is **`false`** and no backgr
 - `POST /api/auth/forgot-password` — body: `{ "email" }` — generic success message whether or not the user exists (no enumeration). If the user exists, a reset token is stored (hashed) and **an email is sent** when **`RESEND_API_KEY`** and **`PUBLIC_APP_URL`** (or **`FRONTEND_URL`**) are set — see **Password reset email** below. On startup in production-like mode, the server **warns** if email is not configured. For local testing or automated tests, set **`PASSWORD_RESET_RETURN_TOKEN=1`** or use **`NODE_ENV=test`** so the response may include **`reset_token`** and **`reset_expires_at`** (never enable token return in production).
 - `POST /api/auth/reset-password` — body: `{ "token", "password" }` — one-time use, expires after 60 minutes.
 - `GET /api/auth/me` — header: `Authorization: Bearer <token>`.
-- `POST /api/hooks/release-promoted` — signed webhook trigger for release session creation.
 - `POST /api/hooks/github` — GitHub webhook receiver (PR label trigger; requires `GITHUB_WEBHOOK_SECRET`).
 
 ### `ALLOW_PUBLIC_REGISTRATION` (design-partner / invite-only)
@@ -217,7 +216,7 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 
 ## MVP product surface (what is wired vs illustrative)
 
-- **Implemented in this API:** registration/login, per-workspace thresholds, releases, signal ingest and verdicts, signed **release-promoted webhooks**, overrides, workspace audit events, password reset (**email via Resend** when `RESEND_API_KEY` + `PUBLIC_APP_URL` are set), health/readiness, optional LLM features when provider keys are set.
+- **Implemented in this API:** registration/login, per-workspace thresholds, releases, signal ingest and verdicts, GitHub label webhooks, overrides, workspace audit events, password reset (**email via Resend** when `RESEND_API_KEY` + `PUBLIC_APP_URL` are set), health/readiness, optional LLM features when provider keys are set.
 - **SPA “vendor” rows** (e.g. BrowserStack, Sentry, Braintrust) in the certification UI are **demo lanes** for grouping signals and manual simulation. They are **not** live vendor SDK integrations in this repository — use **webhooks** and **authenticated ingest** (`POST /api/releases/:releaseId/signals`, integration routes) for real data.
 - **Public `/badge` page** (frontend) shows **static demo records** for layout and embed snippets. There is **no public unauthenticated API** here to render an arbitrary customer release on that URL; the **authoritative record** is behind login (dashboard + audit log).
 - **Threshold suggestions** in Settings call the backend when suggestions are enabled; empty or disabled behaviour depends on env (see threshold suggestion env vars above).
@@ -225,7 +224,6 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 ## Endpoints (protected unless noted)
 
 - `GET /health` (public)
-- `POST /api/hooks/release-promoted` (public but requires `x-verdikt-signature`)
 - `POST /api/hooks/github` (public but requires GitHub `x-hub-signature-256`)
 - `GET /api/hooks/github/setup` (public GitHub App setup redirect callback)
 - `POST /api/workspaces/:workspaceId/integrations/evals` (public, signed integration ingest)
@@ -282,81 +280,16 @@ curl -sS -X POST "$BASE/api/releases/$REL_ID/override" "${AUTH[@]}" \
 curl -sS "$BASE/api/releases/$REL_ID" -H "Authorization: Bearer $TOKEN"
 ```
 
-## Trigger webhook example (minimal, signed)
+## GitHub label trigger
 
-```bash
-BASE=http://localhost:8787
-WEBHOOK_SECRET=dev-webhook-secret
-BODY='{"workspace_id":"ws_demo","release_ref":"rc/model-v2.4.1","release_type":"model_update","environment":"uat","source":"github_tag","mappings":{"eval_run_id":"eval/run-4412-v2.4.1","prompt_bundle_id":"support-prompts-2026-04"},"collection_window_minutes":120}'
-SIG=$(printf "%s" "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | sed 's/^.* //')
+Use the GitHub App flow in **Settings → Release Trigger**:
 
-curl -sS -X POST "$BASE/api/hooks/release-promoted" \
-  -H "Content-Type: application/json" \
-  -H "x-verdikt-signature: sha256=$SIG" \
-  -H "x-idempotency-key: ws_demo:rc/model-v2.4.1:github_tag" \
-  -d "$BODY"
-```
+1. Connect the GitHub App.
+2. Select repositories.
+3. Save the label trigger (default `verdikt:rc`).
 
-## GitHub Action trigger example
-
-```yaml
-name: Trigger Verdikt On RC Tag
-on:
-  push:
-    tags:
-      - "rc/*"
-
-jobs:
-  trigger-verdikt:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build webhook payload
-        id: payload
-        run: |
-          BODY=$(cat <<'EOF'
-          {
-            "workspace_id": "${{ secrets.VERDIKT_WORKSPACE_ID }}",
-            "release_ref": "${{ github.ref_name }}",
-            "release_type": "model_update",
-            "environment": "uat",
-            "source": "github_tag",
-            "mappings": {
-              "sentry_release": "${{ github.ref_name }}"
-            },
-            "collection_window_minutes": 120
-          }
-          EOF
-          )
-          echo "body=$BODY" >> "$GITHUB_OUTPUT"
-      - name: Sign and send
-        env:
-          BODY: ${{ steps.payload.outputs.body }}
-          SECRET: ${{ secrets.VERDIKT_WEBHOOK_SECRET }}
-          URL: ${{ secrets.VERDIKT_WEBHOOK_URL }}
-        run: |
-          SIG=$(printf "%s" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')
-          curl -sS -X POST "$URL" \
-            -H "Content-Type: application/json" \
-            -H "x-verdikt-signature: sha256=$SIG" \
-            -H "x-idempotency-key: ${{ github.run_id }}:${{ github.ref_name }}" \
-            -d "$BODY"
-```
-
-## Webhook payload contract
-
-Required:
-- `workspace_id` (string)
-- `release_ref` (string; example: `rc/model-v2.4.1`)
-
-Optional:
-- `release_type` (string, default `model_update`) — allowed values:
-  - `prompt_update`
-  - `model_patch`
-  - `safety_patch`
-  - `policy_change`
-  - `model_update`
-- `environment` (string, default `pre-prod`)
-- `source` (string, default `webhook`)
+When a selected repository receives a `pull_request:labeled` event with the configured label,
+Verdikt opens a `COLLECTING` release session automatically.
 - `mappings` (object, default `{}`)
 - `collection_window_minutes` (number, clamped between 5 and 1440)
 - `idempotency_key` (string; alternatively send `x-idempotency-key` header)
@@ -425,7 +358,7 @@ Workspace integration webhook (signed):
 `POST /api/workspaces/:workspaceId/integrations/evals`
 
 - Signature required via `x-verdikt-signature: sha256=<hmac>`
-- Uses `WEBHOOK_SECRET` and same verification model as trigger webhooks
+- Uses `WEBHOOK_SECRET` and the same verification model as other signed inbound webhook endpoints
 - Payload lookup fields (any one):
   - `release_id`
   - `release_ref`
@@ -482,7 +415,7 @@ echo "$GATE" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.
 - `POST /api/workspaces/:workspaceId/policies` updates:
   - `require_ai_eval` (boolean)
   - `ai_missing_policy` (`block_uncertified` | `allow_without_ai`)
-- Release creation (`POST /api/workspaces/:workspaceId/releases`) and trigger webhook accept optional `ai_context` object (for metadata such as model version, prompt bundle, eval run id, dataset version, evaluator version).
+- Release creation (`POST /api/workspaces/:workspaceId/releases`) accepts optional `ai_context` object (for metadata such as model version, prompt bundle, eval run id, dataset version, evaluator version).
 - `GET /api/releases/:releaseId` includes parsed `release.ai_context`.
 
 ## AI threshold suggestions
@@ -553,9 +486,7 @@ Override requests must include structured metadata:
 
 ## Retries and idempotency
 
-- Safe retries are supported for trigger webhook via idempotency key.
-- Reusing the same idempotency key returns the original release (`reused: true`).
-- Recommended key format: `<pipeline-run-id>:<release-ref>`.
+- Safe retries are supported on signed webhook ingest endpoints via idempotency keys where applicable.
 
 ## Operational notes
 
@@ -602,7 +533,7 @@ Generate synthetic multi-startup data to exercise trends, suggestions, overrides
 This script simulates 10 AI startup teams by default, with mixed flows across:
 
 - Product surfaces: AI web app, AI mobile app, API/backend
-- Trigger modes: pipeline webhook, GitHub label, Jira transition, manual declaration
+- Trigger modes: GitHub label, Jira transition, manual declaration
 - Signal ingest paths: integration adapter, signed workspace webhook, manual entry, CSV-like imports
 - Providers: Braintrust, LangSmith, Datadog, Sentry
 
@@ -620,14 +551,14 @@ Supported env vars:
 - `STARTUPS` (default `10`)
 - `RELEASES_PER_STARTUP` (default `5`)
 - `PROFILE` (`mixed` | `healthy` | `risky`)
-- `WEBHOOK_SECRET` (must match server env for signed webhook flows)
+- `WEBHOOK_SECRET` (must match server env for signed workspace webhook ingest)
 - `PASSWORD` (default `demo12345`, used for generated startup users)
 
 ## Full lifecycle synthetic seed (dashboard-realistic)
 
 Generates releases that mimic the full flow:
 
-1. signed release trigger webhook
+1. release create (`POST /api/workspaces/:workspaceId/releases`)
 2. signed workspace eval ingest webhook (provider payload mapping)
 3. delivery/runtime signal ingest
 4. optional override on uncertified releases

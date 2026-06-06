@@ -49,12 +49,6 @@ export const TRIGGER_MODES = [
     icon: "◈",
     name: "GitHub label",
     desc: "Applying a label (e.g. verdikt:rc) to a PR or release in GitHub triggers a certification window."
-  },
-  {
-    id: "webhook",
-    icon: "⌥",
-    name: "Pipeline webhook",
-    desc: "Your release/eval pipeline POSTs to Verdikt when a model version is ready to certify. Most precise option."
   }
 ];
 
