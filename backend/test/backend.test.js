@@ -161,6 +161,33 @@ describe("API integration", () => {
     assert.equal(empty.body.integrations.length, 0);
   });
 
+  it("github label trigger config can be set and cleared", async () => {
+    const email = `ghcfg_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GH" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const initial = await agent.get(`/api/workspaces/${ws}/github-label-trigger`).expect(200);
+    assert.equal(initial.body.enabled, false);
+    assert.equal(initial.body.label_name, "verdikt:rc");
+
+    const saved = await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "release:certify", enabled: true })
+      .expect(200);
+    assert.equal(saved.body.enabled, true);
+    assert.equal(saved.body.label_name, "release:certify");
+
+    const cleared = await agent.delete(`/api/workspaces/${ws}/github-label-trigger`).expect(200);
+    assert.equal(cleared.body.ok, true);
+
+    const afterDelete = await agent.get(`/api/workspaces/${ws}/github-label-trigger`).expect(200);
+    assert.equal(afterDelete.body.enabled, false);
+    assert.equal(afterDelete.body.label_name, "verdikt:rc");
+  });
+
   it("CSV import stores rows and applies signals to release by version", async () => {
     const email = `csv_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);

@@ -11,6 +11,8 @@ import {
 import {
   apiGet,
   apiPost,
+  apiPut,
+  apiDelete,
   apiFetchInit,
   getWorkspaceId,
   onApiUnauthorized,
@@ -73,6 +75,14 @@ export default function SettingsWorkspace() {
       return { ...DEFAULT_TRIGGER_CONFIG };
     }
   });
+  const [githubAppStatus, setGithubAppStatus] = useState({
+    configured: false,
+    connected: false,
+    installation: null,
+    selected_repo_count: 0
+  });
+  const [githubRepos, setGithubRepos] = useState([]);
+  const [githubReposLoading, setGithubReposLoading] = useState(false);
 
   const orgName = (localStorage.getItem("vdk3_org") || "").trim() || "Workspace";
   const [generalSlug, setGeneralSlug] = useState(
@@ -240,11 +250,74 @@ export default function SettingsWorkspace() {
     }
   }, [navigate, wsId]);
 
+  const loadGithubAppStatus = useCallback(async () => {
+    try {
+      const status = await apiGet(`/api/workspaces/${wsId}/github-app/status`, { navigate });
+      setGithubAppStatus({
+        configured: status?.configured === true,
+        connected: status?.connected === true,
+        installation: status?.installation || null,
+        selected_repo_count: Number(status?.selected_repo_count || 0)
+      });
+    } catch (_) {
+      setGithubAppStatus({
+        configured: false,
+        connected: false,
+        installation: null,
+        selected_repo_count: 0
+      });
+    }
+  }, [navigate, wsId]);
+
+  const loadGithubRepos = useCallback(async () => {
+    setGithubReposLoading(true);
+    try {
+      const data = await apiGet(`/api/workspaces/${wsId}/github-app/repos`, { navigate });
+      setGithubRepos(Array.isArray(data?.repos) ? data.repos : []);
+    } catch (_) {
+      setGithubRepos([]);
+    } finally {
+      setGithubReposLoading(false);
+    }
+  }, [navigate, wsId]);
+
   useEffect(() => {
     loadThresholds();
     loadThresholdSuggestions();
     loadPolicies();
-  }, [loadThresholds, loadThresholdSuggestions, loadPolicies]);
+    loadGithubAppStatus();
+  }, [loadThresholds, loadThresholdSuggestions, loadPolicies, loadGithubAppStatus]);
+
+  useEffect(() => {
+    let active = true;
+    const loadGithubLabelTrigger = async () => {
+      try {
+        const cfg = await apiGet(`/api/workspaces/${wsId}/github-label-trigger`, { navigate });
+        if (!active || !cfg) return;
+        setTriggerConfig((prev) => {
+          const next = { ...prev };
+          if (typeof cfg.label_name === "string" && cfg.label_name.trim()) {
+            next.label = cfg.label_name.trim();
+          }
+          if (cfg.enabled === true) {
+            next.mode = "label";
+          } else if (next.mode === "label") {
+            delete next.mode;
+          }
+          return next;
+        });
+      } catch (_) {}
+    };
+    void loadGithubLabelTrigger();
+    return () => {
+      active = false;
+    };
+  }, [wsId, navigate]);
+
+  useEffect(() => {
+    if (!githubAppStatus.connected) return;
+    void loadGithubRepos();
+  }, [githubAppStatus.connected, loadGithubRepos]);
 
   useEffect(() => {
     const visible = TRIGGER_MODES.filter((m) => MVP_TRIGGER_MODE_IDS.includes(m.id));
@@ -263,6 +336,13 @@ export default function SettingsWorkspace() {
     const nextSection = params.get("section");
     if (nextSection && SECTION_LABELS[nextSection]) {
       setSection(nextSection);
+    }
+    const githubState = params.get("github");
+    if (githubState === "connected") {
+      toast("GitHub App connected. Select repositories and save trigger settings.");
+      params.delete("github");
+      const nextSearch = params.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
     }
   }, [location.search]);
 
@@ -345,9 +425,60 @@ export default function SettingsWorkspace() {
     setTimeout(() => setGeneralNote("No unsaved changes"), 2000);
   };
 
-  const saveTrigger = () => {
+  const saveTrigger = async () => {
     localStorage.setItem("vdk3_trigger", JSON.stringify(triggerConfig));
-    toast("Trigger settings saved");
+    try {
+      if (triggerConfig.mode === "label") {
+        await apiPut(
+          `/api/workspaces/${wsId}/github-label-trigger`,
+          {
+            label_name: triggerConfig.label || DEFAULT_TRIGGER_CONFIG.label,
+            enabled: true
+          },
+          { navigate }
+        );
+        if (githubAppStatus.connected) {
+          const selected = githubRepos.filter((r) => r.selected === true);
+          await apiPut(
+            `/api/workspaces/${wsId}/github-app/repos`,
+            {
+              repos: selected.map((r) => ({
+                repository_id: r.repository_id,
+                owner: r.owner,
+                repo: r.repo,
+                full_name: r.full_name
+              }))
+            },
+            { navigate }
+          );
+        }
+      } else {
+        await apiDelete(`/api/workspaces/${wsId}/github-label-trigger`, { navigate });
+      }
+      await loadGithubAppStatus();
+      toast("Trigger settings saved");
+    } catch (err) {
+      toast(err?.message || "Failed to save trigger settings");
+    }
+  };
+
+  const beginGithubAppConnect = async () => {
+    try {
+      const out = await apiPost(`/api/workspaces/${wsId}/github-app/connect`, {}, { navigate });
+      if (out?.install_url) {
+        window.location.assign(out.install_url);
+        return;
+      }
+      toast("Failed to start GitHub connect flow");
+    } catch (err) {
+      toast(err?.message || "Failed to start GitHub connect flow");
+    }
+  };
+
+  const toggleGithubRepoSelected = (repositoryId, selected) => {
+    setGithubRepos((prev) =>
+      prev.map((r) => (Number(r.repository_id) === Number(repositoryId) ? { ...r, selected: !!selected } : r))
+    );
   };
 
   const logout = () => {
@@ -458,6 +589,12 @@ export default function SettingsWorkspace() {
           triggerConfig={triggerConfig}
           setTriggerConfig={setTriggerConfig}
           saveTrigger={saveTrigger}
+          githubAppStatus={githubAppStatus}
+          githubRepos={githubRepos}
+          githubReposLoading={githubReposLoading}
+          beginGithubAppConnect={beginGithubAppConnect}
+          toggleGithubRepoSelected={toggleGithubRepoSelected}
+          refreshGithubRepos={loadGithubRepos}
           toast={toast}
         />
         <NotificationsSettingsSection section={section} toast={toast} />
