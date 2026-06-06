@@ -11,13 +11,14 @@ function RoleCards({ rolePolicy }) {
     const derivedYes = [];
     const derivedNo = [];
     if (cfg.canAct === false) {
-      derivedNo.push("Can certify releases");
-      derivedNo.push("Can configure thresholds");
+      derivedNo.push("Create releases / submit signals");
+      derivedNo.push("Manage workspace settings");
     } else {
-      derivedYes.push("Can certify releases");
+      derivedYes.push("Create releases / submit signals");
+      derivedYes.push("Manage workspace settings");
     }
-    if (cfg.canOverride) derivedYes.push("Can approve overrides");
-    else derivedNo.push("Can approve overrides");
+    if (cfg.canOverride) derivedYes.push("Approve overrides");
+    else derivedNo.push("Approve overrides");
     const yesList = [...perms.yes, ...derivedYes];
     const noList = [...perms.no, ...derivedNo];
     return (

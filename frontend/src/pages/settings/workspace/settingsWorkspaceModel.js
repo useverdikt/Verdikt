@@ -69,14 +69,14 @@ export const ROLE_POLICY_DEFAULT = {
 export const ROLE_CARD_ORDER = ["engineer", "ai_product_lead", "ml_engineer", "qe_lead", "tech_lead", "release_manager", "vp_engineering", "cto"];
 
 export const ROLE_CARD_PERMS = {
-  engineer: { yes: ["View certification verdicts", "View audit trail", "View signal trends"], no: ["Submit releases", "Configure thresholds", "Manage projects", "Override"] },
-  ai_product_lead: { yes: ["All Engineer permissions", "Submit releases & signals", "Certify releases", "Configure thresholds", "Manage projects"], no: ["Approve overrides"] },
-  ml_engineer: { yes: ["All Engineer permissions", "Submit model/prompt releases", "View AI eval signal details", "Prepare release evidence"], no: ["Configure governance", "Approve overrides"] },
-  qe_lead: { yes: ["All Engineer permissions", "Own manual QA standards", "Co-own threshold calibration", "Certify releases", "Waive conditional checks"], no: ["Approve overrides"] },
-  tech_lead: { yes: ["All Engineer permissions", "Certify releases", "Manage project-level setup", "Coordinate release readiness"], no: ["Approve overrides (unless configured)", "Billing & workspace deletion"] },
-  release_manager: { yes: ["All Engineer permissions", "Start certification windows", "Track release state & blockers", "Coordinate override workflow"], no: ["Approve overrides (unless configured)", "Billing & workspace deletion"] },
-  vp_engineering: { yes: ["All QE Leader permissions", "Approve overrides", "Name on every override record", "Manage team & roles", "Workspace settings"], no: [] },
-  cto: { yes: ["All VP Engineering permissions", "Override authority — highest level", "Billing & workspace deletion"], no: [] }
+  engineer: { yes: ["View certifications & audit"], no: [] },
+  ai_product_lead: { yes: ["View certifications & audit"], no: [] },
+  ml_engineer: { yes: ["View certifications & audit"], no: [] },
+  qe_lead: { yes: ["View certifications & audit"], no: [] },
+  tech_lead: { yes: ["View certifications & audit"], no: [] },
+  release_manager: { yes: ["View certifications & audit"], no: [] },
+  vp_engineering: { yes: ["View certifications & audit"], no: [] },
+  cto: { yes: ["View certifications & audit", "Billing & workspace deletion"], no: [] }
 };
 
 export function sourceStatusDisplay(s) {
