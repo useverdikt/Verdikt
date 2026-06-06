@@ -8,7 +8,7 @@ export default function AuditView({ auditLog, releases, isMobile, onSelectReleas
         <div style={{ fontFamily: C.mono, fontSize: 10, letterSpacing: "0.11em", textTransform: "uppercase", color: C.dim, marginBottom: 6 }}>Governance</div>
         <h2 style={{ margin: 0, fontFamily: C.serif, fontSize: 28, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.1 }}>Audit Trail</h2>
         <p style={{ margin: "8px 0 0", color: C.muted, fontSize: 13 }}>
-          Immutable quality record. Every verdict, override, waiver, and release decision — permanently on record. Click any entry to view its full certification record.
+          Immutable quality record. Every verdict, override, waiver, and release decision — permanently on record. Click any release-linked entry to view its full certification record.
         </p>
       </div>
 
@@ -30,11 +30,12 @@ export default function AuditView({ auditLog, releases, isMobile, onSelectReleas
           const linkedRelease = entry.backendReleaseId
             ? releases.find((r) => r.backendReleaseId === entry.backendReleaseId)
             : releases.find((r) => r.version === entry.release);
+          const canOpenRecord = !!linkedRelease || !!entry.backendReleaseId;
           const releaseBadge = linkedRelease?.version || entry.release;
           return (
             <div
               key={entry.id}
-              onClick={linkedRelease ? () => onSelectRelease(linkedRelease) : undefined}
+              onClick={canOpenRecord ? () => onSelectRelease(linkedRelease || null, entry.backendReleaseId || null) : undefined}
               style={{
                 padding: isMobile ? "12px 12px" : "14px 18px",
                 borderBottom: i < auditLog.length - 1 ? `1px solid ${C.border}` : "none",
@@ -42,11 +43,11 @@ export default function AuditView({ auditLog, releases, isMobile, onSelectReleas
                 gridTemplateColumns: isMobile ? "8px 1fr" : "8px 130px 1fr auto",
                 gap: 14,
                 alignItems: "flex-start",
-                cursor: linkedRelease ? "pointer" : "default",
+                cursor: canOpenRecord ? "pointer" : "default",
                 transition: "background 0.15s"
               }}
-              onMouseEnter={linkedRelease ? (e) => (e.currentTarget.style.background = C.raise) : undefined}
-              onMouseLeave={linkedRelease ? (e) => (e.currentTarget.style.background = "transparent") : undefined}
+              onMouseEnter={canOpenRecord ? (e) => (e.currentTarget.style.background = C.raise) : undefined}
+              onMouseLeave={canOpenRecord ? (e) => (e.currentTarget.style.background = "transparent") : undefined}
             >
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: dot, marginTop: 4, boxShadow: `0 0 6px ${dot}66` }} />
               <div style={{ fontFamily: C.mono, fontSize: 10, color: C.muted, lineHeight: 1.8 }}>
@@ -61,7 +62,7 @@ export default function AuditView({ auditLog, releases, isMobile, onSelectReleas
                 <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6 }}>{entry.detail}</div>
                 <div style={{ color: C.dim, fontSize: 11, marginTop: 3, fontFamily: C.mono }}>by {entry.actor}</div>
               </div>
-              {linkedRelease ? (
+              {canOpenRecord ? (
                 <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 2, flexShrink: 0 }}>
                   <span style={{ fontSize: 10, color: C.dim, fontFamily: C.mono, fontWeight: 700, letterSpacing: "0.06em", whiteSpace: "nowrap" }}>VIEW RECORD →</span>
                 </div>

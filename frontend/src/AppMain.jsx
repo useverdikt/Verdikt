@@ -358,6 +358,31 @@ export default function App() {
     });
     setTimeout(() => setToast(null), 3200);
   };
+  const openAuditRecord = async (linkedRelease, backendReleaseId) => {
+    if (linkedRelease) {
+      setAuditDetail(linkedRelease);
+      return;
+    }
+    if (!backendReleaseId || !hasBackend()) return;
+    try {
+      setApiBanner(null);
+      const detail = await apiGet(`/api/releases/${backendReleaseId}`, { navigate });
+      const mapped = mapBackendDetailToUi(detail);
+      setReleases((prev) => {
+        const ix = prev.findIndex((r) => r.backendReleaseId === backendReleaseId);
+        if (ix >= 0) {
+          const next = [...prev];
+          next[ix] = { ...next[ix], ...mapped };
+          return next;
+        }
+        return [mapped, ...prev];
+      });
+      setAuditDetail(mapped);
+    } catch (e) {
+      setApiBanner(e.message || "Could not load release record from audit entry");
+      showToast("Could not load certification record for this audit entry", C.red);
+    }
+  };
   const addAudit = (e) => setAuditLog((p) => [{
     id: Date.now(),
     ...e
@@ -833,7 +858,7 @@ export default function App() {
     auditLog,
     releases,
     isMobile,
-    onSelectRelease: setAuditDetail
+    onSelectRelease: openAuditRecord
   });
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(ApiBanner, {
     message: apiBanner,
