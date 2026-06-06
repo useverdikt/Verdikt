@@ -5,8 +5,7 @@ import {
   THRESH_DEFAULTS,
   TRIGGER_MODES,
   MVP_TRIGGER_MODE_IDS,
-  DEFAULT_TRIGGER_CONFIG,
-  API_KEYS_SEED
+  DEFAULT_TRIGGER_CONFIG
 } from "./settingsData.js";
 import {
   apiGet,
@@ -35,7 +34,6 @@ import {
 } from "./workspace/settingsSaveTransforms.js";
 import SettingsWorkspaceShell from "./workspace/SettingsWorkspaceShell.jsx";
 import GovernancePanel from "./workspace/GovernancePanel.jsx";
-import ApiKeyGenModal from "./workspace/ApiKeyGenModal.jsx";
 import GeneralSettingsSection from "./workspace/sections/GeneralSettingsSection.jsx";
 import ThresholdsSettingsSection from "./workspace/sections/ThresholdsSettingsSection.jsx";
 import TeamSettingsSection from "./workspace/sections/TeamSettingsSection.jsx";
@@ -131,13 +129,11 @@ export default function SettingsWorkspace() {
   const [members, setMembers] = useState(() => []);
   const [rolePolicy, _setRolePolicy] = useState(loadRolePolicy);
 
-  const [apiKeys, setApiKeys] = useState(() => API_KEYS_SEED.map((k) => ({ ...k })));
   const [sources, setSources] = useState(() => cloneSourcesBase());
   const [expandedSource, setExpandedSource] = useState(null);
   const [connectModal, setConnectModal] = useState(null);
   const csvInputRef = useRef(null);
 
-  const [keyGen, setKeyGen] = useState({ open: false, step: "name", name: "", full: "", copyLabel: "Copy" });
   const [autoPolicyToggle, setAutoPolicyToggle] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
@@ -572,9 +568,6 @@ export default function SettingsWorkspace() {
           wsId={wsId}
           navigate={navigate}
           toast={toast}
-          apiKeys={apiKeys}
-          setApiKeys={setApiKeys}
-          setKeyGen={setKeyGen}
           sources={sources}
           setSources={setSources}
           expandedSource={expandedSource}
@@ -600,7 +593,7 @@ export default function SettingsWorkspace() {
         <NotificationsSettingsSection section={section} toast={toast} />
         <GovernancePanel section={section} wsId={wsId} toast={toast} />
         <BillingSettingsSection section={section} />
-        <DangerZoneSection section={section} toast={toast} setApiKeys={setApiKeys} setThresholds={setThresholds} />
+        <DangerZoneSection section={section} toast={toast} setThresholds={setThresholds} />
         <EmailPreviewsSection section={section} />
       </SettingsWorkspaceShell>
 
@@ -614,8 +607,6 @@ export default function SettingsWorkspace() {
         onSuccess={loadSignalSources}
         toast={toast}
       />
-
-      <ApiKeyGenModal keyGen={keyGen} setKeyGen={setKeyGen} setApiKeys={setApiKeys} toast={toast} />
 
       <div className={`toast${toastShow ? " show" : ""}`} id="toast">
         {toastMsg ? (
