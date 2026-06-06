@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const { JWT_SECRET, IS_PROD_LIKE, AUTH_COOKIE_NAME, CSRF_COOKIE_NAME, COOKIE_MAX_AGE_MS } = require("../config");
 const { queryOne } = require("../database");
 const { getUserRowForAuthById } = require("../services/authUserLookup");
+const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "").trim();
 
 /** Roles allowed to approve certification overrides (server-side; product UI aligns with VP Engineering). */
 const OVERRIDE_APPROVER_ROLES = new Set(["vp_engineering", "cto", "org_admin"]);
@@ -31,13 +32,15 @@ function cookieOpts(httpOnly) {
   // Cross-origin deployment (frontend on Vercel, API on Railway) requires
   // sameSite: "none" + secure: true so browsers accept Set-Cookie cross-site.
   // In local dev (IS_PROD_LIKE=false) keep "lax" so http:// works without HTTPS.
-  return {
+  const opts = {
     httpOnly,
     secure: IS_PROD_LIKE,
     sameSite: IS_PROD_LIKE ? "none" : "lax",
     path: "/",
     maxAge: COOKIE_MAX_AGE_MS
   };
+  if (COOKIE_DOMAIN) opts.domain = COOKIE_DOMAIN;
+  return opts;
 }
 
 function setAuthCookies(res, token) {
@@ -48,8 +51,10 @@ function setAuthCookies(res, token) {
 }
 
 function clearAuthCookies(res) {
-  res.clearCookie(AUTH_COOKIE_NAME, { path: "/" });
-  res.clearCookie(CSRF_COOKIE_NAME, { path: "/" });
+  const clearOpts = { path: "/" };
+  if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
+  res.clearCookie(AUTH_COOKIE_NAME, clearOpts);
+  res.clearCookie(CSRF_COOKIE_NAME, clearOpts);
 }
 
 function extractBearerToken(req) {
