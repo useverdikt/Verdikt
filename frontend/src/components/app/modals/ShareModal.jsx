@@ -2,6 +2,15 @@ import React, { useEffect, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Logo } from "../CommonControls.jsx";
 
+function currentWorkspaceSlug() {
+  const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
+  const slug = raw
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "workspace";
+}
+
 function useModalLayer(onClose) {
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -40,9 +49,10 @@ export default function ShareModal({
   const color = isShip ? C.green : C.red;
   const [copied, setCopied] = useState(false);
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
+  const publicRecordUrl = `https://useverdikt.com/cert/${currentWorkspaceSlug()}/${encodeURIComponent(String(release.version || ""))}`;
 
   const copy = () => {
-    navigator.clipboard?.writeText(window.location.href).catch(() => {});
+    navigator.clipboard?.writeText(publicRecordUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { verdiktMarkInnerPaths, verdictStateToMarkVariant } from "../brand/verdiktMarkSvg.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
 import { DEMOS, CATS, STATE_META, DEMO_KEYS } from "./badgeDemoData.js";
@@ -8,10 +8,15 @@ import "./BadgePage.css";
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
-function workspaceSlug() {
-  const fromLs = typeof window !== "undefined" ? localStorage.getItem("vdk3_workspace_slug") : "";
-  const slug = String(fromLs || "verdikt").trim().toLowerCase();
-  return slug || "verdikt";
+function workspaceSlug(fromPath = "") {
+  const raw = String(fromPath || (typeof window !== "undefined" ? localStorage.getItem("vdk3_workspace_slug") : "") || "workspace")
+    .trim()
+    .toLowerCase();
+  const slug = raw
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "workspace";
 }
 
 function makeBadgeSVG(state, size = "normal") {
@@ -133,10 +138,11 @@ function SignalGrid({ demo }) {
   );
 }
 
-function RecordCard({ demoKey }) {
+function RecordCard({ demoKey, workspaceSlugOverride, versionOverride }) {
   const d = DEMOS[demoKey];
   const m = STATE_META[demoKey];
-  const wsSlug = workspaceSlug();
+  const wsSlug = workspaceSlug(workspaceSlugOverride);
+  const certVersion = versionOverride || d.version;
 
   const stampLines = m.label.split("\n");
 
@@ -153,7 +159,7 @@ function RecordCard({ demoKey }) {
           <div className="rec-header-divider" />
           <div className="rec-header-type">Certification Record</div>
         </div>
-        <div className="rec-header-url">useverdikt.com/cert/{wsSlug}/{esc(d.version)}</div>
+        <div className="rec-header-url">useverdikt.com/cert/{wsSlug}/{esc(certVersion)}</div>
       </div>
 
       <div className={`rec-hero ${m.heroBg}`}>
@@ -320,6 +326,7 @@ function RecordCard({ demoKey }) {
 
 export default function BadgePage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { workspaceSlug: workspaceSlugParam, version: versionParam } = useParams();
   const [demoKey, setDemoKey] = useState("certified");
   const [copyLabel, setCopyLabel] = useState("Copy");
 
@@ -336,11 +343,12 @@ export default function BadgePage() {
   }, []);
 
   const d = DEMOS[demoKey];
-  const wsSlug = workspaceSlug();
+  const wsSlug = workspaceSlug(workspaceSlugParam);
+  const certVersion = versionParam ? decodeURIComponent(String(versionParam)) : String(d.version);
   const embedMarkdown = useMemo(() => {
-    const v = encodeURIComponent(String(d.version));
+    const v = encodeURIComponent(certVersion);
     return `[![Verdikt](https://useverdikt.com/badge/${wsSlug}/${v})](https://useverdikt.com/cert/${wsSlug}/${v})`;
-  }, [d.version, wsSlug]);
+  }, [certVersion, wsSlug]);
 
   const copyEmbed = () => {
     navigator.clipboard?.writeText(embedMarkdown).catch(() => {});
@@ -385,7 +393,7 @@ export default function BadgePage() {
         </div>
       </div>
 
-      <RecordCard demoKey={demoKey} />
+      <RecordCard demoKey={demoKey} workspaceSlugOverride={wsSlug} versionOverride={certVersion} />
 
       <p className="badge-honesty">
         Illustrative certification <strong>layouts</strong> for embedding and sales — not an anonymous public API to your tenant data.
@@ -422,20 +430,20 @@ export default function BadgePage() {
             <span style={{ color: "#475569" }}>&lt;!-- Markdown --&gt;</span>
             <br />
             <span className="attr">[![Verdikt]</span>
-            <span className="str">(https://useverdikt.com/badge/{wsSlug}/{encodeURIComponent(String(d.version))})</span>
+            <span className="str">(https://useverdikt.com/badge/{wsSlug}/{encodeURIComponent(String(certVersion))})</span>
             <span className="attr">]</span>
-            <span className="str">(https://useverdikt.com/cert/{wsSlug}/{encodeURIComponent(String(d.version))})</span>
+            <span className="str">(https://useverdikt.com/cert/{wsSlug}/{encodeURIComponent(String(certVersion))})</span>
             <br />
             <br />
             <span style={{ color: "#475569" }}>&lt;!-- HTML --&gt;</span>
             <br />
             <span style={{ color: "#c084fc" }}>&lt;a</span> <span className="attr">href</span>=
-            <span className="str">&quot;https://useverdikt.com/cert/{wsSlug}/{encodeURIComponent(String(d.version))}&quot;</span>
+            <span className="str">&quot;https://useverdikt.com/cert/{wsSlug}/{encodeURIComponent(String(certVersion))}&quot;</span>
             <span style={{ color: "#c084fc" }}>&gt;</span>
             <br />
             {"  "}
             <span style={{ color: "#c084fc" }}>&lt;img</span> <span className="attr">src</span>=
-            <span className="str">&quot;https://useverdikt.com/badge/{wsSlug}/{encodeURIComponent(String(d.version))}&quot;</span>
+            <span className="str">&quot;https://useverdikt.com/badge/{wsSlug}/{encodeURIComponent(String(certVersion))}&quot;</span>
             <br />
             {"       "}
             <span className="attr">alt</span>=<span className="str">&quot;Verdikt certification&quot;</span>
