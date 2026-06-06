@@ -153,6 +153,7 @@ If assistive LLM is off or no key is set, the field is **`false`** and no backgr
 - `POST /api/auth/reset-password` — body: `{ "token", "password" }` — one-time use, expires after 60 minutes.
 - `GET /api/auth/me` — header: `Authorization: Bearer <token>`.
 - `POST /api/hooks/release-promoted` — signed webhook trigger for release session creation.
+- `POST /api/hooks/github` — GitHub webhook receiver (PR label trigger; requires `GITHUB_WEBHOOK_SECRET`).
 
 ### `ALLOW_PUBLIC_REGISTRATION` (design-partner / invite-only)
 
@@ -225,6 +226,8 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 
 - `GET /health` (public)
 - `POST /api/hooks/release-promoted` (public but requires `x-verdikt-signature`)
+- `POST /api/hooks/github` (public but requires GitHub `x-hub-signature-256`)
+- `GET /api/hooks/github/setup` (public GitHub App setup redirect callback)
 - `POST /api/workspaces/:workspaceId/integrations/evals` (public, signed integration ingest)
 - `POST /api/auth/register` (public)
 - `POST /api/auth/login` (public)
@@ -239,6 +242,13 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 - `GET /api/signal-definitions`
 - `GET /api/workspaces/:workspaceId/releases`
 - `POST /api/workspaces/:workspaceId/releases`
+- `GET /api/workspaces/:workspaceId/github-label-trigger`
+- `PUT /api/workspaces/:workspaceId/github-label-trigger`
+- `DELETE /api/workspaces/:workspaceId/github-label-trigger`
+- `GET /api/workspaces/:workspaceId/github-app/status`
+- `POST /api/workspaces/:workspaceId/github-app/connect`
+- `GET /api/workspaces/:workspaceId/github-app/repos`
+- `PUT /api/workspaces/:workspaceId/github-app/repos`
 - `POST /api/releases/:releaseId/signals`
 - `POST /api/releases/:releaseId/signals/integrations` (provider payload adapter)
 - `POST /api/releases/:releaseId/override`
