@@ -48,8 +48,7 @@ test.describe("collecting row actions (still toast-only until webhooks / server 
   test("View live stream + Extend deadline show guidance toast when a collecting row exists", async ({ page }, testInfo) => {
     await page.goto("/releases");
     await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
-    const collectingRow = page.locator(".releases-table .release-row.coll-pulse").first();
-    if ((await collectingRow.count()) === 0) {
+    if ((await page.locator(".releases-table .release-row.coll-pulse").count()) === 0) {
       testInfo.skip(true, "No COLLECTING row in current dataset — seed data may differ");
     }
 
@@ -61,6 +60,7 @@ test.describe("collecting row actions (still toast-only until webhooks / server 
       for (let i = 0; i < 4; i++) {
         const panel = collectingDetail().first();
         if (await panel.isVisible().catch(() => false)) return;
+        const collectingRow = page.locator(".releases-table .release-row.coll-pulse").first();
         await collectingRow.scrollIntoViewIfNeeded();
         await collectingRow.click();
       }
@@ -84,11 +84,14 @@ test.describe("API smoke (authenticated request)", () => {
       data: { email: "demo@verdikt.local", password: "demo123" }
     });
     expect(login.ok(), await login.text()).toBeTruthy();
-    const { token, user } = await login.json();
+
+    // Auth is cookie-first in this app. Confirm session and use workspace from /me.
+    const me = await request.get(`${API}/api/auth/me`);
+    expect(me.ok(), await me.text()).toBeTruthy();
+    const { user } = await me.json();
     const ws = user?.workspace_id || "ws_demo";
-    const res = await request.get(`${API}/api/workspaces/${ws}/releases?limit=10`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+
+    const res = await request.get(`${API}/api/workspaces/${ws}/releases?limit=10`);
     expect(res.ok(), await res.text()).toBeTruthy();
     const data = await res.json();
     expect(data).toHaveProperty("releases");
