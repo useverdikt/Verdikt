@@ -42,13 +42,8 @@ export const THRESH_DEFAULTS = {
   relevance_delta: 5
 };
 
+/** Optional automation triggers on Settings → Release Trigger (manual New release is always available). */
 export const TRIGGER_MODES = [
-  {
-    id: "manual",
-    icon: "✎",
-    name: "Manual declaration",
-    desc: 'Anyone with certification authority clicks "Start certification" in Verdikt for a specific build or model version. No integration required.'
-  },
   {
     id: "label",
     icon: "◈",
@@ -63,8 +58,9 @@ export const TRIGGER_MODES = [
   }
 ];
 
-/** Shown in Release Trigger UI — all modes from the static `verdikt-settings.html` mock. */
 export const MVP_TRIGGER_MODE_IDS = TRIGGER_MODES.map((m) => m.id);
+
+export const DEFAULT_TRIGGER_CONFIG = { label: "verdikt:rc" };
 
 export const MEMBERS_SEED = [
   { name: "Jordan Blake", email: "jordan@useverdikt.com", role: "ai_product_lead", status: "active", color: "#3b82f6", initials: "JB" },

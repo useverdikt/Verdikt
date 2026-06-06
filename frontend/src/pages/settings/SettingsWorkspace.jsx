@@ -5,6 +5,7 @@ import {
   THRESH_DEFAULTS,
   TRIGGER_MODES,
   MVP_TRIGGER_MODE_IDS,
+  DEFAULT_TRIGGER_CONFIG,
   API_KEYS_SEED
 } from "./settingsData.js";
 import {
@@ -67,12 +68,9 @@ export default function SettingsWorkspace() {
 
   const [triggerConfig, setTriggerConfig] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("vdk3_trigger") || "null") || {
-        mode: "manual",
-        label: "verdikt:rc"
-      };
+      return JSON.parse(localStorage.getItem("vdk3_trigger") || "null") || { ...DEFAULT_TRIGGER_CONFIG };
     } catch (_) {
-      return { mode: "manual", label: "verdikt:rc" };
+      return { ...DEFAULT_TRIGGER_CONFIG };
     }
   });
 
@@ -251,8 +249,9 @@ export default function SettingsWorkspace() {
   useEffect(() => {
     const visible = TRIGGER_MODES.filter((m) => MVP_TRIGGER_MODE_IDS.includes(m.id));
     setTriggerConfig((c) => {
-      const { env: _env, ...rest } = c;
-      return visible.some((m) => m.id === rest.mode) ? rest : { ...rest, mode: "manual" };
+      const { env: _env, mode, ...rest } = c;
+      if (mode && visible.some((m) => m.id === mode)) return { ...rest, mode };
+      return { ...rest };
     });
   }, []);
 
@@ -369,12 +368,11 @@ export default function SettingsWorkspace() {
       const t = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");
       thresholdsConfigured = ["accuracy", "safety", "tone", "hallucination", "relevance"].every((k) => t[k] !== undefined && t[k] !== null && t[k] !== "");
     } catch (_) {}
-    const triggerActive = !!(triggerConfig && triggerConfig.mode);
     setReadyBadge("ready-eval", evalConnected);
     setReadyBadge("ready-thresh", thresholdsConfigured);
-    setReadyBadge("ready-trigger", triggerActive, !triggerActive);
+    setReadyBadge("ready-trigger", true);
     setReadyBadge("ready-policy", autoPolicyToggle, !autoPolicyToggle);
-  }, [sources, triggerConfig, thresholds, autoPolicyToggle]);
+  }, [sources, thresholds, autoPolicyToggle]);
 
   return (
     <>
