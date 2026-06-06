@@ -50,12 +50,6 @@ export const TRIGGER_MODES = [
     desc: 'Anyone with certification authority clicks "Start certification" in Verdikt for a specific build or model version. No integration required.'
   },
   {
-    id: "env",
-    icon: "◎",
-    name: "Environment promotion",
-    desc: "Any deployment to a designated release candidate environment (e.g. pre-prod) opens a certification window automatically."
-  },
-  {
     id: "label",
     icon: "◈",
     name: "GitHub label",

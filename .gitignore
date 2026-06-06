@@ -14,3 +14,5 @@ backend/data/*.db
 # SQLite hot backups (timestamped copies)
 backend/data/backups/
 
+.vercel
+.env*

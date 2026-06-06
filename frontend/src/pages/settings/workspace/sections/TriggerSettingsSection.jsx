@@ -7,7 +7,6 @@ export default function TriggerSettingsSection({ section, wsId, triggerConfig, s
     const m = triggerConfig.mode;
     const configs = {
       manual: { title: "No configuration needed", body: "manual" },
-      env: { title: "Environment configuration", body: "env" },
       label: { title: "GitHub label configuration", body: "label" },
       webhook: { title: "Webhook endpoint", body: "webhook" }
     };
@@ -63,21 +62,6 @@ export default function TriggerSettingsSection({ section, wsId, triggerConfig, s
           {triggerConfig.mode === "manual" ? (
             <div style={{ background: "var(--raise)", border: "1px solid var(--border)", borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "var(--mid)", lineHeight: 1.65 }}>
               Manual mode requires no integration. Any team member with certification authority can start a certification session from the dashboard at any time.
-            </div>
-          ) : null}
-          {triggerConfig.mode === "env" ? (
-            <div className="field" style={{ maxWidth: 320 }}>
-              <label className="field-label">Certification environment</label>
-              <input
-                className="inp"
-                value={triggerConfig.env || "pre-prod"}
-                onChange={(e) => setTriggerConfig((c) => ({ ...c, env: e.target.value }))}
-                placeholder="e.g. pre-prod"
-                style={{ marginTop: 6 }}
-              />
-              <div className="field-hint">
-                Deployments to this environment automatically open a certification window. Use a controlled release-candidate environment.
-              </div>
             </div>
           ) : null}
           {triggerConfig.mode === "label" ? (

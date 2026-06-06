@@ -88,7 +88,6 @@ export const REG_CLASS = { req: "reg-req", wav: "reg-wav", dis: "reg-dis" };
 
 export const TRIGGER_LABELS = {
   manual: "Manual declaration",
-  env: "Environment promotion",
   label: "GitHub label",
   webhook: "Pipeline webhook"
 };

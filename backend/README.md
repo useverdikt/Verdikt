@@ -592,7 +592,7 @@ Generate synthetic multi-startup data to exercise trends, suggestions, overrides
 This script simulates 10 AI startup teams by default, with mixed flows across:
 
 - Product surfaces: AI web app, AI mobile app, API/backend
-- Trigger modes: pipeline webhook, GitHub label, Jira transition, env promotion, manual declaration
+- Trigger modes: pipeline webhook, GitHub label, Jira transition, manual declaration
 - Signal ingest paths: integration adapter, signed workspace webhook, manual entry, CSV-like imports
 - Providers: Braintrust, LangSmith, Datadog, Sentry
 

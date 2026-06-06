@@ -69,11 +69,10 @@ export default function SettingsWorkspace() {
     try {
       return JSON.parse(localStorage.getItem("vdk3_trigger") || "null") || {
         mode: "manual",
-        env: "pre-prod",
         label: "verdikt:rc"
       };
     } catch (_) {
-      return { mode: "manual", env: "pre-prod", label: "verdikt:rc" };
+      return { mode: "manual", label: "verdikt:rc" };
     }
   });
 
@@ -251,7 +250,10 @@ export default function SettingsWorkspace() {
 
   useEffect(() => {
     const visible = TRIGGER_MODES.filter((m) => MVP_TRIGGER_MODE_IDS.includes(m.id));
-    setTriggerConfig((c) => (visible.some((m) => m.id === c.mode) ? c : { ...c, mode: "manual" }));
+    setTriggerConfig((c) => {
+      const { env: _env, ...rest } = c;
+      return visible.some((m) => m.id === rest.mode) ? rest : { ...rest, mode: "manual" };
+    });
   }, []);
 
   useEffect(() => {
