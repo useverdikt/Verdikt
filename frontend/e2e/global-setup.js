@@ -12,6 +12,10 @@ const ORIGIN = "http://127.0.0.1:5174";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function playwrightCookiesFromResponse(res) {
   const list =
     typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : parseSetCookieFallback(res);
@@ -46,11 +50,28 @@ function parseSetCookieFallback(res) {
 }
 
 export default async function globalSetup() {
-  const res = await fetch(`${API}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "demo@verdikt.local", password: "demo123" })
-  });
+  // In CI, Playwright marks webServer ready when Vite is available; backend can
+  // still be finishing startup/migrations. Retry auth bootstrap briefly.
+  let res;
+  let lastErr;
+  for (let i = 0; i < 30; i++) {
+    try {
+      const health = await fetch(`${API}/health`);
+      if (!health.ok) throw new Error(`health ${health.status}`);
+      res = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "demo@verdikt.local", password: "demo123" })
+      });
+      break;
+    } catch (e) {
+      lastErr = e;
+      await sleep(500);
+    }
+  }
+  if (!res) {
+    throw new Error(`globalSetup login failed: backend not reachable (${String(lastErr?.message || lastErr)})`);
+  }
   if (!res.ok) {
     const t = await res.text();
     throw new Error(`globalSetup login failed: ${res.status} ${t}`);
