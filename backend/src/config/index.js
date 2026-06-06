@@ -34,6 +34,14 @@ const DEFAULT_DEV_WEBHOOK_SECRET = "dev-webhook-secret";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || (IS_PROD_LIKE ? "" : DEFAULT_DEV_WEBHOOK_SECRET);
 /** Optional legacy global HMAC secret; still accepted after per-workspace inbound secrets exist. */
 const WEBHOOK_FALLBACK_SECRET = (process.env.WEBHOOK_FALLBACK_SECRET || "").trim();
+/** Optional GitHub webhook secret for POST /api/hooks/github (PR label trigger). */
+const GITHUB_WEBHOOK_SECRET = (process.env.GITHUB_WEBHOOK_SECRET || "").trim();
+/** GitHub App config for install/connect flow. */
+const GITHUB_APP_ID = (process.env.GITHUB_APP_ID || "").trim();
+const GITHUB_APP_SLUG = (process.env.GITHUB_APP_SLUG || "").trim();
+const GITHUB_APP_PRIVATE_KEY = (process.env.GITHUB_APP_PRIVATE_KEY || "").trim();
+const GITHUB_APP_INSTALL_URL = (process.env.GITHUB_APP_INSTALL_URL || "").trim();
+const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").trim();
 const ENCRYPTION_MASTER_KEY_RAW = (process.env.ENCRYPTION_MASTER_KEY || "").trim();
 
 /** Minimum lengths when NODE_ENV=production or REQUIRE_SECURE_CONFIG=1 */
@@ -127,6 +135,12 @@ module.exports = {
   JWT_SECRET,
   WEBHOOK_SECRET,
   WEBHOOK_FALLBACK_SECRET,
+  GITHUB_WEBHOOK_SECRET,
+  GITHUB_APP_ID,
+  GITHUB_APP_SLUG,
+  GITHUB_APP_PRIVATE_KEY,
+  GITHUB_APP_INSTALL_URL,
+  PUBLIC_APP_URL,
   BCRYPT_ROUNDS,
   LOGIN_RATE_LIMIT_PER_MINUTE,
   ENABLE_THRESHOLD_SUGGESTIONS,
