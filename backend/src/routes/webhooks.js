@@ -28,7 +28,6 @@ const {
 
 const {
   AI_SIGNAL_DEFINITIONS,
-  ALLOWED_RELEASE_TYPES,
   DEFAULT_COLLECTION_WINDOW_MINUTES,
   GITHUB_WEBHOOK_SECRET
 } = config;
@@ -144,80 +143,6 @@ app.get("/api/hooks/github/setup", async (req, res) => {
     return res.redirect(302, redirectUrl);
   } catch (e) {
     return res.status(500).json({ error: e.message || String(e) });
-  }
-});
-
-app.post("/api/hooks/release-promoted", webhookRateLimit, async (req, res, next) => {
-  try {
-  if (!(await verifyInboundWebhookSignature(req))) {
-    console.warn(`[${req.requestId}] invalid webhook signature`);
-    return res.status(401).json({ error: "Invalid webhook signature" });
-  }
-  const {
-    workspace_id,
-    release_ref,
-    release_type = "model_update",
-    environment = "pre-prod",
-    source = "webhook",
-    mappings = {},
-    ai_context = {},
-    collection_window_minutes = DEFAULT_COLLECTION_WINDOW_MINUTES,
-    idempotency_key,
-    commit_sha = null,
-    pr_number = null
-  } = req.body || {};
-
-  if (!workspace_id || !release_ref) {
-    return res.status(400).json({ error: "workspace_id and release_ref are required" });
-  }
-  if (typeof mappings !== "object" || Array.isArray(mappings)) {
-    return res.status(400).json({ error: "mappings must be an object" });
-  }
-  if (typeof source !== "string" || source.trim().length === 0) {
-    return res.status(400).json({ error: "source must be a non-empty string" });
-  }
-  if (typeof ai_context !== "object" || Array.isArray(ai_context)) {
-    return res.status(400).json({ error: "ai_context must be an object" });
-  }
-  if (!ALLOWED_RELEASE_TYPES.has(release_type)) {
-    return res.status(400).json({
-      error: "release_type must be one of: prompt_update, model_patch, safety_patch, policy_change, model_update"
-    });
-  }
-
-  const out = await createReleaseSession({
-    workspaceId: workspace_id,
-    releaseRef: release_ref,
-    releaseType: release_type,
-    environment,
-    source,
-    mappings,
-    aiContext: ai_context,
-    collectionWindowMinutes: collection_window_minutes,
-    idempotencyKey:
-      idempotency_key ||
-      (typeof req.headers["x-idempotency-key"] === "string" ? req.headers["x-idempotency-key"] : null),
-    commitSha: commit_sha,
-    prNumber: pr_number
-  });
-  if (out.reused) {
-    console.log(`[${req.requestId}] webhook replay`, { release_id: out.release?.id });
-    return res.status(200).json({ ok: true, reused: true, release: out.release });
-  }
-  console.log(`[${req.requestId}] release triggered`, { release_id: out.release?.id, workspace_id, release_ref, source });
-  return res.status(201).json({
-    id: out.release?.id,
-    workspace_id,
-    release_ref,
-    release_type,
-    environment,
-    status: "COLLECTING",
-    collection_deadline: out.collection_deadline,
-    commit_sha: out.release?.commit_sha || null,
-    pr_number: out.release?.pr_number || null
-  });
-  } catch (e) {
-    next(e);
   }
 });
 

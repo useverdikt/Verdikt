@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seed realistic end-to-end release lifecycle data.
-# Simulates: release trigger webhook -> eval ingest -> delivery signals -> verdict -> optional override.
+# Simulates: release create -> eval ingest -> delivery signals -> verdict -> optional override.
 #
 # Usage:
 #   BASE_URL=http://localhost:8792 WEBHOOK_SECRET=dev-webhook-secret bash scripts/synth-e2e-seed.sh
@@ -61,17 +61,11 @@ for ((i=1; i<=COUNT; i++)); do
   ver="seed-e2e-$(date +%Y%m%d)-$i"
   ref="rc/$ver"
 
-  # 1) trigger release via signed webhook to mimic CI/CD promotion.
-  BODY=$(cat <<EOF
-{"workspace_id":"$WS","release_ref":"$ref","release_type":"$rt","environment":"$env","source":"github_tag","mappings":{"eval_run_id":"eval/$ver","prompt_bundle_id":"pb/$ver"},"ai_context":{"model_version":"$ver","prompt_bundle":"pb/$ver","dataset_version":"ds-v1"},"collection_window_minutes":120}
-EOF
-)
-  SIG=$(printf "%s" "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | sed 's/^.* //')
-  REL_JSON=$(curl -sfS -X POST "$BASE/api/hooks/release-promoted" \
+  # 1) create release via authenticated API.
+  REL_JSON=$(curl -sfS -X POST "$BASE/api/workspaces/$WS/releases" \
+    "${AUTH[@]}" \
     -H "Content-Type: application/json" \
-    -H "x-verdikt-signature: sha256=$SIG" \
-    -H "x-idempotency-key: seed:$WS:$ref" \
-    -d "$BODY")
+    -d "{\"version\":\"$ref\",\"release_type\":\"$rt\",\"environment\":\"$env\",\"ai_context\":{\"trigger_mode\":\"github_label\",\"model_version\":\"$ver\",\"prompt_bundle\":\"pb/$ver\",\"dataset_version\":\"ds-v1\"}}")
   REL_ID=$(echo "$REL_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const j=JSON.parse(s); console.log(j.id || (j.release && j.release.id) || '');})")
   if [ -z "$REL_ID" ]; then
     echo "failed to resolve release id for $ver"
