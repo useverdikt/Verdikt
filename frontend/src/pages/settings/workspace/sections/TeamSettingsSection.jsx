@@ -70,8 +70,6 @@ export default function TeamSettingsSection({
   inviteRole,
   setInviteRole,
   roleLabels,
-  autoPolicyToggle,
-  setAutoPolicyToggle,
   rolePolicy,
   toast
 }) {
@@ -122,36 +120,6 @@ export default function TeamSettingsSection({
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--red)" }} />
               LOCKED — NO OVERRIDE
             </div>
-          </div>
-        </div>
-      </div>
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">Automated approvers (preview)</div>
-            <div className="sblock-desc">Planned capability for policy-based approval paths.</div>
-          </div>
-          <button type="button" className="btn-ghost accent" onClick={() => toast("Automated approvers are preview-only in this MVP")}>
-            Preview only
-          </button>
-        </div>
-        <div className="sblock-body">
-          <div className="toggle-row">
-            <div className="toggle-info">
-              <div className="toggle-label">Automated policy approval (preview)</div>
-              <div className="toggle-desc">Not active in the current MVP.</div>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={autoPolicyToggle}
-                onChange={(e) => {
-                  setAutoPolicyToggle(e.target.checked);
-                  toast(`Automated policy approval preview ${e.target.checked ? "enabled" : "disabled"}`);
-                }}
-              />
-              <div className="toggle-track" />
-            </label>
           </div>
         </div>
       </div>
