@@ -577,7 +577,7 @@ export default function App() {
           {
             version,
             release_type: relType,
-            environment: project.env?.toLowerCase?.() || "pre-prod"
+            environment: "pre-prod"
           },
           { navigate }
         );
@@ -613,7 +613,7 @@ export default function App() {
           {
             version,
             release_type: releaseType,
-            environment: project.env?.toLowerCase?.() || "pre-prod"
+            environment: "pre-prod"
           },
           { navigate }
         );
