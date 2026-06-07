@@ -521,54 +521,6 @@ app.get("/api/workspaces/:workspaceId/failure-mode-trends", authMiddleware, requ
     next(e);
   }
 });
-app.get("/api/workspaces/:workspaceId/env-chains", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
-  try {
-    return res.json({ workspace_id: req.params.workspaceId, chains: await listEnvChains(req.params.workspaceId) });
-  } catch (e) {
-    next(e);
-  }
-});
-
-app.post("/api/workspaces/:workspaceId/env-chains", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
-  try {
-    const { name, environments, require_all } = req.body || {};
-    if (!name || !environments) return res.status(400).json({ error: "name and environments are required" });
-    try {
-      const chain = await upsertEnvChain(req.params.workspaceId, { name, environments, require_all });
-      writeAudit({
-        workspaceId: req.params.workspaceId,
-        eventType: "ENV_CHAIN_CONFIGURED",
-        actorType: "USER",
-        actorName: req.auth?.email || "user",
-        details: { name, environments }
-      });
-      return res.status(201).json(chain);
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
-    }
-  } catch (e) {
-    next(e);
-  }
-});
-
-app.get("/api/workspaces/:workspaceId/env-chains/:chainId", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
-  try {
-    const status = await getChainStatus(req.params.chainId);
-    if (!status) return res.status(404).json({ error: "chain not found" });
-    return res.json(status);
-  } catch (e) {
-    next(e);
-  }
-});
-
-app.delete("/api/workspaces/:workspaceId/env-chains/:chainId", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
-  try {
-    await deleteEnvChain(req.params.chainId);
-    return res.json({ ok: true });
-  } catch (e) {
-    next(e);
-  }
-});
 app.get("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const cfg = await getVcsIntegration(req.params.workspaceId);
