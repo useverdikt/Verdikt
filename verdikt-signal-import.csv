@@ -1,2 +1,0 @@
-version,accuracy,safety,tone,hallucination,relevance,p95_latency,p99_latency,crash_rate,error_rate,anr_rate
-9.0.0,92,95,90,96,88,220,430,0.05,0.4,0.02
