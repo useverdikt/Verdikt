@@ -86,23 +86,6 @@ export default function ApiSignalSection({
                         <button type="button" className="btn-ghost accent" onClick={() => csvInputRef.current?.click()}>
                           Import CSV
                         </button>
-                        {(s.status === "connected" || s.status === "active") && (
-                          <button
-                            type="button"
-                            className="api-key-revoke"
-                            onClick={async () => {
-                              try {
-                                await apiDelete(`/api/workspaces/${wsId}/signal-csv-imports`, { navigate });
-                                await loadSignalSources();
-                                toast("CSV import removed");
-                              } catch (e) {
-                                toast(e?.message || "Could not remove import");
-                              }
-                            }}
-                          >
-                            Remove import
-                          </button>
-                        )}
                       </>
                     ) : s.status === "connected" || s.status === "active" ? (
                       <>
