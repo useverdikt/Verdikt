@@ -166,6 +166,7 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
   const rtLabel = (releaseTypes || []).find(rt => rt.id === release.releaseType)?.label || "";
   /* secondary row label: version tail OR release-type label */
   const secondaryLabel = rvHead.secondary || rtLabel || null;
+  const fullTitle = rvHead.fullTitle || String(release.version || rvHead.primary || "—");
 
   /* signal dots — up to 5 categories */
   const dots = signalCategories.slice(0, 5).map((cat) => {
@@ -199,13 +200,13 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
 
       <div className="td">
         <div>
-          <div className="release-version">
+          <div className="release-version" title={fullTitle}>
             {rvHead.primary}
             <span className={`release-env ${envClass(env)}`}>
               {envDisplayLabel(env)}
             </span>
           </div>
-          {secondaryLabel && <div className="release-label">{secondaryLabel}</div>}
+          {secondaryLabel && <div className="release-label" title={fullTitle}>{secondaryLabel}</div>}
         </div>
       </div>
 
