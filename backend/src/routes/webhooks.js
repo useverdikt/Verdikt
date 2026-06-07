@@ -2,7 +2,7 @@
 
 const crypto = require("crypto");
 
-const { queryOne, run, transaction } = require("../database");
+const { queryOne, queryAll, run, transaction } = require("../database");
 const config = require("../config");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("../services/audit");
@@ -161,6 +161,67 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
     if (event !== "pull_request") return res.json({ ok: true, ignored: `event:${event}` });
 
     const payload = req.body || {};
+
+    // ── PR merged → promote matching release environment to prod ─────────────
+    if (payload.action === "closed" && payload.pull_request?.merged === true) {
+      const owner = payload?.repository?.owner?.login;
+      const repo = payload?.repository?.name;
+      const prNumber = payload?.pull_request?.number;
+      const baseBranch = String(payload?.pull_request?.base?.ref || "").trim();
+      const isMainBranch = ["main", "master"].includes(baseBranch.toLowerCase());
+      if (!owner || !repo || !prNumber) {
+        return res.json({ ok: true, ignored: "merge_missing_fields" });
+      }
+      let workspaceId = await findWorkspaceByRepo(owner, repo);
+      if (!workspaceId) {
+        const fallback = await queryOne(
+          `SELECT workspace_id FROM vcs_integrations
+           WHERE enabled = 1 AND provider = 'github' AND LOWER(owner) = LOWER(?) AND LOWER(repo) = LOWER(?)
+           LIMIT 1`,
+          [owner, repo]
+        );
+        workspaceId = fallback?.workspace_id || null;
+      }
+      if (!workspaceId) return res.json({ ok: true, ignored: "repo_not_connected" });
+
+      // Find all releases for this workspace triggered by this PR number
+      const matched = await queryAll(
+        `SELECT * FROM releases WHERE workspace_id = ? AND pr_number = ? ORDER BY created_at DESC`,
+        [workspaceId, prNumber]
+      );
+      if (!matched.length) return res.json({ ok: true, ignored: "no_matching_release", pr_number: prNumber });
+
+      const newEnv = isMainBranch ? "prod" : baseBranch;
+      const now = nowIso();
+      for (const rel of matched) {
+        await run(
+          "UPDATE releases SET environment = ?, updated_at = ? WHERE id = ?",
+          [newEnv, now, rel.id]
+        );
+        await writeAudit({
+          workspaceId,
+          releaseId: rel.id,
+          eventType: "RELEASE_ENV_PROMOTED",
+          actorType: "SYSTEM",
+          actorName: "github_merge",
+          details: {
+            pr_number: prNumber,
+            base_branch: baseBranch,
+            from_environment: rel.environment,
+            to_environment: newEnv,
+            merged: true
+          }
+        });
+      }
+      console.log(`[${req.requestId}] github merge promotion`, {
+        workspace_id: workspaceId,
+        pr_number: prNumber,
+        releases_promoted: matched.length,
+        new_environment: newEnv
+      });
+      return res.json({ ok: true, promoted: matched.length, environment: newEnv, pr_number: prNumber });
+    }
+
     if (payload.action !== "labeled") return res.json({ ok: true, ignored: `action:${payload.action || "unknown"}` });
 
     const owner = payload?.repository?.owner?.login;
