@@ -281,6 +281,16 @@ export default function SettingsWorkspace() {
     }
   }, [navigate, wsId]);
 
+  const loadVcsIntegration = useCallback(async () => {
+    try {
+      const data = await apiGet(`/api/workspaces/${wsId}/vcs-integration`, { navigate });
+      setVcsCfg(data);
+      setVcsForm((f) => ({ ...f, provider: data.provider || "github", owner: data.owner || "", repo: data.repo || "" }));
+    } catch (_) {
+      setVcsCfg(null);
+    }
+  }, [wsId, navigate]);
+
   useEffect(() => {
     loadThresholds();
     loadThresholdSuggestions();
@@ -483,16 +493,6 @@ export default function SettingsWorkspace() {
     );
     setTriggerDirty(true);
   };
-
-  const loadVcsIntegration = useCallback(async () => {
-    try {
-      const data = await apiGet(`/api/workspaces/${wsId}/vcs-integration`, { navigate });
-      setVcsCfg(data);
-      setVcsForm((f) => ({ ...f, provider: data.provider || "github", owner: data.owner || "", repo: data.repo || "" }));
-    } catch (_) {
-      setVcsCfg(null);
-    }
-  }, [wsId, navigate]);
 
   const saveVcsIntegration = async () => {
     setVcsSaving(true);
