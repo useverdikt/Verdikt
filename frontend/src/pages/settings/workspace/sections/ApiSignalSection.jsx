@@ -53,40 +53,7 @@ export default function ApiSignalSection({
                     {st.label}
                   </div>
                   <div className="source-actions">
-                    {s.status === "connected" || s.status === "active" ? (
-                      <>
-                        {s.mapping ? (
-                          <button type="button" className="btn-ghost" onClick={() => setExpandedSource((ex) => (ex === i ? null : i))}>
-                            {expandedSource === i ? "▴ Mapping" : "▾ Mapping"}
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="api-key-revoke"
-                          onClick={async () => {
-                            if (isUpload) {
-                              try {
-                                await apiDelete(`/api/workspaces/${wsId}/signal-csv-imports`, { navigate });
-                                await loadSignalSources();
-                                toast("CSV import removed");
-                              } catch (e) {
-                                toast(e?.message || "Could not remove import");
-                              }
-                              return;
-                            }
-                            try {
-                              await apiDelete(`/api/workspaces/${wsId}/signal-integrations/${s.sourceId}`, { navigate });
-                              await loadSignalSources();
-                              toast(`${s.name} disconnected`);
-                            } catch (e) {
-                              toast(e?.message || "Disconnect failed");
-                            }
-                          }}
-                        >
-                          {isUpload ? "Remove import" : "Disconnect"}
-                        </button>
-                      </>
-                    ) : isUpload ? (
+                    {isUpload ? (
                       <>
                         <input
                           ref={csvInputRef}
@@ -117,7 +84,47 @@ export default function ApiSignalSection({
                           }}
                         />
                         <button type="button" className="btn-ghost accent" onClick={() => csvInputRef.current?.click()}>
-                          Upload CSV
+                          {s.status === "connected" || s.status === "active" ? "Replace CSV" : "Upload CSV"}
+                        </button>
+                        {(s.status === "connected" || s.status === "active") && (
+                          <button
+                            type="button"
+                            className="api-key-revoke"
+                            onClick={async () => {
+                              try {
+                                await apiDelete(`/api/workspaces/${wsId}/signal-csv-imports`, { navigate });
+                                await loadSignalSources();
+                                toast("CSV import removed");
+                              } catch (e) {
+                                toast(e?.message || "Could not remove import");
+                              }
+                            }}
+                          >
+                            Remove import
+                          </button>
+                        )}
+                      </>
+                    ) : s.status === "connected" || s.status === "active" ? (
+                      <>
+                        {s.mapping ? (
+                          <button type="button" className="btn-ghost" onClick={() => setExpandedSource((ex) => (ex === i ? null : i))}>
+                            {expandedSource === i ? "▴ Mapping" : "▾ Mapping"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="api-key-revoke"
+                          onClick={async () => {
+                            try {
+                              await apiDelete(`/api/workspaces/${wsId}/signal-integrations/${s.sourceId}`, { navigate });
+                              await loadSignalSources();
+                              toast(`${s.name} disconnected`);
+                            } catch (e) {
+                              toast(e?.message || "Disconnect failed");
+                            }
+                          }}
+                        >
+                          Disconnect
                         </button>
                       </>
                     ) : (
