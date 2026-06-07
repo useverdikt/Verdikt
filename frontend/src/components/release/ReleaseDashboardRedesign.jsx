@@ -517,6 +517,7 @@ function SetupBanner({ setupChecklist }) {
 /* ── Main component ──────────────────────────────────────────────────────── */
 export function ReleaseDashboard({
   releases = [],
+  wsReady = true,
   signalCategories = [],
   calcCategoryStatus,
   thresholds = {},
@@ -653,22 +654,22 @@ export function ReleaseDashboard({
           <div className="stats-row">
             <div className="stat-card green">
               <div className="stat-label">Certified rate</div>
-              <div className="stat-value g">{stats.certRate}%</div>
-              <div className="stat-sub">of {stats.total} releases</div>
+              <div className="stat-value g">{wsReady ? `${stats.certRate}%` : "—"}</div>
+              <div className="stat-sub">{wsReady ? `of ${stats.total} releases` : "loading…"}</div>
             </div>
             <div className="stat-card red">
               <div className="stat-label">Uncertified</div>
-              <div className="stat-value r">{stats.uncertified}</div>
+              <div className="stat-value r">{wsReady ? stats.uncertified : "—"}</div>
               <div className="stat-sub">releases pending review</div>
             </div>
             <div className="stat-card amber">
               <div className="stat-label">Override rate</div>
-              <div className="stat-value a">{stats.overrideRate}%</div>
+              <div className="stat-value a">{wsReady ? `${stats.overrideRate}%` : "—"}</div>
               <div className="stat-sub">of certified releases</div>
             </div>
             <div className="stat-card blue">
               <div className="stat-label">Full loop count</div>
-              <div className="stat-value">{stats.loopCount}</div>
+              <div className="stat-value">{wsReady ? stats.loopCount : "—"}</div>
               <div className="stat-sub" style={{ color: "#f59e0b" }}>● Emerging band</div>
             </div>
           </div>
@@ -710,7 +711,31 @@ export function ReleaseDashboard({
               <div className="th r">Issued</div>
             </div>
 
-            {releases.length === 0 ? (
+            {!wsReady ? (
+              <div style={{ padding: "0" }}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} style={{
+                    display: "grid",
+                    gridTemplateColumns: "28px 1fr 110px 110px 90px 80px 70px",
+                    gap: 8,
+                    padding: "12px 16px",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    alignItems: "center",
+                  }}>
+                    {[28, 160, 80, 80, 60, 50, 45].map((w, j) => (
+                      <div key={j} style={{
+                        height: 12,
+                        borderRadius: 4,
+                        background: "rgba(255,255,255,0.06)",
+                        width: w,
+                        animation: "sk-pulse 1.4s ease-in-out infinite",
+                        animationDelay: `${i * 0.15 + j * 0.05}s`,
+                      }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : releases.length === 0 ? (
               <div style={{
                 padding: "40px 24px", textAlign: "center",
                 color: "#384d60", fontFamily: "'JetBrains Mono', monospace", fontSize: 12,

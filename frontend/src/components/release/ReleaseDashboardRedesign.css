@@ -1,5 +1,10 @@
 /* ── RELEASE DASHBOARD — pixel-perfect match to verdikt-dashboard.html ─────── */
 
+@keyframes sk-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.9; }
+}
+
 /* Container: fills the full main area (AppContentSwitch gives it flex:1 + overflow:hidden) */
 .release-redesign {
   display: flex;

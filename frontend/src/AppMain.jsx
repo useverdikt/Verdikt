@@ -61,11 +61,14 @@ import { useLoopReadinessNudge } from "./hooks/useLoopReadinessNudge.js";
 import LoopReadinessNudge from "./components/app/LoopReadinessNudge.jsx";
 
 export default function App() {
+  const [wsReady, setWsReady] = useState(!hasBackend());
   const [releases, setReleases] = useState(() => {
+    if (hasBackend()) return [];
     const s = S.get("releases", null);
     return Array.isArray(s) && s.length > 0 ? s : SCREENSHOT_SIM_RELEASES;
   });
   const [selectedId, setSelectedId] = useState(() => {
+    if (hasBackend()) return null;
     const s = S.get("releases", null);
     const list = Array.isArray(s) && s.length > 0 ? s : SCREENSHOT_SIM_RELEASES;
     return list[0]?.id;
@@ -253,6 +256,7 @@ export default function App() {
       if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");
     } finally {
       if (manual) setWorkspaceSyncing(false);
+      if (!isCancelled()) setWsReady(true);
     }
   }, [navigate, currentUser?.email]);
   const refreshAuditFromServer = React.useCallback(async () => {
@@ -748,6 +752,7 @@ export default function App() {
   const ReleaseView = () => /* @__PURE__ */ React.createElement(ReleaseViewPanel, {
     current,
     releases: sortedReleasesForSidebar,
+    wsReady,
     formatReleaseAge: formatSidebarReleaseAge,
     thresholds,
     releaseTypes: RELEASE_TYPES,

@@ -6,6 +6,7 @@ import { getSafeApiBase } from "../../../lib/apiBase.js";
 export default function ReleaseView({
   current,
   releases = [],
+  wsReady = true,
   formatReleaseAge,
   thresholds,
   releaseTypes,
@@ -57,6 +58,7 @@ export default function ReleaseView({
   return (
     <ReleaseDashboardRedesign
       releases={releases}
+      wsReady={wsReady}
       signalCategories={signalCategories}
       calcCategoryStatus={calcCategoryStatus}
       thresholds={thresholds}
