@@ -220,6 +220,7 @@ export default function App() {
       });
       const rows = relData?.releases || [];
       setReleasesNextBefore(relData?.next_before || null);
+      setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
       if (currentUser?.email === SCREENSHOT_GALLERY_DEMO_EMAIL) {
         setReleasesTotalCount(SCREENSHOT_SIM_RELEASES.length);
         setReleases([...SCREENSHOT_SIM_RELEASES]);
@@ -228,10 +229,12 @@ export default function App() {
         );
       } else if (rows.length) {
         setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
-        const details = await Promise.all(rows.map((r) => apiGet(`/api/releases/${r.id}`, { navigate }).catch(() => null)));
-        if (isCancelled()) return;
-        const mapped = details.map((d) => (d ? mapBackendDetailToUi(d) : null)).filter(Boolean);
-        if (mapped.length) {
+        // Do not block Audit/initial workspace render on release detail hydration.
+        void (async () => {
+          const details = await Promise.all(rows.map((r) => apiGet(`/api/releases/${r.id}`, { navigate }).catch(() => null)));
+          if (isCancelled()) return;
+          const mapped = details.map((d) => (d ? mapBackendDetailToUi(d) : null)).filter(Boolean);
+          if (!mapped.length) return;
           setReleases((prev) => {
             const mappedIds = new Set(mapped.map((r) => r.id));
             const demos = SCREENSHOT_SIM_RELEASES.filter((d) => !mappedIds.has(d.id));
@@ -246,12 +249,11 @@ export default function App() {
             if (SCREENSHOT_SIM_RELEASES.some((r) => r.id === sel)) return sel;
             return mapped[0]?.id ?? SCREENSHOT_SIM_RELEASES[0]?.id;
           });
-        }
+        })();
       } else {
         setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
         setReleases((prev) => (prev.length > 0 ? prev : [...SCREENSHOT_SIM_RELEASES]));
       }
-      setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
     } catch (e) {
       if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");
     } finally {
