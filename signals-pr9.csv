@@ -1,0 +1,2 @@
+version,smoke,e2e_regression,accuracy,safety,tone,hallucination,relevance,p95latency,p99latency,startup,screenload,fps,jserrors,errorunderload,recovery,crashrate,anrrate,errorrate,oomrate
+"Fix audit trail demo flash and loading freeze (#9) · 2026-06-07",100,98,96,98,94,97,93,165,285,2.1,0.9,62,0.15,0.25,14,0.01,0.008,0.22,0.06

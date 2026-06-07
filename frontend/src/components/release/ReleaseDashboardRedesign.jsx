@@ -62,7 +62,11 @@ function alignBadge(status, alignmentVerdict) {
 /* Mirrors AppMain evaluateSignal / fmtVal — used for rich expanded rows */
 function evaluateSignalLocal(sig, value, threshold) {
   if (sig.direction === "test") {
-    const v = value && typeof value === "object" ? value : { rate: value === "pass" ? 100 : 0, severity: value === "pass" ? "none" : "P0" };
+    const v = value && typeof value === "object"
+      ? value
+      : typeof value === "number" && Number.isFinite(value)
+        ? { rate: value, severity: "none" }
+        : { rate: value === "pass" ? 100 : 0, severity: value === "pass" ? "none" : "P0" };
     const rate = v.rate ?? 0;
     const severity = v.severity ?? "none";
     const isP0 = severity === "P0";
@@ -78,7 +82,11 @@ function evaluateSignalLocal(sig, value, threshold) {
 function formatSignalValueLocal(sig, value) {
   if (value === undefined || value === null) return null;
   if (sig.direction === "test") {
-    const v = value && typeof value === "object" ? value : { rate: value === "pass" ? 100 : 0, severity: value === "pass" ? "none" : "P0" };
+    const v = value && typeof value === "object"
+      ? value
+      : typeof value === "number" && Number.isFinite(value)
+        ? { rate: value, severity: "none" }
+        : { rate: value === "pass" ? 100 : 0, severity: value === "pass" ? "none" : "P0" };
     const rate = v.rate ?? 0;
     const sev = v.severity ?? "none";
     return `${rate}%${sev !== "none" ? ` · ${sev}` : ""}`;
