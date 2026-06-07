@@ -52,6 +52,25 @@ function verifyGitHubWebhookSignature(req) {
   return timingSafeHexEq(expected, signature.slice("sha256=".length));
 }
 
+function classifyGithubReleaseType(payload, fallback = "model_update") {
+  const title = String(payload?.pull_request?.title || "").toLowerCase();
+  const labels = [
+    ...new Set(
+      (payload?.pull_request?.labels || [])
+        .map((l) => String(l?.name || "").toLowerCase().trim())
+        .filter(Boolean)
+    )
+  ];
+  const haystack = `${title} ${labels.join(" ")}`;
+
+  if (/\b(prompt|ux|ui|copy)\b/.test(haystack)) return "prompt_update";
+  if (/\b(safety|guardrail|security)\b/.test(haystack)) return "safety_patch";
+  if (/\b(routing|policy)\b/.test(haystack)) return "policy_change";
+  if (/\b(model\s*patch|hotfix)\b/.test(haystack)) return "model_patch";
+  if (/\b(model|weights|checkpoint|llm|gpt|claude|gemini)\b/.test(haystack)) return "model_update";
+  return fallback;
+}
+
 async function createReleaseSession({
   workspaceId,
   releaseRef,
@@ -193,11 +212,32 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
 
       const newEnv = isMainBranch ? "prod" : baseBranch;
       const now = nowIso();
+      let promoted = 0;
+      let blockedCollecting = 0;
       for (const rel of matched) {
+        if (String(rel.status || "").toUpperCase() === "COLLECTING") {
+          blockedCollecting++;
+          await writeAudit({
+            workspaceId,
+            releaseId: rel.id,
+            eventType: "RELEASE_ENV_PROMOTION_BLOCKED",
+            actorType: "SYSTEM",
+            actorName: "github_merge",
+            details: {
+              pr_number: prNumber,
+              base_branch: baseBranch,
+              current_environment: rel.environment,
+              requested_environment: newEnv,
+              reason: "release_still_collecting"
+            }
+          });
+          continue;
+        }
         await run(
           "UPDATE releases SET environment = ?, updated_at = ? WHERE id = ?",
           [newEnv, now, rel.id]
         );
+        promoted++;
         await writeAudit({
           workspaceId,
           releaseId: rel.id,
@@ -216,10 +256,17 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       console.log(`[${req.requestId}] github merge promotion`, {
         workspace_id: workspaceId,
         pr_number: prNumber,
-        releases_promoted: matched.length,
+        releases_promoted: promoted,
+        blocked_collecting: blockedCollecting,
         new_environment: newEnv
       });
-      return res.json({ ok: true, promoted: matched.length, environment: newEnv, pr_number: prNumber });
+      return res.json({
+        ok: true,
+        promoted,
+        blocked_collecting: blockedCollecting,
+        environment: newEnv,
+        pr_number: prNumber
+      });
     }
 
     if (payload.action !== "labeled") return res.json({ ok: true, ignored: `action:${payload.action || "unknown"}` });
@@ -258,10 +305,11 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
     const prTitle = String(payload?.pull_request?.title || "").replace(/\s+/g, " ").trim();
     const titledWithPr = prTitle ? `${prTitle} (#${prNumber})` : "";
     const releaseRef = titledWithPr ? titledWithPr.slice(0, 180) : legacyReleaseRef;
+    const releaseType = classifyGithubReleaseType(payload, "model_update");
     const out = await createReleaseSession({
       workspaceId,
       releaseRef,
-      releaseType: "model_update",
+      releaseType,
       environment: "pre-prod",
       source: "github_label",
       mappings: {
@@ -275,7 +323,8 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
         trigger_mode: "github_label",
         label: labelName,
         pr_title: prTitle || null,
-        legacy_release_ref: legacyReleaseRef
+        legacy_release_ref: legacyReleaseRef,
+        release_type_auto: releaseType
       },
       collectionWindowMinutes: DEFAULT_COLLECTION_WINDOW_MINUTES,
       idempotencyKey: `github:${deliveryId || "no_delivery"}:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
