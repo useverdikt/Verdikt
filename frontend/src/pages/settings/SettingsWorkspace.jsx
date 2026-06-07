@@ -138,8 +138,6 @@ export default function SettingsWorkspace() {
   const [connectModal, setConnectModal] = useState(null);
   const csvInputRef = useRef(null);
 
-  const [autoPolicyToggle, setAutoPolicyToggle] = useState(false);
-
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("ai_product_lead");
   const projectName = (() => {
@@ -539,8 +537,7 @@ export default function SettingsWorkspace() {
     setReadyBadge("ready-eval", evalConnected);
     setReadyBadge("ready-thresh", thresholdsConfigured);
     setReadyBadge("ready-trigger", true);
-    setReadyBadge("ready-policy", autoPolicyToggle, !autoPolicyToggle);
-  }, [sources, thresholds, autoPolicyToggle]);
+  }, [sources, thresholds]);
 
   return (
     <>
@@ -599,8 +596,6 @@ export default function SettingsWorkspace() {
           inviteRole={inviteRole}
           setInviteRole={setInviteRole}
           roleLabels={roleLabels}
-          autoPolicyToggle={autoPolicyToggle}
-          setAutoPolicyToggle={setAutoPolicyToggle}
           rolePolicy={rolePolicy}
           toast={toast}
         />

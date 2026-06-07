@@ -84,10 +84,6 @@ export default function SettingsWorkspaceShell({
             <span>New release ready</span>
             <div className="ri-dot empty" id="ready-trigger" />
           </div>
-          <div className="readiness-item">
-            <span>Override policy set</span>
-            <div className="ri-dot empty" id="ready-policy" />
-          </div>
         </div>
         <nav className="ss-nav">
           <div className="ss-nav-group">
