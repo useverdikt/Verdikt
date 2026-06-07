@@ -327,7 +327,8 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
         release_type_auto: releaseType
       },
       collectionWindowMinutes: DEFAULT_COLLECTION_WINDOW_MINUTES,
-      idempotencyKey: `github:${deliveryId || "no_delivery"}:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
+      // Delivery id changes per webhook dispatch; dedupe by logical PR signal identity instead.
+      idempotencyKey: `github:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
       commitSha,
       prNumber
     });
