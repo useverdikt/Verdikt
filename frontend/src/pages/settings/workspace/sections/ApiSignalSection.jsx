@@ -84,7 +84,7 @@ export default function ApiSignalSection({
                           }}
                         />
                         <button type="button" className="btn-ghost accent" onClick={() => csvInputRef.current?.click()}>
-                          {s.status === "connected" || s.status === "active" ? "Replace CSV" : "Upload CSV"}
+                          Import CSV
                         </button>
                         {(s.status === "connected" || s.status === "active") && (
                           <button
