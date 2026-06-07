@@ -74,6 +74,9 @@ export default function SettingsWorkspace() {
     }
   });
   const [triggerDirty, setTriggerDirty] = useState(false);
+  const [vcsCfg, setVcsCfg] = useState(null);
+  const [vcsForm, setVcsForm] = useState({ provider: "github", access_token: "", owner: "", repo: "" });
+  const [vcsSaving, setVcsSaving] = useState(false);
   const [githubAppStatus, setGithubAppStatus] = useState({
     configured: false,
     connected: false,
@@ -283,7 +286,8 @@ export default function SettingsWorkspace() {
     loadThresholdSuggestions();
     loadPolicies();
     loadGithubAppStatus();
-  }, [loadThresholds, loadThresholdSuggestions, loadPolicies, loadGithubAppStatus]);
+    loadVcsIntegration();
+  }, [loadThresholds, loadThresholdSuggestions, loadPolicies, loadGithubAppStatus, loadVcsIntegration]);
 
   useEffect(() => {
     let active = true;
@@ -480,6 +484,40 @@ export default function SettingsWorkspace() {
     setTriggerDirty(true);
   };
 
+  const loadVcsIntegration = useCallback(async () => {
+    try {
+      const data = await apiGet(`/api/workspaces/${wsId}/vcs-integration`, { navigate });
+      setVcsCfg(data);
+      setVcsForm((f) => ({ ...f, provider: data.provider || "github", owner: data.owner || "", repo: data.repo || "" }));
+    } catch (_) {
+      setVcsCfg(null);
+    }
+  }, [wsId, navigate]);
+
+  const saveVcsIntegration = async () => {
+    setVcsSaving(true);
+    try {
+      await apiPut(`/api/workspaces/${wsId}/vcs-integration`, vcsForm, { navigate });
+      await loadVcsIntegration();
+      toast("VCS integration saved");
+    } catch (err) {
+      toast(err?.message || "Failed to save VCS integration");
+    } finally {
+      setVcsSaving(false);
+    }
+  };
+
+  const removeVcsIntegration = async () => {
+    try {
+      await apiDelete(`/api/workspaces/${wsId}/vcs-integration`, { navigate });
+      setVcsCfg(null);
+      setVcsForm({ provider: "github", access_token: "", owner: "", repo: "" });
+      toast("VCS integration removed");
+    } catch (err) {
+      toast(err?.message || "Failed to remove VCS integration");
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem("vdk3_currentUser");
     navigate("/login", { replace: true });
@@ -593,6 +631,12 @@ export default function SettingsWorkspace() {
           toggleGithubRepoSelected={toggleGithubRepoSelected}
           refreshGithubRepos={loadGithubRepos}
           toast={toast}
+          vcsCfg={vcsCfg}
+          vcsForm={vcsForm}
+          setVcsForm={setVcsForm}
+          saveVcsIntegration={saveVcsIntegration}
+          removeVcsIntegration={removeVcsIntegration}
+          vcsSaving={vcsSaving}
         />
         <NotificationsSettingsSection section={section} toast={toast} />
         <GovernancePanel section={section} wsId={wsId} toast={toast} />
