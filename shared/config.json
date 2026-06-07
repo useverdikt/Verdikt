@@ -58,7 +58,21 @@
     "errorrate": "errorrate",
     "error_rate": "errorrate",
     "anrrate": "anrrate",
-    "anr_rate": "anrrate"
+    "anr_rate": "anrrate",
+    "smoke": "smoke",
+    "smoke_tests": "smoke",
+    "e2e_regression": "e2e_regression",
+    "e2e": "e2e_regression",
+    "startup": "startup",
+    "cold_startup": "startup",
+    "screenload": "screenload",
+    "fps": "fps",
+    "jserrors": "jserrors",
+    "js_errors": "jserrors",
+    "errorunderload": "errorunderload",
+    "recovery": "recovery",
+    "oomrate": "oomrate",
+    "oom_rate": "oomrate"
   },
   "defaultThresholdSeedRows": [
     ["accuracy", 85, null],
