@@ -14,26 +14,18 @@ function verdictMeta(status) {
 /* env comes from r.environment (set on new releases / backend) */
 function envBucket(env) {
   const s = String(env || "").toLowerCase().trim();
-  if (!s) return "production";
-  if (s.includes("stag")) return "staging";
-  if (s.includes("uat") || s.includes("preview") || s.includes("pre") || s.includes("non-prod")) return "uat";
-  if (s.includes("prod")) return "production";
-  return "production";
+  if (!s) return "prod";
+  if (s === "prod" || s === "production" || s === "main" || s === "master") return "prod";
+  return "pre-prod";
 }
 
 function envClass(env) {
-  const b = envBucket(env);
-  if (b === "staging") return "env-stg";
-  if (b === "uat") return "env-pre";
-  return "env-prod";
+  return envBucket(env) === "prod" ? "env-prod" : "env-pre";
 }
 
-/** Short label on the release row — matches env tabs (prod / staging / uat) */
+/** Short label on the release row — matches env tabs */
 function envDisplayLabel(env) {
-  const b = envBucket(env);
-  if (b === "staging") return "staging";
-  if (b === "uat") return "uat";
-  return "prod";
+  return envBucket(env) === "prod" ? "prod" : "pre-prod";
 }
 
 function alignBadge(status, alignmentVerdict) {
@@ -547,10 +539,7 @@ export function ReleaseDashboard({
   const visibleReleases = useMemo(() => {
     let list = [...releases];
     if (activeEnv !== "All") {
-      const want =
-        activeEnv === "Production" ? "production" :
-        activeEnv === "Staging" ? "staging" :
-        activeEnv === "UAT" ? "uat" : null;
+      const want = activeEnv === "Prod" ? "prod" : activeEnv === "Pre-Prod" ? "pre-prod" : null;
       if (want) list = list.filter((r) => envBucket(r.environment) === want);
     }
     if (activeTab === "Needs review") list = list.filter(r => r.status === "blocked");
@@ -631,7 +620,7 @@ export function ReleaseDashboard({
       <div className="rr-header">
         <div className="header-title">Releases</div>
         <div className="env-selector">
-          {["All", "Production", "Staging", "UAT"].map(env => (
+          {["All", "Prod", "Pre-Prod"].map(env => (
             <button key={env} type="button"
               className={`env-btn${activeEnv === env ? " active" : ""}`}
               onClick={() => setActiveEnv(env)}>
