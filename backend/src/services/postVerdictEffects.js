@@ -28,7 +28,6 @@ const { nowIso } = require("../lib/time");
 const { classifyFailureModes } = require("./correlationEngine");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
 const { signCertificationRecord } = require("./certSigner");
-const { getChainsForRelease, updateChainLinkStatus } = require("./envChain");
 const { writeVcsStatus } = require("./vcsWriteback");
 const { openMonitoringWindow } = require("./vcsMonitor");
 const { deliverVerdictWebhook } = require("./outboundWebhook");
@@ -72,15 +71,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     }
   }
 
-  // 4. Env-chain link updates
-  try {
-    const chainLinks = await getChainsForRelease(releaseId);
-    for (const link of chainLinks) {
-      await updateChainLinkStatus(link.chain_id, link.environment, nextStatus);
-    }
-  } catch (_) {}
-
-  // 5. VCS status write-back (async — does not block)
+  // 4. VCS status write-back (async — does not block)
   try {
     const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
     void writeVcsStatus(fresh, failedSignals).catch((err) =>
@@ -88,13 +79,13 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     );
   } catch (_) {}
 
-  // 6. VCS monitoring window (automatic post-deploy inference over next 2 hours)
+  // 5. VCS monitoring window (automatic post-deploy inference over next 2 hours)
   try {
     const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
     await openMonitoringWindow(fresh, 120);
   } catch (_) {}
 
-  // 7. Outbound verdict webhook (async — does not block)
+  // 6. Outbound verdict webhook (async — does not block)
   try {
     const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
     void deliverVerdictWebhook(fresh, deterministicIntelligence, certSigRow).catch((err) =>
@@ -102,7 +93,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     );
   } catch (_) {}
 
-  // 8. SSE broadcast
+  // 7. SSE broadcast
   try {
     broadcastVerdictAndClose(releaseId, {
       release_id: releaseId,

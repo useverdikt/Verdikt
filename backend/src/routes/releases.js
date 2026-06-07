@@ -24,8 +24,6 @@ const {
   signCertificationRecord,
   getEarlyWarning,
   getFailureModes,
-  registerChainLink,
-  getChainsForRelease,
   issueStreamToken,
   validateStreamToken,
   attachStream,
@@ -540,27 +538,6 @@ app.get("/api/releases/:releaseId/failure-modes", authMiddleware, requireRelease
     next(e);
   }
 });
-app.post("/api/releases/:releaseId/env-chain-link", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
-  try {
-  const { chain_id, environment } = req.body || {};
-  if (!chain_id || !environment) return res.status(400).json({ error: "chain_id and environment are required" });
-  const result = await registerChainLink(chain_id, req.params.releaseId, environment);
-  if (!result.ok) return res.status(400).json({ error: result.error });
-  return res.json(result);
-  } catch (e) {
-    next(e);
-  }
-});
-
-app.get("/api/releases/:releaseId/env-chains", authMiddleware, requireReleaseAccess, async (req, res, next) => {
-  try {
-  const links = await getChainsForRelease(req.params.releaseId);
-  return res.json({ release_id: req.params.releaseId, chain_links: links });
-  } catch (e) {
-    next(e);
-  }
-});
-
 // ─── SSE Real-time Stream ─────────────────────────────────────────────────────
 
 /** Issue a short-lived token to open an SSE stream. */

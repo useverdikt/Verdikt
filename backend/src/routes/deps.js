@@ -50,7 +50,6 @@ const { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook } = requir
 const { validateSignalPayload, getSignalSchema } = require("../services/signalValidator");
 const { computeAndPersistCorrelations, getCorrelations, getFailureModes, getFailureModeTrends } = require("../services/correlationEngine");
 const { computeAndPersistRecommendation, getRecommendation } = require("../services/recommendationEngine");
-const { upsertEnvChain, listEnvChains, deleteEnvChain, registerChainLink, getChainStatus, getChainsForRelease } = require("../services/envChain");
 const { issueStreamToken, validateStreamToken, attachStream } = require("../services/sseManager");
 const { getVcsIntegration, setVcsIntegration, deleteVcsIntegration } = require("../services/vcsWriteback");
 const {
@@ -151,12 +150,6 @@ module.exports = {
   getFailureModeTrends,
   computeAndPersistRecommendation,
   getRecommendation,
-  upsertEnvChain,
-  listEnvChains,
-  deleteEnvChain,
-  registerChainLink,
-  getChainStatus,
-  getChainsForRelease,
   issueStreamToken,
   validateStreamToken,
   attachStream,
