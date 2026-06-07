@@ -7,6 +7,7 @@ export default function TriggerSettingsSection({
   triggerConfig,
   setTriggerConfig,
   saveTrigger,
+  triggerDirty,
   toast,
   githubAppStatus,
   githubRepos,
@@ -142,8 +143,14 @@ export default function TriggerSettingsSection({
           ) : null}
         </div>
         <div className="sblock-footer">
-          <button type="button" className="btn-primary" onClick={saveTrigger}>
-            Save trigger settings
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={saveTrigger}
+            disabled={!triggerDirty}
+            style={{ opacity: triggerDirty ? 1 : 0.45, cursor: triggerDirty ? "pointer" : "not-allowed" }}
+          >
+            {triggerDirty ? "Save trigger settings" : "Trigger settings saved"}
           </button>
         </div>
       </div>
