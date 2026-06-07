@@ -15,7 +15,7 @@ function verdictMeta(status) {
 /* env comes from r.environment (set on new releases / backend) */
 function envBucket(env) {
   const s = String(env || "").toLowerCase().trim();
-  if (!s) return "prod";
+  if (!s) return "pre-prod";
   if (s === "prod" || s === "production" || s === "main" || s === "master") return "prod";
   return "pre-prod";
 }
