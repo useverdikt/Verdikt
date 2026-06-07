@@ -377,6 +377,73 @@ describe("API integration", () => {
     assert.equal(rel.environment, "prod");
   });
 
+  it("merged-to-main while collecting auto-promotes to prod after verdict", async () => {
+    const email = `ghpv_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHPV" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const repo = `PromoteAfterVerdict${crypto.randomBytes(3).toString("hex")}`;
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Collect then promote (#8282)", release_type: "model_update", pr_number: 8282 })
+      .expect(201);
+
+    const mergePayload = {
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 8282, base: { ref: "main" } }
+    };
+    const signedMerge = signGithubPayload(mergePayload);
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signedMerge.sig)
+      .send(signedMerge.raw)
+      .expect(200);
+    assert.equal(hook.body.promoted, 0);
+    assert.equal(hook.body.blocked_collecting, 1);
+
+    await run("UPDATE releases SET collection_deadline = ? WHERE id = ?", [
+      new Date(Date.now() - 60_000).toISOString(),
+      created.body.id
+    ]);
+    await agent
+      .post(`/api/releases/${created.body.id}/signals`)
+      .send({ source: "test", signals: { accuracy: 1 } })
+      .expect(200);
+
+    const rel = await queryOne("SELECT environment, status FROM releases WHERE id = ?", [created.body.id]);
+    assert.equal(rel.environment, "prod");
+    assert.ok(["CERTIFIED", "UNCERTIFIED"].includes(String(rel.status)));
+  });
+
+  it("manual release creation always starts in pre-prod", async () => {
+    const email = `env_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "ENV" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "v-env-guard-1", release_type: "model_update", environment: "prod" })
+      .expect(201);
+
+    assert.equal(created.body.environment, "pre-prod");
+    const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
+    assert.equal(rel.environment, "pre-prod");
+  });
+
   it("RLS is enabled for public GitHub config tables", async () => {
     const tables = [
       "workspace_inbound_webhook_secrets",

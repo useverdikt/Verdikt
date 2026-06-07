@@ -23,8 +23,9 @@
  *   8. SSE broadcast (live UI updates)
  */
 
-const { queryOne } = require("../database");
+const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
+const { writeAudit } = require("./audit");
 const { classifyFailureModes } = require("./correlationEngine");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
 const { signCertificationRecord } = require("./certSigner");
@@ -32,6 +33,54 @@ const { writeVcsStatus } = require("./vcsWriteback");
 const { openMonitoringWindow } = require("./vcsMonitor");
 const { deliverVerdictWebhook } = require("./outboundWebhook");
 const { broadcastVerdictAndClose } = require("./sseManager");
+
+async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
+  try {
+    const status = String(nextStatus || "").toUpperCase();
+    if (!status || status === "COLLECTING") return;
+
+    const fresh = await queryOne("SELECT id, workspace_id, environment, pr_number FROM releases WHERE id = ?", [releaseId]);
+    if (!fresh) return;
+    if (!Number.isFinite(Number(fresh.pr_number))) return;
+    if (String(fresh.environment || "").toLowerCase() === "prod") return;
+
+    const blockedRows = await queryAll(
+      "SELECT details_json FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 20",
+      [releaseId, "RELEASE_ENV_PROMOTION_BLOCKED"]
+    );
+    if (!blockedRows.length) return;
+
+    const mergedToMainWhileCollecting = blockedRows.some((row) => {
+      try {
+        const details = JSON.parse(row.details_json || "{}");
+        const base = String(details.base_branch || "").toLowerCase();
+        const requestedEnv = String(details.requested_environment || "").toLowerCase();
+        const reason = String(details.reason || "").toLowerCase();
+        return reason === "release_still_collecting" && (requestedEnv === "prod" || base === "main" || base === "master");
+      } catch {
+        return false;
+      }
+    });
+    if (!mergedToMainWhileCollecting) return;
+
+    const fromEnv = fresh.environment || null;
+    await run("UPDATE releases SET environment = ?, updated_at = ? WHERE id = ?", ["prod", nowIso(), releaseId]);
+    await writeAudit({
+      workspaceId: fresh.workspace_id,
+      releaseId,
+      eventType: "RELEASE_ENV_PROMOTED",
+      actorType: "SYSTEM",
+      actorName: "github_merge_post_verdict",
+      details: {
+        from_environment: fromEnv,
+        to_environment: "prod",
+        pr_number: Number(fresh.pr_number),
+        verdict_status: status,
+        reason: "merged_to_main_while_collecting_promoted_after_verdict"
+      }
+    });
+  } catch (_) {}
+}
 
 /**
  * Run all post-verdict side effects.
@@ -71,7 +120,10 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     }
   }
 
-  // 4. VCS status write-back (async — does not block)
+  // 4. If merge to main/master happened while collecting, promote after verdict.
+  await maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus);
+
+  // 5. VCS status write-back (async — does not block)
   try {
     const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
     void writeVcsStatus(fresh, failedSignals).catch((err) =>
@@ -79,13 +131,13 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     );
   } catch (_) {}
 
-  // 5. VCS monitoring window (automatic post-deploy inference over next 2 hours)
+  // 6. VCS monitoring window (automatic post-deploy inference over next 2 hours)
   try {
     const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
     await openMonitoringWindow(fresh, 120);
   } catch (_) {}
 
-  // 6. Outbound verdict webhook (async — does not block)
+  // 7. Outbound verdict webhook (async — does not block)
   try {
     const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
     void deliverVerdictWebhook(fresh, deterministicIntelligence, certSigRow).catch((err) =>
@@ -93,7 +145,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     );
   } catch (_) {}
 
-  // 7. SSE broadcast
+  // 8. SSE broadcast
   try {
     broadcastVerdictAndClose(releaseId, {
       release_id: releaseId,
