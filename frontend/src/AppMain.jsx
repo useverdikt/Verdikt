@@ -74,7 +74,7 @@ export default function App() {
     return list[0]?.id;
   });
   const [thresholds, setThresholds] = useState(() => S.get("thresholds", DEFAULT_THRESHOLDS));
-  const [auditLog, setAuditLog] = useState(() => S.get("audit", DEFAULT_AUDIT));
+  const [auditLog, setAuditLog] = useState(() => (hasBackend() ? [] : S.get("audit", DEFAULT_AUDIT)));
   const [currentUser, setCurrentUser] = useState(() => {
     const u = S.get("currentUser", null);
     if (u && u.role === "viewer") return { ...u, role: "engineer" };
@@ -865,6 +865,7 @@ export default function App() {
     auditLog,
     releases,
     isMobile,
+    wsReady,
     onSelectRelease: openAuditRecord
   });
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(ApiBanner, {
