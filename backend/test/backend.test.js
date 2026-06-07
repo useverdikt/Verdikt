@@ -294,6 +294,65 @@ describe("API integration", () => {
     assert.equal(rel.release_type, "model_update");
   });
 
+  it("GitHub label trigger deduplicates repeated deliveries for the same PR commit", async () => {
+    const email = `ghd_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHD" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "DedupRepo" })
+      .expect(200);
+    await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "verdikt:rc", enabled: true })
+      .expect(200);
+
+    const payload = {
+      action: "labeled",
+      label: { name: "verdikt:rc" },
+      repository: { name: "DedupRepo", owner: { login: "useverdikt" } },
+      pull_request: {
+        number: 9898,
+        title: "Duplicate delivery dedupe check",
+        html_url: "https://github.com/useverdikt/DedupRepo/pull/9898",
+        labels: [{ name: "verdikt:rc" }],
+        head: { sha: "feedfacecafebeef", ref: "fix/dedupe" }
+      }
+    };
+    const signed = signGithubPayload(payload);
+
+    const first = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(201);
+
+    const second = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    assert.equal(second.body.reused, true);
+    assert.equal(second.body.release_id, first.body.release_id);
+
+    const count = await queryOne(
+      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND pr_number = ? AND commit_sha = ?",
+      [ws, 9898, "feedfacecafebeef"]
+    );
+    assert.equal(Number(count?.c || 0), 1);
+  });
+
   it("GitHub merge blocks prod promotion while release is still collecting", async () => {
     const email = `ghb_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
