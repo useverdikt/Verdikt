@@ -450,7 +450,11 @@ const SEVERITIES = ["none", "P4", "P3", "P2", "P1", "P0"];
 const severityRank = (s) => SEVERITIES.indexOf(s ?? "none");
 const evaluateSignal = (sig, value, threshold) => {
   if (sig.direction === "test") {
-    const v = value && typeof value === "object" ? value : { rate: value === "pass" ? 100 : 0, severity: value === "pass" ? "none" : "P0" };
+    const v = value && typeof value === "object"
+      ? value
+      : typeof value === "number" && Number.isFinite(value)
+        ? { rate: value, severity: "none" }
+        : { rate: value === "pass" ? 100 : 0, severity: value === "pass" ? "none" : "P0" };
     const rate = v.rate ?? 0;
     const severity = v.severity ?? "none";
     const isP0 = severity === "P0";
@@ -709,7 +713,11 @@ const calcCategoryStatus = (catId, signals, thresholds, releaseType) => {
 const fmtVal = (sig, val) => {
   if (val === null || val === void 0) return "WAIVED";
   if (sig.direction === "test") {
-    const v = val && typeof val === "object" ? val : { rate: val === "pass" ? 100 : 0, severity: val === "pass" ? "none" : "P0" };
+    const v = val && typeof val === "object"
+      ? val
+      : typeof val === "number" && Number.isFinite(val)
+        ? { rate: val, severity: "none" }
+        : { rate: val === "pass" ? 100 : 0, severity: val === "pass" ? "none" : "P0" };
     const sev = v.severity ?? "none";
     return `${v.rate ?? 0}% · ${sev === "none" ? "all pass" : sev + " failing"}`;
   }
