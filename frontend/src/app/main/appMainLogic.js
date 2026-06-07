@@ -499,6 +499,7 @@ const mapBackendDetailToUi = (detail) => {
     version: release.version,
     date: (release.created_at || "").slice(0, 10) || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
     releaseType: release.release_type || "model_update",
+    environment: release.environment || "",
     status: statusMap[release.status] || "pending",
     signals,
     sources: release.status === "COLLECTING" ? SIGNAL_SOURCES.map((s) => ({ ...s, status: "waiting" })) : []
