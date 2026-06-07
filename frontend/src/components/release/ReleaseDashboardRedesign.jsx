@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { confMeta } from "../../lib/releaseConfidenceMeta.js";
+import { apiGet } from "../../lib/apiClient.js";
 import "./ReleaseDashboardRedesign.css";
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
@@ -26,6 +27,27 @@ function envClass(env) {
 /** Short label on the release row — matches env tabs */
 function envDisplayLabel(env) {
   return envBucket(env) === "prod" ? "prod" : "pre-prod";
+}
+
+function reliabilityLabel(signalId) {
+  const key = String(signalId || "").toLowerCase();
+  if (key === "p95latency" || key === "p95_latency") return "latency p95";
+  return key;
+}
+
+function formatRelativeTimestamp(iso) {
+  if (!iso) return null;
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return null;
+  const diffMs = Date.now() - ts;
+  if (diffMs < 0) return "just now";
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 function alignBadge(status, alignmentVerdict) {
@@ -518,6 +540,8 @@ function SetupBanner({ setupChecklist }) {
 export function ReleaseDashboard({
   releases = [],
   wsReady = true,
+  wsId,
+  prodObservationEnabled = false,
   signalCategories = [],
   calcCategoryStatus,
   thresholds = {},
@@ -535,6 +559,9 @@ export function ReleaseDashboard({
   const [activeFilter, setActiveFilter] = useState("All");
   const [expandedId,   setExpandedId]   = useState(null);
   const [searchQ,      setSearchQ]      = useState("");
+  const [loopReadiness, setLoopReadiness] = useState(null);
+  const [signalReliability, setSignalReliability] = useState([]);
+  const [signalReliabilityComputedAt, setSignalReliabilityComputedAt] = useState(null);
 
   /* filtered table rows — tab keys map to envBucket(release.environment) */
   const visibleReleases = useMemo(() => {
@@ -596,13 +623,78 @@ export function ReleaseDashboard({
     }));
   }, [releases, formatReleaseAge]);
 
-  const reliabilityRows = [
-    { name: "accuracy",     grade: "A",  rate: "98%"  },
-    { name: "safety",       grade: "A",  rate: "100%" },
-    { name: "hallucination",grade: "B+", rate: "91%"  },
-    { name: "relevance",    grade: "B",  rate: "87%"  },
-    { name: "latency p95",  grade: "C",  rate: "74%"  },
-  ];
+  useEffect(() => {
+    if (!wsId) return;
+    let active = true;
+    const loadSidePanelData = async () => {
+      try {
+        const [loopData, relData] = await Promise.all([
+          prodObservationEnabled
+            ? apiGet(`/api/workspaces/${wsId}/loop-readiness`)
+            : Promise.resolve(null),
+          apiGet(`/api/workspaces/${wsId}/signal-reliability`)
+        ]);
+        if (!active) return;
+        setLoopReadiness(loopData);
+        setSignalReliability(Array.isArray(relData?.signals) ? relData.signals : []);
+        setSignalReliabilityComputedAt(
+          relData?.summary?.computed_at ||
+          relData?.signals?.[0]?.computed_at ||
+          null
+        );
+      } catch (_) {
+        if (!active) return;
+        setSignalReliability([]);
+        setSignalReliabilityComputedAt(null);
+      }
+    };
+    void loadSidePanelData();
+    return () => {
+      active = false;
+    };
+  }, [wsId, prodObservationEnabled, releases.length]);
+
+  const reliabilityRows = useMemo(() => {
+    if (!signalReliability.length) return [];
+    const byId = new Map(signalReliability.map((s) => [String(s.signal_id || "").toLowerCase(), s]));
+    const ordered = ["accuracy", "safety", "hallucination", "relevance", "p95latency"];
+    return ordered
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((s) => ({
+        name: reliabilityLabel(s.signal_id),
+        grade: String(s.grade || "F"),
+        rate: `${Math.round(Number(s.reliability || 0) * 100)}%`
+      }));
+  }, [signalReliability]);
+
+  const loopStageRows = useMemo(() => {
+    if (loopReadiness) {
+      return [
+        ["Total releases", loopReadiness.total_releases, false],
+        ["Verdict issued", loopReadiness.verdict_issued, false],
+        ["Eligible (3hr+)", loopReadiness.eligible_releases, false],
+        ["With observations", loopReadiness.with_production_observations, false],
+        ["Full loops", loopReadiness.full_loop_count, true]
+      ];
+    }
+    return [
+      ["Total releases", stats.total, false],
+      ["Verdict issued", releases.filter((r) => r.status !== "collecting").length, false],
+      ["Eligible (3hr+)", Math.max(0, releases.filter((r) => !["collecting", "pending"].includes(r.status)).length), false],
+      ["With observations", stats.total > 0 ? Math.round(stats.total * 0.77) : 0, false],
+      ["Full loops", stats.loopCount, true]
+    ];
+  }, [loopReadiness, releases, stats.total, stats.loopCount]);
+
+  const loopBand = useMemo(() => {
+    if (!loopReadiness) return { label: "EMERGING", cls: "bp-em" };
+    if (loopReadiness.is_stale) return { label: "STALE", cls: "bp-em", style: { background: "rgba(239,68,68,.10)", color: "#ef4444" } };
+    const band = String(loopReadiness.band || "Emerging").toLowerCase();
+    if (band === "reliable") return { label: "RELIABLE", cls: "bp-rel" };
+    if (band === "exploratory") return { label: "EXPLORATORY", cls: "bp-exp" };
+    return { label: "EMERGING", cls: "bp-em" };
+  }, [loopReadiness]);
   const gradeCls = (g) => {
     if (g === "A" || g === "A+") return "ga";
     if (String(g).startsWith("B")) return "gb";
@@ -795,28 +887,25 @@ export function ReleaseDashboard({
             <div className="loop-card">
               <div className="loop-card-hd">
                 <div className="loop-card-title">Loop readiness</div>
-                <span className="band-pill bp-em">EMERGING</span>
+                <span className={`band-pill ${loopBand.cls}`} style={loopBand.style}>{loopBand.label}</span>
               </div>
               <div className="funnel">
-                {[
-                  ["Total releases",    stats.total,                            "f100", false],
-                  ["Verdict issued",    releases.filter(r => r.status !== "collecting").length, "f88", false],
-                  ["Eligible (3hr+)",   Math.max(0, releases.filter(r => !["collecting","pending"].includes(r.status)).length), "f72", false],
-                  ["With observations", stats.total > 0 ? Math.round(stats.total * 0.77) : 0,  "f58", false],
-                  ["Full loops",        stats.loopCount,                        "f41", true],
-                ].map(([label, count, cls, amber]) => (
+                {loopStageRows.map(([label, count, amber]) => {
+                  const totalBase = Math.max(Number(loopStageRows[0]?.[1] || 0), 1);
+                  const pct = Math.max(6, Math.min(100, Math.round((Number(count || 0) / totalBase) * 100)));
+                  return (
                   <div className="fs" key={String(label)}>
                     <div className="fl">{label}</div>
-                    <div className="fb"><div className={`ff2 ${cls}`}></div></div>
+                    <div className="fb"><div className="ff2" style={{ width: `${pct}%` }}></div></div>
                     <div className="fc" style={amber ? { color: "#f59e0b" } : {}}>{count}</div>
                   </div>
-                ))}
+                );})}
               </div>
               <div className="loop-next">
                 <strong>Next action</strong>
-                {stats.uncertified > 0
+                {loopReadiness?.next_action || (stats.uncertified > 0
                   ? `${stats.uncertified} releases have failed signals. Connect VCS to close the loop automatically.`
-                  : "Connect VCS to close the loop automatically."}
+                  : "Connect VCS to close the loop automatically.")}
               </div>
             </div>
           </div>
@@ -824,7 +913,16 @@ export function ReleaseDashboard({
           {/* Signal reliability */}
           <div>
             <div className="rp-label">Signal reliability</div>
-            {reliabilityRows.map(row => (
+            {signalReliabilityComputedAt ? (
+              <div style={{ color: "#4a6378", fontSize: 10, fontFamily: "'JetBrains Mono', monospace", marginTop: -4, marginBottom: 8 }}>
+                Last updated {formatRelativeTimestamp(signalReliabilityComputedAt)}
+              </div>
+            ) : null}
+            {reliabilityRows.length === 0 ? (
+              <div style={{ color: "#384d60", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", padding: "8px 0" }}>
+                No reliability data yet.
+              </div>
+            ) : reliabilityRows.map(row => (
               <div className="sh-row" key={row.name}>
                 <span className="sh-name">{row.name}</span>
                 <span className={`sh-grade ${gradeCls(row.grade)}`}>{row.grade}</span>
