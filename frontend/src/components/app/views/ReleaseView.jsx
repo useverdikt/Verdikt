@@ -7,6 +7,8 @@ export default function ReleaseView({
   current,
   releases = [],
   wsReady = true,
+  wsId,
+  prodObservationEnabled = false,
   formatReleaseAge,
   thresholds,
   releaseTypes,
@@ -59,6 +61,8 @@ export default function ReleaseView({
     <ReleaseDashboardRedesign
       releases={releases}
       wsReady={wsReady}
+      wsId={wsId}
+      prodObservationEnabled={prodObservationEnabled}
       signalCategories={signalCategories}
       calcCategoryStatus={calcCategoryStatus}
       thresholds={thresholds}

@@ -753,6 +753,8 @@ export default function App() {
     current,
     releases: sortedReleasesForSidebar,
     wsReady,
+    wsId: getWorkspaceId(),
+    prodObservationEnabled: !!project.prodObservation,
     formatReleaseAge: formatSidebarReleaseAge,
     thresholds,
     releaseTypes: RELEASE_TYPES,
