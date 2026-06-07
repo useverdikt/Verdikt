@@ -12,6 +12,7 @@ process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || "postgresql://127.0.0.1:5432/verdikt_test";
 process.env.JWT_SECRET = "test-jwt-secret-32-chars-minimum!!";
 process.env.WEBHOOK_SECRET = "test-webhook-secret-24-char-min";
+process.env.GITHUB_WEBHOOK_SECRET = "test-github-webhook-secret-32-min";
 process.env.NODE_ENV = "test";
 process.env.LOG_REQUESTS = "0";
 /** Enable assistive path for llmAssist tests (mocked fetch — no real API calls). */
@@ -41,6 +42,15 @@ before(async () => {
 
 describe("API integration", () => {
   const app = createApp();
+
+  function signGithubPayload(payload) {
+    const raw = JSON.stringify(payload);
+    const sig = crypto
+      .createHmac("sha256", process.env.GITHUB_WEBHOOK_SECRET)
+      .update(raw)
+      .digest("hex");
+    return { raw, sig: `sha256=${sig}` };
+  }
 
   it("GET /health returns ok", async () => {
     const res = await request(app).get("/health").expect(200);
@@ -186,6 +196,202 @@ describe("API integration", () => {
     const afterDelete = await agent.get(`/api/workspaces/${ws}/github-label-trigger`).expect(200);
     assert.equal(afterDelete.body.enabled, false);
     assert.equal(afterDelete.body.label_name, "verdikt:rc");
+  });
+
+  it("GitHub label trigger uses PR title and auto-classifies release type", async () => {
+    const email = `ght_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHT" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "Verdikt" })
+      .expect(200);
+    await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "verdikt:rc", enabled: true })
+      .expect(200);
+
+    const payload = {
+      action: "labeled",
+      label: { name: "verdikt:rc" },
+      repository: { name: "Verdikt", owner: { login: "useverdikt" } },
+      pull_request: {
+        number: 4242,
+        title: "Safety hotfix for policy routing",
+        html_url: "https://github.com/useverdikt/Verdikt/pull/4242",
+        labels: [{ name: "safety" }],
+        head: { sha: "abcdef1234567890", ref: "fix/safety-routing" }
+      }
+    };
+    const signed = signGithubPayload(payload);
+
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(201);
+
+    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [hook.body.release_id]);
+    assert.equal(rel.workspace_id, ws);
+    assert.equal(rel.version, "Safety hotfix for policy routing (#4242)");
+    assert.equal(rel.release_type, "safety_patch");
+    assert.equal(rel.environment, "pre-prod");
+    assert.equal(Number(rel.pr_number), 4242);
+    const aiContext = JSON.parse(rel.ai_context_json || "{}");
+    assert.equal(aiContext.legacy_release_ref, "pr/4242@abcdef12");
+    assert.equal(aiContext.release_type_auto, "safety_patch");
+  });
+
+  it("GitHub label trigger falls back to legacy PR ref when title is missing", async () => {
+    const email = `ghf_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHF" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "Fallback" })
+      .expect(200);
+    await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "verdikt:rc", enabled: true })
+      .expect(200);
+
+    const payload = {
+      action: "labeled",
+      label: { name: "verdikt:rc" },
+      repository: { name: "Fallback", owner: { login: "useverdikt" } },
+      pull_request: {
+        number: 5151,
+        title: "",
+        html_url: "https://github.com/useverdikt/Fallback/pull/5151",
+        labels: [],
+        head: { sha: "1234567890abcdef", ref: "feature/no-title" }
+      }
+    };
+    const signed = signGithubPayload(payload);
+
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(201);
+
+    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [hook.body.release_id]);
+    assert.equal(rel.version, "pr/5151@12345678");
+    assert.equal(rel.release_type, "model_update");
+  });
+
+  it("GitHub merge blocks prod promotion while release is still collecting", async () => {
+    const email = `ghb_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHB" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "PromoteBlock" })
+      .expect(200);
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Collecting PR (#6161)", release_type: "model_update", environment: "pre-prod", pr_number: 6161 })
+      .expect(201);
+
+    const payload = {
+      action: "closed",
+      repository: { name: "PromoteBlock", owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 6161, base: { ref: "main" } }
+    };
+    const signed = signGithubPayload(payload);
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    assert.equal(hook.body.promoted, 0);
+    assert.equal(hook.body.blocked_collecting, 1);
+    const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
+    assert.equal(rel.environment, "pre-prod");
+    const audit = await queryOne(
+      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      [created.body.id, "RELEASE_ENV_PROMOTION_BLOCKED"]
+    );
+    assert.ok(audit);
+  });
+
+  it("GitHub merge promotes to prod after verdict is issued", async () => {
+    const email = `ghp_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHP" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "PromoteOk" })
+      .expect(200);
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Certified PR (#7171)", release_type: "model_update", environment: "pre-prod", pr_number: 7171 })
+      .expect(201);
+    await run("UPDATE releases SET status = ?, verdict_issued_at = ? WHERE id = ?", ["CERTIFIED", nowIso(), created.body.id]);
+
+    const payload = {
+      action: "closed",
+      repository: { name: "PromoteOk", owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 7171, base: { ref: "main" } }
+    };
+    const signed = signGithubPayload(payload);
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    assert.equal(hook.body.promoted, 1);
+    assert.equal(hook.body.blocked_collecting, 0);
+    assert.equal(hook.body.environment, "prod");
+    const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
+    assert.equal(rel.environment, "prod");
+  });
+
+  it("RLS is enabled for public GitHub config tables", async () => {
+    const tables = [
+      "workspace_inbound_webhook_secrets",
+      "github_label_triggers",
+      "github_app_installations",
+      "github_app_install_states",
+      "github_repo_connections"
+    ];
+    for (const table of tables) {
+      const row = await queryOne(
+        "SELECT relrowsecurity AS enabled FROM pg_class WHERE oid = ?::regclass",
+        [`public.${table}`]
+      );
+      assert.equal(row.enabled, true, `${table} should have RLS enabled`);
+    }
   });
 
   it("CSV import stores rows and applies signals to release by version", async () => {
