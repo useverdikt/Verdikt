@@ -199,7 +199,11 @@ describe("API integration", () => {
   });
 
   it("GitHub label trigger uses PR title and auto-classifies release type", async () => {
+    // Use random PR number and SHA so repeated test runs don't hit the stable idempotency key.
+    const prNumber = 40000 + crypto.randomInt(9999);
+    const sha = crypto.randomBytes(8).toString("hex");
     const email = `ght_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const repo = `VerdiktTitle${crypto.randomBytes(3).toString("hex")}`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHT" }).expect(200);
     await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
@@ -208,7 +212,7 @@ describe("API integration", () => {
 
     await agent
       .put(`/api/workspaces/${ws}/vcs-integration`)
-      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "Verdikt" })
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
       .expect(200);
     await agent
       .put(`/api/workspaces/${ws}/github-label-trigger`)
@@ -218,13 +222,13 @@ describe("API integration", () => {
     const payload = {
       action: "labeled",
       label: { name: "verdikt:rc" },
-      repository: { name: "Verdikt", owner: { login: "useverdikt" } },
+      repository: { name: repo, owner: { login: "useverdikt" } },
       pull_request: {
-        number: 4242,
+        number: prNumber,
         title: "Safety hotfix for policy routing",
-        html_url: "https://github.com/useverdikt/Verdikt/pull/4242",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
         labels: [{ name: "safety" }],
-        head: { sha: "abcdef1234567890", ref: "fix/safety-routing" }
+        head: { sha, ref: "fix/safety-routing" }
       }
     };
     const signed = signGithubPayload(payload);
@@ -240,17 +244,20 @@ describe("API integration", () => {
 
     const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [hook.body.release_id]);
     assert.equal(rel.workspace_id, ws);
-    assert.equal(rel.version, "Safety hotfix for policy routing (#4242)");
+    assert.equal(rel.version, `Safety hotfix for policy routing (#${prNumber})`);
     assert.equal(rel.release_type, "safety_patch");
     assert.equal(rel.environment, "pre-prod");
-    assert.equal(Number(rel.pr_number), 4242);
+    assert.equal(Number(rel.pr_number), prNumber);
     const aiContext = JSON.parse(rel.ai_context_json || "{}");
-    assert.equal(aiContext.legacy_release_ref, "pr/4242@abcdef12");
+    assert.equal(aiContext.legacy_release_ref, `pr/${prNumber}@${sha.slice(0, 8)}`);
     assert.equal(aiContext.release_type_auto, "safety_patch");
   });
 
   it("GitHub label trigger falls back to legacy PR ref when title is missing", async () => {
+    const prNumber = 50000 + crypto.randomInt(9999);
+    const sha = crypto.randomBytes(8).toString("hex");
     const email = `ghf_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const repo = `FallbackTitle${crypto.randomBytes(3).toString("hex")}`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHF" }).expect(200);
     await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
@@ -259,7 +266,7 @@ describe("API integration", () => {
 
     await agent
       .put(`/api/workspaces/${ws}/vcs-integration`)
-      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "Fallback" })
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
       .expect(200);
     await agent
       .put(`/api/workspaces/${ws}/github-label-trigger`)
@@ -269,13 +276,13 @@ describe("API integration", () => {
     const payload = {
       action: "labeled",
       label: { name: "verdikt:rc" },
-      repository: { name: "Fallback", owner: { login: "useverdikt" } },
+      repository: { name: repo, owner: { login: "useverdikt" } },
       pull_request: {
-        number: 5151,
+        number: prNumber,
         title: "",
-        html_url: "https://github.com/useverdikt/Fallback/pull/5151",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
         labels: [],
-        head: { sha: "1234567890abcdef", ref: "feature/no-title" }
+        head: { sha, ref: "feature/no-title" }
       }
     };
     const signed = signGithubPayload(payload);
@@ -290,12 +297,15 @@ describe("API integration", () => {
       .expect(201);
 
     const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [hook.body.release_id]);
-    assert.equal(rel.version, "pr/5151@12345678");
+    assert.equal(rel.version, `pr/${prNumber}@${sha.slice(0, 8)}`);
     assert.equal(rel.release_type, "model_update");
   });
 
   it("GitHub label trigger deduplicates repeated deliveries for the same PR commit", async () => {
+    const prNumber = 90000 + crypto.randomInt(9999);
+    const sha = crypto.randomBytes(8).toString("hex");
     const email = `ghd_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const repo = `DedupRepo${crypto.randomBytes(3).toString("hex")}`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHD" }).expect(200);
     await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
@@ -304,7 +314,7 @@ describe("API integration", () => {
 
     await agent
       .put(`/api/workspaces/${ws}/vcs-integration`)
-      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo: "DedupRepo" })
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
       .expect(200);
     await agent
       .put(`/api/workspaces/${ws}/github-label-trigger`)
@@ -314,13 +324,13 @@ describe("API integration", () => {
     const payload = {
       action: "labeled",
       label: { name: "verdikt:rc" },
-      repository: { name: "DedupRepo", owner: { login: "useverdikt" } },
+      repository: { name: repo, owner: { login: "useverdikt" } },
       pull_request: {
-        number: 9898,
+        number: prNumber,
         title: "Duplicate delivery dedupe check",
-        html_url: "https://github.com/useverdikt/DedupRepo/pull/9898",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
         labels: [{ name: "verdikt:rc" }],
-        head: { sha: "feedfacecafebeef", ref: "fix/dedupe" }
+        head: { sha, ref: "fix/dedupe" }
       }
     };
     const signed = signGithubPayload(payload);
@@ -348,7 +358,75 @@ describe("API integration", () => {
 
     const count = await queryOne(
       "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND pr_number = ? AND commit_sha = ?",
-      [ws, 9898, "feedfacecafebeef"]
+      [ws, prNumber, sha]
+    );
+    assert.equal(Number(count?.c || 0), 1);
+  });
+
+  it("GitHub label trigger deduplicates concurrent simultaneous deliveries (race condition)", async () => {
+    const prNumber = 70000 + crypto.randomInt(9999);
+    const sha = crypto.randomBytes(8).toString("hex");
+    const repo = `RaceRepo${crypto.randomBytes(3).toString("hex")}`;
+    const email = `ghrace_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHRACE" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+    await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "verdikt:rc", enabled: true })
+      .expect(200);
+
+    const payload = {
+      action: "labeled",
+      label: { name: "verdikt:rc" },
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: {
+        number: prNumber,
+        title: "Race condition check",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
+        labels: [{ name: "verdikt:rc" }],
+        head: { sha, ref: "fix/race" }
+      }
+    };
+    const signed = signGithubPayload(payload);
+
+    // Fire both requests simultaneously — only one should create a release.
+    const [r1, r2] = await Promise.all([
+      request(app)
+        .post("/api/hooks/github")
+        .set("content-type", "application/json")
+        .set("x-github-event", "pull_request")
+        .set("x-github-delivery", `race-a-${crypto.randomBytes(4).toString("hex")}`)
+        .set("x-hub-signature-256", signed.sig)
+        .send(signed.raw),
+      request(app)
+        .post("/api/hooks/github")
+        .set("content-type", "application/json")
+        .set("x-github-event", "pull_request")
+        .set("x-github-delivery", `race-b-${crypto.randomBytes(4).toString("hex")}`)
+        .set("x-hub-signature-256", signed.sig)
+        .send(signed.raw),
+    ]);
+
+    assert.ok([200, 201].includes(r1.status), `r1 status ${r1.status}`);
+    assert.ok([200, 201].includes(r2.status), `r2 status ${r2.status}`);
+    // Exactly one must be a new release; the other must be reused.
+    const created = [r1, r2].filter((r) => r.status === 201);
+    const reused = [r1, r2].filter((r) => r.status === 200 && r.body.reused);
+    assert.equal(created.length, 1, "exactly one release should be created");
+    assert.equal(reused.length, 1, "exactly one should be marked reused");
+    assert.equal(reused[0].body.release_id, created[0].body.release_id);
+
+    const count = await queryOne(
+      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND pr_number = ? AND commit_sha = ?",
+      [ws, prNumber, sha]
     );
     assert.equal(Number(count?.c || 0), 1);
   });
