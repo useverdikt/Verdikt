@@ -7,8 +7,6 @@ import { LoopReadinessPanel } from "./intelligence/panels/LoopReadinessPanel.jsx
 import { SignalReliabilityPanel } from "./intelligence/panels/SignalReliabilityPanel.jsx";
 import { CorrelationPanel } from "./intelligence/panels/CorrelationPanel.jsx";
 import { OverrideAnalyticsPanel } from "./intelligence/panels/OverrideAnalyticsPanel.jsx";
-import { VcsPanel } from "./intelligence/panels/VcsPanel.jsx";
-import { SsePanel } from "./intelligence/panels/SsePanel.jsx";
 import { VcsMonitorPanel } from "./intelligence/panels/VcsMonitorPanel.jsx";
 import { ProductionHealthPanel } from "./intelligence/panels/ProductionHealthPanel.jsx";
 import { ThresholdSimulatorPanel } from "./intelligence/panels/ThresholdSimulatorPanel.jsx";
@@ -112,7 +110,7 @@ export default function IntelligencePage() {
             Intelligence <em style={{ fontStyle: "italic", color: C.accentL }}>Hub</em>
           </h1>
           <p style={{ margin: "8px 0 0", fontSize: 13, color: C.mid }}>
-            Signal correlation, failure patterns, live streams, VCS write-back, override analytics,
+            Signal correlation, failure patterns, override analytics,
             production feedback loop, and threshold simulation.
             {!prodObsEnabled && (
               <span style={{ display: "block", marginTop: 8, color: C.amber }}>
@@ -135,8 +133,6 @@ export default function IntelligencePage() {
           </div>
           <SignalReliabilityPanel wsId={wsId} />
           <OverrideAnalyticsPanel wsId={wsId} />
-          <VcsPanel wsId={wsId} />
-          <SsePanel wsId={wsId} />
           <div style={{ gridColumn: "1 / -1" }}>
             <VcsMonitorPanel wsId={wsId} />
           </div>
