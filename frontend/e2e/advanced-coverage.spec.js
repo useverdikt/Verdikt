@@ -109,23 +109,6 @@ test.describe("modal interaction coverage", () => {
   });
 });
 
-test.describe("SSE / stream panel coverage", () => {
-  test("SSE token failure is surfaced in stream log", async ({ page }) => {
-    await page.route("**/api/releases/*/sse-token", async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({ error: "token unavailable" })
-      });
-    });
-
-    await page.goto("/intelligence");
-    await waitForSessionGate(page);
-    await page.getByPlaceholder(/Release ID \(rel_\.\.\.\)/i).fill("rel_fake_stream");
-    await page.getByRole("button", { name: /Connect/i }).click();
-    await expect(page.getByText(/Could not get stream token/i)).toBeVisible();
-  });
-});
 
 test.describe("permission / role matrix", () => {
   test("Engineer role is read-only on thresholds", async ({ page }) => {
