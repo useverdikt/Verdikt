@@ -73,6 +73,7 @@ export default function SettingsWorkspace() {
       return { ...DEFAULT_TRIGGER_CONFIG };
     }
   });
+  const [triggerDirty, setTriggerDirty] = useState(false);
   const [githubAppStatus, setGithubAppStatus] = useState({
     configured: false,
     connected: false,
@@ -452,6 +453,7 @@ export default function SettingsWorkspace() {
         await apiDelete(`/api/workspaces/${wsId}/github-label-trigger`, { navigate });
       }
       await loadGithubAppStatus();
+      setTriggerDirty(false);
       toast("Trigger settings saved");
     } catch (err) {
       toast(err?.message || "Failed to save trigger settings");
@@ -475,6 +477,7 @@ export default function SettingsWorkspace() {
     setGithubRepos((prev) =>
       prev.map((r) => (Number(r.repository_id) === Number(repositoryId) ? { ...r, selected: !!selected } : r))
     );
+    setTriggerDirty(true);
   };
 
   const logout = () => {
@@ -580,8 +583,9 @@ export default function SettingsWorkspace() {
           section={section}
           wsId={wsId}
           triggerConfig={triggerConfig}
-          setTriggerConfig={setTriggerConfig}
+          setTriggerConfig={(updater) => { setTriggerConfig(updater); setTriggerDirty(true); }}
           saveTrigger={saveTrigger}
+          triggerDirty={triggerDirty}
           githubAppStatus={githubAppStatus}
           githubRepos={githubRepos}
           githubReposLoading={githubReposLoading}
