@@ -254,7 +254,10 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       return res.json({ ok: true, ignored: "label_mismatch", expected_label: configuredLabel, received_label: labelName });
     }
 
-    const releaseRef = `pr/${prNumber}@${commitSha.slice(0, 8)}`;
+    const legacyReleaseRef = `pr/${prNumber}@${commitSha.slice(0, 8)}`;
+    const prTitle = String(payload?.pull_request?.title || "").replace(/\s+/g, " ").trim();
+    const titledWithPr = prTitle ? `${prTitle} (#${prNumber})` : "";
+    const releaseRef = titledWithPr ? titledWithPr.slice(0, 180) : legacyReleaseRef;
     const out = await createReleaseSession({
       workspaceId,
       releaseRef,
@@ -270,7 +273,9 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       },
       aiContext: {
         trigger_mode: "github_label",
-        label: labelName
+        label: labelName,
+        pr_title: prTitle || null,
+        legacy_release_ref: legacyReleaseRef
       },
       collectionWindowMinutes: DEFAULT_COLLECTION_WINDOW_MINUTES,
       idempotencyKey: `github:${deliveryId || "no_delivery"}:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
