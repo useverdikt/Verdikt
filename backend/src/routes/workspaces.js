@@ -294,7 +294,6 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
     const {
       version,
       release_type = "model_update",
-      environment = "pre-prod",
       ai_context = {},
       commit_sha = null,
       pr_number = null
@@ -312,6 +311,7 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
     const releaseId = `rel_${Date.now()}`;
     const now = nowIso();
     const deadline = toIsoPlusMinutes(DEFAULT_COLLECTION_WINDOW_MINUTES);
+    const environment = "pre-prod";
     await run(
       `INSERT INTO releases (
       id, workspace_id, version, release_type, environment, status, created_at, updated_at,
