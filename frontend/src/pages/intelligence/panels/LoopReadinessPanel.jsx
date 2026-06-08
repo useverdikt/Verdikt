@@ -124,7 +124,11 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
               {
                 label: "Full loops",
                 value: data.full_loop_count,
-                color: data.full_loop_count >= 50 ? C.green : data.full_loop_count >= 10 ? C.amber : C.muted,
+                color: data.full_loop_count >= data.band_thresholds?.reliable_min_loops
+                  ? C.green
+                  : data.full_loop_count >= (data.band_thresholds?.emerging_min_loops ?? 3)
+                    ? C.amber
+                    : C.muted,
                 note: "completed"
               },
               {
@@ -154,7 +158,8 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
           {/* Fixed thresholds (for transparency) */}
           <div style={{ padding: "10px 14px", background: C.raise, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.dim, lineHeight: 1.7 }}>
             <span style={{ fontFamily: C.mono, color: C.muted, fontWeight: 700 }}>Band thresholds (fixed):</span>
-            {" "}Exploratory &lt; 10 loops · Emerging 10–50 · Reliable 51+ loops AND ≥60% rate ·
+            {" "}Exploratory ≤{data.band_thresholds?.exploratory_max ?? 2} loops · Emerging until Reliable ·
+            {" "}Reliable {data.band_thresholds?.reliable_min_loops ?? 10}+ loops AND ≥{data.band_thresholds?.reliable_min_rate_pct ?? 60}% rate ·
             {" "}<span style={{ color: staleColor }}>Stale</span> if last loop &gt; 90 days ago
           </div>
         </>
