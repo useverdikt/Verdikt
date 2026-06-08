@@ -6,8 +6,6 @@ export default function ReleaseDashboardTable({
   wsReady,
   releases,
   visibleReleases,
-  activeTab,
-  setActiveTab,
   activeFilter,
   setActiveFilter,
   expandedId,
@@ -24,19 +22,6 @@ export default function ReleaseDashboardTable({
 }) {
   return (
     <>
-      <div className="tabs">
-        {["All releases", "Uncertified", "Overrides"].map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={`tab${activeTab === tab ? " active" : ""}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
       <div className="panel-header">
         <div className="panel-title">Release history</div>
         <div className="panel-actions">

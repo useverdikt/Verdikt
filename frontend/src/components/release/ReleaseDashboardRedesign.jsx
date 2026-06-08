@@ -55,8 +55,6 @@ export function ReleaseDashboard({
             wsReady={wsReady}
             releases={releases}
             visibleReleases={filters.visibleReleases}
-            activeTab={filters.activeTab}
-            setActiveTab={filters.setActiveTab}
             activeFilter={filters.activeFilter}
             setActiveFilter={filters.setActiveFilter}
             expandedId={filters.expandedId}
