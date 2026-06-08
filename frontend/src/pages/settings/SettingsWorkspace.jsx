@@ -32,6 +32,7 @@ import {
   slugifyWorkspaceSlug,
   normalizeApiBaseOrigin
 } from "./workspace/settingsSaveTransforms.js";
+import { defaultRequiredFlags } from "../../lib/thresholdBounds.js";
 import SettingsWorkspaceShell from "./workspace/SettingsWorkspaceShell.jsx";
 import GovernancePanel from "./workspace/GovernancePanel.jsx";
 import GeneralSettingsSection from "./workspace/sections/GeneralSettingsSection.jsx";
@@ -56,6 +57,7 @@ export default function SettingsWorkspace() {
   const wsId = getWorkspaceId();
 
   const [thresholds, setThresholds] = useState(() => ({ ...THRESH_DEFAULTS }));
+  const [thresholdRequired, setThresholdRequired] = useState(() => defaultRequiredFlags());
   const [threshNote, setThreshNote] = useState("No unsaved changes");
   const [threshDirty, setThreshDirty] = useState(false);
 
@@ -185,19 +187,26 @@ export default function SettingsWorkspace() {
 
   const loadThresholds = useCallback(async () => {
     let stored = {};
+    let storedRequired = {};
     try {
       stored = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");
+      storedRequired = JSON.parse(localStorage.getItem("vdk3_threshold_required") || "{}");
     } catch (_) {}
     let apiThresholds = {};
+    let apiRequired = {};
     try {
       const data = await apiGet(`/api/workspaces/${wsId}/thresholds`, { navigate });
-      apiThresholds = mergeThresholdsFromApi(data?.thresholds);
+      const merged = mergeThresholdsFromApi(data?.thresholds);
+      apiThresholds = merged.thresholds;
+      apiRequired = merged.required;
       if (Object.keys(apiThresholds).length) {
         localStorage.setItem("vdk3_thresholds", JSON.stringify({ ...stored, ...apiThresholds }));
+        localStorage.setItem("vdk3_threshold_required", JSON.stringify({ ...storedRequired, ...apiRequired }));
       }
     } catch (_) {}
     const t = { ...THRESH_DEFAULTS, ...stored, ...apiThresholds };
     setThresholds(t);
+    setThresholdRequired({ ...defaultRequiredFlags(), ...storedRequired, ...apiRequired });
   }, [navigate, wsId]);
 
   const loadPolicies = useCallback(async () => {
@@ -368,8 +377,9 @@ export default function SettingsWorkspace() {
   const saveThresholds = async () => {
     const t = normalizeThresholdsStateForSave(THRESH_DEFAULTS, thresholds);
     localStorage.setItem("vdk3_thresholds", JSON.stringify(t));
+    localStorage.setItem("vdk3_threshold_required", JSON.stringify(thresholdRequired));
     try {
-      const thresholdPayload = thresholdNormalizedToApiPayload(t);
+      const thresholdPayload = thresholdNormalizedToApiPayload(t, thresholdRequired);
       await apiPost(`/api/workspaces/${wsId}/thresholds`, { thresholds: thresholdPayload }, { navigate });
     } catch (_) {
       toast("Saved locally — backend unavailable");

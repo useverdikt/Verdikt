@@ -686,9 +686,9 @@ describe("API integration", () => {
       .post(`/api/workspaces/${ws}/thresholds`)
       .send({
         thresholds: {
-          smoke: { min: 100, max: null },
-          crashrate: { min: null, max: 0.1 },
-          accuracy: { min: 85, max: null }
+          smoke: { min: 100, max: null, required_for_certification: true },
+          crashrate: { min: null, max: 0.1, required_for_certification: true },
+          accuracy: { min: 85, max: null, required_for_certification: true }
         }
       })
       .expect(200);
@@ -714,7 +714,7 @@ describe("API integration", () => {
     const ws = me.body.user.workspace_id;
 
     await run(
-      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
+      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, 1) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification",
       [ws, "crashrate", 0.1, null]
     );
 

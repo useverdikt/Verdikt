@@ -16,7 +16,6 @@ const { AI_SIGNAL_IDS, SIGNAL_ALIAS_MAP } = require("../config");
 const { getThresholdMap } = require("./workspaceConfig");
 const {
   getInScopeSignalIds,
-  isE2eRegressionWaived,
   isSignalRequiredForRelease
 } = require("./signalScope");
 
@@ -51,7 +50,7 @@ async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest
   const latest =
     preloadedLatest && typeof preloadedLatest === "object" ? preloadedLatest : await getLatestSignalMap(releaseId);
   return Object.keys(thresholds).filter((signalId) => {
-    if (!isSignalRequiredForRelease(signalId, { inScopeIds, releaseRow: rel })) return false;
+    if (!isSignalRequiredForRelease(signalId, { thresholdMap: thresholds, inScopeIds })) return false;
     return latest[signalId] == null;
   });
 }
@@ -72,8 +71,8 @@ async function computeVerdict(workspaceId, releaseId, preloadedLatest = null, re
   const failedSignals = [];
   for (const [signalId, threshold] of Object.entries(thresholds)) {
     if (String(signalId).endsWith("_delta")) continue;
+    if (!threshold.required_for_certification) continue;
     if (latest[signalId] == null) continue;
-    if (signalId === "e2e_regression" && isE2eRegressionWaived(releaseRow)) continue;
     if (threshold.min != null && latest[signalId] < threshold.min) {
       failedSignals.push({
         signal_id: signalId,

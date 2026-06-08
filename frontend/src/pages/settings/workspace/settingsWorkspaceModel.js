@@ -146,9 +146,13 @@ export function loadRolePolicy() {
 
 export function mergeThresholdsFromApi(map) {
   const apiThresholds = {};
+  const apiRequired = {};
   Object.entries(map || {}).forEach(([signalId, cfg]) => {
     const scalar = thresholdBoundsToScalar(signalId, cfg);
     if (scalar != null) apiThresholds[signalId] = scalar;
+    if (cfg && typeof cfg === "object" && "required_for_certification" in cfg) {
+      apiRequired[signalId] = !!cfg.required_for_certification;
+    }
   });
-  return apiThresholds;
+  return { thresholds: apiThresholds, required: apiRequired };
 }
