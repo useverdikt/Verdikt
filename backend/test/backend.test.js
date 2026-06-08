@@ -17,7 +17,13 @@ process.env.NODE_ENV = "test";
 process.env.LOG_REQUESTS = "0";
 /** Enable assistive path for llmAssist tests (mocked fetch — no real API calls). */
 process.env.ENABLE_ASSISTIVE_LLM = "1";
-process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "unit-test-stub-gemini-key-not-for-production-use";
+/** Never hit live Gemini in CI/automated runs — repo secrets may set GEMINI_API_KEY. */
+const GEMINI_STUB = "unit-test-stub-gemini-key-not-for-production-use";
+if (process.env.GEMINI_LIVE_TEST !== "1") {
+  process.env.GEMINI_API_KEY = GEMINI_STUB;
+} else if (!process.env.GEMINI_API_KEY) {
+  process.env.GEMINI_API_KEY = GEMINI_STUB;
+}
 
 const { describe, it, after, before } = require("node:test");
 const assert = require("node:assert/strict");
@@ -1039,8 +1045,7 @@ describe("Gemini assistive enrichment (mocked API)", () => {
   });
 });
 
-const GEMINI_STUB = "unit-test-stub-gemini-key-not-for-production-use";
-const skipLiveGemini = !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === GEMINI_STUB;
+const skipLiveGemini = process.env.GEMINI_LIVE_TEST !== "1" || !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === GEMINI_STUB;
 
 (skipLiveGemini ? describe.skip : describe)("Gemini live API (set GEMINI_API_KEY to a real key to run)", () => {
   it(
