@@ -1,7 +1,5 @@
-import { confMeta } from "../../../lib/releaseConfidenceMeta.js";
 import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import {
-  alignBadge,
   envClass,
   envDisplayLabel,
   verdictMeta
@@ -20,20 +18,6 @@ export default function ReleaseRow({
   releaseTypes
 }) {
   const verdict = verdictMeta(release.status);
-  const intel = release.intelligence || {};
-  const recommendation = intel.recommendation || {};
-  const decisionScore = recommendation.confidence_score ?? intel.decision?.confidence_score;
-  const rawVerdictConf = intel.verdict?.confidence_pct;
-  const confPct = Number.isFinite(decisionScore)
-    ? decisionScore
-    : rawVerdictConf !== undefined && rawVerdictConf !== null && rawVerdictConf !== ""
-      ? Number(rawVerdictConf)
-      : undefined;
-  const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
-  const conf = confMeta(release.status, Number.isFinite(confPct) ? confPct : undefined, {
-    receivedSignalCount
-  });
-  const al = alignBadge(release.alignmentVerdict);
   const rvHead = releaseVersionPrimarySecondary
     ? releaseVersionPrimarySecondary(release.version)
     : { primary: release.version || "—", secondary: "" };
@@ -53,6 +37,7 @@ export default function ReleaseRow({
   const passCount = dots.filter((d) => d === "p").length;
   const failCount = dots.filter((d) => d === "f").length;
   const warnCount = dots.filter((d) => d === "w").length;
+  const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
 
   const timeLabel = formatAge ? formatAge(release) : release.date || "—";
   const subLabel =
@@ -107,16 +92,6 @@ export default function ReleaseRow({
         </div>
       </div>
 
-      <div className="td conf-cell">
-        <div className="conf-lbl">
-          <span className="conf-pct">{conf.displayPct}</span>
-          <span className="conf-band">{conf.band}</span>
-        </div>
-        <div className="conf-track">
-          <div className={`conf-fill ${conf.fill}`} style={{ width: `${conf.pct}%` }}></div>
-        </div>
-      </div>
-
       <div className="td sig-cell">
         <div className="sig-mini">
           {dots.map((d, i) => (
@@ -143,10 +118,6 @@ export default function ReleaseRow({
             </>
           )}
         </div>
-      </div>
-
-      <div className="td r">
-        <span className={`al-badge ${al.cls}`}>{al.label}</span>
       </div>
 
       <div className="td r time-cell">
