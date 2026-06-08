@@ -15,7 +15,6 @@ const { analyzeReleaseDeltas } = require("./delta");
 const { AI_SIGNAL_IDS, SIGNAL_ALIAS_MAP } = require("../config");
 const { getThresholdMap } = require("./workspaceConfig");
 const {
-  getInScopeSignalIds,
   isSignalRequiredForRelease
 } = require("./signalScope");
 
@@ -45,12 +44,10 @@ async function resolveReleaseRow(releaseId, releaseRow) {
 
 async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest = null, releaseRow = null) {
   const thresholds = await getThresholdMap(workspaceId);
-  const inScopeIds = await getInScopeSignalIds(workspaceId);
-  const rel = await resolveReleaseRow(releaseId, releaseRow);
   const latest =
     preloadedLatest && typeof preloadedLatest === "object" ? preloadedLatest : await getLatestSignalMap(releaseId);
   return Object.keys(thresholds).filter((signalId) => {
-    if (!isSignalRequiredForRelease(signalId, { thresholdMap: thresholds, inScopeIds })) return false;
+    if (!isSignalRequiredForRelease(signalId, { thresholdMap: thresholds })) return false;
     return latest[signalId] == null;
   });
 }

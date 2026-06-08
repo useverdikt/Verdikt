@@ -108,7 +108,8 @@ async function buildDeterministicVerdictIntelligence({
   missingRequiredSignals,
   nextStatus,
   deltaContext,
-  regressionHistory = null
+  regressionHistory = null,
+  ingestedSignalCount = 0
 }) {
   const failedIds = failedSignals.map((s) => s.signal_id).filter(Boolean);
   const regressionFails = failedSignals.filter(
@@ -157,8 +158,12 @@ async function buildDeterministicVerdictIntelligence({
 
   let summary =
     nextStatus === "CERTIFIED"
-      ? "Signals meet current thresholds. No blocking risk pattern detected in this deterministic assessment."
-      : hasRegressionFail
+      ? missingRequiredSignals.length > 0
+        ? "Certification was issued while required signals were still missing — review before shipping."
+        : "Signals meet current thresholds. No blocking risk pattern detected in this deterministic assessment."
+      : ingestedSignalCount === 0
+        ? "No signals were ingested before the verdict. Ingest data via Signal Simulator or connected sources, then re-evaluate — or record an override with justification to ship."
+        : hasRegressionFail
         ? regressionInsightSentences.length
           ? `${regressionInsightSentences.join(" ")} Review eval deltas and mitigation before shipping or override.`
           : `AI quality regressed vs the prior certified baseline on: ${regressionIds.join(", ")}. Compare eval runs and model changes before shipping.`
@@ -197,6 +202,9 @@ async function buildDeterministicVerdictIntelligence({
   if (hasHallucinationFail) recommendedActions.push("Run groundedness checks on high-risk prompts and retrieval paths.");
   if (hasLatencyFail) recommendedActions.push("Validate p95/p99 improvements with canary and load replay.");
   if (missingRequiredSignals.length) recommendedActions.push("Ingest missing required signals before final decision.");
+  if (ingestedSignalCount === 0 && nextStatus !== "CERTIFIED") {
+    recommendedActions.push("Ingest signals and re-run the verdict, or apply an override with written justification.");
+  }
   if (!recommendedActions.length && nextStatus === "CERTIFIED") {
     recommendedActions.push("Ship with normal monitoring and post-release review.");
   }
