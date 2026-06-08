@@ -23,6 +23,19 @@ const SOURCES = [
     ],
   },
   {
+    id: "browserstack",
+    name: "BrowserStack",
+    icon: "◎",
+    color: "#f87171",
+    glow: "rgba(248,113,113,0.18)",
+    description: "Smoke and E2E regression pass rates",
+    tag: "Delivery Reliability",
+    signals: [
+      { id: "smoke", label: "Smoke tests", min: 0, max: 100, step: 1, unit: "%", default: 100, threshold: 100 },
+      { id: "e2e_regression", label: "E2E regression", min: 0, max: 100, step: 1, unit: "%", default: 97, threshold: 95 },
+    ],
+  },
+  {
     id: "langsmith",
     name: "LangSmith",
     icon: "⚡",

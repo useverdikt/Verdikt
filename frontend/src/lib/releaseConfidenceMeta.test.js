@@ -2,21 +2,21 @@ import { describe, expect, it } from "vitest";
 import { confMeta } from "./releaseConfidenceMeta.js";
 
 describe("confMeta", () => {
-  it("uses explicit confidence when finite", () => {
-    expect(confMeta("shipped", 86).pct).toBe(86);
-    expect(confMeta("shipped", 86).band).toBe("HIGH");
+  it("uses confidence_pct when provided for certified", () => {
+    expect(confMeta("certified", 86).pct).toBe(86);
+    expect(confMeta("certified", 86).band).toBe("HIGH");
   });
 
-  it("applies status defaults when confidence is undefined", () => {
-    expect(confMeta("blocked", undefined)).toMatchObject({ pct: 41, band: "LOW", fill: "lo" });
-    expect(confMeta("overridden", undefined)).toMatchObject({ pct: 68, band: "MEDIUM", fill: "me" });
-    expect(confMeta("shipped", undefined)).toMatchObject({ pct: 91, band: "HIGH", fill: "hi" });
+  it("defaults uncertified band when no confidence_pct", () => {
+    expect(confMeta("uncertified", undefined)).toMatchObject({ pct: 41, band: "LOW", fill: "lo" });
   });
 
-  it("treats collecting as awaiting signals", () => {
-    expect(confMeta("collecting", undefined)).toMatchObject({
-      band: "awaiting signals",
-      fill: ""
-    });
+  it("defaults certified band when no confidence_pct", () => {
+    expect(confMeta("certified", undefined)).toMatchObject({ pct: 91, band: "HIGH", fill: "hi" });
+  });
+
+  it("maps legacy blocked/shipped aliases", () => {
+    expect(confMeta("blocked", undefined).pct).toBe(41);
+    expect(confMeta("shipped", undefined).pct).toBe(91);
   });
 });

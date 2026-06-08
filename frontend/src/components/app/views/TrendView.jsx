@@ -1,4 +1,5 @@
 import React from "react";
+import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import { C } from "../../../theme/tokens.js";
 
 export default function TrendView({
@@ -60,7 +61,8 @@ export default function TrendView({
             <path d={`${path} L ${pts[pts.length - 1].x} ${10 + iH} L ${pts[0].x} ${10 + iH} Z`} fill={C.accent} opacity={0.05} />
             <path d={path} fill="none" stroke={C.accent} strokeWidth={1.5} strokeLinejoin="round" opacity={0.8} />
             {pts.map((p, i) => {
-              const dc = p.r.status === "overridden" ? C.amber : p.r.status === "blocked" ? C.red : C.green;
+              const rs = normalizeLegacyUiStatus(p.r.status);
+              const dc = rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? C.amber : rs === UI_RELEASE_STATUS.UNCERTIFIED ? C.red : C.green;
               return (
                 <g key={i}>
                   <title>{p.r.version}</title>

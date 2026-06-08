@@ -10,7 +10,7 @@ const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeeded } = require("../lib/encryption");
 
-const ALLOWED = new Set(["braintrust", "langsmith", "sentry", "datadog"]);
+const ALLOWED = new Set(["braintrust", "langsmith", "browserstack", "sentry", "datadog"]);
 
 function maskSecret(s) {
   const t = String(s ?? "");
@@ -88,6 +88,18 @@ async function verifyRemote(sourceId, creds) {
     return { ok: true };
   }
 
+  if (sourceId === "browserstack") {
+    const username = String(creds.username || "").trim();
+    if (!username) throw new Error("BrowserStack username is required");
+    const auth = Buffer.from(`${username}:${apiKey}`).toString("base64");
+    const res = await fetch("https://api.browserstack.com/automate/plan.json", {
+      headers: { Authorization: `Basic ${auth}` }
+    });
+    if (res.status === 401 || res.status === 403) throw new Error("Invalid BrowserStack credentials");
+    if (!res.ok) throw new Error(`BrowserStack API returned ${res.status}`);
+    return { ok: true };
+  }
+
   if (sourceId === "datadog") {
     const appKey = String(creds.appKey || "").trim();
     if (!appKey) throw new Error("Datadog application key is required");
@@ -117,6 +129,13 @@ function validateBody(sourceId, body) {
     if (!appKey) throw new Error("appKey is required");
     return { apiKey, appKey, site, datadog_query };
   }
+  if (sourceId === "browserstack") {
+    const username = String(b.username || "").trim();
+    const accessKey = String(b.apiKey || b.accessKey || "").trim();
+    if (!username) throw new Error("username is required");
+    if (!accessKey) throw new Error("apiKey is required");
+    return { apiKey: accessKey, username };
+  }
   const apiKey = String(b.apiKey || "").trim();
   if (!apiKey) throw new Error("apiKey is required");
   return { apiKey };
@@ -145,7 +164,9 @@ async function upsertIntegration(workspaceId, sourceId, body) {
           site: creds.site,
           ...(creds.datadog_query ? { datadog_query: creds.datadog_query } : {})
         })
-      : null;
+      : sourceId === "browserstack"
+        ? JSON.stringify({ username: creds.username })
+        : null;
 
   const apiKeyEnc = encryptToken(creds.apiKey);
   await run(
@@ -179,7 +200,8 @@ function rowToPublic(row) {
     masked_key: maskSecret(plainKey),
     verified_at: row.verified_at || null,
     last_verify_error: row.last_verify_error || null,
-    ...(row.source_id === "datadog" && extra.site ? { site: extra.site } : {})
+    ...(row.source_id === "datadog" && extra.site ? { site: extra.site } : {}),
+    ...(row.source_id === "browserstack" && extra.username ? { username: extra.username } : {})
   };
 }
 
