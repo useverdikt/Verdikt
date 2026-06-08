@@ -266,7 +266,7 @@
 .release-redesign .table-head,
 .release-redesign .release-row {
   display: grid;
-  grid-template-columns: 24px 1fr 120px 130px 130px 90px 84px;
+  grid-template-columns: 24px 1fr 120px 130px 84px;
   padding: 0 16px;
 }
 .release-redesign .table-head {
@@ -366,46 +366,6 @@
 .release-redesign .v-ov   .vbadge-dot { background: #f59e0b; box-shadow: 0 0 5px #f59e0b; }
 .release-redesign .v-col  .vbadge-dot { background: #3b82f6; animation: pb 1.5s ease-in-out infinite; }
 
-/* ── CONFIDENCE ─────────────────────────────────────────────────────────────── */
-.release-redesign .conf-cell {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-.release-redesign .conf-lbl {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10.5px;
-  color: #6e87a2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.release-redesign .conf-pct {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10.5px;
-  font-weight: 500;
-  color: #6e87a2;
-  letter-spacing: 0.02em;
-}
-.release-redesign .conf-band {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
-  font-weight: 500;
-  color: #384d60;
-  letter-spacing: 0.06em;
-}
-.release-redesign .conf-track {
-  width: 100%;
-  height: 3px;
-  background: #18243a;
-  border-radius: 2px;
-  overflow: hidden;
-}
-.release-redesign .conf-fill          { height: 100%; border-radius: 2px; transition: width .6s ease; }
-.release-redesign .conf-fill.hi { background: #22c55e; }
-.release-redesign .conf-fill.me { background: #f59e0b; }
-.release-redesign .conf-fill.lo { background: #ef4444; }
-
 /* ── SIGNAL MINI ────────────────────────────────────────────────────────────── */
 .release-redesign .sig-cell {
   font-family: "JetBrains Mono", monospace;
@@ -427,20 +387,6 @@
 .release-redesign .sig-frac { color: #6e87a2; }
 .release-redesign .sig-frac .fp { color: #22c55e; }
 .release-redesign .sig-frac .ff { color: #ef4444; }
-
-/* ── ALIGNMENT BADGE ────────────────────────────────────────────────────────── */
-.release-redesign .al-badge {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: .07em;
-  padding: 3px 7px;
-  border-radius: 3px;
-}
-.release-redesign .al-c { background: rgba(34,197,94,.10); color: #22c55e; }
-.release-redesign .al-m { background: rgba(239,68,68,.10);  color: #ef4444; }
-.release-redesign .al-u { background: rgba(59,130,246,.10);  color: #60a5fa; }
-.release-redesign .al-o { background: rgba(245,158,11,.10); color: #f59e0b; }
 
 /* ── TIME CELL ──────────────────────────────────────────────────────────────── */
 .release-redesign .time-cell {
