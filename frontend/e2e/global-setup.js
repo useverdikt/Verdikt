@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureE2eFixtureRelease } from "./helpers/seedE2eWorkspace.js";
+import { ensureE2eCollectingRelease, ensureE2eFixtureRelease } from "./helpers/seedE2eWorkspace.js";
 
 const API = "http://127.0.0.1:8787";
 const ORIGIN = "http://127.0.0.1:5174";
@@ -81,6 +81,11 @@ export default async function globalSetup() {
   const cookies = playwrightCookiesFromResponse(res);
   if (user?.workspace_id) {
     await ensureE2eFixtureRelease({
+      apiBase: API,
+      cookies,
+      workspaceId: user.workspace_id
+    });
+    await ensureE2eCollectingRelease({
       apiBase: API,
       cookies,
       workspaceId: user.workspace_id

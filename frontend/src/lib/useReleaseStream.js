@@ -15,6 +15,7 @@ export function useReleaseStream(releaseId, enabled = true) {
   const [status, setStatus] = useState(null);
   const [earlyWarning, setEarlyWarning] = useState(null);
   const [error, setError] = useState(null);
+  const [collectionDeadline, setCollectionDeadline] = useState(null);
   const esRef = useRef(null);
 
   useEffect(() => {
@@ -57,6 +58,14 @@ export function useReleaseStream(releaseId, enabled = true) {
         } catch (_) {}
       });
 
+      es.addEventListener("deadline_extended", (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d.collection_deadline) setCollectionDeadline(d.collection_deadline);
+          setEvents((prev) => [...prev.slice(-49), { type: "deadline_extended", ...d }]);
+        } catch (_) {}
+      });
+
       es.addEventListener("verdict", (e) => {
         try {
           const d = JSON.parse(e.data);
@@ -84,5 +93,5 @@ export function useReleaseStream(releaseId, enabled = true) {
     };
   }, [releaseId, enabled]);
 
-  return { events, status, earlyWarning, error };
+  return { events, status, earlyWarning, error, collectionDeadline };
 }

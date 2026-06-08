@@ -38,6 +38,7 @@ const {
   scanWindow,
   getMonitoringWindow,
   pullConnectedSourcesForRelease,
+  extendCollectionDeadline,
   AI_SIGNAL_DEFINITIONS
 } = require("./deps");
 
@@ -541,6 +542,24 @@ app.get("/api/releases/:releaseId/failure-modes", authMiddleware, requireRelease
     next(e);
   }
 });
+/** Extend the collection deadline while a release is still COLLECTING. */
+app.post(
+  "/api/releases/:releaseId/collection-deadline/extend",
+  authMiddleware,
+  requireNonViewer,
+  requireReleaseAccess,
+  async (req, res, next) => {
+    try {
+      const { extend_minutes: extendMinutes } = req.body || {};
+      const result = await extendCollectionDeadline(req.releaseRow, extendMinutes);
+      return res.json({ release_id: req.params.releaseId, ...result });
+    } catch (e) {
+      if (e.status === 409) return res.status(409).json({ error: e.message });
+      next(e);
+    }
+  }
+);
+
 // ─── SSE Real-time Stream ─────────────────────────────────────────────────────
 
 /** Issue a short-lived token to open an SSE stream. */

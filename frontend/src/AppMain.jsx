@@ -6,6 +6,7 @@ import UserSetupModal from "./components/app/modals/UserSetupModal.jsx";
 import ManualAddModal from "./components/app/modals/ManualAddModal.jsx";
 import OverrideModal from "./components/app/modals/OverrideModal.jsx";
 import ShareModal from "./components/app/modals/ShareModal.jsx";
+import LiveStreamModal from "./components/app/modals/LiveStreamModal.jsx";
 import CertificationRecordModal from "./components/app/modals/CertificationRecordModal.jsx";
 import Sidebar from "./components/app/Sidebar.jsx";
 import ApiBanner from "./components/app/ApiBanner.jsx";
@@ -100,6 +101,7 @@ export default function App() {
   const [showOverride, setShowOverride] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareRelease, setShareRelease] = useState(null);
+  const [liveStreamRelease, setLiveStreamRelease] = useState(null);
   const [showReevalConfirm, setShowReevalConfirm] = useState(false);
   const [reEvaluating, setReEvaluating] = useState(false);
   const [_headerActionsOpen, setHeaderActionsOpen] = useState(false);
@@ -138,7 +140,8 @@ export default function App() {
       toastGreen: C.green,
       toastAmber: C.amber,
       toastRed: C.red,
-      toastAccent: C.accent
+      toastAccent: C.accent,
+      setLiveStreamRelease
     }
   });
 
@@ -426,6 +429,9 @@ export default function App() {
             fmtVal={fmtVal}
             genCertSummary={genCertSummary}
           />
+        )}
+        {liveStreamRelease && (
+          <LiveStreamModal release={liveStreamRelease} onClose={() => setLiveStreamRelease(null)} />
         )}
         {toast && (
           <div
