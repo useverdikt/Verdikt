@@ -1,5 +1,7 @@
 /** Pure helpers and defaults for Settings workspace (no React). */
 
+import { thresholdBoundsToScalar } from "../../../lib/thresholdBounds.js";
+
 export function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
@@ -21,6 +23,15 @@ export const SOURCES_INITIAL = [
     icon: "◐",
     name: "LangSmith",
     detail: "LLM eval traces — quality, faithfulness, correctness",
+    status: "not connected",
+    statusColor: "var(--dim)",
+    mapping: null
+  },
+  {
+    sourceId: "browserstack",
+    icon: "◎",
+    name: "BrowserStack",
+    detail: "Smoke and E2E regression pass rates",
     status: "not connected",
     statusColor: "var(--dim)",
     mapping: null
@@ -145,10 +156,8 @@ export function loadRolePolicy() {
 export function mergeThresholdsFromApi(map) {
   const apiThresholds = {};
   Object.entries(map || {}).forEach(([signalId, cfg]) => {
-    if (cfg && typeof cfg === "object") {
-      if (cfg.min != null) apiThresholds[signalId] = cfg.min;
-      if (cfg.max != null) apiThresholds[signalId] = cfg.max;
-    }
+    const scalar = thresholdBoundsToScalar(signalId, cfg);
+    if (scalar != null) apiThresholds[signalId] = scalar;
   });
   return apiThresholds;
 }

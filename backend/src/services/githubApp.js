@@ -191,6 +191,21 @@ async function findWorkspaceByRepo(owner, repo) {
   return row?.workspace_id || null;
 }
 
+/** Prefer latest manual VCS config, then GitHub App repo connections. */
+async function resolveWorkspaceForGithubRepo(owner, repo) {
+  if (!owner || !repo) return null;
+  const fromVcs = await queryOne(
+    `SELECT workspace_id FROM vcs_integrations
+     WHERE enabled = 1 AND provider = 'github'
+       AND LOWER(owner) = LOWER(?) AND LOWER(repo) = LOWER(?)
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [owner, repo]
+  );
+  if (fromVcs?.workspace_id) return fromVcs.workspace_id;
+  return findWorkspaceByRepo(owner, repo);
+}
+
 module.exports = {
   hasGithubAppConfig,
   createInstallState,
@@ -202,5 +217,6 @@ module.exports = {
   listWorkspaceConnectedRepos,
   replaceWorkspaceConnectedRepos,
   listInstallationRepos,
-  findWorkspaceByRepo
+  findWorkspaceByRepo,
+  resolveWorkspaceForGithubRepo
 };

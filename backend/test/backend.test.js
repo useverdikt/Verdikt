@@ -31,6 +31,7 @@ const {
   getThresholdMap,
   assessOverrideJustification
 } = require("../src/services/domain");
+const { getMissingRequiredSignals } = require("../src/services/verdictEngine");
 const { analyzeReleaseDeltas } = require("../src/services/delta");
 const { nowIso } = require("../src/lib/time");
 const { maybeEnrichVerdictIntelligence } = require("../src/services/llmAssist");
@@ -643,6 +644,99 @@ describe("API integration", () => {
     const pull = await agent.post(`/api/releases/${releaseId}/sources/pull`).expect(200);
     assert.equal(pull.body.ok, true);
     assert.equal(pull.body.sources.braintrust.ok, true);
+  });
+
+  it("POST release sources pull invokes BrowserStack path in test (mock metrics)", async () => {
+    const email = `bs_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "BSPull" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "v-bs-pull-1", release_type: "prompt_update" })
+      .expect(201);
+
+    await agent
+      .put(`/api/workspaces/${ws}/signal-integrations/browserstack`)
+      .send({ username: "bs_user", apiKey: "bs_test_key" })
+      .expect(200);
+
+    const pull = await agent.post(`/api/releases/${created.body.id}/sources/pull`).expect(200);
+    assert.equal(pull.body.ok, true);
+    assert.equal(pull.body.sources.browserstack.ok, true);
+  });
+
+  it("required signals are scoped to connected integrations", async () => {
+    const email = `scope_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Scope" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/signal-integrations/braintrust`)
+      .send({ apiKey: "bt_scope_key" })
+      .expect(200);
+
+    await agent
+      .post(`/api/workspaces/${ws}/thresholds`)
+      .send({
+        thresholds: {
+          smoke: { min: 100, max: null },
+          crashrate: { min: null, max: 0.1 },
+          accuracy: { min: 85, max: null }
+        }
+      })
+      .expect(200);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "v-scope-1", release_type: "model_patch" })
+      .expect(201);
+
+    const missing = await getMissingRequiredSignals(ws, created.body.id, {}, created.body);
+    assert.ok(missing.includes("accuracy"));
+    assert.ok(!missing.includes("smoke"));
+    assert.ok(!missing.includes("crashrate"));
+    assert.ok(!missing.includes("e2e_regression"));
+  });
+
+  it("legacy crashrate min rows normalize and low values pass threshold", async () => {
+    const email = `thr_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Thr" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await run(
+      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
+      [ws, "crashrate", 0.1, null]
+    );
+
+    const map = await getThresholdMap(ws);
+    assert.equal(map.crashrate.max, 0.1);
+    assert.equal(map.crashrate.min, null);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "v-crash-thr", release_type: "model_update" })
+      .expect(201);
+
+    await agent
+      .put(`/api/workspaces/${ws}/signal-integrations/sentry`)
+      .send({ apiKey: "sentry_scope_key" })
+      .expect(200);
+
+    const verdict = await computeVerdict(ws, created.body.id, { crashrate: 0.01 }, created.body);
+    assert.equal(
+      verdict.failed_signals.filter((f) => f.signal_id === "crashrate").length,
+      0
+    );
   });
 
   it("forgot-password + reset-password updates login credentials", async () => {

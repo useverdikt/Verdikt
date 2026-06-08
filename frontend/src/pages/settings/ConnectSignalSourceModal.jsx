@@ -23,6 +23,7 @@ const DD_SITES = [
  */
 export default function ConnectSignalSourceModal({ open, onClose, sourceId, name, workspaceId, navigate, onSuccess, toast }) {
   const [apiKey, setApiKey] = useState("");
+  const [username, setUsername] = useState("");
   const [appKey, setAppKey] = useState("");
   const [site, setSite] = useState("datadoghq.com");
   const [submitting, setSubmitting] = useState(false);
@@ -31,6 +32,7 @@ export default function ConnectSignalSourceModal({ open, onClose, sourceId, name
   useEffect(() => {
     if (open) {
       setApiKey("");
+      setUsername("");
       setAppKey("");
       setSite("datadoghq.com");
       setError("");
@@ -44,10 +46,21 @@ export default function ConnectSignalSourceModal({ open, onClose, sourceId, name
     setSubmitting(true);
     setError("");
     try {
-      const body = sourceId === "datadog" ? { apiKey: apiKey.trim(), appKey: appKey.trim(), site } : { apiKey: apiKey.trim() };
+      const body =
+        sourceId === "datadog"
+          ? { apiKey: apiKey.trim(), appKey: appKey.trim(), site }
+          : sourceId === "browserstack"
+            ? { username: username.trim(), apiKey: apiKey.trim() }
+            : { apiKey: apiKey.trim() };
       if (sourceId === "datadog") {
         if (!body.apiKey || !body.appKey) {
           setError("API key and application key are required.");
+          setSubmitting(false);
+          return;
+        }
+      } else if (sourceId === "browserstack") {
+        if (!body.username || !body.apiKey) {
+          setError("BrowserStack username and access key are required.");
           setSubmitting(false);
           return;
         }
@@ -74,7 +87,9 @@ export default function ConnectSignalSourceModal({ open, onClose, sourceId, name
         ? "Create an API key under LangSmith → Settings → API Keys."
         : sourceId === "braintrust"
           ? "Create an API key under Braintrust → Organization settings → API keys."
-          : sourceId === "datadog"
+          : sourceId === "browserstack"
+            ? "Use your BrowserStack Automate username and access key (Account → Settings)."
+            : sourceId === "datadog"
             ? "Use your Datadog API key and application key (Organization settings → API keys)."
             : "";
 
@@ -146,7 +161,9 @@ export default function ConnectSignalSourceModal({ open, onClose, sourceId, name
         ) : null}
 
         <div className="field" style={{ marginBottom: 14 }}>
-          <label className="field-label">{sourceId === "sentry" ? "Auth token" : "API key"}</label>
+          <label className="field-label">
+            {sourceId === "sentry" ? "Auth token" : sourceId === "browserstack" ? "Access key" : "API key"}
+          </label>
           <input
             className="inp mono"
             type="password"
@@ -154,9 +171,24 @@ export default function ConnectSignalSourceModal({ open, onClose, sourceId, name
             style={{ marginTop: 6 }}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={sourceId === "sentry" ? "sntryu_…" : "Paste key"}
+            placeholder={sourceId === "sentry" ? "sntryu_…" : sourceId === "browserstack" ? "Access key" : "Paste key"}
           />
         </div>
+
+        {sourceId === "browserstack" ? (
+          <div className="field" style={{ marginBottom: 14 }}>
+            <label className="field-label">Username</label>
+            <input
+              className="inp mono"
+              type="text"
+              autoComplete="off"
+              style={{ marginTop: 6 }}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="BrowserStack username"
+            />
+          </div>
+        ) : null}
 
         {sourceId === "datadog" ? (
           <>

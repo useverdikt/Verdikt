@@ -48,11 +48,13 @@ describe("normalizeThresholdsStateForSave", () => {
 });
 
 describe("thresholdNormalizedToApiPayload", () => {
-  it("maps numeric thresholds to min/max shape; latency uses max", () => {
+  it("maps min-direction signals to min and max-direction to max", () => {
     const t = normalizeThresholdsStateForSave(THRESH_DEFAULTS, THRESH_DEFAULTS);
     const payload = thresholdNormalizedToApiPayload(t);
     expect(payload.smoke).toEqual({ min: THRESH_DEFAULTS.smoke, max: null });
     expect(payload.p95latency).toEqual({ min: null, max: THRESH_DEFAULTS.p95latency });
+    expect(payload.crashrate).toEqual({ min: null, max: THRESH_DEFAULTS.crashrate });
+    expect(payload.startup).toEqual({ min: null, max: THRESH_DEFAULTS.startup });
     expect(payload.manual_qa_showstopper).toBeUndefined();
   });
 });

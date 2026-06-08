@@ -2,6 +2,10 @@
  * Pure transforms for Settings save paths — used by SettingsWorkspace and unit tests.
  */
 
+import { thresholdNormalizedToApiPayload } from "../../../lib/thresholdBounds.js";
+
+export { thresholdNormalizedToApiPayload };
+
 /** Mirrors general-settings slug behaviour (workspace URL segment). */
 export function slugifyWorkspaceSlug(v) {
   return String(v || "")
@@ -39,19 +43,4 @@ export function normalizeThresholdsStateForSave(threshDefaults, thresholds) {
     else t[k] = parseFloat(raw) || def;
   });
   return t;
-}
-
-/**
- * API body.thresholds map: numeric thresholds only; latency uses max, others use min.
- * Matches SettingsWorkspace.saveThresholds.
- */
-export function thresholdNormalizedToApiPayload(t) {
-  const thresholdPayload = {};
-  Object.entries(t).forEach(([signalId, value]) => {
-    if (typeof value === "number") {
-      const isLatency = signalId === "p95latency" || signalId === "p99latency";
-      thresholdPayload[signalId] = isLatency ? { min: null, max: value } : { min: value, max: null };
-    }
-  });
-  return thresholdPayload;
 }
