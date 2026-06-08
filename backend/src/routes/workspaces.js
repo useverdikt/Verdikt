@@ -80,10 +80,11 @@ app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireNonVi
       return res.status(400).json({ error: "thresholds object is required" });
     }
     const upsertSql =
-      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value";
+      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification";
     await transaction(async (tx) => {
       for (const [signalId, t] of Object.entries(thresholds)) {
-        await tx.run(upsertSql, [req.params.workspaceId, signalId, t.min ?? null, t.max ?? null]);
+        const required = t?.required_for_certification === true || t?.required_for_certification === 1 ? 1 : 0;
+        await tx.run(upsertSql, [req.params.workspaceId, signalId, t.min ?? null, t.max ?? null, required]);
       }
     });
     await writeAudit({
@@ -158,8 +159,14 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply
     const nextMin = sug.direction === "min" ? sug.suggested : currentThreshold.min;
     const nextMax = sug.direction === "max" ? sug.suggested : currentThreshold.max;
     await run(
-      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
-      [req.params.workspaceId, sug.signal_id, nextMin, nextMax]
+      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
+      [
+        req.params.workspaceId,
+        sug.signal_id,
+        nextMin,
+        nextMax,
+        currentThreshold.required_for_certification ? 1 : 0
+      ]
     );
 
     await writeAudit({

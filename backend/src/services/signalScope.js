@@ -2,8 +2,8 @@
 
 /**
  * Which thresholded signals are required for a release depends on:
- *   1. Connected signal integrations (source → signal map in shared config)
- *   2. Release-type waivers (e.g. e2e_regression optional for model_patch)
+ *   1. required_for_certification flag on the threshold row (Quality Thresholds UI)
+ *   2. Connected signal integrations (source → signal map in shared config)
  */
 
 const { queryAll } = require("../database");
@@ -28,27 +28,21 @@ async function getInScopeSignalIds(workspaceId) {
   return scoped;
 }
 
-function isE2eRegressionWaived(releaseRow) {
-  if (!releaseRow) return false;
-  const reqd = sharedPkg.getRegressionRequiredForReleaseType(releaseRow.release_type);
-  return reqd === false;
-}
-
 /**
  * Whether a missing signal should block certification for this release.
  * Delta keys are never "required" as ingest targets (handled by delta engine).
  */
-function isSignalRequiredForRelease(signalId, { inScopeIds, releaseRow }) {
+function isSignalRequiredForRelease(signalId, { thresholdMap, inScopeIds }) {
   const id = String(signalId || "");
   if (!id || id.endsWith("_delta")) return false;
+  const thr = thresholdMap?.[id];
+  if (!thr?.required_for_certification) return false;
   if (!inScopeIds || !inScopeIds.has(id)) return false;
-  if (id === "e2e_regression" && isE2eRegressionWaived(releaseRow)) return false;
   return true;
 }
 
 module.exports = {
   getConnectedSourceIds,
   getInScopeSignalIds,
-  isE2eRegressionWaived,
   isSignalRequiredForRelease
 };

@@ -12,6 +12,7 @@ const { nowIso } = require("../lib/time");
 const { ensureInboundWebhookSecret } = require("./inboundWebhookSecrets");
 
 const workspaceSeedDone = new Set();
+const defaultRequiredIds = new Set(sharedPkg.defaultRequiredSignalIds || []);
 
 function normalizePolicyRow(row) {
   if (!row) return row;
@@ -19,6 +20,10 @@ function normalizePolicyRow(row) {
     return { ...row, require_ai_eval: row.require_ai_eval ? 1 : 0 };
   }
   return row;
+}
+
+function isDefaultRequiredSignal(signalId) {
+  return defaultRequiredIds.has(String(signalId || ""));
 }
 
 async function ensureWorkspaceSeeded(workspaceId) {
@@ -35,11 +40,12 @@ async function seedThresholds(workspaceId) {
   if (c > 0) return;
   const defaults = sharedPkg.defaultThresholdSeedRows;
   const insertSql =
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value) VALUES (?, ?, ?, ?)";
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
 
   await transaction(async (tx) => {
     for (const row of defaults) {
-      await tx.run(insertSql, [workspaceId, row[0], row[1], row[2]]);
+      const required = isDefaultRequiredSignal(row[0]) ? 1 : 0;
+      await tx.run(insertSql, [workspaceId, row[0], row[1], row[2], required]);
     }
   });
 }
@@ -49,12 +55,13 @@ async function ensureMissingThresholdRows(workspaceId) {
   const existingRows = await queryAll("SELECT signal_id FROM thresholds WHERE workspace_id = ?", [workspaceId]);
   const existing = new Set(existingRows.map((r) => r.signal_id));
   const insertSql =
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value) VALUES (?, ?, ?, ?)";
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
 
   await transaction(async (tx) => {
     for (const row of defaults) {
       if (existing.has(row[0])) continue;
-      await tx.run(insertSql, [workspaceId, row[0], row[1], row[2]]);
+      const required = isDefaultRequiredSignal(row[0]) ? 1 : 0;
+      await tx.run(insertSql, [workspaceId, row[0], row[1], row[2], required]);
     }
   });
 }
@@ -75,12 +82,16 @@ async function seedWorkspacePolicy(workspaceId) {
 async function getThresholdMap(workspaceId) {
   await ensureWorkspaceSeeded(workspaceId);
   await ensureMissingThresholdRows(workspaceId);
-  const rows = await queryAll("SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?", [
-    workspaceId
-  ]);
+  const rows = await queryAll(
+    "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ?",
+    [workspaceId]
+  );
   const map = {};
   for (const r of rows) {
-    map[r.signal_id] = sharedPkg.normalizeThresholdBounds(r.signal_id, r.min_value, r.max_value);
+    map[r.signal_id] = {
+      ...sharedPkg.normalizeThresholdBounds(r.signal_id, r.min_value, r.max_value),
+      required_for_certification: !!r.required_for_certification
+    };
   }
   return map;
 }

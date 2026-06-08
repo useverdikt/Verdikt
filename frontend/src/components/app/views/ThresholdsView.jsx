@@ -13,8 +13,18 @@ function serializeThresholds(t) {
   return JSON.stringify(sorted);
 }
 
+function serializeRequired(r) {
+  if (!r || typeof r !== "object") return "{}";
+  const sorted = {};
+  for (const k of Object.keys(r).sort()) {
+    sorted[k] = !!r[k];
+  }
+  return JSON.stringify(sorted);
+}
+
 export default function ThresholdsView({
   thresholds,
+  thresholdRequired,
   signalCategories,
   isMobile,
   currentUser,
@@ -22,27 +32,35 @@ export default function ThresholdsView({
   onSave
 }) {
   const [local, setLocal] = useState(() => ({ ...thresholds }));
+  const [localRequired, setLocalRequired] = useState(() => ({ ...thresholdRequired }));
   const [saved, setSaved] = useState(false);
   const [collapsedThr, setCollapsedThr] = useState(() => new Set());
   const lastPropSer = useRef(serializeThresholds(thresholds));
+  const lastReqSer = useRef(serializeRequired(thresholdRequired));
 
   useEffect(() => {
     const incoming = serializeThresholds(thresholds);
-    if (incoming !== lastPropSer.current) {
+    const incomingReq = serializeRequired(thresholdRequired);
+    if (incoming !== lastPropSer.current || incomingReq !== lastReqSer.current) {
       lastPropSer.current = incoming;
+      lastReqSer.current = incomingReq;
       setLocal({ ...thresholds });
+      setLocalRequired({ ...thresholdRequired });
     }
-  }, [thresholds]);
+  }, [thresholds, thresholdRequired]);
 
   const isDirty = useMemo(
-    () => serializeThresholds(local) !== serializeThresholds(thresholds),
-    [local, thresholds]
+    () =>
+      serializeThresholds(local) !== serializeThresholds(thresholds) ||
+      serializeRequired(localRequired) !== serializeRequired(thresholdRequired),
+    [local, localRequired, thresholds, thresholdRequired]
   );
 
   const handleSave = async () => {
     if (!isDirty) return;
-    await onSave(local);
+    await onSave(local, localRequired);
     lastPropSer.current = serializeThresholds(local);
+    lastReqSer.current = serializeRequired(localRequired);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -69,7 +87,7 @@ export default function ThresholdsView({
           )}
         </div>
         <p style={{ margin: "14px 0 0", color: C.muted, fontSize: 13, lineHeight: 1.65, maxWidth: 640 }}>
-          Two-layer quality standard: (1) AI output quality (accuracy, safety, tone, hallucination, relevance), and (2) delivery reliability (tests, manual QA, performance, stability). Define the minimum acceptable value for every signal. A release failing any threshold is blocked — and can only ship with a written override on permanent record.
+          Set threshold values and mark signals as <strong style={{ color: C.text, fontWeight: 600 }}>required for certification</strong>. Only required signals from connected sources gate release status. Optional signals can stay configured without blocking collection.
         </p>
       </div>
 
@@ -100,10 +118,13 @@ export default function ThresholdsView({
           </button>
           <div style={{ display: collapsedThr.has(cat.id) ? "none" : "block" }}>
             {cat.signals.map((sig, i) => (
-              <div key={sig.id} style={{ padding: "14px 18px", borderBottom: i < cat.signals.length - 1 ? `1px solid ${C.border}` : "none", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto", alignItems: "center", gap: 20 }}>
+              <div key={sig.id} style={{ padding: "14px 18px", borderBottom: i < cat.signals.length - 1 ? `1px solid ${C.border}` : "none", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto auto", alignItems: "center", gap: 20 }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                     <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{sig.label}</span>
+                    {!sig.id.endsWith("_delta") && localRequired[sig.id] && (
+                      <span style={{ fontSize: 9, fontFamily: C.mono, color: C.accent, background: "rgba(56,189,248,0.08)", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>REQUIRED</span>
+                    )}
                     {sig.hardGate && <span title="Failure renders release permanently UNCERTIFIED — no override available" style={{ fontSize: 9, fontFamily: C.mono, color: C.red, background: C.redDim, padding: "1px 5px", borderRadius: 3, fontWeight: 700, cursor: "help" }}>HARD GATE — NO OVERRIDE</span>}
                     {sig.conditional && <span style={{ fontSize: 9, fontFamily: C.mono, color: C.amber, background: C.amberDim, padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>CONDITIONAL</span>}
                   </div>
@@ -163,6 +184,24 @@ export default function ThresholdsView({
                     <span style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
                     <span style={{ fontFamily: C.mono, fontSize: 13, color: C.dim }}>{sig.unit}</span>
                   </div>
+                )}
+
+                {!sig.id.endsWith("_delta") && (
+                  canAct(currentUser) ? (
+                    <label style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, cursor: "pointer", userSelect: "none" }}>
+                      <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em" }}>REQUIRED</span>
+                      <input
+                        type="checkbox"
+                        checked={!!localRequired[sig.id]}
+                        onChange={(e) => setLocalRequired((r) => ({ ...r, [sig.id]: e.target.checked }))}
+                        style={{ width: 16, height: 16, accentColor: C.accent }}
+                      />
+                    </label>
+                  ) : (
+                    <div style={{ fontFamily: C.mono, fontSize: 10, color: localRequired[sig.id] ? C.accent : C.dim }}>
+                      {localRequired[sig.id] ? "Required" : "Optional"}
+                    </div>
+                  )
                 )}
               </div>
             ))}

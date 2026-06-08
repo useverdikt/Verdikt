@@ -11,7 +11,7 @@ const AI_DIMS = [
 ];
 const OPERATIONS_GUARDRAILS = [
   { k: "smoke", label: "Smoke tests", desc: "Required on every release. P0 failure = hard block, no override.", le: false, unit: "%", step: 1 },
-  { k: "e2e_regression", label: "E2E regression", desc: "Required for new features. Waivable for bug fixes and hotfixes.", le: false, unit: "%", step: 1 },
+  { k: "e2e_regression", label: "E2E regression", desc: "End-to-end regression pass rate — required when marked in certification gate.", le: false, unit: "%", step: 1 },
   { k: "crashrate", label: "Crash rate", desc: "Sessions ending in a crash", le: true, unit: "%", step: 0.01 },
   { k: "errorrate", label: "API error rate", desc: "5xx errors as % of total API calls", le: true, unit: "%", step: 0.1 },
   { k: "p95latency", label: "API p95 latency", desc: "95th percentile API response time under load", le: true, unit: "ms", step: 10 }
