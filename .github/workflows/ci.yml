@@ -34,6 +34,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/verdikt_test
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/verdikt_test
       GEMINI_API_KEY: unit-test-stub-gemini-key-not-for-production-use
+      GEMINI_LIVE_TEST: "0"
     defaults:
       run:
         working-directory: backend

@@ -96,11 +96,16 @@ async function createReleaseSession({
     [key, releaseId, now]
   );
   if (gate.changes === 0) {
-    // Another request won the race — return the release it created.
-    const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = ?", [key]);
-    const release = existing
-      ? await queryOne("SELECT * FROM releases WHERE id = ?", [existing.release_id])
-      : null;
+    // Another request won the race — return the release it created (brief retry if insert still in flight).
+    let release = null;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = ?", [key]);
+      if (existing?.release_id) {
+        release = await queryOne("SELECT * FROM releases WHERE id = ?", [existing.release_id]);
+        if (release) break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 15));
+    }
     return { reused: true, release };
   }
 
