@@ -58,7 +58,7 @@ import {
 import { SignalDetailPanel } from "./components/app/main/AppMainPanels.jsx";
 import { hasBackend } from "./lib/hasBackend.js";
 import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, isCertifiedLike } from "./lib/releaseStatus.js";
-import { thresholdNormalizedToApiPayload } from "./lib/thresholdBounds.js";
+import { thresholdNormalizedToApiPayload, applyThresholdApiMap, defaultRequiredFlags } from "./lib/thresholdBounds.js";
 import { useLoopReadinessNudge } from "./hooks/useLoopReadinessNudge.js";
 import LoopReadinessNudge from "./components/app/LoopReadinessNudge.jsx";
 
@@ -76,6 +76,9 @@ export default function App() {
     return list[0]?.id;
   });
   const [thresholds, setThresholds] = useState(() => S.get("thresholds", DEFAULT_THRESHOLDS));
+  const [thresholdRequired, setThresholdRequired] = useState(() =>
+    S.get("thresholdRequired", defaultRequiredFlags())
+  );
   const [auditLog, setAuditLog] = useState(() => (hasBackend() ? [] : S.get("audit", DEFAULT_AUDIT)));
   const [currentUser, setCurrentUser] = useState(() => {
     const u = S.get("currentUser", null);
@@ -188,6 +191,9 @@ export default function App() {
     S.set("thresholds", thresholds);
   }, [thresholds]);
   useEffect(() => {
+    S.set("thresholdRequired", thresholdRequired);
+  }, [thresholdRequired]);
+  useEffect(() => {
     if (hasBackend()) return;
     S.set("audit", auditLog);
   }, [auditLog]);
@@ -212,14 +218,9 @@ export default function App() {
       );
       if (isCancelled()) return;
       const map = thData?.thresholds || {};
-      setThresholds((prev) => {
-        const next = { ...prev };
-        Object.entries(map).forEach(([signalId, cfg]) => {
-          if (cfg?.min !== null && cfg?.min !== void 0) next[signalId] = cfg.min;
-          if (cfg?.max !== null && cfg?.max !== void 0) next[signalId] = cfg.max;
-        });
-        return next;
-      });
+      const parsed = applyThresholdApiMap(map);
+      setThresholds((prev) => ({ ...prev, ...parsed.thresholds }));
+      setThresholdRequired((prev) => ({ ...defaultRequiredFlags(), ...prev, ...parsed.required }));
       const rows = relData?.releases || [];
       setReleasesNextBefore(relData?.next_before || null);
       setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
@@ -835,16 +836,21 @@ export default function App() {
   const ThresholdsView = () => {
     return /* @__PURE__ */ React.createElement(ThresholdsViewPanel, {
       thresholds,
+      thresholdRequired,
       signalCategories: SIGNAL_CATEGORIES,
       isMobile,
       currentUser,
       canAct,
-      onSave: async (local) => {
+      onSave: async (local, localRequired) => {
         setThresholds(local);
-        if (!hasBackend()) S.set("thresholds", local);
+        setThresholdRequired(localRequired);
+        if (!hasBackend()) {
+          S.set("thresholds", local);
+          S.set("thresholdRequired", localRequired);
+        }
         if (hasBackend()) {
           try {
-            const payload = thresholdNormalizedToApiPayload(local);
+            const payload = thresholdNormalizedToApiPayload(local, localRequired);
             await apiPost(`/api/workspaces/${getWorkspaceId()}/thresholds`, { thresholds: payload }, { navigate });
             setApiBanner(null);
             await refreshWorkspaceFromServer();

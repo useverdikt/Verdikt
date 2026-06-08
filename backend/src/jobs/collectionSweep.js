@@ -23,7 +23,7 @@ async function runCollectionDeadlineSweep() {
 function startCollectionDeadlineSweepJob() {
   const id = setInterval(() => {
     void runCollectionDeadlineSweep();
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
   if (typeof id.unref === "function") id.unref();
   return id;
 }

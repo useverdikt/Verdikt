@@ -1,5 +1,5 @@
 {
-  "defaultCollectionWindowMinutes": 120,
+  "defaultCollectionWindowMinutes": 5,
   "allowedReleaseTypes": [
     "prompt_update",
     "model_patch",
@@ -132,26 +132,33 @@
       "id": "model_patch",
       "label": "Model Patch",
       "icon": "⊘",
-      "regressionRequired": false
+      "regressionRequired": true
     },
     {
       "id": "safety_patch",
       "label": "Safety Hotfix",
       "icon": "⚡",
-      "regressionRequired": false
+      "regressionRequired": true
     },
     {
       "id": "policy_change",
       "label": "Routing / Policy Change",
       "icon": "◎",
-      "regressionRequired": null
+      "regressionRequired": true
     },
     {
       "id": "model_update",
       "label": "Model Version Update",
       "icon": "◐",
-      "regressionRequired": false
+      "regressionRequired": true
     }
+  ],
+  "defaultRequiredSignalIds": [
+    "accuracy",
+    "safety",
+    "tone",
+    "hallucination",
+    "relevance"
   ],
   "defaultThresholds": {
     "smoke": 100,

@@ -3,7 +3,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const sharedPkg = require("../src/lib/sharedPkg");
-const { isSignalRequiredForRelease, isE2eRegressionWaived } = require("../src/services/signalScope");
+const { isSignalRequiredForRelease } = require("../src/services/signalScope");
 
 describe("threshold bounds", () => {
   it("valueToThresholdBounds uses max for crashrate", () => {
@@ -18,18 +18,42 @@ describe("threshold bounds", () => {
 });
 
 describe("signal scope helpers", () => {
-  it("requires only in-scope signals", () => {
-    const inScope = new Set(["accuracy", "smoke"]);
-    assert.equal(isSignalRequiredForRelease("accuracy", { inScopeIds: inScope, releaseRow: {} }), true);
-    assert.equal(isSignalRequiredForRelease("crashrate", { inScopeIds: inScope, releaseRow: {} }), false);
-    assert.equal(isSignalRequiredForRelease("accuracy_delta", { inScopeIds: inScope, releaseRow: {} }), false);
+  const thresholdMap = {
+    accuracy: { min: 85, max: null, required_for_certification: true },
+    smoke: { min: 100, max: null, required_for_certification: true },
+    crashrate: { min: null, max: 0.1, required_for_certification: false },
+    e2e_regression: { min: 95, max: null, required_for_certification: true }
+  };
+
+  it("requires only in-scope signals marked required for certification", () => {
+    const inScope = new Set(["accuracy", "smoke", "e2e_regression"]);
+    assert.equal(
+      isSignalRequiredForRelease("accuracy", { thresholdMap, inScopeIds: inScope }),
+      true
+    );
+    assert.equal(
+      isSignalRequiredForRelease("crashrate", { thresholdMap, inScopeIds: inScope }),
+      false
+    );
+    assert.equal(
+      isSignalRequiredForRelease("accuracy_delta", { thresholdMap, inScopeIds: inScope }),
+      false
+    );
   });
 
-  it("waives e2e_regression for model_patch releases", () => {
-    const rel = { release_type: "model_patch" };
+  it("requires e2e_regression when marked required and source connected", () => {
     const inScope = new Set(["e2e_regression", "smoke"]);
-    assert.equal(isE2eRegressionWaived(rel), true);
-    assert.equal(isSignalRequiredForRelease("e2e_regression", { inScopeIds: inScope, releaseRow: rel }), false);
-    assert.equal(isSignalRequiredForRelease("e2e_regression", { inScopeIds: inScope, releaseRow: { release_type: "prompt_update" } }), true);
+    assert.equal(
+      isSignalRequiredForRelease("e2e_regression", { thresholdMap, inScopeIds: inScope }),
+      true
+    );
+  });
+
+  it("does not require signals when toggle is off even if in scope", () => {
+    const inScope = new Set(["accuracy"]);
+    const map = {
+      accuracy: { min: 85, max: null, required_for_certification: false }
+    };
+    assert.equal(isSignalRequiredForRelease("accuracy", { thresholdMap: map, inScopeIds: inScope }), false);
   });
 });
