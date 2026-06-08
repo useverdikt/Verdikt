@@ -794,7 +794,9 @@ export function ReleaseDashboard({
             <div className="stat-card blue">
               <div className="stat-label">Full loop count</div>
               <div className="stat-value">{wsReady ? stats.loopCount : "—"}</div>
-              <div className="stat-sub" style={{ color: "#f59e0b" }}>● Emerging band</div>
+              <div className="stat-sub" style={loopBand.style || { color: loopBand.cls === "bp-rel" ? "#22c55e" : loopBand.cls === "bp-exp" ? "#94a3b8" : "#f59e0b" }}>
+                ● {loopBand.label} band
+              </div>
             </div>
           </div>
 

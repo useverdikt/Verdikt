@@ -62,6 +62,7 @@ const {
   DEFAULT_COLLECTION_WINDOW_MINUTES,
   ENABLE_THRESHOLD_SUGGESTIONS
 } = require("./deps");
+const { LOOP_BAND_THRESHOLDS, computeLoopBand, computeLoopNextAction } = require("../services/loopReadiness");
 
 module.exports = function registerWorkspaceRoutes(app) {
 app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -938,18 +939,11 @@ app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWo
     ? Math.floor((Date.now() - Date.parse(lastFullLoopAt)) / (24 * 60 * 60 * 1000))
     : null;
 
-  // Quality band (thresholds locked — do not adjust to improve optics)
-  let band;
-  if (fullLoopCount < 10) {
-    band = "Exploratory";
-  } else if (fullLoopCount <= 50) {
-    band = "Emerging";
-  } else {
-    band = fullLoopRatePct >= 60 ? "Reliable" : "Emerging";
-  }
+  // Quality band
+  const band = computeLoopBand(fullLoopCount, fullLoopRatePct);
 
   // Stale: any band, no full loop in 90 days
-  const isStale = lastFullLoopDaysAgo !== null && lastFullLoopDaysAgo > 90;
+  const isStale = lastFullLoopDaysAgo !== null && lastFullLoopDaysAgo > LOOP_BAND_THRESHOLDS.stale_threshold_days;
 
   // Has observations but no full loops (VCS integration working but alignment not triggering)
   const observationsWithoutAlignment = Math.max(0, withObservations - withAlignment);
@@ -972,26 +966,19 @@ app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWo
     last_full_loop_days_ago: lastFullLoopDaysAgo,
     // Thresholds (surfaced for transparency — these are fixed)
     band_thresholds: {
-      exploratory_max: 9,
-      emerging_max: 50,
-      reliable_min_loops: 51,
-      reliable_min_rate_pct: 60,
-      stale_threshold_days: 90
+      exploratory_max: LOOP_BAND_THRESHOLDS.exploratory_max,
+      emerging_min_loops: LOOP_BAND_THRESHOLDS.exploratory_max + 1,
+      reliable_min_loops: LOOP_BAND_THRESHOLDS.reliable_min_loops,
+      reliable_min_rate_pct: LOOP_BAND_THRESHOLDS.reliable_min_rate_pct,
+      stale_threshold_days: LOOP_BAND_THRESHOLDS.stale_threshold_days
     },
-    // Activation guidance
-    next_action: fullLoopCount === 0 && verdictIssued === 0
-      ? "Start by creating a release candidate and ingesting signals."
-      : fullLoopCount === 0 && withObservations === 0
-      ? "Connect your VCS integration to start automatic post-deploy monitoring."
-      : fullLoopCount === 0
-      ? "Production observations are arriving — alignment will compute automatically."
-      : fullLoopCount < 10
-      ? `${10 - fullLoopCount} more full loop${10 - fullLoopCount !== 1 ? "s" : ""} to reach Emerging.`
-      : fullLoopCount <= 50
-      ? `${51 - fullLoopCount} more full loop${51 - fullLoopCount !== 1 ? "s" : ""} to reach Reliable (requires 60%+ rate).`
-      : isStale
-      ? "Loop history exists but no recent loops — check your VCS monitoring windows."
-      : "Feedback loop is healthy. Confidence scores are being calibrated against production reality."
+    next_action: computeLoopNextAction({
+      fullLoopCount,
+      fullLoopRatePct,
+      verdictIssued,
+      withObservations,
+      isStale
+    })
   });
   } catch (e) {
     next(e);
