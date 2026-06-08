@@ -45,23 +45,20 @@ test.describe("releases dashboard (authenticated)", () => {
   });
 });
 
-test.describe("collecting row actions (still toast-only until webhooks / server window exist)", () => {
-  test("View live stream + Extend deadline show guidance toast when a collecting row exists", async ({ page }, testInfo) => {
+test.describe("collecting row actions", () => {
+  test("View live stream opens SSE modal; Extend deadline updates server window", async ({ page }) => {
     await page.goto("/releases");
     await waitForSessionGate(page);
-    if ((await page.locator(".releases-table .release-row.coll-pulse").count()) === 0) {
-      testInfo.skip(true, "No COLLECTING row in current dataset — seed data may differ");
-    }
 
     const collectingDetail = () =>
       page.locator(".release-detail").filter({ hasText: /View live stream|Extend deadline/i });
 
-    /** Expand the row until the collecting detail (actions stack) is in the DOM. */
     const ensureCollectingActions = async () => {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 6; i++) {
         const panel = collectingDetail().first();
         if (await panel.isVisible().catch(() => false)) return;
         const collectingRow = page.locator(".releases-table .release-row.coll-pulse").first();
+        await expect(collectingRow).toBeVisible({ timeout: 15_000 });
         await collectingRow.scrollIntoViewIfNeeded();
         await collectingRow.click();
       }
@@ -69,13 +66,14 @@ test.describe("collecting row actions (still toast-only until webhooks / server 
     };
 
     await ensureCollectingActions();
-    await collectingDetail().getByRole("button", { name: /Extend deadline/i }).click({ force: true });
-    await expect(page.locator("body")).toContainText(/Extend deadline:|collection window|COLLECTING/i);
-
-    // A releases refresh after the toast can reset expanded state — open detail again before the second action.
-    await ensureCollectingActions();
     await collectingDetail().getByRole("button", { name: /View live stream/i }).click({ force: true });
-    await expect(page.locator("body")).toContainText(/Live stream:|webhooks|Settings/i);
+    await expect(page.getByRole("dialog").filter({ hasText: "LIVE SIGNAL STREAM" })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "✕" }).click();
+    await expect(page.getByRole("dialog").filter({ hasText: "LIVE SIGNAL STREAM" })).toHaveCount(0);
+
+    await ensureCollectingActions();
+    await collectingDetail().getByRole("button", { name: /Extend deadline/i }).click({ force: true });
+    await expect(page.locator("body")).toContainText(/Collection deadline extended/i);
   });
 });
 

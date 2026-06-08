@@ -51,6 +51,7 @@ const { validateSignalPayload, getSignalSchema } = require("../services/signalVa
 const { computeAndPersistCorrelations, getCorrelations, getFailureModes, getFailureModeTrends } = require("../services/correlationEngine");
 const { computeAndPersistRecommendation, getRecommendation } = require("../services/recommendationEngine");
 const { issueStreamToken, validateStreamToken, attachStream } = require("../services/sseManager");
+const { extendCollectionDeadline } = require("../services/collectionDeadline");
 const { getVcsIntegration, setVcsIntegration, deleteVcsIntegration } = require("../services/vcsWriteback");
 const {
   DEFAULT_GITHUB_LABEL_NAME,
@@ -153,6 +154,7 @@ module.exports = {
   issueStreamToken,
   validateStreamToken,
   attachStream,
+  extendCollectionDeadline,
   getVcsIntegration,
   setVcsIntegration,
   deleteVcsIntegration,

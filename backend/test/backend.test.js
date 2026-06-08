@@ -604,6 +604,37 @@ describe("API integration", () => {
     assert.equal(rel.environment, "pre-prod");
   });
 
+  it("extends collection deadline for COLLECTING releases", async () => {
+    const email = `extend_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "EXT" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "v-extend-deadline-1", release_type: "model_update" })
+      .expect(201);
+    assert.equal(created.body.status, "COLLECTING");
+    const before = await queryOne("SELECT collection_deadline FROM releases WHERE id = ?", [created.body.id]);
+    assert.ok(before.collection_deadline);
+
+    const extended = await agent
+      .post(`/api/releases/${created.body.id}/collection-deadline/extend`)
+      .send({ extend_minutes: 10 })
+      .expect(200);
+    assert.ok(extended.body.collection_deadline);
+    assert.equal(extended.body.extend_minutes, 10);
+    assert.ok(Date.parse(extended.body.collection_deadline) > Date.parse(before.collection_deadline));
+
+    const after = await queryOne("SELECT collection_deadline FROM releases WHERE id = ?", [created.body.id]);
+    assert.equal(after.collection_deadline, extended.body.collection_deadline);
+
+    await run("UPDATE releases SET status = 'CERTIFIED' WHERE id = ?", [created.body.id]);
+    await agent.post(`/api/releases/${created.body.id}/collection-deadline/extend`).send({ extend_minutes: 5 }).expect(409);
+  });
+
   it("RLS is enabled for public GitHub config tables", async () => {
     const tables = [
       "workspace_inbound_webhook_secrets",
