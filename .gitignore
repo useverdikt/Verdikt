@@ -16,3 +16,6 @@ backend/data/backups/
 
 .vercel
 .env*
+
+# Local signal simulator CSV exports (repo root)
+/signals-*.csv
