@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { newReleaseButton, waitForSessionGate } from "./helpers/shell.js";
 
 const emptyStorage = { cookies: [], origins: [] };
 
-async function waitForSessionGate(page) {
-  await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
+async function waitForSessionGateLocal(page) {
+  await waitForSessionGate(page);
 }
 
 test.describe("session + error states", () => {
@@ -61,9 +62,9 @@ test.describe("form edge cases", () => {
 test.describe("modal interaction coverage", () => {
   test("Start certification modal open, validate, submit", async ({ page }) => {
     await page.goto("/releases");
-    await waitForSessionGate(page);
+    await waitForSessionGateLocal(page);
 
-    await page.getByRole("button", { name: /\+ New release/i }).click();
+    await newReleaseButton(page).click();
     await expect(page.getByRole("heading", { name: /Start certification/i })).toBeVisible();
 
     // Empty version should not proceed.
@@ -78,7 +79,7 @@ test.describe("modal interaction coverage", () => {
 
   test("Share modal opens from release header and closes", async ({ page }) => {
     await page.goto("/releases");
-    await waitForSessionGate(page);
+    await waitForSessionGateLocal(page);
 
     const shareBtn = page.locator(".release-header-share-btn").first();
     if (await shareBtn.count()) {
@@ -95,7 +96,7 @@ test.describe("modal interaction coverage", () => {
 
   test("Certification record modal opens from Audit Trail row", async ({ page }) => {
     await page.goto("/audit");
-    await waitForSessionGate(page);
+    await waitForSessionGateLocal(page);
 
     const clickableRows = page.locator("div[style*='cursor: pointer']");
     const count = await clickableRows.count();
@@ -116,7 +117,7 @@ test.describe("permission / role matrix", () => {
       localStorage.setItem("vdk3_currentUser", JSON.stringify({ name: "Read Only User", role: "engineer" }));
     });
     await page.goto("/thresholds");
-    await waitForSessionGate(page);
+    await waitForSessionGateLocal(page);
     await expect(page.getByText(/READ ONLY/i).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Save Thresholds/i })).toHaveCount(0);
   });
@@ -126,16 +127,16 @@ test.describe("permission / role matrix", () => {
       localStorage.setItem("vdk3_currentUser", JSON.stringify({ name: "Alex VP", role: "vp_engineering" }));
     });
     await page.goto("/releases");
-    await waitForSessionGate(page);
+    await waitForSessionGateLocal(page);
     // Sidebar release actions live in ReleaseCandidateSection (not mounted in current shell); primary CTAs are on the dashboard header.
-    await expect(page.getByRole("button", { name: /\+ New release/i }).first()).toBeVisible();
+    await expect(newReleaseButton(page)).toBeVisible();
   });
 });
 
 test.describe("deep widget states", () => {
   test("Production alignment panel renders either empty or metrics state", async ({ page }) => {
     await page.goto("/intelligence");
-    await waitForSessionGate(page);
+    await waitForSessionGateLocal(page);
     await expect(page.getByText("Production Alignment", { exact: true }).first()).toBeVisible();
     await expect(
       page.getByText(

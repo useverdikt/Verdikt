@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { AUTHENTICATED_SHELL_RE, waitForSessionGate } from "./helpers/shell.js";
 
 const API = "http://127.0.0.1:8787";
 
@@ -73,9 +74,7 @@ test.describe("full-stack smoke — authenticated (storageState from global-setu
 
   test("release shell renders content", async ({ page }) => {
     await page.goto("/releases");
-    await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
-    await expect(page.locator("body")).toContainText(
-      /RELEASE CANDIDATES|No releases yet|Release Signals|SETUP CHECKLIST|Open settings|Verdikt/i
-    );
+    await waitForSessionGate(page);
+    await expect(page.locator("body")).toContainText(AUTHENTICATED_SHELL_RE);
   });
 });

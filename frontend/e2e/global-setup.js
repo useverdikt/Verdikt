@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureE2eFixtureRelease } from "./helpers/seedE2eWorkspace.js";
 
 const API = "http://127.0.0.1:8787";
 const ORIGIN = "http://127.0.0.1:5174";
@@ -77,6 +78,14 @@ export default async function globalSetup() {
     throw new Error(`globalSetup login failed: ${res.status} ${t}`);
   }
   const { user } = await res.json();
+  const cookies = playwrightCookiesFromResponse(res);
+  if (user?.workspace_id) {
+    await ensureE2eFixtureRelease({
+      apiBase: API,
+      cookies,
+      workspaceId: user.workspace_id
+    });
+  }
   const dir = path.join(__dirname, ".auth");
   fs.mkdirSync(dir, { recursive: true });
   const localStorage = [];
@@ -87,7 +96,7 @@ export default async function globalSetup() {
     localStorage.push({ name: "vdk3_workspace_id", value: String(user.workspace_id) });
   }
   const storage = {
-    cookies: playwrightCookiesFromResponse(res),
+    cookies,
     origins: [{ origin: ORIGIN, localStorage }]
   };
   fs.writeFileSync(path.join(dir, "storage.json"), JSON.stringify(storage));

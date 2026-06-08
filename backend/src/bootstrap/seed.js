@@ -33,8 +33,7 @@ async function seedDemoUser() {
 }
 
 /**
- * Second demo login (same password as demo@verdikt.local). Frontend forces the
- * screenshot gallery release list on sync so marketing / QA always see the same rows.
+ * Second demo login (same password as demo@verdikt.local). Used for marketing / QA workspaces.
  */
 async function seedScreenshotsGalleryUser() {
   const email = "screenshots@verdikt.local";
