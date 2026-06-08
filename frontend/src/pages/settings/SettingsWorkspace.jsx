@@ -528,7 +528,7 @@ export default function SettingsWorkspace() {
   };
 
   useEffect(() => {
-    const evalConnected = sources.some((s) => (s.name === "Braintrust" || s.name === "LangSmith") && s.status === "connected");
+    const evalConnected = sources.some((s) => s.name === "Braintrust" && s.status === "connected");
     let thresholdsConfigured = false;
     try {
       const t = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");

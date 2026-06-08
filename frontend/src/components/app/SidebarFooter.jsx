@@ -4,7 +4,7 @@ export default function SidebarFooter({
   currentUser,
   roles: _roles,
   canAct: _canAct,
-  pendingRelease: _pendingRelease,
+  uncertifiedRelease: _uncertifiedRelease,
   formatReleaseDisplayName: _formatReleaseDisplayName,
   setCurrentUser: _setCurrentUser,
   setLocalStore: _setLocalStore,

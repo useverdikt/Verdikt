@@ -14,16 +14,20 @@ export const UI_RELEASE_STATUS = {
 export function mapBackendStatusToUi(backendStatus) {
   const key = String(backendStatus || "").toUpperCase();
   if (UI_RELEASE_STATUS[key]) return UI_RELEASE_STATUS[key];
-  return normalizeLegacyUiStatus(backendStatus);
+  return UI_RELEASE_STATUS.UNCERTIFIED;
 }
 
-/** Accept legacy demo/local statuses during transition. */
+/** Normalize UI or backend release status to canonical UI value (strict 1:1). */
 export function normalizeLegacyUiStatus(status) {
-  const v = String(status || "").toLowerCase();
-  if (v === "shipped") return UI_RELEASE_STATUS.CERTIFIED;
-  if (v === "blocked" || v === "pending") return UI_RELEASE_STATUS.UNCERTIFIED;
-  if (Object.values(UI_RELEASE_STATUS).includes(v)) return v;
-  return UI_RELEASE_STATUS.UNCERTIFIED;
+  const lower = String(status || "").toLowerCase();
+  if (Object.values(UI_RELEASE_STATUS).includes(lower)) return lower;
+  return mapBackendStatusToUi(status);
+}
+
+/** Ingest is locked only after a certified verdict — UNCERTIFIED releases can still receive signals. */
+export function isIngestLocked(status) {
+  const s = normalizeLegacyUiStatus(status);
+  return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
 }
 
 /** @param {string} uiStatus */

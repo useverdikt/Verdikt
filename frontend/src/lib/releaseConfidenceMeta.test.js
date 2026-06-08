@@ -15,8 +15,8 @@ describe("confMeta", () => {
     expect(confMeta("certified", undefined)).toMatchObject({ pct: 91, band: "HIGH", fill: "hi" });
   });
 
-  it("maps legacy blocked/shipped aliases", () => {
-    expect(confMeta("blocked", undefined).pct).toBe(41);
-    expect(confMeta("shipped", undefined).pct).toBe(91);
+  it("maps uncertified and certified UI statuses", () => {
+    expect(confMeta("uncertified", undefined).pct).toBe(41);
+    expect(confMeta("certified", undefined).pct).toBe(91);
   });
 });

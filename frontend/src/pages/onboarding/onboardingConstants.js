@@ -225,10 +225,10 @@ export const INTEGRATION_PROVIDERS = [
     note: "Braintrust eval runs are linked by version tag. Verdikt reads per-release quality scores and applies the floor + max regression check. Primary source for teams using eval pipelines."
   },
   {
-    name: "LangSmith",
-    color: "#34d399",
-    signals: "LLM eval traces — quality, faithfulness, correctness",
-    note: "LangSmith traces are matched by release version tag. Verdikt ingests eval scores per run and certifies against your defined AI thresholds."
+    name: "BrowserStack",
+    color: "#6366f1",
+    signals: "Smoke and E2E regression pass rates",
+    note: "BrowserStack Automate sessions are matched by release version. Verdikt ingests smoke and E2E pass rates for delivery reliability."
   },
   {
     name: "Datadog",
