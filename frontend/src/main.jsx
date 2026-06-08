@@ -18,6 +18,7 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage.jsx"));
 const EmailsPage = lazy(() => import("./pages/EmailsPage.jsx"));
 const IntelligencePage = lazy(() => import("./pages/IntelligencePage.jsx"));
 const BadgePage = lazy(() => import("./pages/BadgePage.jsx"));
+const SignalSimulatorPage = lazy(() => import("./pages/SignalSimulatorPage.jsx"));
 
 const rootEl = document.getElementById("root");
 if (rootEl) {
@@ -55,6 +56,14 @@ if (rootEl) {
                 element={
                   <ProtectedRoute>
                     <IntelligencePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/signal-sim"
+                element={
+                  <ProtectedRoute>
+                    <SignalSimulatorPage />
                   </ProtectedRoute>
                 }
               />
