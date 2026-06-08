@@ -82,6 +82,7 @@ export default function App() {
     loadThresholdSuggestions,
     addAudit,
     refreshReleaseFromBackend,
+    refreshAuditFromServer,
     openAuditRecord
   } = workspace;
 
