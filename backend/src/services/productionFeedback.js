@@ -6,6 +6,7 @@
 
 const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
+const { parseRecommendationBlob } = require("./intelligenceBuilder");
 
 const OUTCOME_CRITERIA = {
   error_rate: [
@@ -137,13 +138,13 @@ async function computeOutcomeAlignment(releaseId, workspaceId) {
   const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
   if (!release) return null;
 
-  const intel = await queryOne("SELECT decision_json FROM release_intelligence WHERE release_id = ?", [releaseId]);
+  const intel = await queryOne(
+    "SELECT recommendation_json, decision_json FROM release_intelligence WHERE release_id = ?",
+    [releaseId]
+  );
   let recommendedVerdict = null;
-  if (intel?.decision_json) {
-    try {
-      recommendedVerdict = JSON.parse(intel.decision_json).recommended_verdict || null;
-    } catch (_) {}
-  }
+  const rec = intel ? parseRecommendationBlob(intel.recommendation_json, intel.decision_json) : null;
+  if (rec?.recommended_verdict) recommendedVerdict = rec.recommended_verdict;
 
   const preRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [releaseId]);
   const preMap = {};

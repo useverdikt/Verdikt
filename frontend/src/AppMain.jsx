@@ -3,6 +3,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { SCREENSHOT_GALLERY_DEMO_EMAIL, SCREENSHOT_SIM_RELEASES } from "./app/screenshotSimReleases.js";
 import { normalizeStoredProject } from "./lib/projectEnv.js";
 import { apiGet, apiPost, getWorkspaceId } from "./lib/apiClient.js";
+import {
+  mergeReleaseIntoList,
+  refreshReleaseDetail,
+  RELEASE_UPDATED_EVENT
+} from "./lib/releaseDetailRefresh.js";
 import { C, T } from "./theme/tokens.js";
 import StartCertModal from "./components/app/modals/StartCertModal.jsx";
 import UserSetupModal from "./components/app/modals/UserSetupModal.jsx";
@@ -313,6 +318,15 @@ export default function App() {
     };
   }, [navigate, refreshWorkspaceFromServer]);
   useEffect(() => {
+    const onReleaseUpdated = (event) => {
+      const mapped = event?.detail;
+      if (!mapped?.backendReleaseId) return;
+      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
+    };
+    window.addEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
+    return () => window.removeEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
+  }, []);
+  useEffect(() => {
     if (currentUser) S.set("currentUser", currentUser);
   }, [currentUser]);
   const current = releases.find((r) => r.id === selectedId) || releases[0];
@@ -445,12 +459,8 @@ export default function App() {
     if (!hasBackend() || !backendReleaseId) return;
     try {
       setApiBanner(null);
-      const detail = await apiGet(`/api/releases/${backendReleaseId}`, { navigate });
-      const mapped = mapBackendDetailToUi(detail);
-      setReleases((p) => p.map((r) => r.backendReleaseId === backendReleaseId ? {
-        ...mapped,
-        id: r.id
-      } : r));
+      const mapped = await refreshReleaseDetail(backendReleaseId, navigate, { emit: false });
+      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
     } catch (e) {
       setApiBanner(e.message || "Failed to refresh release from server");
     }
