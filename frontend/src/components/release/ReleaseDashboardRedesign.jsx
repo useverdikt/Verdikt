@@ -634,7 +634,8 @@ export function ReleaseDashboard({
             rs === UI_RELEASE_STATUS.CERTIFIED ? "certified" : "—",
       meta: (formatReleaseAge ? formatReleaseAge(r) : r.date || "—")
             + " · " + envDisplayLabel(r.environment),
-    };}),
+      };
+    });
   }, [releases, formatReleaseAge]);
 
   useEffect(() => {
