@@ -68,7 +68,7 @@ const {
 } = require("../services/githubApp");
 const { computeOverrideAnalytics } = require("../services/overrideAnalytics");
 const { computeSignalReliability, getSignalReliability, getReliabilitySummary } = require("../services/signalReliability");
-const { ingestProductionSignals, getWorkspaceProductionHealth, getProductionObservations, computeOutcomeAlignment, setIncidentRef, OUTCOME_CRITERIA } = require("../services/productionFeedback");
+const { ingestProductionSignals, getWorkspaceProductionHealth, getProductionObservations, getOutcomeAlignmentForRelease, computeOutcomeAlignment, setIncidentRef, OUTCOME_CRITERIA } = require("../services/productionFeedback");
 const { simulateThresholds } = require("../services/thresholdSimulator");
 const { openMonitoringWindow, scanWindow, getMonitoringWindow, getWorkspaceMonitoringSummary } = require("../services/vcsMonitor");
 const multer = require("multer");
@@ -173,6 +173,7 @@ module.exports = {
   ingestProductionSignals,
   getWorkspaceProductionHealth,
   getProductionObservations,
+  getOutcomeAlignmentForRelease,
   computeOutcomeAlignment,
   setIncidentRef,
   OUTCOME_CRITERIA,

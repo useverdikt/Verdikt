@@ -31,6 +31,7 @@ const {
   getRecommendation,
   ingestProductionSignals,
   getProductionObservations,
+  getOutcomeAlignmentForRelease,
   computeOutcomeAlignment,
   setIncidentRef,
   openMonitoringWindow,
@@ -349,6 +350,7 @@ app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async 
   const audit = auditRows.map((e) => ({ ...e, details: JSON.parse(e.details_json || "{}") }));
   const intelligence = await getReleaseIntelligence(req.params.releaseId);
   const deltas = await listReleaseDeltas(req.params.releaseId);
+  const outcome_alignment = await getOutcomeAlignmentForRelease(req.params.releaseId);
 
   return res.json({
     release: {
@@ -370,6 +372,7 @@ app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async 
     })),
     last_signal_evaluation,
     intelligence,
+    outcome_alignment,
     audit
   });
   } catch (e) {

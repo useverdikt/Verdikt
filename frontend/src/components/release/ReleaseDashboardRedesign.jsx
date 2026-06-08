@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { confMeta } from "../../lib/releaseConfidenceMeta.js";
+import { alignBadgeMeta, hasComputedAlignment } from "../../lib/releaseAlignmentMeta.js";
 import { apiGet } from "../../lib/apiClient.js";
 import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, isCertifiedLike } from "../../lib/releaseStatus.js";
 import "./ReleaseDashboardRedesign.css";
@@ -52,14 +53,8 @@ function formatRelativeTimestamp(iso) {
   return `${days}d ago`;
 }
 
-function alignBadge(status, alignmentVerdict) {
-  const s = normalizeLegacyUiStatus(status);
-  if (alignmentVerdict === "correct")  return { cls: "al-c", label: "CORRECT"  };
-  if (alignmentVerdict === "miss")     return { cls: "al-m", label: "MISS"     };
-  if (alignmentVerdict === "override") return { cls: "al-o", label: "OVERRIDE" };
-  if (s === UI_RELEASE_STATUS.COLLECTING) return { cls: "al-p", label: "—" };
-  if (s === UI_RELEASE_STATUS.UNCERTIFIED) return { cls: "al-p", label: "uncertified" };
-  return { cls: "al-p", label: "—" };
+function alignBadge(alignmentVerdict) {
+  return alignBadgeMeta(alignmentVerdict || "uncertified");
 }
 
 /* Mirrors AppMain evaluateSignal / fmtVal — used for rich expanded rows */
@@ -158,10 +153,12 @@ function SearchIcon() {
 function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signalCategories, formatAge, releaseVersionPrimarySecondary, releaseTypes }) {
   const verdict = verdictMeta(release.status);
   const intel = release.intelligence || {};
-  const rawConf = intel.verdict?.confidence_pct;
-  const confPct =
-    rawConf !== undefined && rawConf !== null && rawConf !== ""
-      ? Number(rawConf)
+  const decisionScore = intel.decision?.confidence_score;
+  const rawVerdictConf = intel.verdict?.confidence_pct;
+  const confPct = Number.isFinite(decisionScore)
+    ? decisionScore
+    : rawVerdictConf !== undefined && rawVerdictConf !== null && rawVerdictConf !== ""
+      ? Number(rawVerdictConf)
       : undefined;
   const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
   const conf = confMeta(
@@ -169,7 +166,7 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
     Number.isFinite(confPct) ? confPct : undefined,
     { receivedSignalCount }
   );
-  const al = alignBadge(release.status, release.alignmentVerdict);
+  const al = alignBadge(release.alignmentVerdict);
   const rvHead = releaseVersionPrimarySecondary
     ? releaseVersionPrimarySecondary(release.version)
     : { primary: release.version || "—", secondary: "" };
@@ -234,14 +231,8 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
 
       <div className="td conf-cell">
         <div className="conf-lbl">
-          {release.status === "collecting" || conf.band === "awaiting signals" ? (
-            <span className="conf-awaiting">{conf.band}</span>
-          ) : (
-            <>
-              <span>{conf.pct ? `${conf.pct}%` : "—"}</span>
-              <span className="conf-band">{conf.band}</span>
-            </>
-          )}
+          <span className="conf-pct">{conf.displayPct}</span>
+          <span className="conf-band">{conf.band}</span>
         </div>
         <div className="conf-track">
           <div className={`conf-fill ${conf.fill}`} style={{ width: `${conf.pct}%` }}></div>
@@ -288,6 +279,7 @@ function ReleaseDetail({
 }) {
   const intel = release.intelligence || {};
   const verdictIntel = intel.verdict || {};
+  const decisionIntel = intel.decision || {};
   const overrideIntel = intel.override || {};
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
@@ -401,7 +393,11 @@ function ReleaseDetail({
   const midReasoning = (
     <>
       <div className="dl">
-        Reasoning{verdictIntel.confidence_pct != null ? ` · ${verdictIntel.confidence_pct}%` : ""}
+        Reasoning{Number.isFinite(decisionIntel.confidence_score)
+          ? ` · ${decisionIntel.confidence_score}%`
+          : verdictIntel.confidence_pct != null
+            ? ` · ${verdictIntel.confidence_pct}%`
+            : ""}
         {(catStatuses?.ai === "fail" || catStatuses?.tests === "fail") ? " · review" : ""}
       </div>
       {reasoningPoints && reasoningPoints.length > 0 ? (
@@ -601,6 +597,7 @@ export function ReleaseDashboard({
     }
     if (activeTab === "Uncertified") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
     if (activeTab === "Overrides")    list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
+    if (activeTab === "Alignment")    list = list.filter(r => hasComputedAlignment(r.alignmentVerdict));
     if (activeFilter === "CERTIFIED")   list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED);
     if (activeFilter === "UNCERTIFIED") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
     if (activeFilter === "OVERRIDE")    list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
@@ -619,7 +616,7 @@ export function ReleaseDashboard({
     const uncertified = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
     const overrideCount = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
     const overrideRate = certified ? Math.round((overrideCount / certified) * 100) : 0;
-    const loopCount = releases.filter(r => r.alignmentVerdict).length;
+    const loopCount = releases.filter(r => hasComputedAlignment(r.alignmentVerdict)).length;
     return { certRate, uncertified, overrideRate, loopCount, total, certified };
   }, [releases]);
 
