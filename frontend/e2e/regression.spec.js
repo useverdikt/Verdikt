@@ -67,9 +67,10 @@ test.describe("collecting row actions", () => {
 
     await ensureCollectingActions();
     await collectingDetail().getByRole("button", { name: /View live stream/i }).click({ force: true });
-    await expect(page.getByRole("dialog").filter({ hasText: "LIVE SIGNAL STREAM" })).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "✕" }).click();
-    await expect(page.getByRole("dialog").filter({ hasText: "LIVE SIGNAL STREAM" })).toHaveCount(0);
+    const liveDialog = page.getByRole("dialog").filter({ hasText: "LIVE SIGNAL STREAM" });
+    await expect(liveDialog).toBeVisible();
+    await liveDialog.getByRole("button", { name: "Close" }).click();
+    await expect(liveDialog).toHaveCount(0);
 
     await ensureCollectingActions();
     await collectingDetail().getByRole("button", { name: /Extend deadline/i }).click({ force: true });
