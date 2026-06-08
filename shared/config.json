@@ -117,7 +117,6 @@
   },
   "signalSourceMap": {
     "braintrust": ["accuracy", "safety", "tone", "hallucination", "relevance"],
-    "langsmith": ["accuracy", "safety", "tone", "hallucination", "relevance"],
     "browserstack": ["smoke", "e2e_regression"],
     "sentry": ["crashrate", "anrrate", "errorrate", "oomrate"],
     "datadog": ["startup", "screenload", "fps", "jserrors", "p95latency", "p99latency", "errorunderload", "recovery"]

@@ -181,7 +181,7 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
 
   /* signal dots — up to 5 categories */
   const dots = signalCategories.slice(0, 5).map((cat) => {
-    const s = catStatuses[cat.id] || "pending";
+    const s = catStatuses[cat.id] || "missing";
     if (s === "pass")   return "p";
     if (s === "fail")   return "f";
     if (s === "waived") return "w";
@@ -196,7 +196,7 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
     normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING ? "in progress" :
     normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? (release.overrideBy?.split(",")[0]?.trim() || "override") :
     normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED ? "auto-certified" :
-    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED ? "needs review" : "—";
+    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED ? "uncertified" : "—";
 
   return (
     <div
@@ -582,7 +582,7 @@ export function ReleaseDashboard({
       const want = activeEnv === "Prod" ? "prod" : activeEnv === "Pre-Prod" ? "pre-prod" : null;
       if (want) list = list.filter((r) => envBucket(r.environment) === want);
     }
-    if (activeTab === "Needs review") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
+    if (activeTab === "Uncertified") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
     if (activeTab === "Overrides")    list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
     if (activeFilter === "CERTIFIED")   list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED);
     if (activeFilter === "UNCERTIFIED") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
@@ -783,7 +783,7 @@ export function ReleaseDashboard({
 
           {/* Tabs */}
           <div className="tabs">
-            {["All releases", "Needs review", "Overrides", "Alignment"].map(tab => (
+            {["All releases", "Uncertified", "Overrides", "Alignment"].map(tab => (
               <button key={tab} type="button"
                 className={`tab${activeTab === tab ? " active" : ""}`}
                 onClick={() => setActiveTab(tab)}>
