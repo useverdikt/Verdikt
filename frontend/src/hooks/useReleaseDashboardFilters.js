@@ -4,7 +4,6 @@ import { envBucket } from "../components/release/dashboard/releaseDashboardUtils
 
 export function useReleaseDashboardFilters(releases) {
   const [activeEnv, setActiveEnv] = useState("All");
-  const [activeTab, setActiveTab] = useState("All releases");
   const [activeFilter, setActiveFilter] = useState("All");
   const [expandedId, setExpandedId] = useState(null);
   const [searchQ, setSearchQ] = useState("");
@@ -14,12 +13,6 @@ export function useReleaseDashboardFilters(releases) {
     if (activeEnv !== "All") {
       const want = activeEnv === "Prod" ? "prod" : activeEnv === "Pre-Prod" ? "pre-prod" : null;
       if (want) list = list.filter((r) => envBucket(r.environment) === want);
-    }
-    if (activeTab === "Uncertified") {
-      list = list.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
-    }
-    if (activeTab === "Overrides") {
-      list = list.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
     }
     if (activeFilter === "CERTIFIED") {
       list = list.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED);
@@ -35,7 +28,7 @@ export function useReleaseDashboardFilters(releases) {
       list = list.filter((r) => String(r.version || "").toLowerCase().includes(q));
     }
     return list;
-  }, [releases, activeEnv, activeTab, activeFilter, searchQ]);
+  }, [releases, activeEnv, activeFilter, searchQ]);
 
   const toggleRow = (id) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -44,8 +37,6 @@ export function useReleaseDashboardFilters(releases) {
   return {
     activeEnv,
     setActiveEnv,
-    activeTab,
-    setActiveTab,
     activeFilter,
     setActiveFilter,
     expandedId,

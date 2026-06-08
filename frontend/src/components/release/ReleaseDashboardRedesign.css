@@ -188,29 +188,6 @@
   gap: 6px;
 }
 
-/* ── TABS ───────────────────────────────────────────────────────────────────── */
-.release-redesign .tabs {
-  display: flex;
-  border-bottom: 1px solid #18243a;
-  margin-bottom: 20px;
-}
-.release-redesign .tab {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11.5px;
-  font-weight: 500;
-  padding: 10px 16px;
-  color: #384d60;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color .15s, border-color .15s;
-  background: none;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-}
-.release-redesign .tab:hover { color: #6e87a2; }
-.release-redesign .tab.active { color: #c4d4e8; border-bottom-color: #c4d4e8; }
-
 /* ── PANEL HEADER ───────────────────────────────────────────────────────────── */
 .release-redesign .panel-header {
   display: flex;
