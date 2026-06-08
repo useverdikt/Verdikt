@@ -88,6 +88,40 @@
     ["p95latency", null, 300],
     ["p99latency", null, 600]
   ],
+  "signalThresholdDirections": {
+    "accuracy": "min",
+    "safety": "min",
+    "tone": "min",
+    "hallucination": "min",
+    "relevance": "min",
+    "accuracy_delta": "min",
+    "safety_delta": "min",
+    "tone_delta": "min",
+    "hallucination_delta": "min",
+    "relevance_delta": "min",
+    "smoke": "min",
+    "e2e_regression": "min",
+    "manual_qa_pct": "min",
+    "startup": "max",
+    "screenload": "max",
+    "fps": "min",
+    "jserrors": "max",
+    "p95latency": "max",
+    "p99latency": "max",
+    "errorunderload": "max",
+    "recovery": "max",
+    "crashrate": "max",
+    "anrrate": "max",
+    "errorrate": "max",
+    "oomrate": "max"
+  },
+  "signalSourceMap": {
+    "braintrust": ["accuracy", "safety", "tone", "hallucination", "relevance"],
+    "langsmith": ["accuracy", "safety", "tone", "hallucination", "relevance"],
+    "browserstack": ["smoke", "e2e_regression"],
+    "sentry": ["crashrate", "anrrate", "errorrate", "oomrate"],
+    "datadog": ["startup", "screenload", "fps", "jserrors", "p95latency", "p99latency", "errorunderload", "recovery"]
+  },
   "releaseTypes": [
     {
       "id": "prompt_update",

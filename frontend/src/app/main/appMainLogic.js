@@ -1,6 +1,7 @@
 import shared from "../../../../shared/config.json";
 import { SCREENSHOT_SIM_RELEASES } from "../screenshotSimReleases.js";
 import { C } from "../../theme/tokens.js";
+import { mapBackendStatusToUi, normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 
 const NAV_TO_PATH = {
   release: "/releases",
@@ -491,12 +492,6 @@ const mapBackendDetailToUi = (detail) => {
   for (const s of detail.signals || []) {
     signals[s.signal_id] = s.value;
   }
-  const statusMap = {
-    COLLECTING: "collecting",
-    UNCERTIFIED: "pending",
-    CERTIFIED: "shipped",
-    CERTIFIED_WITH_OVERRIDE: "overridden"
-  };
   const out = {
     id: `rc-${bid.replace(/\W/g, "")}`,
     backendReleaseId: bid,
@@ -504,7 +499,7 @@ const mapBackendDetailToUi = (detail) => {
     date: (release.created_at || "").slice(0, 10) || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
     releaseType: release.release_type || "model_update",
     environment: release.environment || "",
-    status: statusMap[release.status] || "pending",
+    status: mapBackendStatusToUi(release.status),
     signals,
     sources: release.status === "COLLECTING" ? SIGNAL_SOURCES.map((s) => ({ ...s, status: "waiting" })) : []
   };
@@ -560,11 +555,11 @@ const releaseSortTimestampMs = (r) => {
   return null;
 };
 const sidebarStatusLabel = (status) => {
-  if (status === "shipped") return "Certified";
-  if (status === "overridden") return "Override";
-  if (status === "blocked") return "Blocked";
-  if (status === "collecting") return "Collecting";
-  if (status === "pending") return "In review";
+  const s = normalizeLegacyUiStatus(status);
+  if (s === UI_RELEASE_STATUS.CERTIFIED) return "Certified";
+  if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return "Override";
+  if (s === UI_RELEASE_STATUS.UNCERTIFIED) return "Uncertified";
+  if (s === UI_RELEASE_STATUS.COLLECTING) return "Collecting";
   return status ? String(status) : "—";
 };
 const formatSidebarReleaseAge = (r) => {
@@ -618,7 +613,10 @@ const formatSidebarDayHeading = (dayKey) => {
   });
 };
 const getLastCertified = (releases) => {
-  return releases.find((r) => r.status === "shipped" || r.status === "overridden") || null;
+  return releases.find((r) => {
+    const s = normalizeLegacyUiStatus(r.status);
+    return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
+  }) || null;
 };
 const calcVerdict = (signals, thresholds, releaseType, prevSigs = null) => {
   const failing = [];
@@ -797,7 +795,9 @@ const scoreJustification = (text) => {
   return { grade: "STRONG", color: C.green, note: "Well documented — this justification will hold up under audit review." };
 };
 const releaseRiskScore = (r, thresholds) => {
-  if (r.status === "blocked") return { level: "HIGH RISK", color: C.red };
+  if (normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
+    return { level: "HIGH RISK", color: C.red };
+  }
   if (r.status === "overridden") return { level: "OVERRIDDEN", color: C.amber };
   let nearMiss = 0;
   SIGNAL_CATEGORIES.flatMap((c) => c.signals).forEach((sig) => {
@@ -819,17 +819,20 @@ const genCertSummary = (release, failing, isShip) => {
   const rtLabel = rt ? rt.label.toLowerCase() : "release";
   const totalSigs = SIGNAL_CATEGORIES.flatMap((c) => c.signals).length;
   const passCount = totalSigs - failing.length;
-  if (isShip && release.status === "shipped") {
+  if (isShip && normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED) {
     return `${release.version} is a ${rtLabel} that passed all ${totalSigs} quality signals and was certified on ${release.date}. ${passCount} of ${totalSigs} signals met or exceeded threshold. No overrides were required. This release is on permanent record as fully certified.`;
   }
   if (release.status === "overridden") {
     const weakest = failing[0];
     return `${release.version} shipped as CERTIFIED WITH OVERRIDE on ${release.date}. ${passCount} of ${totalSigs} signals passed, but ${failing.length} signal${failing.length > 1 ? "s" : ""} — including ${weakest ? weakest.catLabel : "one category"} — fell below threshold. An override was recorded with a named owner and written justification permanently on record.`;
   }
-  if (release.status === "blocked") {
+  if (normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
     return `${release.version} is UNCERTIFIED. ${failing.length} signal${failing.length > 1 ? "s" : ""} failed to meet threshold and a hard gate prevented override. This release cannot ship until the failing signals are resolved.`;
   }
-  return `${release.version} is pending certification. ${passCount} of ${totalSigs} signals are currently passing. ${failing.length > 0 ? `${failing.length} signal${failing.length > 1 ? "s" : ""} require attention before a verdict can be issued.` : "All signals are meeting threshold."}`;
+  if (normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING) {
+    return `${release.version} is collecting signals. ${passCount} of ${totalSigs} signals are currently passing. ${failing.length > 0 ? `${failing.length} signal${failing.length > 1 ? "s" : ""} require attention before a verdict can be issued.` : "All received signals are meeting threshold."}`;
+  }
+  return `${release.version} certification summary. ${passCount} of ${totalSigs} signals are currently passing.`;
 };
 
 export {

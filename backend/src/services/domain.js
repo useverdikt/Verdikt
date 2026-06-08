@@ -58,7 +58,7 @@ const { runPostVerdictEffects } = require("./postVerdictEffects");
 
 async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
   const latest = await getLatestSignalMap(releaseId);
-  const missingRequiredSignals = await getMissingRequiredSignals(release.workspace_id, releaseId, latest);
+  const missingRequiredSignals = await getMissingRequiredSignals(release.workspace_id, releaseId, latest, release);
   const missingAiSignals = missingRequiredSignals.filter((id) => AI_SIGNAL_IDS.includes(id));
   const missingNonAiSignals = missingRequiredSignals.filter((id) => !AI_SIGNAL_IDS.includes(id));
   const policy = await getWorkspacePolicy(release.workspace_id);

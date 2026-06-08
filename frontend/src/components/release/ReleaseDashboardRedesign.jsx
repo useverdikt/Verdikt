@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { confMeta } from "../../lib/releaseConfidenceMeta.js";
 import { apiGet } from "../../lib/apiClient.js";
+import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, isCertifiedLike } from "../../lib/releaseStatus.js";
 import "./ReleaseDashboardRedesign.css";
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
 function verdictMeta(status) {
-  if (status === "shipped")    return { cls: "v-cert", label: "CERTIFIED",     pulse: false };
-  if (status === "overridden") return { cls: "v-ov",   label: "WITH OVERRIDE", pulse: false };
-  if (status === "blocked")    return { cls: "v-un",   label: "UNCERTIFIED",   pulse: false };
-  if (status === "collecting") return { cls: "v-col",  label: "COLLECTING",    pulse: true  };
-  return                              { cls: "v-col",  label: "PENDING",       pulse: false };
+  const s = normalizeLegacyUiStatus(status);
+  if (s === UI_RELEASE_STATUS.CERTIFIED) return { cls: "v-cert", label: "CERTIFIED", pulse: false };
+  if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return { cls: "v-ov", label: "WITH OVERRIDE", pulse: false };
+  if (s === UI_RELEASE_STATUS.UNCERTIFIED) return { cls: "v-un", label: "UNCERTIFIED", pulse: false };
+  if (s === UI_RELEASE_STATUS.COLLECTING) return { cls: "v-col", label: "COLLECTING", pulse: true };
+  return { cls: "v-col", label: "COLLECTING", pulse: false };
 }
 
 /* env comes from r.environment (set on new releases / backend) */
@@ -51,12 +53,13 @@ function formatRelativeTimestamp(iso) {
 }
 
 function alignBadge(status, alignmentVerdict) {
+  const s = normalizeLegacyUiStatus(status);
   if (alignmentVerdict === "correct")  return { cls: "al-c", label: "CORRECT"  };
   if (alignmentVerdict === "miss")     return { cls: "al-m", label: "MISS"     };
   if (alignmentVerdict === "override") return { cls: "al-o", label: "OVERRIDE" };
-  if (status === "collecting")         return { cls: "al-p", label: "—"        };
-  if (status === "blocked")            return { cls: "al-p", label: "pending"  };
-  return                                      { cls: "al-p", label: "pending"  };
+  if (s === UI_RELEASE_STATUS.COLLECTING) return { cls: "al-p", label: "—" };
+  if (s === UI_RELEASE_STATUS.UNCERTIFIED) return { cls: "al-p", label: "uncertified" };
+  return { cls: "al-p", label: "—" };
 }
 
 /* Mirrors AppMain evaluateSignal / fmtVal — used for rich expanded rows */
@@ -190,10 +193,10 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
 
   const timeLabel = formatAge ? formatAge(release) : (release.date || "—");
   const subLabel =
-    release.status === "collecting"  ? "in progress" :
-    release.status === "overridden"  ? (release.overrideBy?.split(",")[0]?.trim() || "override") :
-    release.status === "shipped"     ? "auto-certified" :
-    release.status === "blocked"     ? "needs review" : "—";
+    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING ? "in progress" :
+    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? (release.overrideBy?.split(",")[0]?.trim() || "override") :
+    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED ? "auto-certified" :
+    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED ? "needs review" : "—";
 
   return (
     <div
@@ -395,7 +398,7 @@ function ReleaseDetail({
               ? "One or more signals failed their configured threshold."
               : "All evaluated signals cleared their thresholds."}
           </div>
-          {release.status === "shipped" && (
+          {normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED && (
             <div className="ri">No correlated failure patterns matched prior incidents.</div>
           )}
         </>
@@ -487,7 +490,7 @@ function ReleaseDetail({
             </>
           )}
           <div className="da">
-            {release.status === "blocked" && (
+            {normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED && (
               <button
                 type="button"
                 className="dab pr"
@@ -579,11 +582,11 @@ export function ReleaseDashboard({
       const want = activeEnv === "Prod" ? "prod" : activeEnv === "Pre-Prod" ? "pre-prod" : null;
       if (want) list = list.filter((r) => envBucket(r.environment) === want);
     }
-    if (activeTab === "Needs review") list = list.filter(r => r.status === "blocked");
-    if (activeTab === "Overrides")    list = list.filter(r => r.status === "overridden");
-    if (activeFilter === "CERTIFIED")   list = list.filter(r => r.status === "shipped");
-    if (activeFilter === "UNCERTIFIED") list = list.filter(r => r.status === "blocked");
-    if (activeFilter === "OVERRIDE")    list = list.filter(r => r.status === "overridden");
+    if (activeTab === "Needs review") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
+    if (activeTab === "Overrides")    list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
+    if (activeFilter === "CERTIFIED")   list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED);
+    if (activeFilter === "UNCERTIFIED") list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
+    if (activeFilter === "OVERRIDE")    list = list.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
     if (searchQ.trim()) {
       const q = searchQ.toLowerCase();
       list = list.filter(r => String(r.version || "").toLowerCase().includes(q));
@@ -594,10 +597,10 @@ export function ReleaseDashboard({
   /* summary stats */
   const stats = useMemo(() => {
     const total = releases.length;
-    const certified = releases.filter(r => r.status === "shipped" || r.status === "overridden").length;
+    const certified = releases.filter(r => isCertifiedLike(r.status)).length;
     const certRate = total ? Math.round((certified / total) * 100) : 0;
-    const uncertified = releases.filter(r => r.status === "blocked").length;
-    const overrideCount = releases.filter(r => r.status === "overridden").length;
+    const uncertified = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
+    const overrideCount = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
     const overrideRate = certified ? Math.round((overrideCount / certified) * 100) : 0;
     const loopCount = releases.filter(r => r.alignmentVerdict).length;
     return { certRate, uncertified, overrideRate, loopCount, total, certified };
@@ -618,18 +621,21 @@ export function ReleaseDashboard({
 
   /* recent activity */
   const recentActivity = useMemo(() => {
-    return releases.slice(0, 5).map(r => ({
+    return releases.slice(0, 5).map(r => {
+      const rs = normalizeLegacyUiStatus(r.status);
+      return {
       r,
-      dot: r.status === "shipped"    ? "#22c55e" :
-           r.status === "blocked"    ? "#ef4444" :
-           r.status === "overridden" ? "#f59e0b" : "#3b82f6",
-      text: r.status === "collecting"  ? "collecting signals"        :
-            r.status === "blocked"     ? "UNCERTIFIED"               :
-            r.status === "overridden"  ? "certified with override"   :
-            r.status === "shipped"     ? "certified"                 : "—",
+      dot: rs === UI_RELEASE_STATUS.CERTIFIED ? "#22c55e" :
+           rs === UI_RELEASE_STATUS.UNCERTIFIED ? "#ef4444" :
+           rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? "#f59e0b" : "#3b82f6",
+      text: rs === UI_RELEASE_STATUS.COLLECTING ? "collecting signals" :
+            rs === UI_RELEASE_STATUS.UNCERTIFIED ? "UNCERTIFIED" :
+            rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? "certified with override" :
+            rs === UI_RELEASE_STATUS.CERTIFIED ? "certified" : "—",
       meta: (formatReleaseAge ? formatReleaseAge(r) : r.date || "—")
             + " · " + envDisplayLabel(r.environment),
-    }));
+      };
+    });
   }, [releases, formatReleaseAge]);
 
   useEffect(() => {
@@ -690,7 +696,7 @@ export function ReleaseDashboard({
     return [
       ["Total releases", stats.total, false],
       ["Verdict issued", releases.filter((r) => r.status !== "collecting").length, false],
-      ["Eligible (3hr+)", Math.max(0, releases.filter((r) => !["collecting", "pending"].includes(r.status)).length), false],
+      ["Eligible (3hr+)", Math.max(0, releases.filter((r) => normalizeLegacyUiStatus(r.status) !== UI_RELEASE_STATUS.COLLECTING).length), false],
       ["With observations", stats.total > 0 ? Math.round(stats.total * 0.77) : 0, false],
       ["Full loops", stats.loopCount, true]
     ];
@@ -761,7 +767,7 @@ export function ReleaseDashboard({
             <div className="stat-card red">
               <div className="stat-label">Uncertified</div>
               <div className="stat-value r">{wsReady ? stats.uncertified : "—"}</div>
-              <div className="stat-sub">releases pending review</div>
+              <div className="stat-sub">uncertified releases</div>
             </div>
             <div className="stat-card amber">
               <div className="stat-label">Override rate</div>

@@ -350,7 +350,7 @@ export default function Sidebar({
   releaseRiskScore: _releaseRiskScore,
   thresholds: _thresholdsUnused,
 }) {
-  const nBlocked = releaseSidebarCounts?.nBlocked ?? 0;
+  const nUncertified = releaseSidebarCounts?.nUncertified ?? 0;
   const planLabel = (() => {
     const multi = formatCertTiersShort(project?.certEnvs);
     if (multi) return `${multi} · workspace`;
@@ -433,7 +433,7 @@ export default function Sidebar({
       <nav style={{ padding: "8px 12px", flex: 1, overflowY: "auto" }}>
         <SectionLabel>Workspace</SectionLabel>
         <NavBtn id="release" label="Releases" active={nav === "release"}
-          badge={nBlocked > 0 ? nBlocked : null}
+          badge={nUncertified > 0 ? nUncertified : null}
           onClick={() => onNavigate("release")} />
         <NavBtn id="intelligence" label="Intelligence Hub" active={nav === "intelligence"}
           onClick={() => onNavigate("intelligence")} />

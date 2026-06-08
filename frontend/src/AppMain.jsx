@@ -57,6 +57,8 @@ import {
 } from "./app/main/appMainLogic.js";
 import { SignalDetailPanel } from "./components/app/main/AppMainPanels.jsx";
 import { hasBackend } from "./lib/hasBackend.js";
+import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, isCertifiedLike } from "./lib/releaseStatus.js";
+import { thresholdNormalizedToApiPayload } from "./lib/thresholdBounds.js";
 import { useLoopReadinessNudge } from "./hooks/useLoopReadinessNudge.js";
 import LoopReadinessNudge from "./components/app/LoopReadinessNudge.jsx";
 
@@ -341,14 +343,13 @@ export default function App() {
     prevNavRef.current = nav;
   }, [nav, sidebarReleaseGroups]);
   const releaseSidebarCounts = React.useMemo(() => {
-    const nCert = releases.filter((r) => r.status === "shipped").length;
-    const nBlocked = releases.filter((r) => r.status === "blocked").length;
-    const nProgress = releases.filter((r) => r.status === "pending" || r.status === "collecting").length;
-    const nOv = releases.filter((r) => r.status === "overridden").length;
-    // Total "passed" = purely certified + certified-with-override
+    const nCert = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED).length;
+    const nUncertified = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
+    const nProgress = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.COLLECTING).length;
+    const nOv = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
     const nPassed = nCert + nOv;
     const nTotal = releases.length;
-    return { nCert, nBlocked, nProgress, nOv, nPassed, nTotal };
+    return { nCert, nUncertified, nProgress, nOv, nPassed, nTotal };
   }, [releases]);
   const sidebarRecById = React.useMemo(() => {
     const m = /* @__PURE__ */ new Map();
@@ -712,8 +713,12 @@ export default function App() {
         return;
       }
     }
-    setReleases((p) => p.map((r) => r.id === selectedId ? { ...r, status: "pending" } : r));
-    if (!hasBackend() || !backendId) showToast("All signals collected — verdict ready", C.green);
+    if (!hasBackend() || !backendId) {
+      const v = calcVerdict(active.signals, thresholds, active.releaseType);
+      const nextStatus = v.recommendation === "SHIP" ? UI_RELEASE_STATUS.CERTIFIED : UI_RELEASE_STATUS.UNCERTIFIED;
+      setReleases((p) => p.map((r) => r.id === selectedId ? { ...r, status: nextStatus } : r));
+      showToast("All signals collected — verdict ready", C.green);
+    }
   };
   const handleConfirmReevaluation = async () => {
     if (reEvaluating) return;
@@ -725,7 +730,7 @@ export default function App() {
       setReEvaluating(false);
     }
   };
-  const pendingRelease = releases.find((r) => r.status === "pending");
+  const uncertifiedRelease = releases.find((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
   const navItems = [{
     id: "release",
     label: "Release Signals",
@@ -839,12 +844,7 @@ export default function App() {
         if (!hasBackend()) S.set("thresholds", local);
         if (hasBackend()) {
           try {
-            const payload = {};
-            Object.entries(local).forEach(([signalId, value]) => {
-              if (typeof value !== "number") return;
-              const isLatency = signalId === "p95latency" || signalId === "p99latency";
-              payload[signalId] = isLatency ? { min: null, max: value } : { min: value, max: null };
-            });
+            const payload = thresholdNormalizedToApiPayload(local);
             await apiPost(`/api/workspaces/${getWorkspaceId()}/thresholds`, { thresholds: payload }, { navigate });
             setApiBanner(null);
             await refreshWorkspaceFromServer();
@@ -932,7 +932,7 @@ export default function App() {
         navigate(NAV_TO_PATH[id] || "/releases");
     },
     roles: ROLES,
-    pendingRelease,
+    pendingRelease: uncertifiedRelease,
     setCurrentUser,
     setLocalStore: S.set,
     onLogout: () => {

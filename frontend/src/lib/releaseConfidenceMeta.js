@@ -1,25 +1,28 @@
+import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "./releaseStatus.js";
+
 /**
  * Confidence band + bar fill for release history (shared with tests).
  * @param {string} status — release.status
  * @param {number|undefined} confidencePct — intelligence.verdict.confidence_pct when present
  */
 export function confMeta(status, confidencePct) {
+  const s = normalizeLegacyUiStatus(status);
   const pct = Math.max(
     0,
     Math.min(
       100,
       Number.isFinite(confidencePct)
         ? confidencePct
-        : status === "blocked"
+        : s === UI_RELEASE_STATUS.UNCERTIFIED
           ? 41
-          : status === "overridden"
+          : s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
             ? 68
-            : status === "shipped"
+            : s === UI_RELEASE_STATUS.CERTIFIED
               ? 91
               : 0
     )
   );
-  if (status === "collecting" || pct === 0) {
+  if (s === UI_RELEASE_STATUS.COLLECTING || pct === 0) {
     return { pct: 0, band: "awaiting signals", fill: "" };
   }
   if (pct >= 75) return { pct, band: "HIGH", fill: "hi" };

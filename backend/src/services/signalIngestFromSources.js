@@ -33,6 +33,9 @@ function integrationTestMock(sid) {
       matched: true
     };
   }
+  if (sid === "browserstack") {
+    return { signals: { smoke: 100, e2e_regression: 97 }, matched: true };
+  }
   if (sid === "sentry") {
     return { signals: { crashrate: 0.06, errorrate: 0.45, anrrate: 0.02 }, matched: true };
   }
@@ -95,6 +98,91 @@ async function pullBraintrustExperimentSignals(apiKey, version) {
   }
   const mapped = mapIntegrationSignals("braintrust", { metrics });
   return { signals: mapped.signals, matched: Object.keys(mapped.signals).length > 0 };
+}
+
+function browserStackBasicAuth(username, accessKey) {
+  return `Basic ${Buffer.from(`${username}:${accessKey}`).toString("base64")}`;
+}
+
+/**
+ * Pull smoke / e2e pass rates from BrowserStack Automate builds matched by release version.
+ * @param {string} username
+ * @param {string} accessKey
+ * @param {string} version
+ */
+async function pullBrowserStackSignals(username, accessKey, version) {
+  const ver = String(version || "").trim();
+  const user = String(username || "").trim();
+  const key = String(accessKey || "").trim();
+  if (!ver) return { signals: {}, matched: false, error: "empty_version" };
+  if (!user || !key) return { signals: {}, matched: false, error: "missing_browserstack_credentials" };
+
+  if (process.env.NODE_ENV === "test" || process.env.SKIP_INTEGRATION_PULL === "1") {
+    return integrationTestMock("browserstack");
+  }
+
+  const auth = browserStackBasicAuth(user, key);
+  const buildsRes = await fetch("https://api.browserstack.com/automate/builds.json?limit=40", {
+    headers: { Authorization: auth }
+  });
+  if (buildsRes.status === 401 || buildsRes.status === 403) {
+    return { signals: {}, matched: false, error: "invalid_browserstack_credentials" };
+  }
+  if (!buildsRes.ok) return { signals: {}, matched: false, error: `browserstack_http_${buildsRes.status}` };
+
+  const builds = await buildsRes.json();
+  const list = Array.isArray(builds) ? builds : [];
+  const match = list.find((b) => {
+    const n = String(b.name || "");
+    const tag = String(b.build_tag || b.tag || "");
+    return (ver && n.includes(ver)) || (ver && tag.includes(ver));
+  });
+  if (!match || !match.hashed_id) {
+    return { signals: {}, matched: false, error: "no_build_for_version" };
+  }
+
+  const sessionsRes = await fetch(
+    `https://api.browserstack.com/automate/builds/${encodeURIComponent(match.hashed_id)}/sessions.json`,
+    { headers: { Authorization: auth } }
+  );
+  if (!sessionsRes.ok) {
+    return { signals: {}, matched: false, error: `browserstack_sessions_${sessionsRes.status}` };
+  }
+
+  const sessionsPayload = await sessionsRes.json();
+  const sessions = Array.isArray(sessionsPayload) ? sessionsPayload : [];
+  let smokePass = 0;
+  let smokeTotal = 0;
+  let e2ePass = 0;
+  let e2eTotal = 0;
+
+  for (const s of sessions) {
+    const name = String(s.name || "").toLowerCase();
+    const ok = String(s.status || "").toLowerCase() === "done" && !s.error;
+    if (name.includes("e2e") || name.includes("regression")) {
+      e2eTotal += 1;
+      if (ok) e2ePass += 1;
+    } else {
+      smokeTotal += 1;
+      if (ok) smokePass += 1;
+    }
+  }
+
+  const metrics = {};
+  if (smokeTotal > 0) metrics.smoke = Math.round((smokePass / smokeTotal) * 1000) / 10;
+  else if (String(match.status || "").toLowerCase() === "passed") metrics.smoke = 100;
+
+  if (e2eTotal > 0) metrics.e2e_regression = Math.round((e2ePass / e2eTotal) * 1000) / 10;
+  else if (metrics.smoke != null && e2eTotal === 0 && smokeTotal > 0) {
+    metrics.e2e_regression = metrics.smoke;
+  }
+
+  const mapped = mapIntegrationSignals("browserstack", { metrics });
+  return {
+    signals: mapped.signals,
+    matched: Object.keys(mapped.signals).length > 0,
+    error: Object.keys(mapped.signals).length ? undefined : "no_browserstack_metrics"
+  };
 }
 
 async function pullLangSmithSignals(apiKey, version) {
@@ -436,6 +524,17 @@ async function pullConnectedSourcesForRelease(release) {
       continue;
     }
 
+    if (sid === "browserstack") {
+      const username = extra.username || "";
+      const pull = await pullBrowserStackSignals(username, apiKeyPlain, version);
+      if (!pull.matched || !Object.keys(pull.signals || {}).length) {
+        out.browserstack = { ok: false, error: pull.error || "no_signals" };
+        continue;
+      }
+      out.browserstack = await applyPulledSignals(rid, "pulled:browserstack", version, pull.signals, "browserstack");
+      continue;
+    }
+
     if (sid === "sentry") {
       const pull = await pullSentrySignals(apiKeyPlain, version);
       if (!pull.matched || !Object.keys(pull.signals || {}).length) {
@@ -465,5 +564,6 @@ module.exports = {
   applyCsvImportToWorkspace,
   deleteSignalsForCsvImport,
   pullBraintrustExperimentSignals,
+  pullBrowserStackSignals,
   pullConnectedSourcesForRelease
 };

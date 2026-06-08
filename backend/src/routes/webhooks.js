@@ -17,7 +17,7 @@ const {
   setWorkspaceInstallation,
   fetchInstallationMeta,
   buildSetupRedirectUrl,
-  findWorkspaceByRepo
+  resolveWorkspaceForGithubRepo
 } = require("../services/githubApp");
 const {
   evaluateReleaseAfterSignalIngest,
@@ -201,16 +201,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       if (!owner || !repo || !prNumber) {
         return res.json({ ok: true, ignored: "merge_missing_fields" });
       }
-      let workspaceId = await findWorkspaceByRepo(owner, repo);
-      if (!workspaceId) {
-        const fallback = await queryOne(
-          `SELECT workspace_id FROM vcs_integrations
-           WHERE enabled = 1 AND provider = 'github' AND LOWER(owner) = LOWER(?) AND LOWER(repo) = LOWER(?)
-           LIMIT 1`,
-          [owner, repo]
-        );
-        workspaceId = fallback?.workspace_id || null;
-      }
+      let workspaceId = await resolveWorkspaceForGithubRepo(owner, repo);
       if (!workspaceId) return res.json({ ok: true, ignored: "repo_not_connected" });
 
       // Find all releases for this workspace triggered by this PR number
@@ -291,17 +282,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       return res.status(400).json({ error: "Missing required pull_request payload fields" });
     }
 
-    let workspaceId = await findWorkspaceByRepo(owner, repo);
-    if (!workspaceId) {
-      const fallback = await queryOne(
-        `SELECT workspace_id
-         FROM vcs_integrations
-         WHERE enabled = 1 AND provider = 'github' AND LOWER(owner) = LOWER(?) AND LOWER(repo) = LOWER(?)
-         LIMIT 1`,
-        [owner, repo]
-      );
-      workspaceId = fallback?.workspace_id || null;
-    }
+    let workspaceId = await resolveWorkspaceForGithubRepo(owner, repo);
     if (!workspaceId) return res.json({ ok: true, ignored: "repo_not_connected" });
     const triggerCfg = await getGithubLabelTrigger(workspaceId);
     const configuredLabel = String(triggerCfg?.label_name || DEFAULT_GITHUB_LABEL_NAME).trim();

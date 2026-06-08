@@ -79,7 +79,9 @@ async function getThresholdMap(workspaceId) {
     workspaceId
   ]);
   const map = {};
-  for (const r of rows) map[r.signal_id] = { min: r.min_value, max: r.max_value };
+  for (const r of rows) {
+    map[r.signal_id] = sharedPkg.normalizeThresholdBounds(r.signal_id, r.min_value, r.max_value);
+  }
   return map;
 }
 
