@@ -827,6 +827,27 @@ describe("evaluateReleaseAfterSignalIngest (unit)", () => {
     const row = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
     assert.equal(row.status, "UNCERTIFIED");
   });
+
+  it("preserves verdict_issued_at on re-evaluation after UNCERTIFIED", async () => {
+    const ws = `ws_verdict_ts_${crypto.randomBytes(3).toString("hex")}`;
+    await ensureWorkspaceSeeded(ws);
+    const releaseId = `rel_vt_${crypto.randomBytes(3).toString("hex")}`;
+    const firstVerdictAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const now = nowIso();
+    await run(
+      `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, verdict_issued_at, collection_deadline)
+       VALUES (?, ?, 'v-re', 'model_update', 'pre-prod', 'UNCERTIFIED', ?, ?, ?, ?)`,
+      [releaseId, ws, now, now, firstVerdictAt, new Date(Date.now() - 60_000).toISOString()]
+    );
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 70, 't', ?)`, [
+      releaseId,
+      now
+    ]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    await evaluateReleaseAfterSignalIngest(release, releaseId, "test", 1);
+    const after = await queryOne("SELECT verdict_issued_at FROM releases WHERE id = ?", [releaseId]);
+    assert.equal(after.verdict_issued_at, firstVerdictAt);
+  });
 });
 
 describe("release intelligence recommendation vs user decision (unit)", () => {

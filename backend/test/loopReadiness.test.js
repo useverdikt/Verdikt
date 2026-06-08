@@ -2,7 +2,7 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { computeLoopBand, computeLoopNextAction, LOOP_BAND_THRESHOLDS } = require("../src/services/loopReadiness");
+const { computeLoopBand, computeLoopNextAction, LOOP_BAND_THRESHOLDS, LOOP_ELIGIBILITY_MINUTES, loopEligibilityCutoffIso } = require("../src/services/loopReadiness");
 
 describe("loopReadiness bands", () => {
   it("Exploratory for 0–2 full loops", () => {
@@ -34,5 +34,12 @@ describe("loopReadiness bands", () => {
   it("exports expected thresholds", () => {
     assert.equal(LOOP_BAND_THRESHOLDS.reliable_min_loops, 10);
     assert.equal(LOOP_BAND_THRESHOLDS.exploratory_max, 2);
+    assert.equal(LOOP_ELIGIBILITY_MINUTES, 30);
+  });
+
+  it("loopEligibilityCutoffIso is 30 minutes before now", () => {
+    const now = Date.parse("2026-06-08T12:00:00.000Z");
+    const cutoff = loopEligibilityCutoffIso(now);
+    assert.equal(cutoff, "2026-06-08T11:30:00.000Z");
   });
 });

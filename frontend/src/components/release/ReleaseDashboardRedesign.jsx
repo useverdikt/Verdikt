@@ -612,18 +612,23 @@ export function ReleaseDashboard({
     return list;
   }, [releases, activeEnv, activeTab, activeFilter, searchQ]);
 
-  /* summary stats */
+  /* summary stats — server-backed releases only when workspace is connected */
+  const statsReleases = useMemo(
+    () => (wsId ? releases.filter((r) => r.backendReleaseId) : releases),
+    [releases, wsId]
+  );
+
   const stats = useMemo(() => {
-    const total = releases.length;
-    const certified = releases.filter(r => isCertifiedLike(r.status)).length;
+    const total = statsReleases.length;
+    const certified = statsReleases.filter(r => isCertifiedLike(r.status)).length;
     const certRate = total ? Math.round((certified / total) * 100) : 0;
-    const uncertified = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
-    const overrideCount = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
+    const uncertified = statsReleases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
+    const overrideCount = statsReleases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
     const overrideRate = certified ? Math.round((overrideCount / certified) * 100) : 0;
     const loopCount = loopReadiness?.full_loop_count
-      ?? releases.filter(r => hasComputedAlignment(r.alignmentVerdict)).length;
+      ?? statsReleases.filter(r => hasComputedAlignment(r.alignmentVerdict)).length;
     return { certRate, uncertified, overrideRate, loopCount, total, certified };
-  }, [releases, loopReadiness]);
+  }, [statsReleases, loopReadiness]);
 
   /* per-release category statuses */
   const releaseCatStatuses = useMemo(() => {
@@ -661,23 +666,25 @@ export function ReleaseDashboard({
     if (!wsId) return;
     let active = true;
     const loadSidePanelData = async () => {
-      try {
-        const [loopData, relData] = await Promise.all([
-          prodObservationEnabled
-            ? apiGet(`/api/workspaces/${wsId}/loop-readiness`)
-            : Promise.resolve(null),
-          apiGet(`/api/workspaces/${wsId}/signal-reliability`)
-        ]);
-        if (!active) return;
-        setLoopReadiness(loopData);
+      const [loopResult, relResult] = await Promise.allSettled([
+        prodObservationEnabled
+          ? apiGet(`/api/workspaces/${wsId}/loop-readiness`)
+          : Promise.resolve(null),
+        apiGet(`/api/workspaces/${wsId}/signal-reliability`)
+      ]);
+      if (!active) return;
+      if (loopResult.status === "fulfilled") {
+        setLoopReadiness(loopResult.value);
+      }
+      if (relResult.status === "fulfilled") {
+        const relData = relResult.value;
         setSignalReliability(Array.isArray(relData?.signals) ? relData.signals : []);
         setSignalReliabilityComputedAt(
           relData?.summary?.computed_at ||
           relData?.signals?.[0]?.computed_at ||
           null
         );
-      } catch (_) {
-        if (!active) return;
+      } else {
         setSignalReliability([]);
         setSignalReliabilityComputedAt(null);
       }
@@ -702,12 +709,17 @@ export function ReleaseDashboard({
       }));
   }, [signalReliability]);
 
+  const loopEligibleLabel = useMemo(() => {
+    const mins = loopReadiness?.eligibility_minutes ?? 30;
+    return `Eligible (${mins}m+)`;
+  }, [loopReadiness?.eligibility_minutes]);
+
   const loopStageRows = useMemo(() => {
     if (loopReadiness) {
       return [
         ["Total releases", loopReadiness.total_releases, false],
         ["Verdict issued", loopReadiness.verdict_issued, false],
-        ["Eligible (3hr+)", loopReadiness.eligible_releases, false],
+        [loopEligibleLabel, loopReadiness.eligible_releases, false],
         ["With observations", loopReadiness.with_production_observations, false],
         ["Full loops", loopReadiness.full_loop_count, true]
       ];
@@ -715,11 +727,11 @@ export function ReleaseDashboard({
     return [
       ["Total releases", stats.total, false],
       ["Verdict issued", releases.filter((r) => r.status !== "collecting").length, false],
-      ["Eligible (3hr+)", Math.max(0, releases.filter((r) => normalizeLegacyUiStatus(r.status) !== UI_RELEASE_STATUS.COLLECTING).length), false],
+      [loopEligibleLabel, Math.max(0, releases.filter((r) => normalizeLegacyUiStatus(r.status) !== UI_RELEASE_STATUS.COLLECTING).length), false],
       ["With observations", stats.total > 0 ? Math.round(stats.total * 0.77) : 0, false],
       ["Full loops", stats.loopCount, true]
     ];
-  }, [loopReadiness, releases, stats.total, stats.loopCount]);
+  }, [loopReadiness, loopEligibleLabel, releases, stats.total, stats.loopCount]);
 
   const loopBand = useMemo(() => {
     if (!loopReadiness) return { label: "EMERGING", cls: "bp-em" };

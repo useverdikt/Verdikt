@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { SCREENSHOT_GALLERY_DEMO_EMAIL, SCREENSHOT_SIM_RELEASES } from "./app/screenshotSimReleases.js";
+import { SCREENSHOT_SIM_RELEASES } from "./app/screenshotSimReleases.js";
 import { normalizeStoredProject } from "./lib/projectEnv.js";
 import { apiGet, apiPost, getWorkspaceId } from "./lib/apiClient.js";
 import {
@@ -38,7 +38,6 @@ import {
   getRegressionRequired,
   SIGNAL_CATEGORIES,
   DEFAULT_THRESHOLDS,
-  DEMO_RELEASES,
   DEFAULT_AUDIT,
   evaluateSignal,
   SIGNAL_SOURCES,
@@ -234,13 +233,7 @@ export default function App() {
       const rows = relData?.releases || [];
       setReleasesNextBefore(relData?.next_before || null);
       setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
-      if (currentUser?.email === SCREENSHOT_GALLERY_DEMO_EMAIL) {
-        setReleasesTotalCount(SCREENSHOT_SIM_RELEASES.length);
-        setReleases([...SCREENSHOT_SIM_RELEASES]);
-        setSelectedId((sel) =>
-          SCREENSHOT_SIM_RELEASES.some((r) => r.id === sel) ? sel : SCREENSHOT_SIM_RELEASES[0]?.id
-        );
-      } else if (rows.length) {
+      if (rows.length) {
         setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
         // Do not block Audit/initial workspace render on release detail hydration.
         void (async () => {
@@ -248,24 +241,13 @@ export default function App() {
           if (isCancelled()) return;
           const mapped = details.map((d) => (d ? mapBackendDetailToUi(d) : null)).filter(Boolean);
           if (!mapped.length) return;
-          setReleases((prev) => {
-            const mappedIds = new Set(mapped.map((r) => r.id));
-            const demos = SCREENSHOT_SIM_RELEASES.filter((d) => !mappedIds.has(d.id));
-            const demoIds = new Set(DEMO_RELEASES.map((r) => r.id));
-            const localOnly = prev.filter(
-              (r) => !r.backendReleaseId && !demoIds.has(r.id) && !mappedIds.has(r.id)
-            );
-            return [...demos, ...mapped, ...localOnly];
-          });
-          setSelectedId((sel) => {
-            if (mapped.some((r) => r.id === sel)) return sel;
-            if (SCREENSHOT_SIM_RELEASES.some((r) => r.id === sel)) return sel;
-            return mapped[0]?.id ?? SCREENSHOT_SIM_RELEASES[0]?.id;
-          });
+          setReleases(mapped);
+          setSelectedId((sel) => (mapped.some((r) => r.id === sel) ? sel : mapped[0]?.id ?? null));
         })();
       } else {
-        setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
-        setReleases((prev) => (prev.length > 0 ? prev : [...SCREENSHOT_SIM_RELEASES]));
+        setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
+        setReleases([]);
+        setSelectedId(null);
       }
     } catch (e) {
       if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");
@@ -273,7 +255,7 @@ export default function App() {
       if (manual) setWorkspaceSyncing(false);
       if (!isCancelled()) setWsReady(true);
     }
-  }, [navigate, currentUser?.email]);
+  }, [navigate]);
   const refreshAuditFromServer = React.useCallback(async () => {
     if (!hasBackend()) return;
     try {

@@ -205,12 +205,10 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   trace.prompt_version = deterministicIntelligence?.prompt_version || trace.prompt_version;
 
   // ── Commit verdict to DB ──────────────────────────────────────────────────
-  await run("UPDATE releases SET status = ?, updated_at = ?, verdict_issued_at = ? WHERE id = ?", [
-    nextStatus,
-    nowIso(),
-    nowIso(),
-    releaseId
-  ]);
+  await run(
+    "UPDATE releases SET status = ?, updated_at = ?, verdict_issued_at = COALESCE(verdict_issued_at, ?) WHERE id = ?",
+    [nextStatus, nowIso(), nowIso(), releaseId]
+  );
   await upsertReleaseIntelligence(releaseId, release.workspace_id, { verdict: deterministicIntelligence, trace });
 
   // ── Verdict change audit ──────────────────────────────────────────────────

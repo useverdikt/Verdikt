@@ -6,6 +6,7 @@
 
 const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
+const { safeJsonParse } = require("../lib/safeJson");
 const { parseRecommendationBlob } = require("./intelligenceBuilder");
 
 const OUTCOME_CRITERIA = {
@@ -425,10 +426,10 @@ async function getWorkspaceProductionHealth(workspaceId) {
       actual_outcome: a.actual_outcome,
       alignment: a.alignment,
       incident_ref: a.incident_ref || null,
-      outcome_criteria: a.outcome_criteria_json ? JSON.parse(a.outcome_criteria_json) : [],
-      over_block_suggestions: a.over_block_suggestions_json ? JSON.parse(a.over_block_suggestions_json) : [],
+      outcome_criteria: safeJsonParse(a.outcome_criteria_json, []),
+      over_block_suggestions: safeJsonParse(a.over_block_suggestions_json, []),
       computed_at: a.computed_at,
-      signal_deltas: a.signal_deltas_json ? JSON.parse(a.signal_deltas_json) : {}
+      signal_deltas: safeJsonParse(a.signal_deltas_json, {})
     }))
   };
 }
@@ -443,7 +444,7 @@ async function getProductionObservations(releaseId) {
   `,
     [releaseId]
   );
-  return rows.map((r) => ({ ...r, metadata: r.metadata_json ? JSON.parse(r.metadata_json) : null }));
+  return rows.map((r) => ({ ...r, metadata: safeJsonParse(r.metadata_json, null) }));
 }
 
 async function setIncidentRef(releaseId, workspaceId, incidentRef) {
