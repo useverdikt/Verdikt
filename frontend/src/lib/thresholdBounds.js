@@ -72,10 +72,18 @@ export function defaultRequiredFlags() {
   return Object.fromEntries(DEFAULT_REQUIRED_IDS.map((id) => [id, true]));
 }
 
-/** Parse GET /thresholds API map into UI value + required maps. */
+/** Full UI default map (numeric thresholds + local-only string fields). */
+export function getDefaultThresholdUiState() {
+  return {
+    ...shared.defaultThresholds,
+    manual_qa_showstopper: "P0"
+  };
+}
+
+/** Parse GET /thresholds API map into UI value + required maps, merged over industry defaults. */
 export function applyThresholdApiMap(map) {
-  const thresholds = {};
-  const required = {};
+  const thresholds = { ...getDefaultThresholdUiState() };
+  const required = { ...defaultRequiredFlags() };
   Object.entries(map || {}).forEach(([signalId, cfg]) => {
     const scalar = thresholdBoundsToScalar(signalId, cfg);
     if (scalar != null) thresholds[signalId] = scalar;
