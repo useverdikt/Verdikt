@@ -4,7 +4,7 @@ const { PORT, IS_PROD_LIKE } = require("./config");
 const { isPasswordResetEmailConfigured } = require("./services/email");
 const { createApp } = require("./app");
 const { initDatabase, closePool } = require("./database");
-const { seedDemoUser, seedScreenshotsGalleryUser } = require("./bootstrap/seed");
+const { seedDemoUser } = require("./bootstrap/seed");
 const {
   runCollectionDeadlineSweep,
   startCollectionDeadlineSweepJob
@@ -13,7 +13,7 @@ const { runVcsMonitorSweep, startVcsMonitorSweepJob } = require("./jobs/vcsMonit
 
 const SHUTDOWN_MS = Math.max(1000, Number(process.env.SHUTDOWN_GRACE_MS || 10_000));
 
-/** Demo accounts (`demo@verdikt.local`, `screenshots@verdikt.local`) — off in production unless explicitly enabled. */
+/** Demo account `demo@verdikt.local` — off in production unless explicitly enabled. Screenshots gallery user: `npm run seed:demos`. */
 function shouldSeedDemoUsersOnStartup() {
   const raw = process.env.ENABLE_DEMO_SEED;
   if (raw === "1" || String(raw).toLowerCase() === "true") return true;
@@ -30,7 +30,6 @@ async function startServer() {
   }
   if (shouldSeedDemoUsersOnStartup()) {
     await seedDemoUser();
-    await seedScreenshotsGalleryUser();
   } else {
     console.info(
       "INFO: Startup demo user seed is disabled in production. Set ENABLE_DEMO_SEED=1 to enable, or run `npm run seed:demos` manually."
