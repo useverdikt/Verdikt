@@ -932,7 +932,7 @@ export default function App() {
         navigate(NAV_TO_PATH[id] || "/releases");
     },
     roles: ROLES,
-    pendingRelease: uncertifiedRelease,
+    uncertifiedRelease,
     setCurrentUser,
     setLocalStore: S.set,
     onLogout: () => {

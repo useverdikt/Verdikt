@@ -261,7 +261,7 @@ export const INFRA_ITEMS = [{
   label: "AI eval pipeline connected",
   status: "pending",
   priority: "P0",
-  description: "Connect your Braintrust or LangSmith eval project to Verdikt using version tags. Until this is wired, AI eval scores (accuracy, safety, tone, hallucination, relevance) cannot be certified against your defined thresholds.",
+  description: "Connect your Braintrust eval project to Verdikt using version tags. Until this is wired, AI eval scores (accuracy, safety, tone, hallucination, relevance) cannot be certified against your defined thresholds.",
   owner: "",
   linkedTo: "braintrust-config.ts:1"
 }, {

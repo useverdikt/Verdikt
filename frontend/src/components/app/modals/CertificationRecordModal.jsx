@@ -122,7 +122,7 @@ export default function CertificationRecordModal({
                 {rt && <span style={{ marginRight: 10 }}>{rt.icon} {rt.label}</span>}
                 {rs === UI_RELEASE_STATUS.CERTIFIED && release.shippedBy && <span>Certified by {release.shippedBy}</span>}
                 {rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE && release.overrideBy && <span>Override by {release.overrideBy}</span>}
-                {rs === UI_RELEASE_STATUS.UNCERTIFIED && <span>Below threshold or missing required signals — override available unless hard-gated</span>}
+                {rs === UI_RELEASE_STATUS.UNCERTIFIED && <span>Verdict issued below threshold — additional signals can still be ingested to re-evaluate</span>}
               </div>
             </div>
           </div>
