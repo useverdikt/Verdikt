@@ -18,6 +18,7 @@
 
 const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
+const { upsertReleaseIntelligence, parseRecommendationBlob } = require("./intelligenceBuilder");
 
 // ─── Grade weights for reliability penalty ────────────────────────────────────
 const RELIABILITY_PENALTY = { A: 0, B: 4, C: 10, D: 18, F: 28, unknown: 6 };
@@ -461,21 +462,7 @@ async function loadRecommendationContext(releaseId, workspaceId) {
 async function computeAndPersistRecommendation(release) {
   const ctx = await loadRecommendationContext(release.id, release.workspace_id);
   const rec = buildRecommendation(release, ctx);
-
-  // Persist as part of release_intelligence
-  const ts = nowIso();
-  await run(
-    `
-    INSERT INTO release_intelligence
-      (release_id, workspace_id, verdict_json, override_json, trace_json, decision_json, outcome_json, created_at, updated_at)
-    VALUES (?, ?, NULL, NULL, NULL, ?, NULL, ?, ?)
-    ON CONFLICT(release_id) DO UPDATE SET
-      decision_json = excluded.decision_json,
-      updated_at    = excluded.updated_at
-  `,
-    [release.id, release.workspace_id, JSON.stringify(rec), ts, ts]
-  );
-
+  await upsertReleaseIntelligence(release.id, release.workspace_id, { recommendation: rec });
   return rec;
 }
 
@@ -483,13 +470,12 @@ async function computeAndPersistRecommendation(release) {
  * Get persisted recommendation for a release.
  */
 async function getRecommendation(releaseId) {
-  const row = await queryOne("SELECT decision_json FROM release_intelligence WHERE release_id = ?", [releaseId]);
-  if (!row?.decision_json) return null;
-  try {
-    return JSON.parse(row.decision_json);
-  } catch {
-    return null;
-  }
+  const row = await queryOne(
+    "SELECT recommendation_json, decision_json FROM release_intelligence WHERE release_id = ?",
+    [releaseId]
+  );
+  if (!row) return null;
+  return parseRecommendationBlob(row.recommendation_json, row.decision_json);
 }
 
 function roundN(v, decimals) {
