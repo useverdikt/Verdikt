@@ -153,7 +153,8 @@ function SearchIcon() {
 function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signalCategories, formatAge, releaseVersionPrimarySecondary, releaseTypes }) {
   const verdict = verdictMeta(release.status);
   const intel = release.intelligence || {};
-  const decisionScore = intel.decision?.confidence_score;
+  const recommendation = intel.recommendation || {};
+  const decisionScore = recommendation.confidence_score ?? intel.decision?.confidence_score;
   const rawVerdictConf = intel.verdict?.confidence_pct;
   const confPct = Number.isFinite(decisionScore)
     ? decisionScore
@@ -279,7 +280,7 @@ function ReleaseDetail({
 }) {
   const intel = release.intelligence || {};
   const verdictIntel = intel.verdict || {};
-  const decisionIntel = intel.decision || {};
+  const recommendationIntel = intel.recommendation || {};
   const overrideIntel = intel.override || {};
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
@@ -288,12 +289,14 @@ function ReleaseDetail({
 
   const ordered = getOrderedDetailSignals(signalCategories);
 
-  /* Backend: recommendation engine uses decision.reasoning[]; verdict intel uses summary (incl. Gemini assistive). */
-  let reasoningPoints = verdictIntel.reasoning
-    ? (Array.isArray(verdictIntel.reasoning)
-        ? verdictIntel.reasoning
-        : [String(verdictIntel.reasoning)]).slice(0, 6)
-    : null;
+  /* Backend: recommendation engine uses recommendation.reasoning[]; verdict intel uses summary. */
+  let reasoningPoints = Array.isArray(recommendationIntel.reasoning) && recommendationIntel.reasoning.length
+    ? recommendationIntel.reasoning.slice(0, 6)
+    : verdictIntel.reasoning
+      ? (Array.isArray(verdictIntel.reasoning)
+          ? verdictIntel.reasoning
+          : [String(verdictIntel.reasoning)]).slice(0, 6)
+      : null;
   if ((!reasoningPoints || reasoningPoints.length === 0) && typeof verdictIntel.summary === "string" && verdictIntel.summary.trim()) {
     reasoningPoints = [verdictIntel.summary.trim()];
   }
@@ -393,8 +396,8 @@ function ReleaseDetail({
   const midReasoning = (
     <>
       <div className="dl">
-        Reasoning{Number.isFinite(decisionIntel.confidence_score)
-          ? ` · ${decisionIntel.confidence_score}%`
+        Reasoning{Number.isFinite(recommendationIntel.confidence_score)
+          ? ` · ${recommendationIntel.confidence_score}%`
           : verdictIntel.confidence_pct != null
             ? ` · ${verdictIntel.confidence_pct}%`
             : ""}

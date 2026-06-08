@@ -4,7 +4,7 @@ import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "./releaseStatus.js";
  * Confidence band + bar fill for release history (shared with tests).
  * Always returns the same display shape: displayPct + band + track fill.
  * @param {string} status — release.status
- * @param {number|undefined} confidencePct — decision.confidence_score or verdict.confidence_pct
+ * @param {number|undefined} confidencePct — recommendation.confidence_score or legacy verdict.confidence_pct
  * @param {{ receivedSignalCount?: number }} [opts]
  */
 export function confMeta(status, confidencePct, opts = {}) {

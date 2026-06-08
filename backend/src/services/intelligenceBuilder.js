@@ -270,7 +270,7 @@ function buildIntelligenceTrace({ releaseId, workspaceId, releaseType, output })
 
 async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}) {
   const row = await queryOne(
-    "SELECT verdict_json, override_json, trace_json, decision_json, outcome_json, created_at FROM release_intelligence WHERE release_id = ?",
+    "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at FROM release_intelligence WHERE release_id = ?",
     [releaseId]
   );
   const createdAt = row?.created_at || nowIso();
@@ -278,33 +278,80 @@ async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}) {
   const overrideJson = patch.override !== undefined ? JSON.stringify(patch.override) : row?.override_json || null;
   const traceJson = patch.trace !== undefined ? JSON.stringify(patch.trace) : row?.trace_json || null;
   const decisionJson = patch.decision !== undefined ? JSON.stringify(patch.decision) : row?.decision_json || null;
+  const recommendationJson =
+    patch.recommendation !== undefined ? JSON.stringify(patch.recommendation) : row?.recommendation_json || null;
   const outcomeJson = patch.outcome !== undefined ? JSON.stringify(patch.outcome) : row?.outcome_json || null;
   await run(
-    `INSERT INTO release_intelligence (release_id, workspace_id, verdict_json, override_json, trace_json, decision_json, outcome_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO release_intelligence (release_id, workspace_id, verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(release_id) DO UPDATE SET
        workspace_id = excluded.workspace_id,
        verdict_json = excluded.verdict_json,
        override_json = excluded.override_json,
        trace_json = excluded.trace_json,
        decision_json = excluded.decision_json,
+       recommendation_json = excluded.recommendation_json,
        outcome_json = excluded.outcome_json,
        updated_at = excluded.updated_at`,
-    [releaseId, workspaceId, verdictJson, overrideJson, traceJson, decisionJson, outcomeJson, createdAt, nowIso()]
+    [
+      releaseId,
+      workspaceId,
+      verdictJson,
+      overrideJson,
+      traceJson,
+      decisionJson,
+      recommendationJson,
+      outcomeJson,
+      createdAt,
+      nowIso()
+    ]
   );
+}
+
+const USER_DECISION_VALUES = new Set(["applied", "dismissed", "overridden", "shipped"]);
+
+function parseJsonBlob(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function parseUserDecisionBlob(raw) {
+  const obj = parseJsonBlob(raw);
+  if (!obj || typeof obj !== "object") return null;
+  if (USER_DECISION_VALUES.has(String(obj.decision || ""))) return obj;
+  return null;
+}
+
+function parseRecommendationBlob(recommendationRaw, decisionRaw) {
+  const fromColumn = parseJsonBlob(recommendationRaw);
+  if (fromColumn && (fromColumn.confidence_score != null || fromColumn.recommended_verdict)) {
+    return fromColumn;
+  }
+  const legacy = parseJsonBlob(decisionRaw);
+  if (legacy && (legacy.confidence_score != null || legacy.recommended_verdict)) {
+    return legacy;
+  }
+  return null;
 }
 
 async function getReleaseIntelligence(releaseId) {
   const row = await queryOne(
-    "SELECT verdict_json, override_json, trace_json, decision_json, outcome_json, created_at, updated_at FROM release_intelligence WHERE release_id = ?",
+    "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at FROM release_intelligence WHERE release_id = ?",
     [releaseId]
   );
   if (!row) return null;
+  const userDecision = parseUserDecisionBlob(row.decision_json);
+  const recommendation = parseRecommendationBlob(row.recommendation_json, row.decision_json);
   return {
     verdict: row.verdict_json ? JSON.parse(row.verdict_json) : null,
     override: row.override_json ? JSON.parse(row.override_json) : null,
     trace: row.trace_json ? JSON.parse(row.trace_json) : null,
-    decision: row.decision_json ? JSON.parse(row.decision_json) : null,
+    decision: userDecision,
+    recommendation,
     outcome: row.outcome_json ? JSON.parse(row.outcome_json) : null,
     created_at: row.created_at,
     updated_at: row.updated_at
@@ -316,5 +363,7 @@ module.exports = {
   buildDeterministicVerdictIntelligence,
   buildIntelligenceTrace,
   upsertReleaseIntelligence,
-  getReleaseIntelligence
+  getReleaseIntelligence,
+  parseRecommendationBlob,
+  parseUserDecisionBlob
 };
