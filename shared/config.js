@@ -28,7 +28,12 @@ function getDefaultThresholds() {
 }
 
 function getDefaultThresholdSeedRows() {
-  return raw.defaultThresholdSeedRows.map((row) => [...row]);
+  const thresholds = raw.defaultThresholds || {};
+  return Object.entries(thresholds).map(([signalId, value]) => {
+    const num = typeof value === "number" && !Number.isNaN(value) ? value : null;
+    const bounds = valueToThresholdBounds(signalId, num);
+    return [signalId, bounds.min, bounds.max];
+  });
 }
 
 function getAiSignalIds() {

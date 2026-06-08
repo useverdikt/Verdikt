@@ -75,7 +75,10 @@ export default function App() {
     const list = Array.isArray(s) && s.length > 0 ? s : SCREENSHOT_SIM_RELEASES;
     return list[0]?.id;
   });
-  const [thresholds, setThresholds] = useState(() => S.get("thresholds", DEFAULT_THRESHOLDS));
+  const [thresholds, setThresholds] = useState(() => ({
+    ...DEFAULT_THRESHOLDS,
+    ...S.get("thresholds", {})
+  }));
   const [thresholdRequired, setThresholdRequired] = useState(() =>
     S.get("thresholdRequired", defaultRequiredFlags())
   );
@@ -221,7 +224,7 @@ export default function App() {
       if (isCancelled()) return;
       const map = thData?.thresholds || {};
       const parsed = applyThresholdApiMap(map);
-      setThresholds((prev) => ({ ...prev, ...parsed.thresholds }));
+      setThresholds((prev) => ({ ...DEFAULT_THRESHOLDS, ...prev, ...parsed.thresholds }));
       setThresholdRequired((prev) => ({ ...defaultRequiredFlags(), ...prev, ...parsed.required }));
       const rows = relData?.releases || [];
       setReleasesNextBefore(relData?.next_before || null);
@@ -864,6 +867,7 @@ export default function App() {
     return /* @__PURE__ */ React.createElement(ThresholdsViewPanel, {
       thresholds,
       thresholdRequired,
+      defaultThresholds: DEFAULT_THRESHOLDS,
       signalCategories: SIGNAL_CATEGORIES,
       isMobile,
       currentUser,
