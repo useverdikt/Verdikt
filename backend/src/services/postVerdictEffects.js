@@ -37,7 +37,8 @@ const { broadcastVerdictAndClose } = require("./sseManager");
 async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
   try {
     const status = String(nextStatus || "").toUpperCase();
-    if (!status || status === "COLLECTING") return;
+    const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
+    if (!certLike.has(status)) return;
 
     const fresh = await queryOne("SELECT id, workspace_id, environment, pr_number FROM releases WHERE id = ?", [releaseId]);
     if (!fresh) return;

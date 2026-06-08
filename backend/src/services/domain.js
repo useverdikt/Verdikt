@@ -149,6 +149,15 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       missingSignalFails.push({ signal_id: signalId, value: null, rule: "required signal missing at evaluation" });
     });
   }
+  const ingestedSignalCount = Object.keys(latest).length;
+  if (ingestedSignalCount === 0) {
+    missingSignalFails.push({
+      signal_id: "release",
+      value: null,
+      rule: "no signals ingested at verdict",
+      failure_kind: "no_ingest"
+    });
+  }
 
   const failedSignals = [...thresholdFailedSignals, ...missingSignalFails];
   const nextStatus = failedSignals.length === 0 ? "CERTIFIED" : "UNCERTIFIED";
@@ -182,7 +191,8 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     missingRequiredSignals,
     nextStatus,
     deltaContext: deltaCtx,
-    regressionHistory
+    regressionHistory,
+    ingestedSignalCount
   });
 
   const trace = buildIntelligenceTrace({
