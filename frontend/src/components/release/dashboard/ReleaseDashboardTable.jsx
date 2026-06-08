@@ -25,7 +25,7 @@ export default function ReleaseDashboardTable({
   return (
     <>
       <div className="tabs">
-        {["All releases", "Uncertified", "Overrides", "Alignment"].map((tab) => (
+        {["All releases", "Uncertified", "Overrides"].map((tab) => (
           <button
             key={tab}
             type="button"
@@ -58,9 +58,7 @@ export default function ReleaseDashboardTable({
           <div className="th"></div>
           <div className="th">Version</div>
           <div className="th">Verdict</div>
-          <div className="th">Confidence</div>
           <div className="th">Signals</div>
-          <div className="th r">Alignment</div>
           <div className="th r">Issued</div>
         </div>
 
@@ -71,14 +69,14 @@ export default function ReleaseDashboardTable({
                 key={i}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "28px 1fr 110px 110px 90px 80px 70px",
+                  gridTemplateColumns: "28px 1fr 110px 130px 70px",
                   gap: 8,
                   padding: "12px 16px",
                   borderBottom: "1px solid rgba(255,255,255,0.05)",
                   alignItems: "center"
                 }}
               >
-                {[28, 160, 80, 80, 60, 50, 45].map((w, j) => (
+                {[28, 160, 80, 100, 45].map((w, j) => (
                   <div
                     key={j}
                     style={{
