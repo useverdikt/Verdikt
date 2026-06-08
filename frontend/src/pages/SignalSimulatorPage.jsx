@@ -26,8 +26,8 @@ const SOURCES = [
     id: "browserstack",
     name: "BrowserStack",
     icon: "◎",
-    color: "#f87171",
-    glow: "rgba(248,113,113,0.18)",
+    color: "#6366f1",
+    glow: "rgba(99,102,241,0.18)",
     description: "Smoke and E2E regression pass rates",
     tag: "Delivery Reliability",
     signals: [
@@ -36,29 +36,13 @@ const SOURCES = [
     ],
   },
   {
-    id: "langsmith",
-    name: "LangSmith",
-    icon: "⚡",
-    color: "#a78bfa",
-    glow: "rgba(167,139,250,0.18)",
-    description: "LLM eval traces — quality, faithfulness, correctness",
-    tag: "LLM Traces",
-    signals: [
-      { id: "accuracy",      label: "Accuracy",       min: 0,   max: 100, step: 1,   unit: "%",   default: 87, threshold: 85 },
-      { id: "safety",        label: "Safety",          min: 0,   max: 100, step: 1,   unit: "%",   default: 91, threshold: 90 },
-      { id: "tone",          label: "Tone",            min: 0,   max: 100, step: 1,   unit: "%",   default: 84, threshold: 85 },
-      { id: "hallucination", label: "Hallucination",   min: 0,   max: 100, step: 1,   unit: "%",   default: 93, threshold: 90 },
-      { id: "relevance",     label: "Relevance",       min: 0,   max: 100, step: 1,   unit: "%",   default: 86, threshold: 82 },
-    ],
-  },
-  {
     id: "sentry",
     name: "Sentry",
     icon: "◈",
     color: "#f87171",
     glow: "rgba(248,113,113,0.18)",
-    description: "Crash rate, error rate, exception volume",
-    tag: "Error Tracking",
+    description: "Crash rate, error rate, ANR rate",
+    tag: "Runtime Reliability",
     signals: [
       { id: "crashrate",  label: "Crash Rate",   min: 0,  max: 5,   step: 0.01, unit: "%",   default: 0.06, threshold: 0.1,  lowerIsBetter: true },
       { id: "errorrate",  label: "Error Rate",   min: 0,  max: 10,  step: 0.01, unit: "%",   default: 0.45, threshold: 1.0,  lowerIsBetter: true },
@@ -71,8 +55,8 @@ const SOURCES = [
     icon: "▣",
     color: "#34d399",
     glow: "rgba(52,211,153,0.18)",
-    description: "API latency and runtime health metrics",
-    tag: "Observability",
+    description: "P95 and P99 API latency",
+    tag: "Runtime Performance",
     signals: [
       { id: "p95latency", label: "P95 Latency", min: 0, max: 2000, step: 5, unit: "ms", default: 240, threshold: 300, lowerIsBetter: true },
       { id: "p99latency", label: "P99 Latency", min: 0, max: 5000, step: 5, unit: "ms", default: 480, threshold: 600, lowerIsBetter: true },
@@ -97,10 +81,10 @@ function formatVal(sig, v) {
 
 function getStatusMeta(status) {
   const map = {
-    COLLECTING:             { label: "Collecting",   color: "#f59e0b", dot: "#f59e0b" },
-    UNCERTIFIED:            { label: "Uncertified",  color: "#f87171", dot: "#f87171" },
-    CERTIFIED:              { label: "Certified",    color: "#22c55e", dot: "#22c55e" },
-    CERTIFIED_WITH_OVERRIDE:{ label: "Overridden",   color: "#f59e0b", dot: "#f59e0b" },
+    COLLECTING:             { label: "COLLECTING",   color: "#f59e0b", dot: "#f59e0b" },
+    UNCERTIFIED:            { label: "UNCERTIFIED",  color: "#f87171", dot: "#f87171" },
+    CERTIFIED:              { label: "CERTIFIED",    color: "#22c55e", dot: "#22c55e" },
+    CERTIFIED_WITH_OVERRIDE:{ label: "OVERRIDDEN",   color: "#f59e0b", dot: "#f59e0b" },
   };
   return map[status] || { label: status || "Unknown", color: "#6e87a2", dot: "#6e87a2" };
 }
@@ -571,7 +555,7 @@ export default function SignalSimulatorPage() {
             Signal Simulator
           </h1>
           <p style={{ color: "#384d60", fontSize: 13, marginTop: 4, maxWidth: 480 }}>
-            Mimic Braintrust, LangSmith, Sentry, and Datadog signal pushes against any collecting release.
+            Mimic Braintrust, BrowserStack, Sentry, and Datadog signal pushes against any collecting release.
             Tune values with sliders and ingest to trigger verdict evaluation.
           </p>
         </div>

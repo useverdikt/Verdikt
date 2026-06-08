@@ -19,15 +19,6 @@ export const SOURCES_INITIAL = [
     mapping: null
   },
   {
-    sourceId: "langsmith",
-    icon: "◐",
-    name: "LangSmith",
-    detail: "LLM eval traces — quality, faithfulness, correctness",
-    status: "not connected",
-    statusColor: "var(--dim)",
-    mapping: null
-  },
-  {
     sourceId: "browserstack",
     icon: "◎",
     name: "BrowserStack",

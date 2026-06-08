@@ -86,9 +86,9 @@ export const SOURCES_SEED = [
     statusColor: "var(--green)"
   },
   {
-    icon: "◐",
-    name: "LangSmith",
-    detail: "LLM eval traces — quality, faithfulness, correctness",
+    icon: "◎",
+    name: "BrowserStack",
+    detail: "Smoke and E2E regression pass rates",
     status: "not connected",
     statusColor: "var(--dim)"
   },

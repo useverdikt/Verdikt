@@ -336,7 +336,7 @@ export default function Sidebar({
   setShowStartCert: _setShowStartCert,
   onNavigate,
   roles,
-  pendingRelease,
+  uncertifiedRelease,
   setCurrentUser,
   setLocalStore,
   onLogout,
@@ -454,7 +454,7 @@ export default function Sidebar({
         currentUser={currentUser}
         roles={roles}
         canAct={canAct}
-        pendingRelease={pendingRelease}
+        uncertifiedRelease={uncertifiedRelease}
         formatReleaseDisplayName={formatReleaseDisplayName}
         setCurrentUser={setCurrentUser}
         setLocalStore={setLocalStore}
