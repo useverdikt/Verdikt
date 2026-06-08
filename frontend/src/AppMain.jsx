@@ -154,6 +154,8 @@ export default function App() {
   })();
   const isMobile = viewportWidth <= 900;
   const [workspaceSyncing, setWorkspaceSyncing] = useState(false);
+  const [thresholdSuggestions, setThresholdSuggestions] = useState([]);
+  const [thresholdSuggestNote, setThresholdSuggestNote] = useState("");
 
   const { showLoopNudge, dismissLoopNudge } = useLoopReadinessNudge({
     releases,
@@ -274,6 +276,31 @@ export default function App() {
       setApiBanner(e.message || "Failed to refresh audit log");
     }
   }, [navigate]);
+  const loadThresholdSuggestions = React.useCallback(async () => {
+    if (!hasBackend()) {
+      setThresholdSuggestions([]);
+      setThresholdSuggestNote("");
+      return;
+    }
+    setThresholdSuggestNote("Loading suggestions…");
+    try {
+      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/threshold-suggestions`, { navigate });
+      setThresholdSuggestions(Array.isArray(data?.suggestions) ? data.suggestions : []);
+      setThresholdSuggestNote("");
+    } catch (e) {
+      const msg = e?.message || "";
+      if (msg.includes("404") || msg.toLowerCase().includes("disabled")) {
+        setThresholdSuggestions([]);
+        setThresholdSuggestNote("Suggestions are currently disabled for this workspace.");
+        return;
+      }
+      setThresholdSuggestions([]);
+      setThresholdSuggestNote("Suggestions unavailable");
+    }
+  }, [navigate]);
+  useEffect(() => {
+    if (nav === "thresholds") void loadThresholdSuggestions();
+  }, [nav, loadThresholdSuggestions]);
   useEffect(() => {
     if (!hasBackend()) return;
     const cancelledRef = { cancelled: false };
@@ -841,23 +868,39 @@ export default function App() {
       isMobile,
       currentUser,
       canAct,
+      suggestions: thresholdSuggestions,
+      suggestNote: thresholdSuggestNote,
+      onApplySuggestion: async (id) => {
+        if (!hasBackend()) return;
+        try {
+          await apiPost(`/api/workspaces/${getWorkspaceId()}/threshold-suggestions/${encodeURIComponent(id)}/apply`, {}, { navigate });
+          await refreshWorkspaceFromServer();
+          await loadThresholdSuggestions();
+          setApiBanner(null);
+        } catch (e) {
+          setApiBanner(e.message || "Failed to apply suggestion");
+        }
+      },
+      onDismissSuggestion: async (id) => {
+        if (!hasBackend()) return;
+        try {
+          await apiPost(
+            `/api/workspaces/${getWorkspaceId()}/threshold-suggestions/${encodeURIComponent(id)}/dismiss`,
+            { reason: "user_dismissed" },
+            { navigate }
+          );
+          await loadThresholdSuggestions();
+          setApiBanner(null);
+        } catch (e) {
+          setApiBanner(e.message || "Failed to dismiss suggestion");
+        }
+      },
       onSave: async (local, localRequired) => {
         setThresholds(local);
         setThresholdRequired(localRequired);
+        S.set("thresholds", local);
+        S.set("thresholdRequired", localRequired);
         if (!hasBackend()) {
-          S.set("thresholds", local);
-          S.set("thresholdRequired", localRequired);
-        }
-        if (hasBackend()) {
-          try {
-            const payload = thresholdNormalizedToApiPayload(local, localRequired);
-            await apiPost(`/api/workspaces/${getWorkspaceId()}/thresholds`, { thresholds: payload }, { navigate });
-            setApiBanner(null);
-            await refreshWorkspaceFromServer();
-          } catch (e) {
-            setApiBanner(e.message || "Failed to save thresholds");
-          }
-        } else {
           addAudit({
             ts: nowTs(),
             event: "Thresholds updated",
@@ -865,6 +908,17 @@ export default function App() {
             actor: "You",
             detail: "Signal thresholds updated."
           });
+          await loadThresholdSuggestions();
+          return;
+        }
+        try {
+          const payload = thresholdNormalizedToApiPayload(local, localRequired);
+          await apiPost(`/api/workspaces/${getWorkspaceId()}/thresholds`, { thresholds: payload }, { navigate });
+          setApiBanner(null);
+          await refreshWorkspaceFromServer();
+          await loadThresholdSuggestions();
+        } catch (e) {
+          setApiBanner(e.message || "Failed to save thresholds");
         }
       }
     });

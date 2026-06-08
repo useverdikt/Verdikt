@@ -61,7 +61,6 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   const missingRequiredSignals = await getMissingRequiredSignals(release.workspace_id, releaseId, latest, release);
   const missingAiSignals = missingRequiredSignals.filter((id) => AI_SIGNAL_IDS.includes(id));
   const missingNonAiSignals = missingRequiredSignals.filter((id) => !AI_SIGNAL_IDS.includes(id));
-  const policy = await getWorkspacePolicy(release.workspace_id);
   const deadlineMs = release.collection_deadline ? Date.parse(release.collection_deadline) : Number.NaN;
   const deadlinePassed = Number.isFinite(deadlineMs) ? Date.now() >= deadlineMs : true;
 
@@ -144,11 +143,9 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   const deltaResult = verdict.deltaAnalysis || { failures: [], snapshot: [] };
   const thresholdFailedSignals = verdict.failed_signals;
-  const shouldBlockOnMissingAi = policy?.require_ai_eval === 1 && policy?.ai_missing_policy === "block_uncertified";
   const missingSignalFails = [];
   if (missingRequiredSignals.length > 0) {
     missingRequiredSignals.forEach((signalId) => {
-      if (AI_SIGNAL_IDS.includes(signalId) && !shouldBlockOnMissingAi) return;
       missingSignalFails.push({ signal_id: signalId, value: null, rule: "required signal missing at evaluation" });
     });
   }

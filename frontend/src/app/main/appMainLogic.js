@@ -202,6 +202,31 @@ const SIGNAL_CATEGORIES = [{
     description: "Required for prompt/UX updates. Waivable for model patches and safety hotfixes. P0 failure = hard block. P3/P4 below threshold = overridable."
   }]
 }, {
+  id: "manual_qa",
+  label: "Risk Scenario Review",
+  icon: "◇",
+  color: C.amber,
+  dimColor: C.amberDim,
+  description: "Optional structured manual validation for high-risk scenarios",
+  signals: [{
+    id: "manual_qa_pct",
+    label: "Acceptable pass rate",
+    direction: "above",
+    unit: "%",
+    hardGate: false,
+    conditional: true,
+    description: "Minimum percentage of manual QA checks that must pass when this gate is required."
+  }, {
+    id: "manual_qa_showstopper",
+    label: "Showstopper severity",
+    direction: "select",
+    unit: "",
+    selectOptions: ["P0", "P1", "P2", "P3"],
+    hardGate: true,
+    conditional: false,
+    description: "Any defect at this severity or higher is a hard block."
+  }]
+}, {
   id: "performance",
   label: "Runtime Performance",
   icon: "◎",
@@ -368,7 +393,9 @@ const SIGNAL_CATEGORIES = [{
   }]
 }];
 const DEFAULT_THRESHOLDS = {
-  ...shared.defaultThresholds
+  ...shared.defaultThresholds,
+  manual_qa_pct: 95,
+  manual_qa_showstopper: "P0"
 };
 /** Local-only demo rows (also default seed when `vdk3_releases` is empty). */
 const DEMO_RELEASES = SCREENSHOT_SIM_RELEASES;
@@ -435,7 +462,7 @@ const INFRA_ITEMS = [{
   label: "AI eval thresholds configured",
   status: "pending",
   priority: "P0",
-  description: "Set floor and max regression delta for each AI eval signal in Settings → Quality Thresholds → AI Evaluation. Thresholds are not advisory — they are enforced at every release. Without this, Verdikt cannot issue a certification verdict.",
+  description: "Set floor and max regression delta for each AI eval signal in App → Thresholds. Thresholds are not advisory — they are enforced at every release. Without this, Verdikt cannot issue a certification verdict.",
   owner: "",
   linkedTo: "/settings"
 }, {

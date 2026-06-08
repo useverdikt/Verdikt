@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
 
-/** Stable JSON for dirty-checking threshold maps (sorted keys, numeric values only). */
+/** Stable JSON for dirty-checking threshold maps (sorted keys, numeric + string values). */
 function serializeThresholds(t) {
   if (!t || typeof t !== "object") return "{}";
   const sorted = {};
   for (const k of Object.keys(t).sort()) {
     const v = t[k];
     if (typeof v === "number" && !Number.isNaN(v)) sorted[k] = v;
+    else if (typeof v === "string" && v !== "") sorted[k] = v;
   }
   return JSON.stringify(sorted);
 }
@@ -29,7 +30,11 @@ export default function ThresholdsView({
   isMobile,
   currentUser,
   canAct,
-  onSave
+  onSave,
+  suggestions = [],
+  suggestNote = "",
+  onApplySuggestion,
+  onDismissSuggestion
 }) {
   const [local, setLocal] = useState(() => ({ ...thresholds }));
   const [localRequired, setLocalRequired] = useState(() => ({ ...thresholdRequired }));
@@ -63,6 +68,100 @@ export default function ThresholdsView({
     lastReqSer.current = serializeRequired(localRequired);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const suggestListNote =
+    suggestNote ||
+    (suggestions.length
+      ? `${suggestions.length} suggestion${suggestions.length > 1 ? "s" : ""} available`
+      : "No active suggestions in the current analysis window.");
+
+  const renderValueControl = (sig) => {
+    if (sig.direction === "test") {
+      return canAct(currentUser) ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em" }}>FLOOR</span>
+            <input type="number" min={0} max={100} value={local[sig.id] ?? 100} step={1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 58, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+            <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted }}>%</span>
+          </div>
+          <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, textAlign: "right" }}>P0 → hard block · P1+ overridable</div>
+        </div>
+      ) : (
+        <div style={{ fontFamily: C.mono, fontSize: 11, color: C.green }}>≥ {local[sig.id] ?? 100}% · P0 → hard block</div>
+      );
+    }
+
+    if (sig.direction === "pass") {
+      return <div style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 700, color: C.green }}>PASS required</div>;
+    }
+
+    if (sig.direction === "select") {
+      const options = sig.selectOptions || [];
+      const value = String(local[sig.id] ?? options[0] ?? "");
+      return canAct(currentUser) ? (
+        <select
+          value={value}
+          onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: e.target.value }))}
+          style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.text, fontSize: 13, fontFamily: C.mono, outline: "none", minWidth: 88 }}
+        >
+          {options.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      ) : (
+        <div style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{value}</div>
+      );
+    }
+
+    if (canAct(currentUser)) {
+      if (sig.hasDelta) {
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em", minWidth: 52, textAlign: "right" }}>FLOOR</span>
+              <input type="number" value={local[sig.id]} step={0.1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+              <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted, minWidth: 18 }}>{sig.unit}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em", minWidth: 52, textAlign: "right" }}>MAX DROP</span>
+              <input type="number" value={local[`${sig.id}_delta`] ?? 5} step={1} onChange={(e) => setLocal((t) => ({ ...t, [`${sig.id}_delta`]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.pink, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+              <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted, minWidth: 18 }}>pts</span>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="number" value={local[sig.id]} step={sig.unit === "s" || sig.unit === "%" ? 0.1 : sig.unit === "ms" ? 10 : 1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 76, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.accent, fontSize: 14, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+          <span style={{ fontFamily: C.mono, fontSize: 13, color: C.muted }}>{sig.unit}</span>
+        </div>
+      );
+    }
+
+    if (sig.hasDelta) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>FLOOR</span>
+            <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
+            <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>{sig.unit}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>MAX DROP</span>
+            <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{local[`${sig.id}_delta`] ?? 5}</span>
+            <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>pts</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
+        {sig.unit ? <span style={{ fontFamily: C.mono, fontSize: 13, color: C.dim }}>{sig.unit}</span> : null}
+      </div>
+    );
   };
 
   return (
@@ -122,7 +221,7 @@ export default function ThresholdsView({
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                     <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{sig.label}</span>
-                    {!sig.id.endsWith("_delta") && localRequired[sig.id] && (
+                    {!sig.id.endsWith("_delta") && sig.direction !== "select" && localRequired[sig.id] && (
                       <span style={{ fontSize: 9, fontFamily: C.mono, color: C.accent, background: "rgba(56,189,248,0.08)", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>REQUIRED</span>
                     )}
                     {sig.hardGate && <span title="Failure renders release permanently UNCERTIFIED — no override available" style={{ fontSize: 9, fontFamily: C.mono, color: C.red, background: C.redDim, padding: "1px 5px", borderRadius: 3, fontWeight: 700, cursor: "help" }}>HARD GATE — NO OVERRIDE</span>}
@@ -131,62 +230,9 @@ export default function ThresholdsView({
                   <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.55 }}>{sig.description}</div>
                 </div>
 
-                {sig.direction === "test" ? (
-                  canAct(currentUser) ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em" }}>FLOOR</span>
-                        <input type="number" min={0} max={100} value={local[sig.id] ?? 100} step={1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 58, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
-                        <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted }}>%</span>
-                      </div>
-                      <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, textAlign: "right" }}>P0 → hard block · P1+ overridable</div>
-                    </div>
-                  ) : (
-                    <div style={{ fontFamily: C.mono, fontSize: 11, color: C.green }}>≥ {local[sig.id] ?? 100}% · P0 → hard block</div>
-                  )
-                ) : sig.direction === "pass" ? (
-                  <div style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 700, color: C.green }}>PASS required</div>
-                ) : canAct(currentUser) ? (
-                  sig.hasDelta ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em", minWidth: 52, textAlign: "right" }}>FLOOR</span>
-                        <input type="number" value={local[sig.id]} step={0.1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
-                        <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted, minWidth: 18 }}>{sig.unit}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em", minWidth: 52, textAlign: "right" }}>MAX DROP</span>
-                        <input type="number" value={local[`${sig.id}_delta`] ?? 5} step={1} onChange={(e) => setLocal((t) => ({ ...t, [`${sig.id}_delta`]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.pink, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
-                        <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted, minWidth: 18 }}>pts</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="number" value={local[sig.id]} step={sig.unit === "s" || sig.unit === "%" ? 0.1 : sig.unit === "ms" ? 10 : 1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 76, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.accent, fontSize: 14, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
-                      <span style={{ fontFamily: C.mono, fontSize: 13, color: C.muted }}>{sig.unit}</span>
-                    </div>
-                  )
-                ) : sig.hasDelta ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>FLOOR</span>
-                      <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
-                      <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>{sig.unit}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>MAX DROP</span>
-                      <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{local[`${sig.id}_delta`] ?? 5}</span>
-                      <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>pts</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
-                    <span style={{ fontFamily: C.mono, fontSize: 13, color: C.dim }}>{sig.unit}</span>
-                  </div>
-                )}
+                {renderValueControl(sig)}
 
-                {!sig.id.endsWith("_delta") && (
+                {!sig.id.endsWith("_delta") && sig.direction !== "select" && (
                   canAct(currentUser) ? (
                     <label style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, cursor: "pointer", userSelect: "none" }}>
                       <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em" }}>REQUIRED</span>
@@ -208,6 +254,42 @@ export default function ThresholdsView({
           </div>
         </div>
       ))}
+
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.raise }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Threshold suggestions</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Data-driven suggestions from recent release outcomes and MISS/OVER_BLOCK patterns.</div>
+        </div>
+        <div style={{ padding: "14px 18px" }}>
+          <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, marginBottom: 12 }}>{suggestListNote}</div>
+          {suggestions.length === 0 ? null : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {suggestions.map((s) => (
+                <div key={s.id || s.signal_id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontFamily: C.mono, fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 4 }}>{s.signal_id}</div>
+                  <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, marginBottom: 8 }}>{s.reason || ""}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontFamily: C.mono, fontSize: 11, marginBottom: 10 }}>
+                    <span style={{ color: C.dim }}>{s.direction === "max" ? "max" : "min"}: {s.current}</span>
+                    <span style={{ color: C.muted }}>→</span>
+                    <span style={{ color: C.text, fontWeight: 700 }}>{s.suggested}</span>
+                    <span style={{ color: C.muted }}>{Math.round((s.confidence || 0) * 100)}% confidence</span>
+                  </div>
+                  {canAct(currentUser) && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Btn variant="primary" onClick={() => onApplySuggestion?.(String(s.id || ""))} style={{ fontSize: 11, padding: "6px 14px" }}>
+                        Apply
+                      </Btn>
+                      <Btn variant="ghost" onClick={() => onDismissSuggestion?.(String(s.id || ""))} style={{ fontSize: 11, padding: "6px 12px" }}>
+                        Dismiss
+                      </Btn>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

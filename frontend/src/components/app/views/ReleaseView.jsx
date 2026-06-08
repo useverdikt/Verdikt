@@ -38,7 +38,7 @@ export default function ReleaseView({
       (import.meta.env.PROD && Boolean(String(import.meta.env.VITE_API_BASE || "").trim()));
     const items = [
       { id: "api", label: "Connect signal sources", done: apiBaseConfigured, to: "/settings?section=api" },
-      { id: "thresholds", label: "Configure quality thresholds", done: thresholdsConfigured, to: "/settings?section=thresholds" },
+      { id: "thresholds", label: "Configure quality thresholds", done: thresholdsConfigured, to: "/thresholds" },
       { id: "trigger", label: "Configure automation trigger (optional)", done: true, to: "/settings?section=trigger" },
     ];
     return { items, complete: items.every((i) => i.done) };

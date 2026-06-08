@@ -163,6 +163,7 @@
   "defaultThresholds": {
     "smoke": 100,
     "e2e_regression": 95,
+    "manual_qa_pct": 95,
     "startup": 3.0,
     "screenload": 1.5,
     "fps": 58,

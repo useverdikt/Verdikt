@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   SECTION_LABELS,
-  THRESH_DEFAULTS,
   TRIGGER_MODES,
   MVP_TRIGGER_MODE_IDS,
   DEFAULT_TRIGGER_CONFIG
@@ -12,10 +11,8 @@ import {
   apiPost,
   apiPut,
   apiDelete,
-  apiFetchInit,
   getWorkspaceId,
-  onApiUnauthorized,
-  resolveApiOrigin
+  onApiUnauthorized
 } from "./settingsClient.js";
 import ConnectSignalSourceModal from "./ConnectSignalSourceModal.jsx";
 import { getSafeApiBase } from "../../lib/apiBase.js";
@@ -23,20 +20,15 @@ import { normalizeStoredProject, primaryCertEnvFromTiers } from "../../lib/proje
 import {
   cloneSourcesBase,
   mergeSourcesFromApi,
-  loadRolePolicy,
-  mergeThresholdsFromApi
+  loadRolePolicy
 } from "./workspace/settingsWorkspaceModel.js";
 import {
-  normalizeThresholdsStateForSave,
-  thresholdNormalizedToApiPayload,
   slugifyWorkspaceSlug,
   normalizeApiBaseOrigin
 } from "./workspace/settingsSaveTransforms.js";
-import { defaultRequiredFlags } from "../../lib/thresholdBounds.js";
 import SettingsWorkspaceShell from "./workspace/SettingsWorkspaceShell.jsx";
 import GovernancePanel from "./workspace/GovernancePanel.jsx";
 import GeneralSettingsSection from "./workspace/sections/GeneralSettingsSection.jsx";
-import ThresholdsSettingsSection from "./workspace/sections/ThresholdsSettingsSection.jsx";
 import TeamSettingsSection from "./workspace/sections/TeamSettingsSection.jsx";
 import ApiSignalSection from "./workspace/sections/ApiSignalSection.jsx";
 import TriggerSettingsSection from "./workspace/sections/TriggerSettingsSection.jsx";
@@ -55,18 +47,6 @@ export default function SettingsWorkspace() {
   const toastTimer = useRef(null);
 
   const wsId = getWorkspaceId();
-
-  const [thresholds, setThresholds] = useState(() => ({ ...THRESH_DEFAULTS }));
-  const [thresholdRequired, setThresholdRequired] = useState(() => defaultRequiredFlags());
-  const [threshNote, setThreshNote] = useState("No unsaved changes");
-  const [threshDirty, setThreshDirty] = useState(false);
-
-  const [policyState, setPolicyState] = useState({ require_ai_eval: true, ai_missing_policy: "block_uncertified" });
-  const [policyNote, setPolicyNote] = useState("No unsaved changes");
-  const [policyDirty, setPolicyDirty] = useState(false);
-
-  const [suggestions, setSuggestions] = useState([]);
-  const [suggestNote, setSuggestNote] = useState("Loading suggestions…");
 
   const [triggerConfig, setTriggerConfig] = useState(() => {
     try {
@@ -185,41 +165,6 @@ export default function SettingsWorkspace() {
 
   const roleLabels = useMemo(() => Object.fromEntries(Object.entries(rolePolicy).map(([id, cfg]) => [id, cfg.label])), [rolePolicy]);
 
-  const loadThresholds = useCallback(async () => {
-    let stored = {};
-    let storedRequired = {};
-    try {
-      stored = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");
-      storedRequired = JSON.parse(localStorage.getItem("vdk3_threshold_required") || "{}");
-    } catch (_) {}
-    let apiThresholds = {};
-    let apiRequired = {};
-    try {
-      const data = await apiGet(`/api/workspaces/${wsId}/thresholds`, { navigate });
-      const merged = mergeThresholdsFromApi(data?.thresholds);
-      apiThresholds = merged.thresholds;
-      apiRequired = merged.required;
-      if (Object.keys(apiThresholds).length) {
-        localStorage.setItem("vdk3_thresholds", JSON.stringify({ ...stored, ...apiThresholds }));
-        localStorage.setItem("vdk3_threshold_required", JSON.stringify({ ...storedRequired, ...apiRequired }));
-      }
-    } catch (_) {}
-    const t = { ...THRESH_DEFAULTS, ...stored, ...apiThresholds };
-    setThresholds(t);
-    setThresholdRequired({ ...defaultRequiredFlags(), ...storedRequired, ...apiRequired });
-  }, [navigate, wsId]);
-
-  const loadPolicies = useCallback(async () => {
-    try {
-      const data = await apiGet(`/api/workspaces/${wsId}/policies`, { navigate });
-      const p = data?.policies || {};
-      setPolicyState({
-        require_ai_eval: p.require_ai_eval !== false,
-        ai_missing_policy: p.ai_missing_policy || "block_uncertified"
-      });
-    } catch (_) {}
-  }, [navigate, wsId]);
-
   const loadSignalSources = useCallback(async () => {
     try {
       const data = await apiGet(`/api/workspaces/${wsId}/signal-integrations`, { navigate });
@@ -232,30 +177,6 @@ export default function SettingsWorkspace() {
   useEffect(() => {
     loadSignalSources();
   }, [loadSignalSources]);
-
-  const loadThresholdSuggestions = useCallback(async () => {
-    setSuggestNote("Loading suggestions…");
-    const API_BASE = resolveApiOrigin();
-    try {
-      const res = await fetch(`${API_BASE}/api/workspaces/${wsId}/threshold-suggestions`, apiFetchInit());
-      if (res.status === 401) {
-        onApiUnauthorized(navigate);
-        return;
-      }
-      if (res.status === 404) {
-        setSuggestions([]);
-        setSuggestNote("Suggestions are currently disabled for this workspace.");
-        return;
-      }
-      if (!res.ok) throw new Error("GET threshold-suggestions failed");
-      const data = await res.json();
-      setSuggestions(Array.isArray(data?.suggestions) ? data.suggestions : []);
-      setSuggestNote("");
-    } catch (_) {
-      setSuggestions([]);
-      setSuggestNote("Suggestions unavailable");
-    }
-  }, [navigate, wsId]);
 
   const loadGithubAppStatus = useCallback(async () => {
     try {
@@ -299,12 +220,9 @@ export default function SettingsWorkspace() {
   }, [wsId, navigate]);
 
   useEffect(() => {
-    loadThresholds();
-    loadThresholdSuggestions();
-    loadPolicies();
     loadGithubAppStatus();
     loadVcsIntegration();
-  }, [loadThresholds, loadThresholdSuggestions, loadPolicies, loadGithubAppStatus, loadVcsIntegration]);
+  }, [loadGithubAppStatus, loadVcsIntegration]);
 
   useEffect(() => {
     let active = true;
@@ -349,9 +267,14 @@ export default function SettingsWorkspace() {
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [section]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const nextSection = params.get("section");
+    if (nextSection === "thresholds") {
+      navigate("/thresholds", { replace: true });
+      return;
+    }
     if (nextSection && SECTION_LABELS[nextSection]) {
       setSection(nextSection);
     }
@@ -362,67 +285,11 @@ export default function SettingsWorkspace() {
       const nextSearch = params.toString();
       navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
     }
-  }, [location.search]);
+  }, [location.search, location.pathname, navigate, toast]);
 
   useEffect(() => {
     localStorage.setItem("vdk3_role_policy", JSON.stringify(rolePolicy));
   }, [rolePolicy]);
-
-  const updateThresh = (k, v) => {
-    setThresholds((prev) => ({ ...prev, [k]: v }));
-    setThreshDirty(true);
-    setThreshNote("Unsaved changes");
-  };
-
-  const saveThresholds = async () => {
-    const t = normalizeThresholdsStateForSave(THRESH_DEFAULTS, thresholds);
-    localStorage.setItem("vdk3_thresholds", JSON.stringify(t));
-    localStorage.setItem("vdk3_threshold_required", JSON.stringify(thresholdRequired));
-    try {
-      const thresholdPayload = thresholdNormalizedToApiPayload(t, thresholdRequired);
-      await apiPost(`/api/workspaces/${wsId}/thresholds`, { thresholds: thresholdPayload }, { navigate });
-    } catch (_) {
-      toast("Saved locally — backend unavailable");
-    }
-    setThreshNote("Saved");
-    setThreshDirty(false);
-    await loadThresholdSuggestions();
-    toast("Thresholds saved");
-  };
-
-  const applySuggestion = async (id) => {
-    try {
-      await apiPost(`/api/workspaces/${wsId}/threshold-suggestions/${encodeURIComponent(id)}/apply`, {}, { navigate });
-      await loadThresholds();
-      await loadThresholdSuggestions();
-      setThreshNote("Saved");
-      setThreshDirty(false);
-      toast("Suggestion applied");
-    } catch (_) {
-      toast("Failed to apply suggestion");
-    }
-  };
-
-  const dismissSuggestion = async (id) => {
-    try {
-      await apiPost(`/api/workspaces/${wsId}/threshold-suggestions/${encodeURIComponent(id)}/dismiss`, { reason: "user_dismissed" }, { navigate });
-      await loadThresholdSuggestions();
-      toast("Suggestion dismissed");
-    } catch (_) {
-      toast("Failed to dismiss suggestion");
-    }
-  };
-
-  const savePolicies = async () => {
-    try {
-      await apiPost(`/api/workspaces/${wsId}/policies`, policyState, { navigate });
-      setPolicyNote("Saved");
-      setPolicyDirty(false);
-      toast("AI policy saved");
-    } catch (_) {
-      toast("Failed to save AI policy");
-    }
-  };
 
   const saveGeneral = () => {
     const cleanedSlug = slugifyWorkspaceSlug(generalSlug) || "workspace";
@@ -547,7 +414,7 @@ export default function SettingsWorkspace() {
     setReadyBadge("ready-eval", evalConnected);
     setReadyBadge("ready-thresh", thresholdsConfigured);
     setReadyBadge("ready-trigger", true);
-  }, [sources, thresholds]);
+  }, [sources]);
 
   return (
     <>
@@ -577,25 +444,6 @@ export default function SettingsWorkspace() {
           persistProdObservation={persistProdObservation}
           setGeneralDirty={setGeneralDirty}
           setGeneralNote={setGeneralNote}
-        />
-        <ThresholdsSettingsSection
-          section={section}
-          thresholds={thresholds}
-          updateThresh={updateThresh}
-          threshNote={threshNote}
-          threshDirty={threshDirty}
-          saveThresholds={saveThresholds}
-          suggestions={suggestions}
-          suggestNote={suggestNote}
-          applySuggestion={applySuggestion}
-          dismissSuggestion={dismissSuggestion}
-          policyState={policyState}
-          setPolicyState={setPolicyState}
-          policyNote={policyNote}
-          policyDirty={policyDirty}
-          setPolicyNote={setPolicyNote}
-          setPolicyDirty={setPolicyDirty}
-          savePolicies={savePolicies}
         />
         <TeamSettingsSection
           section={section}
@@ -646,7 +494,7 @@ export default function SettingsWorkspace() {
         <NotificationsSettingsSection section={section} toast={toast} />
         <GovernancePanel section={section} wsId={wsId} toast={toast} />
         <BillingSettingsSection section={section} />
-        <DangerZoneSection section={section} toast={toast} setThresholds={setThresholds} />
+        <DangerZoneSection section={section} toast={toast} />
         <EmailPreviewsSection section={section} />
       </SettingsWorkspaceShell>
 
@@ -674,4 +522,3 @@ export default function SettingsWorkspace() {
     </>
   );
 }
-
