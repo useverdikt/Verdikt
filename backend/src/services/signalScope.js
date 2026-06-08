@@ -25,6 +25,10 @@ async function getInScopeSignalIds(workspaceId) {
       scoped.add(signalId);
     }
   }
+  // Manual QA has no external integration — always eligible when marked required.
+  for (const signalId of sharedPkg.getSignalsForSource("manual_qa")) {
+    scoped.add(signalId);
+  }
   return scoped;
 }
 

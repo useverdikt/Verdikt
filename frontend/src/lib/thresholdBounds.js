@@ -1,4 +1,5 @@
 import shared from "../../../shared/config.json";
+import { showstopperLabelToMaxWorstIndex } from "./severityThresholds.js";
 
 const DIRECTIONS = shared.signalThresholdDirections || {};
 const DEFAULT_REQUIRED_IDS = shared.defaultRequiredSignalIds || [];
@@ -64,6 +65,14 @@ export function thresholdNormalizedToApiPayload(normalized, requiredFlags = {}) 
       };
     }
   });
+  const showstopper = normalized.manual_qa_showstopper;
+  if (typeof showstopper === "string" && showstopper.trim()) {
+    thresholdPayload.manual_qa_worst_severity = {
+      min: null,
+      max: showstopperLabelToMaxWorstIndex(showstopper),
+      required_for_certification: false
+    };
+  }
   return thresholdPayload;
 }
 
@@ -91,5 +100,10 @@ export function applyThresholdApiMap(map) {
       required[signalId] = !!cfg.required_for_certification;
     }
   });
+  if (map?.manual_qa_worst_severity && thresholds.manual_qa_worst_severity != null) {
+    const maxIdx = Math.round(Number(thresholds.manual_qa_worst_severity));
+    const labels = ["none", "P4", "P3", "P2", "P1", "P0"];
+    thresholds.manual_qa_showstopper = labels[Math.min(labels.length - 1, maxIdx + 1)] ?? "P0";
+  }
   return { thresholds, required };
 }
