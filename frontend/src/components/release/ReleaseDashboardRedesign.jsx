@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { confMeta } from "../../lib/releaseConfidenceMeta.js";
 import { alignBadgeMeta, hasComputedAlignment } from "../../lib/releaseAlignmentMeta.js";
+import { fullLoopBarPct } from "../../lib/loopReadinessUi.js";
 import { apiGet } from "../../lib/apiClient.js";
 import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, isCertifiedLike } from "../../lib/releaseStatus.js";
 import "./ReleaseDashboardRedesign.css";
@@ -619,9 +620,10 @@ export function ReleaseDashboard({
     const uncertified = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
     const overrideCount = releases.filter(r => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
     const overrideRate = certified ? Math.round((overrideCount / certified) * 100) : 0;
-    const loopCount = releases.filter(r => hasComputedAlignment(r.alignmentVerdict)).length;
+    const loopCount = loopReadiness?.full_loop_count
+      ?? releases.filter(r => hasComputedAlignment(r.alignmentVerdict)).length;
     return { certRate, uncertified, overrideRate, loopCount, total, certified };
-  }, [releases]);
+  }, [releases, loopReadiness]);
 
   /* per-release category statuses */
   const releaseCatStatuses = useMemo(() => {
@@ -926,7 +928,10 @@ export function ReleaseDashboard({
               <div className="funnel">
                 {loopStageRows.map(([label, count, amber]) => {
                   const totalBase = Math.max(Number(loopStageRows[0]?.[1] || 0), 1);
-                  const pct = Math.max(6, Math.min(100, Math.round((Number(count || 0) / totalBase) * 100)));
+                  const isFullLoops = label === "Full loops";
+                  const pct = isFullLoops
+                    ? fullLoopBarPct(count, loopReadiness?.band_thresholds?.reliable_min_loops ?? 10)
+                    : Math.max(6, Math.min(100, Math.round((Number(count || 0) / totalBase) * 100)));
                   return (
                   <div className="fs" key={String(label)}>
                     <div className="fl">{label}</div>

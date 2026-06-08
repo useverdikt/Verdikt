@@ -4,6 +4,7 @@ import { json } from "../api.js";
 import { C, BAND_META } from "../theme.js";
 import { btnStyle } from "../styles.js";
 import { Card, Spinner, EmptyState } from "../ui.jsx";
+import { fullLoopBarPct, pipelineFunnelBarPct } from "../../../lib/loopReadinessUi.js";
 
 export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
   const [data, setData] = useState(null);
@@ -87,15 +88,18 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {[
-                { label: "Releases created",         value: data.total_releases,                  color: C.muted },
-                { label: "Verdicts issued",           value: data.verdict_issued,                   color: C.muted },
-                { label: "Eligible for loop",         value: data.eligible_releases,                color: C.muted, note: "verdict > 3h ago" },
-                { label: "With production signals",   value: data.with_production_observations,     color: C.amber },
-                { label: "With alignment computed",   value: data.with_alignment,                   color: C.green },
-              ].map(({ label, value, color, note }) => {
-                const pct = data.eligible_releases > 0
-                  ? Math.min(100, Math.round((value / data.eligible_releases) * 100))
-                  : (value > 0 ? 100 : 0);
+                { label: "Releases created",         value: data.total_releases,                  color: C.muted, mode: "total" },
+                { label: "Verdicts issued",           value: data.verdict_issued,                   color: C.muted, mode: "total" },
+                { label: "Eligible for loop",         value: data.eligible_releases,                color: C.muted, note: "verdict > 3h ago", mode: "total" },
+                { label: "With production signals",   value: data.with_production_observations,     color: C.amber, mode: "eligible" },
+                { label: "With alignment computed",   value: data.with_alignment,                   color: C.green, mode: "full_loop" },
+              ].map(({ label, value, color, note, mode }) => {
+                const reliableMin = data.band_thresholds?.reliable_min_loops ?? 10;
+                const pct = mode === "full_loop"
+                  ? fullLoopBarPct(value, reliableMin)
+                  : mode === "eligible"
+                    ? pipelineFunnelBarPct(value, data.eligible_releases)
+                    : pipelineFunnelBarPct(value, data.total_releases);
                 return (
                   <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ width: 200, fontSize: 11, color: C.muted, flexShrink: 0, lineHeight: 1.3 }}>
