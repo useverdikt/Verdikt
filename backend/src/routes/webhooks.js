@@ -85,14 +85,25 @@ async function createReleaseSession({
   prNumber = null
 }) {
   const key = idempotencyKey || `${workspaceId}:${releaseRef}:${source}`;
-  const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = ?", [key]);
-  if (existing) {
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [existing.release_id]);
+  const releaseId = `rel_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+  const now = nowIso();
+
+  // Claim the idempotency key atomically before touching releases.
+  // ON CONFLICT DO NOTHING means changes=0 if another request already claimed it,
+  // preventing duplicate releases even under concurrent webhook deliveries.
+  const gate = await run(
+    "INSERT INTO webhook_events (idempotency_key, release_id, created_at) VALUES (?, ?, ?) ON CONFLICT (idempotency_key) DO NOTHING",
+    [key, releaseId, now]
+  );
+  if (gate.changes === 0) {
+    // Another request won the race — return the release it created.
+    const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = ?", [key]);
+    const release = existing
+      ? await queryOne("SELECT * FROM releases WHERE id = ?", [existing.release_id])
+      : null;
     return { reused: true, release };
   }
 
-  const releaseId = `rel_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
-  const now = nowIso();
   const windowMins = Number.isFinite(+collectionWindowMinutes)
     ? Math.max(5, Math.min(24 * 60, +collectionWindowMinutes))
     : DEFAULT_COLLECTION_WINDOW_MINUTES;
@@ -121,7 +132,6 @@ async function createReleaseSession({
       Number.isFinite(Number(prNumber)) ? Number(prNumber) : null
     ]
   );
-  await run("INSERT INTO webhook_events (idempotency_key, release_id, created_at) VALUES (?, ?, ?)", [key, releaseId, now]);
   await writeAudit({
     workspaceId,
     releaseId,
