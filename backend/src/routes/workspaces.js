@@ -62,7 +62,7 @@ const {
   DEFAULT_COLLECTION_WINDOW_MINUTES,
   ENABLE_THRESHOLD_SUGGESTIONS
 } = require("./deps");
-const { LOOP_BAND_THRESHOLDS, computeLoopBand, computeLoopNextAction } = require("../services/loopReadiness");
+const { LOOP_BAND_THRESHOLDS, LOOP_ELIGIBILITY_MINUTES, loopEligibilityCutoffIso, computeLoopBand, computeLoopNextAction } = require("../services/loopReadiness");
 
 module.exports = function registerWorkspaceRoutes(app) {
 app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -872,8 +872,7 @@ app.get("/api/workspaces/:workspaceId/production-health/criteria", authMiddlewar
 app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
   const wsId = req.params.workspaceId;
-  const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
-  const eligibleCutoff = new Date(Date.now() - THREE_HOURS_MS).toISOString();
+  const eligibleCutoff = loopEligibilityCutoffIso();
 
   // All releases in this workspace
   const trRow = await queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [wsId]);
@@ -886,7 +885,7 @@ app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWo
   );
   const verdictIssued = Number(viRow?.c ?? 0);
 
-  // Eligible releases: verdict issued more than 3 hours ago
+  // Eligible releases: verdict issued more than LOOP_ELIGIBILITY_MINUTES ago
   const elRow = await queryOne(
     `SELECT COUNT(*) AS c FROM releases
               WHERE workspace_id = ? AND verdict_issued_at IS NOT NULL
@@ -955,7 +954,8 @@ app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWo
     // Counts
     total_releases: totalReleases,
     verdict_issued: verdictIssued,
-    eligible_releases: eligible,   // verdict > 3 hours old
+    eligible_releases: eligible,
+    eligibility_minutes: LOOP_ELIGIBILITY_MINUTES,
     with_production_observations: withObservations,
     with_alignment: withAlignment,
     full_loop_count: fullLoopCount,

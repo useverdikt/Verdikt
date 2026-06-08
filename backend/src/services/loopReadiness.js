@@ -1,5 +1,12 @@
 "use strict";
 
+/** Minutes after verdict before a release counts toward loop-eligibility funnel stages. */
+const LOOP_ELIGIBILITY_MINUTES = 30;
+
+function loopEligibilityCutoffIso(nowMs = Date.now()) {
+  return new Date(nowMs - LOOP_ELIGIBILITY_MINUTES * 60 * 1000).toISOString();
+}
+
 /** Fixed feedback-loop band thresholds (surfaced in API + Intelligence UI). */
 const LOOP_BAND_THRESHOLDS = {
   /** 0–2 full loops */
@@ -54,6 +61,8 @@ function computeLoopNextAction({ fullLoopCount, fullLoopRatePct, verdictIssued, 
 }
 
 module.exports = {
+  LOOP_ELIGIBILITY_MINUTES,
+  loopEligibilityCutoffIso,
   LOOP_BAND_THRESHOLDS,
   computeLoopBand,
   computeLoopNextAction

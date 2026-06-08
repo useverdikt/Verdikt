@@ -90,7 +90,7 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
               {[
                 { label: "Releases created",         value: data.total_releases,                  color: C.muted, mode: "total" },
                 { label: "Verdicts issued",           value: data.verdict_issued,                   color: C.muted, mode: "total" },
-                { label: "Eligible for loop",         value: data.eligible_releases,                color: C.muted, note: "verdict > 3h ago", mode: "total" },
+                { label: "Eligible for loop",         value: data.eligible_releases,                color: C.muted, note: `verdict > ${data.eligibility_minutes ?? 30}m ago`, mode: "total" },
                 { label: "With production signals",   value: data.with_production_observations,     color: C.amber, mode: "eligible" },
                 { label: "With alignment computed",   value: data.with_alignment,                   color: C.green, mode: "full_loop" },
               ].map(({ label, value, color, note, mode }) => {

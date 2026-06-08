@@ -18,6 +18,7 @@
 
 const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
+const { safeJsonParse } = require("../lib/safeJson");
 const { upsertReleaseIntelligence, parseRecommendationBlob } = require("./intelligenceBuilder");
 
 // ─── Grade weights for reliability penalty ────────────────────────────────────
@@ -399,13 +400,15 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   const failureModes = fmRows.map((r) => ({
     failure_mode: r.failure_mode,
     confidence: r.confidence,
-    signals: JSON.parse(r.signals_json || "[]"),
+    signals: safeJsonParse(r.signals_json, []),
     label: r.failure_mode.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
   }));
 
   // Early warning
   const ewRow = await queryOne("SELECT * FROM release_early_warnings WHERE release_id = ?", [releaseId]);
-  const earlyWarning = ewRow ? { overall_risk: ewRow.overall_risk, warnings: JSON.parse(ewRow.warnings_json || "[]") } : null;
+  const earlyWarning = ewRow
+    ? { overall_risk: ewRow.overall_risk, warnings: safeJsonParse(ewRow.warnings_json, []) }
+    : null;
 
   // Signal reliability
   const relRows = await queryAll(
