@@ -2,16 +2,25 @@ import React, { useCallback, useEffect, useState } from "react";
 import { json } from "../api.js";
 import { C } from "../theme.js";
 import { btnStyle } from "../styles.js";
-import { Badge, Card, Spinner, EmptyState } from "../ui.jsx";
+import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
+import { panelErrorMessage } from "../panelLoad.js";
 
 export function OverrideAnalyticsPanel({ wsId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await json(`/api/workspaces/${wsId}/override-analytics`)); } catch (_) {}
-    finally { setLoading(false); }
+    setError(null);
+    try {
+      setData(await json(`/api/workspaces/${wsId}/override-analytics`));
+    } catch (err) {
+      setData(null);
+      setError(panelErrorMessage(err, "Could not load override analytics."));
+    } finally {
+      setLoading(false);
+    }
   }, [wsId]);
 
   useEffect(() => { load(); }, [load]);
@@ -21,7 +30,11 @@ export function OverrideAnalyticsPanel({ wsId }) {
   return (
     <Card title="Override Pattern Analytics" eyebrow="GOVERNANCE INTELLIGENCE"
       action={<button onClick={load} style={btnStyle(C.amber)}>Refresh</button>}>
-      {loading ? <Spinner /> : !data ? <EmptyState msg="Could not load analytics." /> : (
+      {loading && !data ? <Spinner /> : error ? (
+        <ErrorState msg={error} onRetry={load} />
+      ) : !data ? (
+        <EmptyState msg="No override analytics yet." />
+      ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* KPIs */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>

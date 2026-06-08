@@ -6,6 +6,17 @@ export function api(path, opts = {}) {
   return fetch(`${base}${path}`, apiFetchInit({ ...rest, headers: { ...h } }));
 }
 
-export function json(path, opts) {
-  return api(path, opts).then((r) => r.json());
+export async function json(path, opts) {
+  const r = await api(path, opts);
+  let body = null;
+  try {
+    body = await r.json();
+  } catch {
+    body = null;
+  }
+  if (!r.ok) {
+    const msg = body?.error || body?.message || `Request failed (${r.status})`;
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  return body;
 }

@@ -3,25 +3,39 @@ import { authHeaders } from "../../../lib/apiClient.js";
 import { api, json } from "../api.js";
 import { C } from "../theme.js";
 import { btnStyle } from "../styles.js";
-import { Badge, Card, Spinner, EmptyState } from "../ui.jsx";
+import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
+import { panelErrorMessage } from "../panelLoad.js";
 
 export function CorrelationPanel({ wsId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [computing, setComputing] = useState(false);
   const [trends, setTrends] = useState(null);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [corr, ft] = await Promise.all([
+      const [corrR, ftR] = await Promise.allSettled([
         json(`/api/workspaces/${wsId}/correlations`),
         json(`/api/workspaces/${wsId}/failure-mode-trends`)
       ]);
-      setData(corr);
-      setTrends(ft);
-    } catch (_) {}
-    finally { setLoading(false); }
+      if (corrR.status === "fulfilled") setData(corrR.value);
+      else setData(null);
+      if (ftR.status === "fulfilled") setTrends(ftR.value);
+      else setTrends(null);
+      if (corrR.status === "rejected") {
+        throw corrR.reason;
+      }
+      if (ftR.status === "rejected") {
+        setError(panelErrorMessage(ftR.reason, "Could not load failure mode trends."));
+      }
+    } catch (err) {
+      setError(panelErrorMessage(err, "Could not load correlation data."));
+    } finally {
+      setLoading(false);
+    }
   }, [wsId]);
 
   const compute = async () => {
@@ -39,7 +53,9 @@ export function CorrelationPanel({ wsId }) {
   return (
     <Card title="Signal Correlations & Failure Modes" eyebrow="PATTERN INTELLIGENCE"
       action={<button onClick={compute} disabled={computing} style={btnStyle(C.cyan)}>{computing ? "Computing…" : "Recompute"}</button>}>
-      {loading ? <Spinner /> : (
+      {loading && !data && !error ? <Spinner /> : error && !data ? (
+        <ErrorState msg={error} onRetry={load} />
+      ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
           {/* Correlations */}
           <div>

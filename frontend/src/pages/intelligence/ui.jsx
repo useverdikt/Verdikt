@@ -65,3 +65,30 @@ export function Spinner() {
 export function EmptyState({ msg }) {
   return <div style={{ color: C.dim, fontSize: 13, textAlign: "center", padding: "24px 0" }}>{msg}</div>;
 }
+
+export function ErrorState({ msg, onRetry }) {
+  return (
+    <div style={{ textAlign: "center", padding: "24px 0" }}>
+      <div style={{ color: C.red, fontSize: 13, marginBottom: onRetry ? 12 : 0, lineHeight: 1.5 }}>{msg}</div>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          style={{
+            fontFamily: C.mono,
+            fontSize: 11,
+            fontWeight: 700,
+            color: C.accentL,
+            background: "transparent",
+            border: `1px solid ${C.border}`,
+            borderRadius: 6,
+            padding: "6px 12px",
+            cursor: "pointer"
+          }}
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}

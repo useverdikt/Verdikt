@@ -1,5 +1,4 @@
 import shared from "../../../../shared/config.json";
-import { SCREENSHOT_SIM_RELEASES } from "../screenshotSimReleases.js";
 import { C } from "../../theme/tokens.js";
 import { mapBackendStatusToUi, normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
@@ -397,8 +396,6 @@ const DEFAULT_THRESHOLDS = {
   ...shared.defaultThresholds,
   manual_qa_showstopper: "P0"
 };
-/** Local-only demo rows (also default seed when `vdk3_releases` is empty). */
-const DEMO_RELEASES = SCREENSHOT_SIM_RELEASES;
 const DEFAULT_AUDIT = [{
   id: 8,
   ts: "2026-02-28 09:01",
@@ -890,7 +887,6 @@ export {
   getRegressionRequired,
   SIGNAL_CATEGORIES,
   DEFAULT_THRESHOLDS,
-  DEMO_RELEASES,
   DEFAULT_AUDIT,
   INFRA_ITEMS,
   SEVERITIES,
