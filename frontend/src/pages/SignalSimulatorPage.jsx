@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
+import { refreshReleaseDetail } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { filterSimulatorSourcesForMandatory, buildSimulatorThresholdMap, getSimulatorEmptyHint } from "../lib/simulatorMandatorySignals.js";
 import {
@@ -538,17 +539,22 @@ export default function SignalSimulatorPage() {
         [sourceId]: { ok: true, inserted, status }
       }));
 
-      // Refresh releases to pick up new status
-      const refreshed = await apiGet(`/api/workspaces/${getWorkspaceId()}/releases?limit=50`, { navigate });
-      const rows = (refreshed?.releases || []);
-      rows.sort((a, b) => {
-        if (a.status === "COLLECTING" && b.status !== "COLLECTING") return -1;
-        if (b.status === "COLLECTING" && a.status !== "COLLECTING") return 1;
-        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      const mapped = await refreshReleaseDetail(selectedReleaseId, navigate, { emit: true });
+      setReleases((prev) => {
+        const next = prev.map((r) =>
+          r.id === selectedReleaseId
+            ? {
+                ...r,
+                status: mapped.status || r.status,
+                environment: mapped.environment ?? r.environment,
+                version: mapped.version ?? r.version
+              }
+            : r
+        );
+        return next;
       });
-      setReleases(rows);
 
-      const newStatus = rows.find(r => r.id === selectedReleaseId)?.status;
+      const newStatus = mapped.status || status;
       const statusLabel = getStatusMeta(newStatus || "COLLECTING").label;
 
       showToast(

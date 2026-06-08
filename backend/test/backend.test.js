@@ -37,6 +37,8 @@ const { analyzeReleaseDeltas } = require("../src/services/delta");
 const { nowIso } = require("../src/lib/time");
 const { maybeEnrichVerdictIntelligence } = require("../src/services/llmAssist");
 const { callIntelligenceModel } = require("../src/services/aiClient");
+const { upsertReleaseIntelligence, getReleaseIntelligence } = require("../src/services/intelligenceBuilder");
+const { computeAndPersistRecommendation, getRecommendation } = require("../src/services/recommendationEngine");
 
 before(async () => {
   await initDatabase();
@@ -557,12 +559,21 @@ describe("API integration", () => {
     ]);
     await agent
       .post(`/api/releases/${created.body.id}/signals`)
-      .send({ source: "test", signals: { accuracy: 1 } })
+      .send({
+        source: "test",
+        signals: {
+          accuracy: 90,
+          safety: 95,
+          tone: 90,
+          hallucination: 95,
+          relevance: 85
+        }
+      })
       .expect(200);
 
     const rel = await queryOne("SELECT environment, status FROM releases WHERE id = ?", [created.body.id]);
     assert.equal(rel.environment, "prod");
-    assert.ok(["CERTIFIED", "UNCERTIFIED"].includes(String(rel.status)));
+    assert.equal(rel.status, "CERTIFIED");
   });
 
   it("manual release creation always starts in pre-prod", async () => {
@@ -815,6 +826,45 @@ describe("evaluateReleaseAfterSignalIngest (unit)", () => {
     assert.ok(out.failed_signals.some((f) => f.failure_kind === "no_ingest"));
     const row = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
     assert.equal(row.status, "UNCERTIFIED");
+  });
+});
+
+describe("release intelligence recommendation vs user decision (unit)", () => {
+  it("keeps recommendation when user records intelligence decision", async () => {
+    const ws = `ws_intel_${crypto.randomBytes(3).toString("hex")}`;
+    await ensureWorkspaceSeeded(ws);
+    const releaseId = `rel_intel_${crypto.randomBytes(3).toString("hex")}`;
+    const now = nowIso();
+    await run(
+      `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, verdict_issued_at, collection_deadline)
+       VALUES (?, ?, 'v1', 'model_update', 'pre-prod', 'CERTIFIED', ?, ?, ?, ?)`,
+      [releaseId, ws, now, now, now, now]
+    );
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 92, 't', ?)`, [
+      releaseId,
+      now
+    ]);
+    await run(
+      `INSERT INTO audit_events (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at)
+       VALUES (?, ?, 'SIGNALS_INGESTED', 'SYSTEM', 'test', ?, ?)`,
+      [ws, releaseId, JSON.stringify({ failed_signals: [], missing_required_signals: [] }), now]
+    );
+
+    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const rec = await computeAndPersistRecommendation(release);
+    assert.ok(rec.confidence_score != null);
+
+    await upsertReleaseIntelligence(releaseId, ws, {
+      decision: { decision: "shipped", notes: "", actor: "test", decided_at: now }
+    });
+
+    const intel = await getReleaseIntelligence(releaseId);
+    assert.equal(intel.decision?.decision, "shipped");
+    assert.equal(intel.recommendation?.confidence_score, rec.confidence_score);
+    assert.ok(intel.recommendation?.recommended_verdict);
+
+    const fetched = await getRecommendation(releaseId);
+    assert.equal(fetched?.confidence_score, rec.confidence_score);
   });
 });
 
