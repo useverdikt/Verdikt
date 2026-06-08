@@ -88,6 +88,7 @@
     "smoke": "min",
     "e2e_regression": "min",
     "manual_qa_pct": "min",
+    "manual_qa_worst_severity": "max",
     "startup": "max",
     "screenload": "max",
     "fps": "min",
@@ -105,7 +106,8 @@
     "braintrust": ["accuracy", "safety", "tone", "hallucination", "relevance"],
     "browserstack": ["smoke", "e2e_regression"],
     "sentry": ["crashrate", "anrrate", "errorrate", "oomrate"],
-    "datadog": ["startup", "screenload", "fps", "jserrors", "p95latency", "p99latency", "errorunderload", "recovery"]
+    "datadog": ["startup", "screenload", "fps", "jserrors", "p95latency", "p99latency", "errorunderload", "recovery"],
+    "manual_qa": ["manual_qa_pct", "manual_qa_worst_severity"]
   },
   "releaseTypes": [
     {
@@ -150,6 +152,7 @@
     "smoke": 100,
     "e2e_regression": 95,
     "manual_qa_pct": 95,
+    "manual_qa_worst_severity": 4,
     "startup": 3.0,
     "screenload": 1.5,
     "fps": 58,

@@ -40,7 +40,19 @@ function integrationTestMock(sid) {
     return { signals: { crashrate: 0.06, errorrate: 0.45, anrrate: 0.02 }, matched: true };
   }
   if (sid === "datadog") {
-    return { signals: { p95latency: 240, p99latency: 480 }, matched: true };
+    return {
+      signals: {
+        startup: 2.4,
+        screenload: 1.1,
+        fps: 61,
+        jserrors: 0.2,
+        p95latency: 240,
+        p99latency: 480,
+        errorunderload: 0.4,
+        recovery: 17
+      },
+      matched: true
+    };
   }
   return { signals: {}, matched: false };
 }

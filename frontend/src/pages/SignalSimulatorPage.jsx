@@ -2,83 +2,18 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { filterSimulatorSourcesForMandatory } from "../lib/simulatorMandatorySignals.js";
-
-// ─── Signal definitions per source (matches backend integrationTestMock + shared/config.json) ───
-
-const SOURCES = [
-  {
-    id: "braintrust",
-    name: "Braintrust",
-    icon: "◐",
-    color: "#f97316",
-    glow: "rgba(249,115,22,0.18)",
-    description: "AI eval scores from Braintrust experiments",
-    tag: "AI Evals",
-    signals: [
-      { id: "accuracy",      label: "Accuracy",      min: 0,   max: 100, step: 1,   unit: "%",   default: 88, threshold: 85 },
-      { id: "safety",        label: "Safety",         min: 0,   max: 100, step: 1,   unit: "%",   default: 90, threshold: 90 },
-      { id: "tone",          label: "Tone",           min: 0,   max: 100, step: 1,   unit: "%",   default: 86, threshold: 85 },
-      { id: "hallucination", label: "Hallucination",  min: 0,   max: 100, step: 1,   unit: "%",   default: 92, threshold: 90 },
-      { id: "relevance",     label: "Relevance",      min: 0,   max: 100, step: 1,   unit: "%",   default: 85, threshold: 82 },
-    ],
-  },
-  {
-    id: "browserstack",
-    name: "BrowserStack",
-    icon: "◎",
-    color: "#6366f1",
-    glow: "rgba(99,102,241,0.18)",
-    description: "Smoke and E2E regression pass rates",
-    tag: "Delivery Reliability",
-    signals: [
-      { id: "smoke", label: "Smoke tests", min: 0, max: 100, step: 1, unit: "%", default: 100, threshold: 100 },
-      { id: "e2e_regression", label: "E2E regression", min: 0, max: 100, step: 1, unit: "%", default: 97, threshold: 95 },
-    ],
-  },
-  {
-    id: "sentry",
-    name: "Sentry",
-    icon: "◈",
-    color: "#f87171",
-    glow: "rgba(248,113,113,0.18)",
-    description: "Crash rate, error rate, ANR rate",
-    tag: "Runtime Reliability",
-    signals: [
-      { id: "crashrate",  label: "Crash Rate",   min: 0,  max: 5,   step: 0.01, unit: "%",   default: 0.06, threshold: 0.1,  lowerIsBetter: true },
-      { id: "errorrate",  label: "Error Rate",   min: 0,  max: 10,  step: 0.01, unit: "%",   default: 0.45, threshold: 1.0,  lowerIsBetter: true },
-      { id: "anrrate",    label: "ANR Rate",     min: 0,  max: 2,   step: 0.01, unit: "%",   default: 0.02, threshold: 0.05, lowerIsBetter: true },
-    ],
-  },
-  {
-    id: "datadog",
-    name: "Datadog",
-    icon: "▣",
-    color: "#34d399",
-    glow: "rgba(52,211,153,0.18)",
-    description: "P95 and P99 API latency",
-    tag: "Runtime Performance",
-    signals: [
-      { id: "p95latency", label: "P95 Latency", min: 0, max: 2000, step: 5, unit: "ms", default: 240, threshold: 300, lowerIsBetter: true },
-      { id: "p99latency", label: "P99 Latency", min: 0, max: 5000, step: 5, unit: "ms", default: 480, threshold: 600, lowerIsBetter: true },
-    ],
-  },
-];
+import { filterSimulatorSourcesForMandatory, buildSimulatorThresholdMap, getSimulatorEmptyHint } from "../lib/simulatorMandatorySignals.js";
+import {
+  SIMULATOR_SOURCES,
+  applySimulatorThresholds,
+  buildDefaultSimulatorValues,
+  buildSimulatorIngestPayload,
+  passesSimulatorSignal,
+  formatSimulatorValue,
+  SEVERITY_LEVELS
+} from "../lib/simulatorSignalDefinitions.js";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-
-function passesThreshold(sig, value) {
-  if (sig.lowerIsBetter) return value <= sig.threshold;
-  return value >= sig.threshold;
-}
-
-function formatVal(sig, v) {
-  if (sig.unit === "%") {
-    return sig.step < 1 ? `${Number(v).toFixed(2)}%` : `${Number(v).toFixed(0)}%`;
-  }
-  if (sig.unit === "ms") return `${Number(v).toFixed(0)}ms`;
-  return String(v);
-}
 
 function getStatusMeta(status) {
   const map = {
@@ -93,7 +28,7 @@ function getStatusMeta(status) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SignalSlider({ sig, value, onChange }) {
-  const passing = passesThreshold(sig, value);
+  const passing = passesSimulatorSignal(sig, value);
   const pct = ((value - sig.min) / (sig.max - sig.min)) * 100;
   const accent = sig.lowerIsBetter
     ? passing ? "#34d399" : "#f87171"
@@ -109,13 +44,13 @@ function SignalSlider({ sig, value, onChange }) {
           <span style={{
             fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "#6e87a2"
           }}>
-            thr: {formatVal(sig, sig.threshold)}
+            thr: {formatSimulatorValue(sig, sig.threshold)}
           </span>
           <span style={{
             fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
             color: accent, fontWeight: 600, minWidth: 64, textAlign: "right"
           }}>
-            {formatVal(sig, value)}
+            {formatSimulatorValue(sig, value)}
           </span>
           <span style={{
             fontSize: 10, padding: "1px 6px", borderRadius: 4,
@@ -144,8 +79,78 @@ function SignalSlider({ sig, value, onChange }) {
   );
 }
 
+function SignalSeveritySelect({ sig, value, onChange }) {
+  const passing = passesSimulatorSignal(sig, value);
+  const accent = passing ? "#22c55e" : "#f87171";
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: "#8fadc4", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+          {sig.label}
+          {sig.hardGate && (
+            <span style={{
+              marginLeft: 8, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+              padding: "2px 6px", borderRadius: 4,
+              background: "rgba(248,113,113,0.12)", color: "#f87171"
+            }}>
+              HARD GATE
+            </span>
+          )}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "#6e87a2" }}>
+            block ≥ {sig.thresholdLabel}
+          </span>
+          <span style={{
+            fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
+            color: accent, fontWeight: 600, minWidth: 72, textAlign: "right"
+          }}>
+            {formatSimulatorValue(sig, value)}
+          </span>
+          <span style={{
+            fontSize: 10, padding: "1px 6px", borderRadius: 4,
+            background: passing ? "rgba(34,197,94,0.1)" : "rgba(248,113,113,0.1)",
+            color: accent, fontWeight: 600, letterSpacing: "0.04em"
+          }}>
+            {passing ? "PASS" : "FAIL"}
+          </span>
+        </div>
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(sig.id, e.target.value)}
+        style={{
+          width: "100%",
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: `1px solid ${passing ? "#22c55e33" : "#f8717133"}`,
+          background: "#0a1120",
+          color: accent,
+          fontSize: 13,
+          fontFamily: "'JetBrains Mono', monospace",
+          cursor: "pointer"
+        }}
+      >
+        {SEVERITY_LEVELS.map((level) => (
+          <option key={level} value={level} style={{ background: "#080d16" }}>
+            {level === "none" ? "No defects found" : `Worst defect: ${level}`}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function SignalControl({ sig, value, onChange }) {
+  if (sig.type === "severity") {
+    return <SignalSeveritySelect sig={sig} value={value} onChange={onChange} />;
+  }
+  return <SignalSlider sig={sig} value={value} onChange={onChange} />;
+}
+
 function SourceCard({ source, values, onValueChange, onFire, firing, lastResult, onReset }) {
-  const allPass = source.signals.every(s => passesThreshold(s, values[s.id] ?? s.default));
+  const allPass = source.signals.every(s => passesSimulatorSignal(s, values[s.id] ?? s.default));
 
   return (
     <div style={{
@@ -193,6 +198,15 @@ function SourceCard({ source, values, onValueChange, onFire, firing, lastResult,
             <span style={{
               fontSize: 10, fontWeight: 600, letterSpacing: "0.04em",
               padding: "3px 8px", borderRadius: 5,
+              background: source.sourceConnected ? "rgba(34,197,94,0.08)" : "rgba(245,158,11,0.08)",
+              color: source.sourceConnected ? "#22c55e" : "#f59e0b",
+              border: `1px solid ${source.sourceConnected ? "#22c55e22" : "#f59e0b22"}`
+            }}>
+              {source.sourceConnected ? "Connected" : "Sim only"}
+            </span>
+            <span style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: "0.04em",
+              padding: "3px 8px", borderRadius: 5,
               background: allPass ? "rgba(34,197,94,0.08)" : "rgba(248,113,113,0.08)",
               color: allPass ? "#22c55e" : "#f87171",
               border: `1px solid ${allPass ? "#22c55e22" : "#f8717122"}`
@@ -206,7 +220,7 @@ function SourceCard({ source, values, onValueChange, onFire, firing, lastResult,
       {/* Sliders */}
       <div style={{ padding: "18px 22px 16px" }}>
         {source.signals.map(sig => (
-          <SignalSlider
+          <SignalControl
             key={sig.id}
             sig={sig}
             value={values[sig.id] ?? sig.default}
@@ -381,26 +395,31 @@ export default function SignalSimulatorPage() {
   const toastTimer = useRef(null);
 
   // Per-source: current signal values
-  const [values, setValues] = useState(() =>
-    Object.fromEntries(SOURCES.map(s => [
-      s.id,
-      Object.fromEntries(s.signals.map(sig => [sig.id, sig.default]))
-    ]))
-  );
+  const [values, setValues] = useState(() => buildDefaultSimulatorValues());
 
   // Per-source: firing state
-  const [firing, setFiring] = useState(() => Object.fromEntries(SOURCES.map(s => [s.id, false])));
+  const [firing, setFiring] = useState(() => Object.fromEntries(SIMULATOR_SOURCES.map(s => [s.id, false])));
 
   // Per-source: last ingest result
-  const [results, setResults] = useState(() => Object.fromEntries(SOURCES.map(s => [s.id, null])));
+  const [results, setResults] = useState(() => Object.fromEntries(SIMULATOR_SOURCES.map(s => [s.id, null])));
 
   const [thresholdMap, setThresholdMap] = useState(null);
   const [connectedSources, setConnectedSources] = useState(() => new Set());
 
+  const configuredSources = useMemo(() => {
+    if (!thresholdMap) return applySimulatorThresholds(SIMULATOR_SOURCES);
+    return applySimulatorThresholds(SIMULATOR_SOURCES, thresholdMap);
+  }, [thresholdMap]);
+
   const activeSources = useMemo(() => {
-    if (!hasBackend() || !thresholdMap) return SOURCES;
-    return filterSimulatorSourcesForMandatory(SOURCES, thresholdMap, connectedSources);
-  }, [thresholdMap, connectedSources]);
+    if (!hasBackend() || !thresholdMap) return configuredSources;
+    return filterSimulatorSourcesForMandatory(configuredSources, thresholdMap, connectedSources);
+  }, [configuredSources, thresholdMap, connectedSources]);
+
+  const emptyHint = useMemo(() => {
+    if (!hasBackend() || !thresholdMap || activeSources.length > 0) return null;
+    return getSimulatorEmptyHint(thresholdMap, connectedSources, SIMULATOR_SOURCES);
+  }, [thresholdMap, connectedSources, activeSources.length]);
 
   const showToast = useCallback((msg, color = "#22c55e") => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -451,7 +470,7 @@ export default function SignalSimulatorPage() {
           apiGet(`/api/workspaces/${ws}/signal-integrations`, { navigate })
         ]);
         if (cancelled) return;
-        setThresholdMap(thrData?.thresholds || {});
+        setThresholdMap(buildSimulatorThresholdMap(thrData?.thresholds || {}));
         const connected = new Set(
           (intData?.integrations || [])
             .filter((row) => row.connected === true)
@@ -476,14 +495,14 @@ export default function SignalSimulatorPage() {
   }, []);
 
   const handleReset = useCallback((sourceId) => {
-    const src = activeSources.find(s => s.id === sourceId) || SOURCES.find(s => s.id === sourceId);
+    const src = activeSources.find(s => s.id === sourceId) || configuredSources.find(s => s.id === sourceId);
     if (!src) return;
     setValues(prev => ({
       ...prev,
       [sourceId]: Object.fromEntries(src.signals.map(s => [s.id, s.default]))
     }));
     setResults(prev => ({ ...prev, [sourceId]: null }));
-  }, []);
+  }, [activeSources, configuredSources]);
 
   const handleFire = useCallback(async (sourceId) => {
     if (!selectedReleaseId) {
@@ -495,8 +514,8 @@ export default function SignalSimulatorPage() {
       return;
     }
 
-    const src = activeSources.find(s => s.id === sourceId) || SOURCES.find(s => s.id === sourceId);
-    const signals = values[sourceId] || {};
+    const src = activeSources.find(s => s.id === sourceId) || configuredSources.find(s => s.id === sourceId);
+    const signals = buildSimulatorIngestPayload(src, values[sourceId] || {});
 
     setFiring(prev => ({ ...prev, [sourceId]: true }));
     setResults(prev => ({ ...prev, [sourceId]: null }));
@@ -543,7 +562,7 @@ export default function SignalSimulatorPage() {
     } finally {
       setFiring(prev => ({ ...prev, [sourceId]: false }));
     }
-  }, [selectedReleaseId, values, navigate, showToast]);
+  }, [selectedReleaseId, values, navigate, showToast, activeSources, configuredSources]);
 
   const selectedRelease = releases.find(r => r.id === selectedReleaseId);
 
@@ -590,7 +609,7 @@ export default function SignalSimulatorPage() {
             Signal Simulator
           </h1>
           <p style={{ color: "#384d60", fontSize: 13, marginTop: 4, maxWidth: 520 }}>
-            Ingest mandatory certification signals from connected sources (Braintrust, BrowserStack, Sentry, Datadog). Only signals marked required in App → Thresholds appear here.
+            Ingest mandatory certification signals marked Required in App → Thresholds — all integration sources plus Manual QA (pass rate and showstopper severity). Simulated ingest works without live integrations.
           </p>
         </div>
 
@@ -634,7 +653,7 @@ export default function SignalSimulatorPage() {
         </div>
       )}
 
-      {hasBackend() && activeSources.length === 0 && (
+      {hasBackend() && emptyHint && (
         <div style={{
           margin: "24px 32px 0",
           padding: "12px 16px",
@@ -642,9 +661,11 @@ export default function SignalSimulatorPage() {
           background: "rgba(245,158,11,0.08)",
           border: "1px solid rgba(245,158,11,0.2)",
           color: "#f59e0b",
-          fontSize: 13
+          fontSize: 13,
+          lineHeight: 1.55
         }}>
-          No mandatory signals configured — connect sources in Settings and mark signals as required in App → Thresholds.
+          <strong style={{ color: "#fbbf24", display: "block", marginBottom: 4 }}>{emptyHint.title}</strong>
+          {emptyHint.body}
         </div>
       )}
 
