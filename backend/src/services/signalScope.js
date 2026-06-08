@@ -35,13 +35,13 @@ async function getInScopeSignalIds(workspaceId) {
 /**
  * Whether a missing signal should block certification for this release.
  * Delta keys are never "required" as ingest targets (handled by delta engine).
+ * Required toggles in App → Thresholds gate certification regardless of integration connection.
  */
-function isSignalRequiredForRelease(signalId, { thresholdMap, inScopeIds }) {
+function isSignalRequiredForRelease(signalId, { thresholdMap }) {
   const id = String(signalId || "");
   if (!id || id.endsWith("_delta")) return false;
   const thr = thresholdMap?.[id];
   if (!thr?.required_for_certification) return false;
-  if (!inScopeIds || !inScopeIds.has(id)) return false;
   return true;
 }
 

@@ -29,7 +29,8 @@ const {
   computeVerdict,
   ensureWorkspaceSeeded,
   getThresholdMap,
-  assessOverrideJustification
+  assessOverrideJustification,
+  evaluateReleaseAfterSignalIngest
 } = require("../src/services/domain");
 const { getMissingRequiredSignals } = require("../src/services/verdictEngine");
 const { analyzeReleaseDeltas } = require("../src/services/delta");
@@ -669,7 +670,7 @@ describe("API integration", () => {
     assert.equal(pull.body.sources.browserstack.ok, true);
   });
 
-  it("required signals are scoped to connected integrations", async () => {
+  it("required signals gate certification regardless of integration connection", async () => {
     const email = `scope_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "Scope" }).expect(200);
@@ -700,8 +701,8 @@ describe("API integration", () => {
 
     const missing = await getMissingRequiredSignals(ws, created.body.id, {}, created.body);
     assert.ok(missing.includes("accuracy"));
-    assert.ok(!missing.includes("smoke"));
-    assert.ok(!missing.includes("crashrate"));
+    assert.ok(missing.includes("smoke"));
+    assert.ok(missing.includes("crashrate"));
     assert.ok(!missing.includes("e2e_regression"));
   });
 
@@ -794,6 +795,26 @@ describe("computeVerdict (unit)", () => {
     const acc = v.failed_signals.find((f) => f.signal_id === "accuracy");
     assert.ok(acc);
     assert.equal(acc.failure_kind, "absolute_threshold");
+  });
+});
+
+describe("evaluateReleaseAfterSignalIngest (unit)", () => {
+  it("UNCERTIFIED when no signals ingested at verdict", async () => {
+    const ws = `ws_no_ingest_${crypto.randomBytes(3).toString("hex")}`;
+    await ensureWorkspaceSeeded(ws);
+    const releaseId = `rel_ni_${crypto.randomBytes(3).toString("hex")}`;
+    const now = nowIso();
+    await run(
+      `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, collection_deadline)
+       VALUES (?, ?, 'v-empty', 'model_update', 'pre-prod', 'COLLECTING', ?, ?, ?)`,
+      [releaseId, ws, now, now, new Date(Date.now() - 60_000).toISOString()]
+    );
+    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const out = await evaluateReleaseAfterSignalIngest(release, releaseId, "test", 0);
+    assert.equal(out.status, "UNCERTIFIED");
+    assert.ok(out.failed_signals.some((f) => f.failure_kind === "no_ingest"));
+    const row = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
+    assert.equal(row.status, "UNCERTIFIED");
   });
 });
 

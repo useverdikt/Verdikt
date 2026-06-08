@@ -215,8 +215,10 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       const now = nowIso();
       let promoted = 0;
       let blockedCollecting = 0;
+      const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
       for (const rel of matched) {
-        if (String(rel.status || "").toUpperCase() === "COLLECTING") {
+        const relStatus = String(rel.status || "").toUpperCase();
+        if (relStatus === "COLLECTING") {
           blockedCollecting++;
           await writeAudit({
             workspaceId,
@@ -230,6 +232,24 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
               current_environment: rel.environment,
               requested_environment: newEnv,
               reason: "release_still_collecting"
+            }
+          });
+          continue;
+        }
+        if (!certLike.has(relStatus)) {
+          await writeAudit({
+            workspaceId,
+            releaseId: rel.id,
+            eventType: "RELEASE_ENV_PROMOTION_BLOCKED",
+            actorType: "SYSTEM",
+            actorName: "github_merge",
+            details: {
+              pr_number: prNumber,
+              base_branch: baseBranch,
+              current_environment: rel.environment,
+              requested_environment: newEnv,
+              release_status: relStatus,
+              reason: "release_not_certified"
             }
           });
           continue;

@@ -15,6 +15,14 @@ describe("confMeta", () => {
     expect(confMeta("certified", undefined)).toMatchObject({ pct: 91, band: "HIGH", fill: "hi" });
   });
 
+  it("shows no signals ingested when certified with empty signal map", () => {
+    expect(confMeta("certified", undefined, { receivedSignalCount: 0 })).toMatchObject({
+      pct: 0,
+      band: "no signals ingested",
+      fill: "lo"
+    });
+  });
+
   it("maps uncertified and certified UI statuses", () => {
     expect(confMeta("uncertified", undefined).pct).toBe(41);
     expect(confMeta("certified", undefined).pct).toBe(91);

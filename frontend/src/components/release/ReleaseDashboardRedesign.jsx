@@ -163,9 +163,11 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
     rawConf !== undefined && rawConf !== null && rawConf !== ""
       ? Number(rawConf)
       : undefined;
+  const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
   const conf = confMeta(
     release.status,
-    Number.isFinite(confPct) ? confPct : undefined
+    Number.isFinite(confPct) ? confPct : undefined,
+    { receivedSignalCount }
   );
   const al = alignBadge(release.status, release.alignmentVerdict);
   const rvHead = releaseVersionPrimarySecondary
@@ -195,7 +197,9 @@ function ReleaseRow({ release, isExpanded, isLast, onToggle, catStatuses, signal
   const subLabel =
     normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING ? "in progress" :
     normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? (release.overrideBy?.split(",")[0]?.trim() || "override") :
-    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED ? "auto-certified" :
+    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED
+      ? (receivedSignalCount > 0 ? "certified" : "certified · no signals")
+      :
     normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED ? "uncertified" : "—";
 
   return (
@@ -287,6 +291,8 @@ function ReleaseDetail({
   const overrideIntel = intel.override || {};
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
+  const isCollecting = normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
+  const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
 
   const ordered = getOrderedDetailSignals(signalCategories);
 
@@ -298,6 +304,15 @@ function ReleaseDetail({
     : null;
   if ((!reasoningPoints || reasoningPoints.length === 0) && typeof verdictIntel.summary === "string" && verdictIntel.summary.trim()) {
     reasoningPoints = [verdictIntel.summary.trim()];
+  }
+  if (
+    !isCollecting &&
+    receivedSignalCount === 0 &&
+    ordered.some(({ sig }) => signals[sig.id] == null)
+  ) {
+    reasoningPoints = [
+      "No signal values were recorded for this release. Ingest required signals via Signal Simulator or connected sources, then re-evaluate."
+    ];
   }
 
   const deltaRows = Array.isArray(release.release_deltas) ? release.release_deltas : [];
@@ -331,11 +346,13 @@ function ReleaseDetail({
     }
 
     if (raw === undefined || raw === null) {
+      const awaitingLabel = isCollecting ? "awaiting…" : "NOT RECEIVED";
+      const awaitingColor = isCollecting ? "#384d60" : "#f87171";
       return (
         <div className="sig-row" key={sig.id}>
           <span className="sn">{sig.label}</span>
           <div className="sv">
-            <div className="sa" style={{ color: "#384d60" }}>awaiting…</div>
+            <div className="sa" style={{ color: awaitingColor }}>{awaitingLabel}</div>
             {thr !== undefined && thr !== null && (
               <div className="st">{formatThresholdLineLocal(sig, thr)}</div>
             )}
