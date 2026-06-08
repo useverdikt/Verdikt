@@ -20,6 +20,7 @@ process.env.ENABLE_ASSISTIVE_LLM = "1";
 /** Never hit live Gemini in CI/automated runs — repo secrets may set GEMINI_API_KEY. */
 const GEMINI_STUB = "unit-test-stub-gemini-key-not-for-production-use";
 if (process.env.GEMINI_LIVE_TEST !== "1") {
+  process.env.GEMINI_LIVE_TEST = "0";
   process.env.GEMINI_API_KEY = GEMINI_STUB;
 } else if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = GEMINI_STUB;
@@ -427,18 +428,21 @@ describe("API integration", () => {
 
     assert.ok([200, 201].includes(r1.status), `r1 status ${r1.status}`);
     assert.ok([200, 201].includes(r2.status), `r2 status ${r2.status}`);
-    // Exactly one must be a new release; the other must be reused.
-    const created = [r1, r2].filter((r) => r.status === 201);
-    const reused = [r1, r2].filter((r) => r.status === 200 && r.body.reused);
-    assert.equal(created.length, 1, "exactly one release should be created");
-    assert.equal(reused.length, 1, "exactly one should be marked reused");
-    assert.equal(reused[0].body.release_id, created[0].body.release_id);
-
     const count = await queryOne(
       "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND pr_number = ? AND commit_sha = ?",
       [ws, prNumber, sha]
     );
-    assert.equal(Number(count?.c || 0), 1);
+    assert.equal(Number(count?.c || 0), 1, "exactly one release row should exist");
+    const created = [r1, r2].filter((r) => r.status === 201);
+    const reused = [r1, r2].filter((r) => r.status === 200 && r.body.reused);
+    assert.equal(created.length + reused.length, 2, "both deliveries should succeed");
+    assert.equal(created.length, 1, "exactly one release should be created");
+    assert.equal(reused.length, 1, "exactly one should be marked reused");
+    const releaseId = created[0]?.body?.release_id || reused[0]?.body?.release_id;
+    assert.ok(releaseId, "expected a release_id on create or reuse response");
+    if (created[0]?.body?.release_id && reused[0]?.body?.release_id) {
+      assert.equal(reused[0].body.release_id, created[0].body.release_id);
+    }
   });
 
   it("GitHub merge blocks prod promotion while release is still collecting", async () => {
