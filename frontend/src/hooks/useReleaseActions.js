@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { thresholdNormalizedToApiPayload } from "../lib/thresholdBounds.js";
-import { UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
+import { UI_RELEASE_STATUS, normalizeLegacyUiStatus } from "../lib/releaseStatus.js";
 import {
   S,
   nowTs,
@@ -39,11 +39,16 @@ export function useReleaseActions({
     setShowReevalConfirm,
     setReEvaluating,
     reEvaluating,
+    setLiveStreamRelease,
     toastGreen,
     toastAmber,
     toastRed,
     toastAccent
   } = modalActions;
+
+  const resolveBackendReleaseId = (release) =>
+    release?.backendReleaseId ||
+    (typeof release?.id === "string" && release.id.startsWith("rel_") ? release.id : null);
 
   const handleShip = useCallback(() => {
     const actor = currentUser
@@ -483,26 +488,59 @@ export function useReleaseActions({
   }, [reEvaluating, setReEvaluating, setShowReevalConfirm, handleRunVerdict]);
 
   const handleCollectingAction = useCallback(
-    async (kind) => {
+    async (kind, releaseOverride) => {
+      const active =
+        releaseOverride ||
+        releases.find((r) => r.id === selectedId) ||
+        current;
+      const backendId = resolveBackendReleaseId(active);
+      const isCollecting =
+        active && normalizeLegacyUiStatus(active.status) === UI_RELEASE_STATUS.COLLECTING;
+
       if (kind === "live") {
-        showToast(
-          "Live stream: signal events appear when webhooks are connected. Configure ingest under Settings → API & workspace.",
-          toastAccent
-        );
+        if (!hasBackend() || !backendId) {
+          showToast(
+            "Sign in and open a server-backed COLLECTING release to view the live signal stream.",
+            toastAmber
+          );
+          return;
+        }
+        if (!isCollecting) {
+          showToast("Live stream is only available while the release is COLLECTING.", toastAmber);
+          return;
+        }
+        setLiveStreamRelease?.(active);
         return;
       }
       if (kind === "extend") {
-        showToast(
-          "Extend deadline: updates the server-side collection window (requires backend release in COLLECTING).",
-          toastAmber
-        );
+        if (!hasBackend() || !backendId) {
+          showToast(
+            "Sign in and open a server-backed COLLECTING release to extend the collection deadline.",
+            toastAmber
+          );
+          return;
+        }
+        if (!isCollecting) {
+          showToast("Only COLLECTING releases can have their deadline extended.", toastAmber);
+          return;
+        }
+        try {
+          const out = await apiPost(`/api/releases/${backendId}/collection-deadline/extend`, {}, { navigate });
+          const deadline = out.collection_deadline;
+          const label = deadline
+            ? new Date(deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "updated";
+          showToast(
+            `Collection deadline extended${out.extend_minutes ? ` by ${out.extend_minutes}m` : ""} · ends ${label}`,
+            toastGreen
+          );
+          await refreshReleaseFromBackend(backendId);
+        } catch (e) {
+          showToast(e?.message || "Could not extend collection deadline", toastRed);
+        }
         return;
       }
       if (kind === "pull") {
-        const active = releases.find((r) => r.id === selectedId);
-        const backendId =
-          active?.backendReleaseId ||
-          (typeof active?.id === "string" && active.id.startsWith("rel_") ? active.id : null);
         if (!hasBackend() || !backendId) {
           showToast(
             "Sign in and open a server-backed release to pull metrics from connected integrations (Settings → Signal sources).",
@@ -526,7 +564,7 @@ export function useReleaseActions({
         }
       }
     },
-    [releases, selectedId, showToast, navigate, refreshReleaseFromBackend, toastAccent, toastAmber, toastRed]
+    [releases, selectedId, current, showToast, navigate, refreshReleaseFromBackend, setLiveStreamRelease, toastAccent, toastAmber, toastGreen, toastRed]
   );
 
   const handleThresholdSave = useCallback(

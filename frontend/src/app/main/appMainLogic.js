@@ -543,6 +543,7 @@ const mapBackendDetailToUi = (detail) => {
   }
   if (release.created_at) out.created_at = release.created_at;
   if (release.updated_at) out.updated_at = release.updated_at;
+  if (release.collection_deadline) out.collection_deadline = release.collection_deadline;
   if (release.verdict_issued_at) out.verdict_issued_at = release.verdict_issued_at;
   if (detail.last_signal_evaluation && typeof detail.last_signal_evaluation === "object") {
     out.last_signal_evaluation = detail.last_signal_evaluation;
