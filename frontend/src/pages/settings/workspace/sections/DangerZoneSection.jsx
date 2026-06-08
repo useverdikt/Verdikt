@@ -1,7 +1,7 @@
 import React from "react";
 import { THRESH_DEFAULTS } from "../../settingsData.js";
 
-export default function DangerZoneSection({ section, toast, setThresholds }) {
+export default function DangerZoneSection({ section, toast }) {
   return (
     <div className={`section${section === "danger" ? " active" : ""}`} id="panel-danger">
       <div className="section-header">
@@ -30,9 +30,8 @@ export default function DangerZoneSection({ section, toast, setThresholds }) {
             type="button"
             className="btn-danger"
             onClick={() => {
-              setThresholds({ ...THRESH_DEFAULTS });
               localStorage.setItem("vdk3_thresholds", JSON.stringify(THRESH_DEFAULTS));
-              toast("Thresholds reset to defaults");
+              toast("Thresholds reset to defaults — open App → Thresholds to review");
             }}
           >
             Reset thresholds

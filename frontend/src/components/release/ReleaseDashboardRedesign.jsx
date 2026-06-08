@@ -479,7 +479,7 @@ function ReleaseDetail({
           {hasFailed ? (
             <>
               <div className="ri">Address failing signals before promoting to production.</div>
-              <div className="ri">Review thresholds in Settings → Quality Thresholds.</div>
+              <div className="ri">Review thresholds in App → Thresholds.</div>
             </>
           ) : (
             <>

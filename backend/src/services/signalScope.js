@@ -2,7 +2,7 @@
 
 /**
  * Which thresholded signals are required for a release depends on:
- *   1. required_for_certification flag on the threshold row (Quality Thresholds UI)
+ *   1. required_for_certification flag on the threshold row (App → Thresholds)
  *   2. Connected signal integrations (source → signal map in shared config)
  */
 

@@ -88,7 +88,7 @@ export default function SettingsWorkspaceShell({
         <nav className="ss-nav">
           <div className="ss-nav-group">
             <div className="nav-group-label">Workspace</div>
-            {["general", "team", "thresholds"].map((id) => (
+            {["general", "team"].map((id) => (
               <button key={id} type="button" className={`nav-item${section === id ? " active" : ""}`} onClick={() => setSection(id)}>
                 {SettingsNavIcons[id]}
                 {SECTION_LABELS[id]}
