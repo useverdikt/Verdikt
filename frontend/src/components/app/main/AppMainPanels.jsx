@@ -1,6 +1,7 @@
 import React from "react";
 import { C } from "../../../theme/tokens.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
+import { normalizeLegacyUiStatus } from "../../../lib/releaseStatus.js";
 import {
   SIGNAL_CATEGORIES,
   getRegressionRequired,
@@ -16,11 +17,11 @@ export const StatusBadge = ({
   status
 }) => {
   const M = {
-    pending: {
+    collecting: {
       c: C.accent,
-      l: "PENDING"
+      l: "COLLECTING"
     },
-    shipped: {
+    certified: {
       c: C.green,
       l: "CERTIFIED"
     },
@@ -28,15 +29,16 @@ export const StatusBadge = ({
       c: C.amber,
       l: "CERT. W/ OVERRIDE"
     },
-    blocked: {
+    uncertified: {
       c: C.red,
       l: "UNCERTIFIED"
     }
   };
+  const s = normalizeLegacyUiStatus(status);
   const {
     c,
     l
-  } = M[status] || M.pending;
+  } = M[s] || M.collecting;
   return /* @__PURE__ */ React.createElement("span", {
     style: {
       background: c + "15",

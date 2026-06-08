@@ -11,6 +11,12 @@ const waitlistRateWindow = new Map();
 const REGISTER_RATE_LIMIT_PER_HOUR = Math.max(1, Number(process.env.REGISTER_RATE_LIMIT_PER_HOUR || 15));
 const WAITLIST_RATE_LIMIT_PER_HOUR = Math.max(3, Number(process.env.WAITLIST_RATE_LIMIT_PER_HOUR || 30));
 
+const isTestEnv = process.env.NODE_ENV === "test";
+
+function bypassRateLimit() {
+  return isTestEnv || process.env.DISABLE_RATE_LIMIT === "1";
+}
+
 let redisClient;
 let redisWarned;
 
@@ -68,6 +74,7 @@ function checkLoginRateLimitMemory(ip, email) {
 }
 
 async function checkLoginRateLimit(ip, email) {
+  if (bypassRateLimit()) return true;
   const window = Math.floor(Date.now() / 60_000);
   const key = `rl:login:v1:${ip || "unknown"}:${email || "unknown"}:${window}`;
   const n = await redisIncrWithTtl(key, 70);
@@ -90,6 +97,7 @@ function checkForgotPasswordRateLimitMemory(ip) {
 }
 
 async function checkForgotPasswordRateLimit(ip) {
+  if (bypassRateLimit()) return true;
   const window = Math.floor(Date.now() / (15 * 60_000));
   const key = `rl:forgot:v1:${(ip || "unknown").toString()}:${window}`;
   const n = await redisIncrWithTtl(key, 16 * 60);
@@ -112,6 +120,7 @@ function checkRegisterRateLimitMemory(ip) {
 }
 
 async function checkRegisterRateLimit(ip) {
+  if (bypassRateLimit()) return true;
   const window = Math.floor(Date.now() / (60 * 60_000));
   const key = `rl:register:v1:${(ip || "unknown").toString()}:${window}`;
   const n = await redisIncrWithTtl(key, 70 * 60);
@@ -134,6 +143,7 @@ function checkWaitlistRateLimitMemory(ip) {
 }
 
 async function checkWaitlistRateLimit(ip) {
+  if (bypassRateLimit()) return true;
   const window = Math.floor(Date.now() / (60 * 60_000));
   const key = `rl:waitlist:v1:${(ip || "unknown").toString()}:${window}`;
   const n = await redisIncrWithTtl(key, 70 * 60);
@@ -155,6 +165,7 @@ function checkWebhookRateLimitMemory(ip) {
 }
 
 async function checkWebhookRateLimit(ip) {
+  if (bypassRateLimit()) return true;
   const window = Math.floor(Date.now() / 60_000);
   const key = `rl:webhook:v1:${ip}:${window}`;
   const n = await redisIncrWithTtl(key, 70);

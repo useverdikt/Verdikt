@@ -8,13 +8,17 @@
  * Extracted from domain.js to separate the decision from its consequences.
  */
 
-const path = require("path");
 const { queryOne, queryAll } = require("../database");
 const sharedPkg = require("../lib/sharedPkg");
 const { normaliseSignalKey } = sharedPkg;
 const { analyzeReleaseDeltas } = require("./delta");
 const { AI_SIGNAL_IDS, SIGNAL_ALIAS_MAP } = require("../config");
 const { getThresholdMap } = require("./workspaceConfig");
+const {
+  getInScopeSignalIds,
+  isE2eRegressionWaived,
+  isSignalRequiredForRelease
+} = require("./signalScope");
 
 // ─── Signal value guard ───────────────────────────────────────────────────────
 
@@ -35,12 +39,19 @@ async function getLatestSignalMap(releaseId) {
   return latest;
 }
 
-async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest = null) {
+async function resolveReleaseRow(releaseId, releaseRow) {
+  if (releaseRow && typeof releaseRow === "object") return releaseRow;
+  return queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+}
+
+async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest = null, releaseRow = null) {
   const thresholds = await getThresholdMap(workspaceId);
+  const inScopeIds = await getInScopeSignalIds(workspaceId);
+  const rel = await resolveReleaseRow(releaseId, releaseRow);
   const latest =
     preloadedLatest && typeof preloadedLatest === "object" ? preloadedLatest : await getLatestSignalMap(releaseId);
   return Object.keys(thresholds).filter((signalId) => {
-    if (String(signalId).endsWith("_delta")) return false;
+    if (!isSignalRequiredForRelease(signalId, { inScopeIds, releaseRow: rel })) return false;
     return latest[signalId] == null;
   });
 }
@@ -48,8 +59,8 @@ async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest
 // ─── Core verdict ─────────────────────────────────────────────────────────────
 
 /**
- * Pure, synchronous verdict computation — no DB writes, no side effects.
- * Returns { status, failed_signals, deltaAnalysis }.
+ * Pure verdict computation — no DB writes, no side effects.
+ * Evaluates all ingested signals against thresholds; missing checks are scoped separately.
  */
 async function computeVerdict(workspaceId, releaseId, preloadedLatest = null, releaseRow = null) {
   const thresholds = await getThresholdMap(workspaceId);
@@ -62,6 +73,7 @@ async function computeVerdict(workspaceId, releaseId, preloadedLatest = null, re
   for (const [signalId, threshold] of Object.entries(thresholds)) {
     if (String(signalId).endsWith("_delta")) continue;
     if (latest[signalId] == null) continue;
+    if (signalId === "e2e_regression" && isE2eRegressionWaived(releaseRow)) continue;
     if (threshold.min != null && latest[signalId] < threshold.min) {
       failedSignals.push({
         signal_id: signalId,

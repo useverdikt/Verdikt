@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
+import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -58,8 +59,14 @@ export default function CertificationRecordModal({
   }, []);
   const { failing } = calcVerdict(release.signals, thresholds, release.releaseType);
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
-  const statusColor = { shipped: C.green, overridden: C.amber, blocked: C.red, pending: C.accent }[release.status] || C.accent;
-  const statusLabel = { shipped: "CERTIFIED", overridden: "CERTIFIED WITH OVERRIDE", blocked: "UNCERTIFIED", pending: "PENDING" }[release.status] || "PENDING";
+  const rs = normalizeLegacyUiStatus(release.status);
+  const statusColor = {
+    [UI_RELEASE_STATUS.CERTIFIED]: C.green,
+    [UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE]: C.amber,
+    [UI_RELEASE_STATUS.UNCERTIFIED]: C.red,
+    [UI_RELEASE_STATUS.COLLECTING]: C.accent
+  }[rs] || C.accent;
+  const statusLabel = uiStatusLabel(rs);
   const certPath = `/cert/${currentWorkspaceSlug()}/${encodeURIComponent(String(release.version || ""))}`;
 
   return (
@@ -108,19 +115,19 @@ export default function CertificationRecordModal({
         </div>
         <div style={{ padding: "24px" }}>
           <div style={{ background: statusColor + "10", border: `1px solid ${statusColor}30`, borderRadius: 12, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: statusColor + "15", border: `1px solid ${statusColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: statusColor, flexShrink: 0 }}>{release.status === "shipped" ? "⊕" : release.status === "overridden" ? "⚠" : release.status === "blocked" ? "⊗" : "◎"}</div>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: statusColor + "15", border: `1px solid ${statusColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: statusColor, flexShrink: 0 }}>{rs === UI_RELEASE_STATUS.CERTIFIED ? "⊕" : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? "⚠" : rs === UI_RELEASE_STATUS.UNCERTIFIED ? "⊗" : "◎"}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: C.mono, fontSize: 11, fontWeight: 700, color: statusColor, letterSpacing: "0.1em", marginBottom: 3 }}>{statusLabel}</div>
               <div style={{ fontSize: 12, color: C.muted }}>
                 {rt && <span style={{ marginRight: 10 }}>{rt.icon} {rt.label}</span>}
-                {release.status === "shipped" && release.shippedBy && <span>Certified by {release.shippedBy}</span>}
-                {release.status === "overridden" && release.overrideBy && <span>Override by {release.overrideBy}</span>}
-                {release.status === "blocked" && <span>Hard gate failure — no override available</span>}
+                {rs === UI_RELEASE_STATUS.CERTIFIED && release.shippedBy && <span>Certified by {release.shippedBy}</span>}
+                {rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE && release.overrideBy && <span>Override by {release.overrideBy}</span>}
+                {rs === UI_RELEASE_STATUS.UNCERTIFIED && <span>Below threshold or missing required signals — override available unless hard-gated</span>}
               </div>
             </div>
           </div>
 
-          {release.status === "overridden" && (
+          {rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE && (
             <div style={{ background: C.amberDim, border: `1px solid ${C.amber}30`, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: C.amber, fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.1em", marginBottom: 6 }}>OVERRIDE — {release.overrideBy?.toUpperCase()}</div>
               <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7 }}>{release.overrideReason}</div>
