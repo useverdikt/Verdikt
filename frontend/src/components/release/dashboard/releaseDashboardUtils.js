@@ -1,4 +1,3 @@
-import { alignBadgeMeta } from "../../../lib/releaseAlignmentMeta.js";
 import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 
 export function verdictMeta(status) {
@@ -44,10 +43,6 @@ export function formatRelativeTimestamp(iso) {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
-}
-
-export function alignBadge(alignmentVerdict) {
-  return alignBadgeMeta(alignmentVerdict || "uncertified");
 }
 
 export function evaluateSignalLocal(sig, value, threshold) {
