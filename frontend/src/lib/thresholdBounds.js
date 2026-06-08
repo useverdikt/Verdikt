@@ -1,6 +1,7 @@
 import shared from "../../../shared/config.json";
 
 const DIRECTIONS = shared.signalThresholdDirections || {};
+const DEFAULT_REQUIRED_IDS = shared.defaultRequiredSignalIds || [];
 
 /**
  * @param {string} signalId
@@ -49,13 +50,38 @@ export function thresholdBoundsToScalar(signalId, cfg) {
 
 /**
  * @param {Record<string, number|string>} normalized — output of normalizeThresholdsStateForSave
+ * @param {Record<string, boolean>} [requiredFlags]
  */
-export function thresholdNormalizedToApiPayload(normalized) {
+export function thresholdNormalizedToApiPayload(normalized, requiredFlags = {}) {
   const thresholdPayload = {};
   Object.entries(normalized).forEach(([signalId, value]) => {
     if (typeof value !== "number") return;
     const bounds = valueToThresholdBounds(signalId, value);
-    if (bounds) thresholdPayload[signalId] = bounds;
+    if (bounds) {
+      thresholdPayload[signalId] = {
+        ...bounds,
+        required_for_certification: signalId.endsWith("_delta") ? false : !!requiredFlags[signalId]
+      };
+    }
   });
   return thresholdPayload;
+}
+
+/** Default required toggles for new workspaces (AI eval signals). */
+export function defaultRequiredFlags() {
+  return Object.fromEntries(DEFAULT_REQUIRED_IDS.map((id) => [id, true]));
+}
+
+/** Parse GET /thresholds API map into UI value + required maps. */
+export function applyThresholdApiMap(map) {
+  const thresholds = {};
+  const required = {};
+  Object.entries(map || {}).forEach(([signalId, cfg]) => {
+    const scalar = thresholdBoundsToScalar(signalId, cfg);
+    if (scalar != null) thresholds[signalId] = scalar;
+    if (cfg && typeof cfg === "object" && "required_for_certification" in cfg) {
+      required[signalId] = !!cfg.required_for_certification;
+    }
+  });
+  return { thresholds, required };
 }

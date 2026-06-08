@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
+import { filterSimulatorSourcesForMandatory } from "../lib/simulatorMandatorySignals.js";
 
 // ─── Signal definitions per source (matches backend integrationTestMock + shared/config.json) ───
 
@@ -393,6 +394,14 @@ export default function SignalSimulatorPage() {
   // Per-source: last ingest result
   const [results, setResults] = useState(() => Object.fromEntries(SOURCES.map(s => [s.id, null])));
 
+  const [thresholdMap, setThresholdMap] = useState(null);
+  const [connectedSources, setConnectedSources] = useState(() => new Set());
+
+  const activeSources = useMemo(() => {
+    if (!hasBackend() || !thresholdMap) return SOURCES;
+    return filterSimulatorSourcesForMandatory(SOURCES, thresholdMap, connectedSources);
+  }, [thresholdMap, connectedSources]);
+
   const showToast = useCallback((msg, color = "#22c55e") => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ msg, color });
@@ -431,6 +440,32 @@ export default function SignalSimulatorPage() {
     return () => { cancelled = true; };
   }, [navigate, showToast]);
 
+  useEffect(() => {
+    if (!hasBackend()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const ws = getWorkspaceId();
+        const [thrData, intData] = await Promise.all([
+          apiGet(`/api/workspaces/${ws}/thresholds`, { navigate }),
+          apiGet(`/api/workspaces/${ws}/signal-integrations`, { navigate })
+        ]);
+        if (cancelled) return;
+        setThresholdMap(thrData?.thresholds || {});
+        const connected = new Set(
+          (intData?.integrations || [])
+            .filter((row) => row.connected === true)
+            .map((row) => String(row.source_id || "").trim())
+            .filter(Boolean)
+        );
+        setConnectedSources(connected);
+      } catch (_) {
+        /* fall back to all sources when config unavailable */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
+
   const handleValueChange = useCallback((sourceId, signalId, value) => {
     setValues(prev => ({
       ...prev,
@@ -441,7 +476,7 @@ export default function SignalSimulatorPage() {
   }, []);
 
   const handleReset = useCallback((sourceId) => {
-    const src = SOURCES.find(s => s.id === sourceId);
+    const src = activeSources.find(s => s.id === sourceId) || SOURCES.find(s => s.id === sourceId);
     if (!src) return;
     setValues(prev => ({
       ...prev,
@@ -460,7 +495,7 @@ export default function SignalSimulatorPage() {
       return;
     }
 
-    const src = SOURCES.find(s => s.id === sourceId);
+    const src = activeSources.find(s => s.id === sourceId) || SOURCES.find(s => s.id === sourceId);
     const signals = values[sourceId] || {};
 
     setFiring(prev => ({ ...prev, [sourceId]: true }));
@@ -554,9 +589,8 @@ export default function SignalSimulatorPage() {
           }}>
             Signal Simulator
           </h1>
-          <p style={{ color: "#384d60", fontSize: 13, marginTop: 4, maxWidth: 480 }}>
-            Mimic Braintrust, BrowserStack, Sentry, and Datadog signal pushes against any collecting release.
-            Tune values with sliders and ingest to trigger verdict evaluation.
+          <p style={{ color: "#384d60", fontSize: 13, marginTop: 4, maxWidth: 520 }}>
+            Ingest mandatory certification signals from connected sources (Braintrust, BrowserStack, Sentry, Datadog). Only signals marked required in Quality Thresholds appear here.
           </p>
         </div>
 
@@ -597,6 +631,20 @@ export default function SignalSimulatorPage() {
           fontSize: 13
         }}>
           ⚠ No backend detected — sign in and connect to a live workspace to use the simulator.
+        </div>
+      )}
+
+      {hasBackend() && activeSources.length === 0 && (
+        <div style={{
+          margin: "24px 32px 0",
+          padding: "12px 16px",
+          borderRadius: 8,
+          background: "rgba(245,158,11,0.08)",
+          border: "1px solid rgba(245,158,11,0.2)",
+          color: "#f59e0b",
+          fontSize: 13
+        }}>
+          No mandatory signals configured — connect sources in Settings and mark signals as required in Quality Thresholds.
         </div>
       )}
 
@@ -644,7 +692,7 @@ export default function SignalSimulatorPage() {
         gap: 20,
         padding: "24px 32px 0",
       }}>
-        {SOURCES.map(source => (
+        {activeSources.map(source => (
           <SourceCard
             key={source.id}
             source={source}
@@ -663,11 +711,11 @@ export default function SignalSimulatorPage() {
         <button
           id="sim-fire-all"
           onClick={async () => {
-            for (const src of SOURCES) {
+            for (const src of activeSources) {
               await handleFire(src.id);
             }
           }}
-          disabled={!selectedReleaseId || Object.values(firing).some(Boolean)}
+          disabled={!selectedReleaseId || activeSources.length === 0 || Object.values(firing).some(Boolean)}
           style={{
             padding: "13px 36px",
             borderRadius: 10,
