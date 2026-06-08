@@ -590,7 +590,7 @@ export default function SignalSimulatorPage() {
             Signal Simulator
           </h1>
           <p style={{ color: "#384d60", fontSize: 13, marginTop: 4, maxWidth: 520 }}>
-            Ingest mandatory certification signals from connected sources (Braintrust, BrowserStack, Sentry, Datadog). Only signals marked required in Quality Thresholds appear here.
+            Ingest mandatory certification signals from connected sources (Braintrust, BrowserStack, Sentry, Datadog). Only signals marked required in App → Thresholds appear here.
           </p>
         </div>
 
@@ -644,7 +644,7 @@ export default function SignalSimulatorPage() {
           color: "#f59e0b",
           fontSize: 13
         }}>
-          No mandatory signals configured — connect sources in Settings and mark signals as required in Quality Thresholds.
+          No mandatory signals configured — connect sources in Settings and mark signals as required in App → Thresholds.
         </div>
       )}
 

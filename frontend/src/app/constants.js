@@ -269,7 +269,7 @@ export const INFRA_ITEMS = [{
   label: "AI eval thresholds configured",
   status: "pending",
   priority: "P0",
-  description: "Set floor and max regression delta for each AI eval signal in Settings → Quality Thresholds → AI Evaluation. Thresholds are not advisory — they are enforced at every release. Without this, Verdikt cannot issue a certification verdict.",
+  description: "Set floor and max regression delta for each AI eval signal in App → Thresholds. Thresholds are not advisory — they are enforced at every release. Without this, Verdikt cannot issue a certification verdict.",
   owner: "",
   linkedTo: "/settings"
 }, {
