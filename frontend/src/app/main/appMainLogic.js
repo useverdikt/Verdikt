@@ -394,7 +394,6 @@ const SIGNAL_CATEGORIES = [{
 }];
 const DEFAULT_THRESHOLDS = {
   ...shared.defaultThresholds,
-  manual_qa_pct: 95,
   manual_qa_showstopper: "P0"
 };
 /** Local-only demo rows (also default seed when `vdk3_releases` is empty). */
