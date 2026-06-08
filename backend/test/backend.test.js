@@ -557,12 +557,21 @@ describe("API integration", () => {
     ]);
     await agent
       .post(`/api/releases/${created.body.id}/signals`)
-      .send({ source: "test", signals: { accuracy: 1 } })
+      .send({
+        source: "test",
+        signals: {
+          accuracy: 90,
+          safety: 95,
+          tone: 90,
+          hallucination: 95,
+          relevance: 85
+        }
+      })
       .expect(200);
 
     const rel = await queryOne("SELECT environment, status FROM releases WHERE id = ?", [created.body.id]);
     assert.equal(rel.environment, "prod");
-    assert.ok(["CERTIFIED", "UNCERTIFIED"].includes(String(rel.status)));
+    assert.equal(rel.status, "CERTIFIED");
   });
 
   it("manual release creation always starts in pre-prod", async () => {
