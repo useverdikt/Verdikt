@@ -4,17 +4,18 @@
  * Run: npm run test:e2e (from frontend/)
  */
 import { test, expect } from "@playwright/test";
+import { newReleaseButton, waitForSessionGate } from "./helpers/shell.js";
 
 const API = "http://127.0.0.1:8787";
 
 test.describe("releases dashboard (authenticated)", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/releases");
-    await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
+    await waitForSessionGate(page);
   });
 
   test("+ New release opens Start certification modal", async ({ page }) => {
-    await page.getByRole("button", { name: /\+ New release/i }).click();
+    await newReleaseButton(page).click();
     await expect(page.getByText("NEW CERTIFICATION SESSION")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Start certification/i })).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -47,7 +48,7 @@ test.describe("releases dashboard (authenticated)", () => {
 test.describe("collecting row actions (still toast-only until webhooks / server window exist)", () => {
   test("View live stream + Extend deadline show guidance toast when a collecting row exists", async ({ page }, testInfo) => {
     await page.goto("/releases");
-    await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
+    await waitForSessionGate(page);
     if ((await page.locator(".releases-table .release-row.coll-pulse").count()) === 0) {
       testInfo.skip(true, "No COLLECTING row in current dataset — seed data may differ");
     }

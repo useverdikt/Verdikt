@@ -5,6 +5,7 @@
  * Requires: `npx playwright install chromium` once per machine/CI image.
  */
 import { test, expect } from "@playwright/test";
+import { AUTHENTICATED_SHELL_RE, waitForSessionGate } from "./helpers/shell.js";
 
 const API = "http://127.0.0.1:8787";
 const emptyStorage = { cookies: [], origins: [] };
@@ -64,14 +65,14 @@ test.describe("auth redirects (unauthenticated)", () => {
 test.describe("authenticated app shell", () => {
   test("valid session reaches dashboard content", async ({ page }) => {
     await page.goto("/releases");
-    await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
+    await waitForSessionGate(page);
     await expect(page).not.toHaveURL(/\/login$/);
-    await expect(page.locator("body")).toContainText(/RELEASE CANDIDATES|No releases yet|Release|SETUP CHECKLIST|Verdikt/i);
+    await expect(page.locator("body")).toContainText(AUTHENTICATED_SHELL_RE);
   });
 
   test("dashboard primary nav destinations load", async ({ page }) => {
     const routes = [
-      ["/releases", /RELEASE CANDIDATES|No releases yet|SETUP CHECKLIST|Verdikt/i],
+      ["/releases", AUTHENTICATED_SHELL_RE],
       ["/trends", /Signal Trend/i],
       ["/thresholds", /Thresholds/i],
       ["/audit", /Audit Trail/i]
@@ -129,9 +130,8 @@ test.describe("login form interaction", () => {
     await page.locator("#login-password").fill("demo123");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/releases$/, { timeout: 20_000 });
-    await expect(page.locator("body")).toContainText(
-      /RELEASE CANDIDATES|No releases yet|SETUP CHECKLIST|Verdikt/i
-    );
+    await waitForSessionGate(page);
+    await expect(page.locator("body")).toContainText(AUTHENTICATED_SHELL_RE);
   });
 });
 
