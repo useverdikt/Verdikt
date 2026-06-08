@@ -26,6 +26,7 @@ function serializeRequired(r) {
 export default function ThresholdsView({
   thresholds,
   thresholdRequired,
+  defaultThresholds = {},
   signalCategories,
   isMobile,
   currentUser,
@@ -36,7 +37,7 @@ export default function ThresholdsView({
   onApplySuggestion,
   onDismissSuggestion
 }) {
-  const [local, setLocal] = useState(() => ({ ...thresholds }));
+  const [local, setLocal] = useState(() => ({ ...defaultThresholds, ...thresholds }));
   const [localRequired, setLocalRequired] = useState(() => ({ ...thresholdRequired }));
   const [saved, setSaved] = useState(false);
   const [collapsedThr, setCollapsedThr] = useState(() => new Set());
@@ -49,10 +50,10 @@ export default function ThresholdsView({
     if (incoming !== lastPropSer.current || incomingReq !== lastReqSer.current) {
       lastPropSer.current = incoming;
       lastReqSer.current = incomingReq;
-      setLocal({ ...thresholds });
+      setLocal({ ...defaultThresholds, ...thresholds });
       setLocalRequired({ ...thresholdRequired });
     }
-  }, [thresholds, thresholdRequired]);
+  }, [thresholds, thresholdRequired, defaultThresholds]);
 
   const isDirty = useMemo(
     () =>
@@ -76,19 +77,26 @@ export default function ThresholdsView({
       ? `${suggestions.length} suggestion${suggestions.length > 1 ? "s" : ""} available`
       : "No active suggestions in the current analysis window.");
 
+  const val = (sigOrId) => {
+    const id = typeof sigOrId === "string" ? sigOrId : sigOrId.id;
+    const v = local[id];
+    if (v !== undefined && v !== null && v !== "") return v;
+    return defaultThresholds[id];
+  };
+
   const renderValueControl = (sig) => {
     if (sig.direction === "test") {
       return canAct(currentUser) ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em" }}>FLOOR</span>
-            <input type="number" min={0} max={100} value={local[sig.id] ?? 100} step={1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 58, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+            <input type="number" min={0} max={100} value={val(sig) ?? 100} step={1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 58, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
             <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted }}>%</span>
           </div>
           <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, textAlign: "right" }}>P0 → hard block · P1+ overridable</div>
         </div>
       ) : (
-        <div style={{ fontFamily: C.mono, fontSize: 11, color: C.green }}>≥ {local[sig.id] ?? 100}% · P0 → hard block</div>
+        <div style={{ fontFamily: C.mono, fontSize: 11, color: C.green }}>≥ {val(sig) ?? 100}% · P0 → hard block</div>
       );
     }
 
@@ -98,7 +106,7 @@ export default function ThresholdsView({
 
     if (sig.direction === "select") {
       const options = sig.selectOptions || [];
-      const value = String(local[sig.id] ?? options[0] ?? "");
+      const value = String(val(sig) ?? options[0] ?? "");
       return canAct(currentUser) ? (
         <select
           value={value}
@@ -120,12 +128,12 @@ export default function ThresholdsView({
           <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em", minWidth: 52, textAlign: "right" }}>FLOOR</span>
-              <input type="number" value={local[sig.id]} step={0.1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+              <input type="number" value={val(sig)} step={0.1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
               <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted, minWidth: 18 }}>{sig.unit}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, letterSpacing: "0.07em", minWidth: 52, textAlign: "right" }}>MAX DROP</span>
-              <input type="number" value={local[`${sig.id}_delta`] ?? 5} step={1} onChange={(e) => setLocal((t) => ({ ...t, [`${sig.id}_delta`]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.pink, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+              <input type="number" value={val(`${sig.id}_delta`)} step={1} onChange={(e) => setLocal((t) => ({ ...t, [`${sig.id}_delta`]: +e.target.value }))} style={{ width: 64, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.pink, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
               <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted, minWidth: 18 }}>pts</span>
             </div>
           </div>
@@ -133,7 +141,7 @@ export default function ThresholdsView({
       }
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input type="number" value={local[sig.id]} step={sig.unit === "s" || sig.unit === "%" ? 0.1 : sig.unit === "ms" ? 10 : 1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 76, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.accent, fontSize: 14, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
+          <input type="number" value={val(sig)} step={sig.unit === "s" || sig.unit === "%" ? 0.1 : sig.unit === "ms" ? 10 : 1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 76, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.accent, fontSize: 14, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
           <span style={{ fontFamily: C.mono, fontSize: 13, color: C.muted }}>{sig.unit}</span>
         </div>
       );
@@ -144,12 +152,12 @@ export default function ThresholdsView({
         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>FLOOR</span>
-            <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
+            <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{val(sig)}</span>
             <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>{sig.unit}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>MAX DROP</span>
-            <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{local[`${sig.id}_delta`] ?? 5}</span>
+            <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{val(`${sig.id}_delta`)}</span>
             <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>pts</span>
           </div>
         </div>
@@ -158,7 +166,7 @@ export default function ThresholdsView({
 
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700, color: C.dim }}>{local[sig.id]}</span>
+        <span style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700, color: C.dim }}>{val(sig)}</span>
         {sig.unit ? <span style={{ fontFamily: C.mono, fontSize: 13, color: C.dim }}>{sig.unit}</span> : null}
       </div>
     );

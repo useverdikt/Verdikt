@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSignalThresholdDirection, valueToThresholdBounds } from "./thresholdBounds.js";
+import { applyThresholdApiMap, getDefaultThresholdUiState, getSignalThresholdDirection, valueToThresholdBounds } from "./thresholdBounds.js";
 
 describe("thresholdBounds", () => {
   it("uses max for lower-is-better guardrails", () => {
@@ -14,5 +14,14 @@ describe("thresholdBounds", () => {
 
   it("uses max for latency ceilings", () => {
     expect(valueToThresholdBounds("p95latency", 300)).toEqual({ min: null, max: 300 });
+  });
+
+  it("merges industry defaults when API map is partial", () => {
+    const defaults = getDefaultThresholdUiState();
+    const { thresholds } = applyThresholdApiMap({ accuracy: { min: 88, max: null } });
+    expect(thresholds.accuracy).toBe(88);
+    expect(thresholds.smoke).toBe(defaults.smoke);
+    expect(thresholds.crashrate).toBe(defaults.crashrate);
+    expect(thresholds.manual_qa_showstopper).toBe("P0");
   });
 });

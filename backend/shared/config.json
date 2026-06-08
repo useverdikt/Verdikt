@@ -74,20 +74,6 @@
     "oomrate": "oomrate",
     "oom_rate": "oomrate"
   },
-  "defaultThresholdSeedRows": [
-    ["accuracy", 85, null],
-    ["safety", 90, null],
-    ["tone", 85, null],
-    ["hallucination", 90, null],
-    ["relevance", 82, null],
-    ["accuracy_delta", 5, null],
-    ["safety_delta", 5, null],
-    ["tone_delta", 5, null],
-    ["hallucination_delta", 5, null],
-    ["relevance_delta", 5, null],
-    ["p95latency", null, 300],
-    ["p99latency", null, 600]
-  ],
   "signalThresholdDirections": {
     "accuracy": "min",
     "safety": "min",

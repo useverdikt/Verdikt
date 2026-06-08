@@ -38,7 +38,7 @@ async function seedThresholds(workspaceId) {
   const row = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = ?", [workspaceId]);
   const c = Number(row?.c ?? 0);
   if (c > 0) return;
-  const defaults = sharedPkg.defaultThresholdSeedRows;
+  const defaults = sharedPkg.getDefaultThresholdSeedRows();
   const insertSql =
     "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
 
@@ -51,17 +51,29 @@ async function seedThresholds(workspaceId) {
 }
 
 async function ensureMissingThresholdRows(workspaceId) {
-  const defaults = sharedPkg.defaultThresholdSeedRows;
-  const existingRows = await queryAll("SELECT signal_id FROM thresholds WHERE workspace_id = ?", [workspaceId]);
-  const existing = new Set(existingRows.map((r) => r.signal_id));
+  const defaults = sharedPkg.getDefaultThresholdSeedRows();
+  const existingRows = await queryAll(
+    "SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?",
+    [workspaceId]
+  );
+  const existing = new Map(existingRows.map((r) => [r.signal_id, r]));
   const insertSql =
     "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
+  const updateSql =
+    "UPDATE thresholds SET min_value = ?, max_value = ? WHERE workspace_id = ? AND signal_id = ?";
 
   await transaction(async (tx) => {
     for (const row of defaults) {
-      if (existing.has(row[0])) continue;
-      const required = isDefaultRequiredSignal(row[0]) ? 1 : 0;
-      await tx.run(insertSql, [workspaceId, row[0], row[1], row[2], required]);
+      const [signalId, min, max] = row;
+      const cur = existing.get(signalId);
+      const required = isDefaultRequiredSignal(signalId) ? 1 : 0;
+      if (!cur) {
+        await tx.run(insertSql, [workspaceId, signalId, min, max, required]);
+        continue;
+      }
+      if (cur.min_value == null && cur.max_value == null && (min != null || max != null)) {
+        await tx.run(updateSql, [min, max, workspaceId, signalId]);
+      }
     }
   });
 }
