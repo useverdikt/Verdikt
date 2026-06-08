@@ -472,6 +472,25 @@ async function setIncidentRef(releaseId, workspaceId, incidentRef) {
   return { release_id: releaseId, incident_ref: incidentRef };
 }
 
+async function getOutcomeAlignmentForRelease(releaseId) {
+  const row = await queryOne(
+    `
+    SELECT alignment, actual_outcome, recommended_verdict, computed_at, incident_ref
+    FROM outcome_alignments
+    WHERE release_id = ?
+  `,
+    [releaseId]
+  );
+  if (!row) return null;
+  return {
+    alignment: row.alignment,
+    actual_outcome: row.actual_outcome,
+    recommended_verdict: row.recommended_verdict,
+    computed_at: row.computed_at,
+    incident_ref: row.incident_ref || null
+  };
+}
+
 module.exports = {
   ingestProductionSignals,
   computeOutcomeAlignment,
@@ -479,6 +498,7 @@ module.exports = {
   getProductionAdjustment,
   getWorkspaceProductionHealth,
   getProductionObservations,
+  getOutcomeAlignmentForRelease,
   setIncidentRef,
   OUTCOME_CRITERIA
 };

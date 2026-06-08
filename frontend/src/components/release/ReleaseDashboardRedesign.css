@@ -380,13 +380,19 @@
   align-items: center;
   gap: 6px;
 }
-.release-redesign .conf-band { font-size: 9px; color: #384d60; }
-.release-redesign .conf-awaiting {
+.release-redesign .conf-pct {
   font-family: "JetBrains Mono", monospace;
   font-size: 10.5px;
   font-weight: 500;
-  color: #94a3b8;
+  color: #6e87a2;
   letter-spacing: 0.02em;
+}
+.release-redesign .conf-band {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  font-weight: 500;
+  color: #384d60;
+  letter-spacing: 0.06em;
 }
 .release-redesign .conf-track {
   width: 100%;
@@ -433,8 +439,8 @@
 }
 .release-redesign .al-c { background: rgba(34,197,94,.10); color: #22c55e; }
 .release-redesign .al-m { background: rgba(239,68,68,.10);  color: #ef4444; }
+.release-redesign .al-u { background: rgba(59,130,246,.10);  color: #60a5fa; }
 .release-redesign .al-o { background: rgba(245,158,11,.10); color: #f59e0b; }
-.release-redesign .al-p { background: #1e2e42; color: #384d60; }
 
 /* ── TIME CELL ──────────────────────────────────────────────────────────────── */
 .release-redesign .time-cell {

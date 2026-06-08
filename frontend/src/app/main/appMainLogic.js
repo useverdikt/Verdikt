@@ -2,6 +2,7 @@ import shared from "../../../../shared/config.json";
 import { SCREENSHOT_SIM_RELEASES } from "../screenshotSimReleases.js";
 import { C } from "../../theme/tokens.js";
 import { mapBackendStatusToUi, normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
+import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
 
 const NAV_TO_PATH = {
   release: "/releases",
@@ -536,6 +537,12 @@ const mapBackendDetailToUi = (detail) => {
   }
   if (detail.intelligence) {
     out.intelligence = detail.intelligence;
+  }
+  if (detail.outcome_alignment?.alignment) {
+    out.alignmentVerdict = mapBackendAlignmentToUi(detail.outcome_alignment.alignment);
+    out.outcomeAlignment = detail.outcome_alignment;
+  } else {
+    out.alignmentVerdict = "uncertified";
   }
   if (release.created_at) out.created_at = release.created_at;
   if (release.updated_at) out.updated_at = release.updated_at;
