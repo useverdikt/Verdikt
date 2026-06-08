@@ -203,8 +203,6 @@ export const DEFAULT_THRESHOLDS = {
   ...shared.defaultThresholds
 };
 
-export { SCREENSHOT_SIM_RELEASES as DEMO_RELEASES, SCREENSHOT_GALLERY_DEMO_EMAIL, SCREENSHOT_SIM_RELEASES } from "./screenshotSimReleases.js";
-
 export const DEFAULT_AUDIT = [{
   id: 8,
   ts: "2026-02-28 09:01",

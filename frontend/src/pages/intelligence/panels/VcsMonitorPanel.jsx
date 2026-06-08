@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { json } from "../api.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
-import { Card, Spinner, EmptyState } from "../ui.jsx";
+import { Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
+import { panelErrorMessage } from "../panelLoad.js";
 
 const WINDOW_STATUS_META = {
   pending:   { color: "#7a788b", label: "Pending first scan",   icon: "⏳" },
@@ -22,12 +23,19 @@ const INFERRED_OUTCOME_META = {
 export function VcsMonitorPanel({ wsId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await json(`/api/workspaces/${wsId}/vcs-monitor`)); }
-    catch (_) {}
-    finally { setLoading(false); }
+    setError(null);
+    try {
+      setData(await json(`/api/workspaces/${wsId}/vcs-monitor`));
+    } catch (err) {
+      setData(null);
+      setError(panelErrorMessage(err, "Could not load VCS monitor data."));
+    } finally {
+      setLoading(false);
+    }
   }, [wsId]);
 
   useEffect(() => { load(); }, [load]);
@@ -61,7 +69,9 @@ export function VcsMonitorPanel({ wsId }) {
         No pipeline changes. No webhooks. Just connect your VCS integration in settings.
       </div>
 
-      {loading ? <Spinner /> : windows.length === 0 ? (
+      {loading && !data ? <Spinner /> : error ? (
+        <ErrorState msg={error} onRetry={load} />
+      ) : windows.length === 0 ? (
         <EmptyState msg="No monitoring windows yet. Windows open automatically on each new certified verdict." />
       ) : (
         <>

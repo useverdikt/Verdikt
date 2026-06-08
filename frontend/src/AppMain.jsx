@@ -1,6 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { SCREENSHOT_SIM_RELEASES } from "./app/screenshotSimReleases.js";
 import { normalizeStoredProject } from "./lib/projectEnv.js";
 import { apiGet, apiPost, getWorkspaceId } from "./lib/apiClient.js";
 import {
@@ -71,13 +70,13 @@ export default function App() {
   const [releases, setReleases] = useState(() => {
     if (hasBackend()) return [];
     const s = S.get("releases", null);
-    return Array.isArray(s) && s.length > 0 ? s : SCREENSHOT_SIM_RELEASES;
+    return Array.isArray(s) ? s : [];
   });
   const [selectedId, setSelectedId] = useState(() => {
     if (hasBackend()) return null;
     const s = S.get("releases", null);
-    const list = Array.isArray(s) && s.length > 0 ? s : SCREENSHOT_SIM_RELEASES;
-    return list[0]?.id;
+    const list = Array.isArray(s) ? s : [];
+    return list[0]?.id ?? null;
   });
   const [thresholds, setThresholds] = useState(() => ({
     ...DEFAULT_THRESHOLDS,

@@ -3,17 +3,26 @@ import { authHeaders } from "../../../lib/apiClient.js";
 import { api, json } from "../api.js";
 import { C, GRADE_COLOR } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
-import { Badge, Card, Spinner, EmptyState } from "../ui.jsx";
+import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
+import { panelErrorMessage } from "../panelLoad.js";
 
 export function SignalReliabilityPanel({ wsId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [computing, setComputing] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await json(`/api/workspaces/${wsId}/signal-reliability`)); } catch (_) {}
-    finally { setLoading(false); }
+    setError(null);
+    try {
+      setData(await json(`/api/workspaces/${wsId}/signal-reliability`));
+    } catch (err) {
+      setData(null);
+      setError(panelErrorMessage(err, "Could not load signal reliability data."));
+    } finally {
+      setLoading(false);
+    }
   }, [wsId]);
 
   const compute = async () => {
@@ -29,7 +38,9 @@ export function SignalReliabilityPanel({ wsId }) {
   return (
     <Card title="Signal Reliability" eyebrow="SOURCE HEALTH"
       action={<button onClick={compute} disabled={computing} style={btnStyle(C.accent)}>{computing ? "Computing…" : "Recompute"}</button>}>
-      {loading ? <Spinner /> : !data?.signals?.length ? (
+      {loading && !data && !error ? <Spinner /> : error ? (
+        <ErrorState msg={error} onRetry={load} />
+      ) : !data?.signals?.length ? (
         <EmptyState msg="No reliability data yet — recompute after a few certified releases." />
       ) : (
         <>

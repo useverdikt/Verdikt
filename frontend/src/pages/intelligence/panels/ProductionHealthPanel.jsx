@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { json } from "../api.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
-import { Badge, Card, Spinner } from "../ui.jsx";
+import { Badge, Card, Spinner, ErrorState } from "../ui.jsx";
+import { panelErrorMessage } from "../panelLoad.js";
 
 function OutcomeCriteriaCard({ criteria }) {
   if (!criteria) return null;
@@ -50,6 +51,7 @@ const OUTCOME_META = {
 export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [expandCriteria, setExpandCriteria] = useState(false);
   const [expandedRow, setExpandedRow] = useState(null); // release_id of expanded alignment row
   const [showManualSignals, setShowManualSignals] = useState(false);
@@ -57,9 +59,15 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
   const load = useCallback(async () => {
     if (!prodObservationEnabled) return;
     setLoading(true);
-    try { setData(await json(`/api/workspaces/${wsId}/production-health`)); }
-    catch (_) {}
-    finally { setLoading(false); }
+    setError(null);
+    try {
+      setData(await json(`/api/workspaces/${wsId}/production-health`));
+    } catch (err) {
+      setData(null);
+      setError(panelErrorMessage(err, "Could not load production health data."));
+    } finally {
+      setLoading(false);
+    }
   }, [wsId, prodObservationEnabled]);
 
   useEffect(() => {
@@ -108,7 +116,9 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
         </div>
       }
     >
-      {loading ? <Spinner /> : total === 0 ? (
+      {loading && !data ? <Spinner /> : error ? (
+        <ErrorState msg={error} onRetry={load} />
+      ) : total === 0 ? (
         <div style={{ padding: "4px 0 8px" }}>
           {/* Primary: point to automatic VCS inference */}
           <div style={{ padding: "14px 16px", borderRadius: 10, background: C.raise, border: `1px solid ${C.border}`, marginBottom: 14 }}>

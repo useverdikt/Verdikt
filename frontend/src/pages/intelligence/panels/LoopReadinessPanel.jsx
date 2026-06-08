@@ -3,19 +3,27 @@ import { Link } from "react-router-dom";
 import { json } from "../api.js";
 import { C, BAND_META } from "../theme.js";
 import { btnStyle } from "../styles.js";
-import { Card, Spinner, EmptyState } from "../ui.jsx";
+import { Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
+import { panelErrorMessage } from "../panelLoad.js";
 import { fullLoopBarPct, pipelineFunnelBarPct } from "../../../lib/loopReadinessUi.js";
 
 export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     if (!prodObservationEnabled) return;
     setLoading(true);
-    try { setData(await json(`/api/workspaces/${wsId}/loop-readiness`)); }
-    catch (_) {}
-    finally { setLoading(false); }
+    setError(null);
+    try {
+      setData(await json(`/api/workspaces/${wsId}/loop-readiness`));
+    } catch (err) {
+      setData(null);
+      setError(panelErrorMessage(err, "Could not load loop readiness data."));
+    } finally {
+      setLoading(false);
+    }
   }, [wsId, prodObservationEnabled]);
 
   useEffect(() => {
@@ -57,8 +65,10 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
         </button>
       }
     >
-      {loading && !data ? <Spinner /> : !data ? (
-        <EmptyState msg="Could not load loop readiness data." />
+      {loading && !data ? <Spinner /> : error ? (
+        <ErrorState msg={error} onRetry={load} />
+      ) : !data ? (
+        <EmptyState msg="No loop readiness data yet." />
       ) : (
         <>
           {/* Band badge + stale warning */}
