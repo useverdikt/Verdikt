@@ -3,6 +3,7 @@
  * Uses the same auth cookies produced by global-setup login (no client-side demo injection).
  */
 const FIXTURE_VERSION = "e2e-playwright-fixture";
+const COLLECTING_FIXTURE_VERSION = "e2e-playwright-collecting";
 
 function cookieHeaderFromPlaywrightCookies(cookies) {
   return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
@@ -84,4 +85,38 @@ export async function ensureE2eFixtureRelease({ apiBase, cookies, workspaceId })
     throw new Error(`E2E seed: expected terminal verdict status, got ${status}`);
   }
   return relId;
+}
+
+/** COLLECTING release for live-stream / extend-deadline UI tests (no signal ingest). */
+export async function ensureE2eCollectingRelease({ apiBase, cookies, workspaceId }) {
+  if (!workspaceId) return null;
+  const headers = authHeaders(cookies);
+
+  const listRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/releases?limit=50`, { headers });
+  if (!listRes.ok) {
+    const text = await listRes.text();
+    throw new Error(`E2E seed: list releases failed ${listRes.status} ${text}`);
+  }
+  const list = await listRes.json();
+  const existing = (list.releases || []).find((r) => r.version === COLLECTING_FIXTURE_VERSION);
+  if (existing?.id) return existing.id;
+
+  const createRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/releases`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      version: COLLECTING_FIXTURE_VERSION,
+      release_type: "model_update",
+      environment: "pre-prod"
+    })
+  });
+  if (!createRes.ok) {
+    const text = await createRes.text();
+    throw new Error(`E2E seed: create collecting release failed ${createRes.status} ${text}`);
+  }
+  const created = await createRes.json();
+  if (created.status !== "COLLECTING") {
+    throw new Error(`E2E seed: expected COLLECTING status, got ${created.status}`);
+  }
+  return created.id;
 }
