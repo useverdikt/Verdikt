@@ -1,15 +1,10 @@
 import shared from "../../../../shared/config.json";
 import { C } from "../../theme/tokens.js";
-import { mapBackendStatusToUi, normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
+import { mapBackendStatusToUi, normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
 
+/** App tab id → pathname (also used for legacy ?tab= redirects). */
 const NAV_TO_PATH = {
-  release: "/releases",
-  trend: "/trends",
-  thresholds: "/thresholds",
-  audit: "/audit"
-};
-const LEGACY_TAB_TO_PATH = {
   release: "/releases",
   trend: "/trends",
   thresholds: "/thresholds",
@@ -586,7 +581,7 @@ const releaseSortTimestampMs = (r) => {
   return null;
 };
 const sidebarStatusLabel = (status) => {
-  const s = normalizeLegacyUiStatus(status);
+  const s = normalizeReleaseStatus(status);
   if (s === UI_RELEASE_STATUS.CERTIFIED) return "Certified";
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return "Override";
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return "Uncertified";
@@ -645,7 +640,7 @@ const formatSidebarDayHeading = (dayKey) => {
 };
 const getLastCertified = (releases) => {
   return releases.find((r) => {
-    const s = normalizeLegacyUiStatus(r.status);
+    const s = normalizeReleaseStatus(r.status);
     return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
   }) || null;
 };
@@ -826,7 +821,7 @@ const scoreJustification = (text) => {
   return { grade: "STRONG", color: C.green, note: "Well documented — this justification will hold up under audit review." };
 };
 const releaseRiskScore = (r, thresholds) => {
-  if (normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
+  if (normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
     return { level: "HIGH RISK", color: C.red };
   }
   if (r.status === "overridden") return { level: "OVERRIDDEN", color: C.amber };
@@ -850,17 +845,17 @@ const genCertSummary = (release, failing, isShip) => {
   const rtLabel = rt ? rt.label.toLowerCase() : "release";
   const totalSigs = SIGNAL_CATEGORIES.flatMap((c) => c.signals).length;
   const passCount = totalSigs - failing.length;
-  if (isShip && normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED) {
+  if (isShip && normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED) {
     return `${release.version} is a ${rtLabel} that passed all ${totalSigs} quality signals and was certified on ${release.date}. ${passCount} of ${totalSigs} signals met or exceeded threshold. No overrides were required. This release is on permanent record as fully certified.`;
   }
   if (release.status === "overridden") {
     const weakest = failing[0];
     return `${release.version} shipped as CERTIFIED WITH OVERRIDE on ${release.date}. ${passCount} of ${totalSigs} signals passed, but ${failing.length} signal${failing.length > 1 ? "s" : ""} — including ${weakest ? weakest.catLabel : "one category"} — fell below threshold. An override was recorded with a named owner and written justification permanently on record.`;
   }
-  if (normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
+  if (normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
     return `${release.version} is UNCERTIFIED. ${failing.length} signal${failing.length > 1 ? "s" : ""} failed to meet threshold and a hard gate prevented override. This release cannot ship until the failing signals are resolved.`;
   }
-  if (normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING) {
+  if (normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING) {
     return `${release.version} is collecting signals. ${passCount} of ${totalSigs} signals are currently passing. ${failing.length > 0 ? `${failing.length} signal${failing.length > 1 ? "s" : ""} require attention before a verdict can be issued.` : "All received signals are meeting threshold."}`;
   }
   return `${release.version} certification summary. ${passCount} of ${totalSigs} signals are currently passing.`;
@@ -868,7 +863,6 @@ const genCertSummary = (release, failing, isShip) => {
 
 export {
   NAV_TO_PATH,
-  LEGACY_TAB_TO_PATH,
   S,
   nowTs,
   formatAuditTsFromIso,

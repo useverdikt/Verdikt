@@ -17,8 +17,8 @@ export function mapBackendStatusToUi(backendStatus) {
   return UI_RELEASE_STATUS.UNCERTIFIED;
 }
 
-/** Normalize UI or backend release status to canonical UI value (strict 1:1). */
-export function normalizeLegacyUiStatus(status) {
+/** Normalize UI or backend release status to canonical UI slug. */
+export function normalizeReleaseStatus(status) {
   const lower = String(status || "").toLowerCase();
   if (Object.values(UI_RELEASE_STATUS).includes(lower)) return lower;
   return mapBackendStatusToUi(status);
@@ -26,13 +26,13 @@ export function normalizeLegacyUiStatus(status) {
 
 /** Ingest is locked only after a certified verdict — UNCERTIFIED releases can still receive signals. */
 export function isIngestLocked(status) {
-  const s = normalizeLegacyUiStatus(status);
+  const s = normalizeReleaseStatus(status);
   return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
 }
 
 /** @param {string} uiStatus */
 export function uiStatusLabel(uiStatus) {
-  const s = normalizeLegacyUiStatus(uiStatus);
+  const s = normalizeReleaseStatus(uiStatus);
   if (s === UI_RELEASE_STATUS.CERTIFIED) return "CERTIFIED";
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return "UNCERTIFIED";
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return "CERTIFIED WITH OVERRIDE";
@@ -41,11 +41,11 @@ export function uiStatusLabel(uiStatus) {
 }
 
 export function isVerdictIssued(uiStatus) {
-  const s = normalizeLegacyUiStatus(uiStatus);
+  const s = normalizeReleaseStatus(uiStatus);
   return s !== UI_RELEASE_STATUS.COLLECTING;
 }
 
 export function isCertifiedLike(uiStatus) {
-  const s = normalizeLegacyUiStatus(uiStatus);
+  const s = normalizeReleaseStatus(uiStatus);
   return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
 }

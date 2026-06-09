@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -59,7 +59,7 @@ export default function CertificationRecordModal({
   }, []);
   const { failing } = calcVerdict(release.signals, thresholds, release.releaseType);
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
-  const rs = normalizeLegacyUiStatus(release.status);
+  const rs = normalizeReleaseStatus(release.status);
   const statusColor = {
     [UI_RELEASE_STATUS.CERTIFIED]: C.green,
     [UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE]: C.amber,

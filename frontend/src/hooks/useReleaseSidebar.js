@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { getWorkspaceId } from "../lib/apiClient.js";
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import {
   calcVerdict,
   formatSidebarDayHeading,
@@ -78,10 +78,10 @@ export function useReleaseSidebar(releases, thresholds, nav) {
   }, [nav, sidebarReleaseGroups]);
 
   const releaseSidebarCounts = useMemo(() => {
-    const nCert = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED).length;
-    const nUncertified = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
-    const nProgress = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.COLLECTING).length;
-    const nOv = releases.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
+    const nCert = releases.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED).length;
+    const nUncertified = releases.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED).length;
+    const nProgress = releases.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.COLLECTING).length;
+    const nOv = releases.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE).length;
     const nPassed = nCert + nOv;
     const nTotal = releases.length;
     return { nCert, nUncertified, nProgress, nOv, nPassed, nTotal };
