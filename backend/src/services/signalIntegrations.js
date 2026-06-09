@@ -12,6 +12,29 @@ const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeede
 
 const ALLOWED = new Set(["braintrust", "langsmith", "browserstack", "sentry", "datadog"]);
 
+/** Official Datadog API host suffixes — blocks SSRF via arbitrary `site` in verify/pull URLs. */
+const DATADOG_ALLOWED_SITES = new Set([
+  "datadoghq.com",
+  "us3.datadoghq.com",
+  "us5.datadoghq.com",
+  "datadoghq.eu",
+  "ap1.datadoghq.com",
+  "ap2.datadoghq.com",
+  "ddog-gov.com",
+  "datadoghq.cn"
+]);
+
+function normalizeDatadogSite(raw) {
+  const site = String(raw || "datadoghq.com").trim().toLowerCase() || "datadoghq.com";
+  if (!/^[a-z0-9.-]+$/.test(site)) {
+    throw new Error("Invalid Datadog site");
+  }
+  if (!DATADOG_ALLOWED_SITES.has(site)) {
+    throw new Error(`Unsupported Datadog site: ${site}`);
+  }
+  return site;
+}
+
 function maskSecret(s) {
   const t = String(s ?? "");
   if (t.length <= 4) return "••••";
@@ -103,7 +126,7 @@ async function verifyRemote(sourceId, creds) {
   if (sourceId === "datadog") {
     const appKey = String(creds.appKey || "").trim();
     if (!appKey) throw new Error("Datadog application key is required");
-    const site = String(creds.site || "datadoghq.com").trim() || "datadoghq.com";
+    const site = normalizeDatadogSite(creds.site);
     const base = `https://api.${site}`;
     const url = new URL(`${base}/api/v1/validate`);
     url.searchParams.set("api_key", apiKey);
@@ -122,7 +145,7 @@ function validateBody(sourceId, body) {
   if (sourceId === "datadog") {
     const apiKey = String(b.apiKey || "").trim();
     const appKey = String(b.appKey || "").trim();
-    const site = String(b.site || "datadoghq.com").trim() || "datadoghq.com";
+    const site = normalizeDatadogSite(b.site);
     const datadog_query =
       typeof b.datadog_query === "string" && b.datadog_query.trim() ? b.datadog_query.trim() : null;
     if (!apiKey) throw new Error("apiKey is required");
@@ -337,6 +360,8 @@ async function getLatestCsvImport(workspaceId) {
 
 module.exports = {
   ALLOWED_SOURCES: Array.from(ALLOWED),
+  DATADOG_ALLOWED_SITES,
+  normalizeDatadogSite,
   maskSecret,
   verifyRemote,
   upsertIntegration,
