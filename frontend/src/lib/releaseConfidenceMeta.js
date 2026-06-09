@@ -1,4 +1,4 @@
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "./releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "./releaseStatus.js";
 
 /**
  * Confidence band + bar fill for release history (shared with tests).
@@ -8,7 +8,7 @@ import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "./releaseStatus.js";
  * @param {{ receivedSignalCount?: number }} [opts]
  */
 export function confMeta(status, confidencePct, opts = {}) {
-  const s = normalizeLegacyUiStatus(status);
+  const s = normalizeReleaseStatus(status);
   const received = opts.receivedSignalCount;
 
   if (s === UI_RELEASE_STATUS.COLLECTING) {

@@ -1,7 +1,7 @@
 import React from "react";
 import { C } from "../../../theme/tokens.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
-import { normalizeLegacyUiStatus } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus } from "../../../lib/releaseStatus.js";
 import {
   SIGNAL_CATEGORIES,
   getRegressionRequired,
@@ -34,7 +34,7 @@ export const StatusBadge = ({
       l: "UNCERTIFIED"
     }
   };
-  const s = normalizeLegacyUiStatus(status);
+  const s = normalizeReleaseStatus(status);
   const {
     c,
     l

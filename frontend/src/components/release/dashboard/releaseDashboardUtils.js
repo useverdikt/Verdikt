@@ -1,7 +1,7 @@
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 
 export function verdictMeta(status) {
-  const s = normalizeLegacyUiStatus(status);
+  const s = normalizeReleaseStatus(status);
   if (s === UI_RELEASE_STATUS.CERTIFIED) return { cls: "v-cert", label: "CERTIFIED", pulse: false };
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return { cls: "v-ov", label: "WITH OVERRIDE", pulse: false };
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return { cls: "v-un", label: "UNCERTIFIED", pulse: false };
