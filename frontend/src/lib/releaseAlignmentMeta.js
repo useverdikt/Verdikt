@@ -5,13 +5,6 @@ export function mapBackendAlignmentToUi(alignment) {
   return "uncertified";
 }
 
-/** Badge styling for alignment labels (e.g. expanded detail, future surfaces). */
-export function alignBadgeMeta(alignmentVerdict) {
-  if (alignmentVerdict === "correct") return { cls: "al-c", label: "CORRECT" };
-  if (alignmentVerdict === "miss") return { cls: "al-m", label: "MISS" };
-  return { cls: "al-u", label: "UNCERTIFIED" };
-}
-
 /** True when production feedback loop produced a scored alignment (not pending). */
 export function hasComputedAlignment(alignmentVerdict) {
   return alignmentVerdict === "correct" || alignmentVerdict === "miss";

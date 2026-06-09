@@ -45,7 +45,7 @@ import {
 } from "./app/main/appMainLogic.js";
 import { SignalDetailPanel } from "./components/app/main/AppMainPanels.jsx";
 import { hasBackend } from "./lib/hasBackend.js";
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "./lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "./lib/releaseStatus.js";
 import { useLoopReadinessNudge } from "./hooks/useLoopReadinessNudge.js";
 import { useAppNavigation } from "./hooks/useAppNavigation.js";
 import { useAppProject } from "./hooks/useAppProject.js";
@@ -183,7 +183,7 @@ export default function App() {
   }, []);
 
   const uncertifiedRelease = releases.find(
-    (r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED
+    (r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED
   );
 
   const navItems = [

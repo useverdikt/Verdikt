@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import { envBucket } from "../components/release/dashboard/releaseDashboardUtils.js";
 
 export function useReleaseDashboardFilters(releases) {
@@ -15,13 +15,13 @@ export function useReleaseDashboardFilters(releases) {
       if (want) list = list.filter((r) => envBucket(r.environment) === want);
     }
     if (activeFilter === "CERTIFIED") {
-      list = list.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED);
+      list = list.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED);
     }
     if (activeFilter === "UNCERTIFIED") {
-      list = list.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
+      list = list.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED);
     }
     if (activeFilter === "OVERRIDE") {
-      list = list.filter((r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
+      list = list.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
     }
     if (searchQ.trim()) {
       const q = searchQ.toLowerCase();

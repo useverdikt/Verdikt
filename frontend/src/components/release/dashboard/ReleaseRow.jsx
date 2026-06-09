@@ -1,4 +1,4 @@
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import {
   envClass,
   envDisplayLabel,
@@ -41,15 +41,15 @@ export default function ReleaseRow({
 
   const timeLabel = formatAge ? formatAge(release) : release.date || "—";
   const subLabel =
-    normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING
+    normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING
       ? "in progress"
-      : normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
+      : normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
         ? release.overrideBy?.split(",")[0]?.trim() || "override"
-        : normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED
+        : normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED
           ? receivedSignalCount > 0
             ? "certified"
             : "certified · no signals"
-          : normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED
+          : normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED
             ? "uncertified"
             : "—";
 
