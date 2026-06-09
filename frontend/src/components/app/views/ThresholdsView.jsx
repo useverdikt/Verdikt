@@ -86,6 +86,10 @@ export default function ThresholdsView({
 
   const renderValueControl = (sig) => {
     if (sig.direction === "test") {
+      const severityHint =
+        sig.id === "e2e_regression"
+          ? "P0 → hard block · P3/P4 overridable"
+          : "P0 → hard block · P1+ overridable";
       return canAct(currentUser) ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -93,7 +97,7 @@ export default function ThresholdsView({
             <input type="number" min={0} max={100} value={val(sig) ?? 100} step={1} onChange={(e) => setLocal((t) => ({ ...t, [sig.id]: +e.target.value }))} style={{ width: 58, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 13, fontWeight: 700, fontFamily: C.mono, outline: "none", textAlign: "center" }} />
             <span style={{ fontFamily: C.mono, fontSize: 12, color: C.muted }}>%</span>
           </div>
-          <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, textAlign: "right" }}>P0 → hard block · P1+ overridable</div>
+          <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, textAlign: "right" }}>{severityHint}</div>
         </div>
       ) : (
         <div style={{ fontFamily: C.mono, fontSize: 11, color: C.green }}>≥ {val(sig) ?? 100}% · P0 → hard block</div>

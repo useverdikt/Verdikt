@@ -20,7 +20,10 @@ import { normalizeStoredProject, primaryCertEnvFromTiers } from "../../lib/proje
 import {
   cloneSourcesBase,
   mergeSourcesFromApi,
-  loadRolePolicy
+  loadRolePolicy,
+  isEvalSourceConnected,
+  isThresholdsConfiguredFromApi,
+  isReleaseTriggerReady
 } from "./workspace/settingsWorkspaceModel.js";
 import {
   slugifyWorkspaceSlug,
@@ -116,6 +119,7 @@ export default function SettingsWorkspace() {
   const [rolePolicy, _setRolePolicy] = useState(loadRolePolicy);
 
   const [sources, setSources] = useState(() => cloneSourcesBase());
+  const [workspaceThresholds, setWorkspaceThresholds] = useState(null);
   const [expandedSource, setExpandedSource] = useState(null);
   const [connectModal, setConnectModal] = useState(null);
   const csvInputRef = useRef(null);
@@ -177,6 +181,28 @@ export default function SettingsWorkspace() {
   useEffect(() => {
     loadSignalSources();
   }, [loadSignalSources]);
+
+  const loadWorkspaceThresholds = useCallback(async () => {
+    try {
+      const data = await apiGet(`/api/workspaces/${wsId}/thresholds`, { navigate });
+      setWorkspaceThresholds(data?.thresholds ?? null);
+    } catch {
+      setWorkspaceThresholds(null);
+    }
+  }, [navigate, wsId]);
+
+  useEffect(() => {
+    loadWorkspaceThresholds();
+  }, [loadWorkspaceThresholds]);
+
+  const governanceReadiness = useMemo(
+    () => ({
+      eval: isEvalSourceConnected(sources),
+      thresholds: isThresholdsConfiguredFromApi(workspaceThresholds),
+      trigger: isReleaseTriggerReady(triggerConfig, githubAppStatus)
+    }),
+    [sources, workspaceThresholds, triggerConfig, githubAppStatus]
+  );
 
   const loadGithubAppStatus = useCallback(async () => {
     try {
@@ -398,24 +424,6 @@ export default function SettingsWorkspace() {
     navigate("/login", { replace: true });
   };
 
-  const setReadyBadge = (id, ok, warn = false) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.className = "ri-dot " + (ok ? "ok" : warn ? "warn" : "empty");
-  };
-
-  useEffect(() => {
-    const evalConnected = sources.some((s) => s.name === "Braintrust" && s.status === "connected");
-    let thresholdsConfigured = false;
-    try {
-      const t = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");
-      thresholdsConfigured = ["accuracy", "safety", "tone", "hallucination", "relevance"].every((k) => t[k] !== undefined && t[k] !== null && t[k] !== "");
-    } catch (_) {}
-    setReadyBadge("ready-eval", evalConnected);
-    setReadyBadge("ready-thresh", thresholdsConfigured);
-    setReadyBadge("ready-trigger", true);
-  }, [sources]);
-
   return (
     <>
       <SettingsWorkspaceShell
@@ -426,6 +434,7 @@ export default function SettingsWorkspace() {
         section={section}
         setSection={setSection}
         sidebarUser={sidebarUser}
+        readiness={governanceReadiness}
       >
         <GeneralSettingsSection
           section={section}

@@ -12,8 +12,10 @@ export default function SettingsWorkspaceShell({
   section,
   setSection,
   sidebarUser,
+  readiness = { eval: false, thresholds: false, trigger: false },
   children
 }) {
+  const dotClass = (ok) => `ri-dot ${ok ? "ok" : "empty"}`;
   return (
     <div className="shell">
       <div className="app-rail">
@@ -74,15 +76,15 @@ export default function SettingsWorkspaceShell({
           <div className="readiness-head">Governance readiness</div>
           <div className="readiness-item">
             <span>Eval source connected</span>
-            <div className="ri-dot empty" id="ready-eval" />
+            <div className={dotClass(readiness.eval)} aria-hidden="true" />
           </div>
           <div className="readiness-item">
             <span>Thresholds configured</span>
-            <div className="ri-dot empty" id="ready-thresh" />
+            <div className={dotClass(readiness.thresholds)} aria-hidden="true" />
           </div>
           <div className="readiness-item">
             <span>New release ready</span>
-            <div className="ri-dot empty" id="ready-trigger" />
+            <div className={dotClass(readiness.trigger)} aria-hidden="true" />
           </div>
         </div>
         <nav className="ss-nav">
@@ -100,13 +102,7 @@ export default function SettingsWorkspaceShell({
             {["api", "trigger", "notifications"].map((id) => (
               <button key={id} type="button" className={`nav-item${section === id ? " active" : ""}`} onClick={() => setSection(id)}>
                 {SettingsNavIcons[id]}
-                {id === "notifications" ? (
-                  <>
-                    Notifications<span className="nav-badge">1</span>
-                  </>
-                ) : (
-                  SECTION_LABELS[id]
-                )}
+                {SECTION_LABELS[id]}
               </button>
             ))}
             <button type="button" className={`nav-item${section === "governance" ? " active" : ""}`} onClick={() => setSection("governance")}>
