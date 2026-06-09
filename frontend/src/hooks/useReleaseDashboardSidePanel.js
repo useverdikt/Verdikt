@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../lib/apiClient.js";
 import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import { reliabilityLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
 
 export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases }) {
@@ -84,7 +84,7 @@ export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, rel
         loopEligibleLabel,
         Math.max(
           0,
-          releases.filter((r) => normalizeLegacyUiStatus(r.status) !== UI_RELEASE_STATUS.COLLECTING).length
+          releases.filter((r) => normalizeReleaseStatus(r.status) !== UI_RELEASE_STATUS.COLLECTING).length
         ),
         false
       ],

@@ -1,4 +1,4 @@
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import {
   evaluateSignalLocal,
   formatSignalValueLocal,
@@ -23,7 +23,7 @@ export default function ReleaseDetail({
   const overrideIntel = intel.override || {};
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
-  const isCollecting = normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
+  const isCollecting = normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
   const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
 
   const ordered = getOrderedDetailSignals(signalCategories);
@@ -165,7 +165,7 @@ export default function ReleaseDetail({
               ? "One or more signals failed their configured threshold."
               : "All evaluated signals cleared their thresholds."}
           </div>
-          {normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED && (
+          {normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED && (
             <div className="ri">No correlated failure patterns matched prior incidents.</div>
           )}
         </>
@@ -263,7 +263,7 @@ export default function ReleaseDetail({
             </>
           )}
           <div className="da">
-            {normalizeLegacyUiStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED && (
+            {normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED && (
               <button type="button" className="dab pr" onClick={() => onBeginOverride?.(release)}>
                 Override &amp; certify
               </button>

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
-import { normalizeLegacyUiStatus, UI_RELEASE_STATUS, isCertifiedLike } from "../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, isCertifiedLike } from "../lib/releaseStatus.js";
 import { envDisplayLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
 
 export function useReleaseDashboardStats({
@@ -22,10 +22,10 @@ export function useReleaseDashboardStats({
     const certified = statsReleases.filter((r) => isCertifiedLike(r.status)).length;
     const certRate = total ? Math.round((certified / total) * 100) : 0;
     const uncertified = statsReleases.filter(
-      (r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED
+      (r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED
     ).length;
     const overrideCount = statsReleases.filter(
-      (r) => normalizeLegacyUiStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
+      (r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
     ).length;
     const overrideRate = certified ? Math.round((overrideCount / certified) * 100) : 0;
     const loopCount =
@@ -48,7 +48,7 @@ export function useReleaseDashboardStats({
 
   const recentActivity = useMemo(() => {
     return releases.slice(0, 5).map((r) => {
-      const rs = normalizeLegacyUiStatus(r.status);
+      const rs = normalizeReleaseStatus(r.status);
       return {
         r,
         dot:

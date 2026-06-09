@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { thresholdNormalizedToApiPayload } from "../lib/thresholdBounds.js";
-import { UI_RELEASE_STATUS, normalizeLegacyUiStatus } from "../lib/releaseStatus.js";
+import { UI_RELEASE_STATUS, normalizeReleaseStatus } from "../lib/releaseStatus.js";
 import {
   S,
   nowTs,
@@ -495,7 +495,7 @@ export function useReleaseActions({
         current;
       const backendId = resolveBackendReleaseId(active);
       const isCollecting =
-        active && normalizeLegacyUiStatus(active.status) === UI_RELEASE_STATUS.COLLECTING;
+        active && normalizeReleaseStatus(active.status) === UI_RELEASE_STATUS.COLLECTING;
 
       if (kind === "live") {
         if (!hasBackend() || !backendId) {

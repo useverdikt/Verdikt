@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LEGACY_TAB_TO_PATH } from "../app/main/appMainLogic.js";
+import { NAV_TO_PATH } from "../app/main/appMainLogic.js";
 
 /** Route tab from pathname + legacy ?tab= redirects. */
 export function useAppNavigation() {
@@ -11,7 +11,7 @@ export function useAppNavigation() {
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get("tab");
     if (!tab) return;
-    const dest = LEGACY_TAB_TO_PATH[tab];
+    const dest = NAV_TO_PATH[tab];
     if (!dest) return;
     navigate(dest, { replace: true });
   }, [location.search, navigate]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapBackendStatusToUi, normalizeLegacyUiStatus, isIngestLocked, UI_RELEASE_STATUS } from "./releaseStatus.js";
+import { mapBackendStatusToUi, normalizeReleaseStatus, isIngestLocked, UI_RELEASE_STATUS } from "./releaseStatus.js";
 
 describe("releaseStatus", () => {
   it("maps backend statuses 1:1 to UI slugs", () => {
@@ -10,15 +10,15 @@ describe("releaseStatus", () => {
   });
 
   it("normalizes UI statuses strictly", () => {
-    expect(normalizeLegacyUiStatus("uncertified")).toBe("uncertified");
-    expect(normalizeLegacyUiStatus("collecting")).toBe("collecting");
-    expect(normalizeLegacyUiStatus("UNCERTIFIED")).toBe("uncertified");
+    expect(normalizeReleaseStatus("uncertified")).toBe("uncertified");
+    expect(normalizeReleaseStatus("collecting")).toBe("collecting");
+    expect(normalizeReleaseStatus("UNCERTIFIED")).toBe("uncertified");
   });
 
   it("does not treat pending or blocked as release statuses", () => {
-    expect(normalizeLegacyUiStatus("pending")).toBe("uncertified");
-    expect(normalizeLegacyUiStatus("blocked")).toBe("uncertified");
-    expect(normalizeLegacyUiStatus("shipped")).toBe("uncertified");
+    expect(normalizeReleaseStatus("pending")).toBe("uncertified");
+    expect(normalizeReleaseStatus("blocked")).toBe("uncertified");
+    expect(normalizeReleaseStatus("shipped")).toBe("uncertified");
   });
 
   it("locks ingest only for certified verdicts", () => {
