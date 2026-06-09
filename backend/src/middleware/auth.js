@@ -111,9 +111,12 @@ async function requireReleaseAccess(req, res, next) {
   }
 }
 
-/** Blocks read-only workspace role from mutating routes (role is DB-authoritative from authMiddleware). */
+/** Workspace roles that cannot mutate state (mirrors frontend ROLES.canAct). */
+const READ_ONLY_ROLES = new Set(["viewer", "engineer"]);
+
+/** Blocks read-only workspace roles from mutating routes (role is DB-authoritative from authMiddleware). */
 function requireNonViewer(req, res, next) {
-  if (req.auth.role === "viewer") {
+  if (READ_ONLY_ROLES.has(req.auth.role)) {
     return res.status(403).json({ error: "Insufficient permissions (read-only role)" });
   }
   next();
@@ -136,5 +139,6 @@ module.exports = {
   requireReleaseAccess,
   requireNonViewer,
   requireOverrideApproverRole,
+  READ_ONLY_ROLES,
   OVERRIDE_APPROVER_ROLES
 };
