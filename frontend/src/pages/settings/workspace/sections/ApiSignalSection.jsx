@@ -1,6 +1,6 @@
 import React from "react";
 import { apiDelete, apiPostFormData } from "../../settingsClient.js";
-import { sourceStatusDisplay } from "../settingsWorkspaceModel.js";
+import { sourceStatusDisplay, formatCsvRowCountLabel } from "../settingsWorkspaceModel.js";
 
 export default function ApiSignalSection({
   section,
@@ -70,7 +70,7 @@ export default function ApiSignalSection({
                               const out = await apiPostFormData(`/api/workspaces/${wsId}/signal-csv-imports`, fd, { navigate });
                               await loadSignalSources();
                               const ar = out.apply_result;
-                              let msg = `Imported ${out.row_count} rows from ${out.filename}`;
+                              let msg = `Imported ${formatCsvRowCountLabel(out.row_count)} from ${out.filename}`;
                               if (ar?.applied && Array.isArray(ar.releases)) {
                                 msg += ` — signals applied to ${ar.releases.length} release(s)`;
                                 if (ar.skipped?.length) msg += ` (${ar.skipped.length} row(s) skipped — check version column matches a release)`;
