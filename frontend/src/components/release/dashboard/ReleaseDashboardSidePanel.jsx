@@ -25,9 +25,13 @@ export default function ReleaseDashboardSidePanel({
             {loopStageRows.map(([label, count, amber]) => {
               const totalBase = Math.max(Number(loopStageRows[0]?.[1] || 0), 1);
               const isFullLoops = label === "Full loops";
-              const pct = isFullLoops
-                ? fullLoopBarPct(count, loopReadiness?.band_thresholds?.reliable_min_loops ?? 10)
-                : Math.max(6, Math.min(100, Math.round((Number(count || 0) / totalBase) * 100)));
+              const numericCount = typeof count === "number" && Number.isFinite(count) ? count : null;
+              const pct =
+                numericCount == null
+                  ? 0
+                  : isFullLoops
+                    ? fullLoopBarPct(numericCount, loopReadiness?.band_thresholds?.reliable_min_loops ?? 10)
+                    : Math.max(6, Math.min(100, Math.round((numericCount / totalBase) * 100)));
               return (
                 <div className="fs" key={String(label)}>
                   <div className="fl">{label}</div>
@@ -35,7 +39,7 @@ export default function ReleaseDashboardSidePanel({
                     <div className="ff2" style={{ width: `${pct}%` }}></div>
                   </div>
                   <div className="fc" style={amber ? { color: "#f59e0b" } : {}}>
-                    {count}
+                    {numericCount ?? "—"}
                   </div>
                 </div>
               );

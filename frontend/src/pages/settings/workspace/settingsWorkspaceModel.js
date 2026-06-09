@@ -8,6 +8,39 @@ export function esc(v) {
 
 export const CSV_IMPORT_DETAIL = "Upload signal rows from a file when API connectors aren’t configured";
 
+/** @param {number} count */
+export function formatCsvRowCountLabel(count) {
+  const n = Number(count) || 0;
+  const noun = n === 1 ? "row" : "rows";
+  return `${n} ${noun}`;
+}
+
+/** Any API connector connected or CSV import in use. */
+export function isEvalSourceConnected(sources) {
+  return (sources || []).some(
+    (s) =>
+      (s.sourceType === "upload" && (s.status === "connected" || s.status === "active")) ||
+      (s.sourceType !== "upload" && s.status === "connected")
+  );
+}
+
+/** True when workspace has persisted threshold rows from the API. */
+export function isThresholdsConfiguredFromApi(thresholdMap) {
+  if (!thresholdMap || typeof thresholdMap !== "object") return false;
+  return Object.values(thresholdMap).some((cfg) => {
+    if (!cfg || typeof cfg !== "object") return false;
+    return cfg.min_value != null || cfg.max_value != null || cfg.required_for_certification != null;
+  });
+}
+
+/** Manual New release is always available; label trigger needs GitHub + repos. */
+export function isReleaseTriggerReady(triggerConfig, githubAppStatus) {
+  if (triggerConfig?.mode !== "label") return true;
+  return (
+    githubAppStatus?.connected === true && Number(githubAppStatus?.selected_repo_count || 0) > 0
+  );
+}
+
 export const SOURCES_INITIAL = [
   {
     sourceId: "braintrust",
@@ -108,7 +141,7 @@ export function mergeSourcesFromApi(base, data) {
           ...row,
           status: "connected",
           statusColor: "var(--certified)",
-          detail: `${csv.row_count} rows from ${csv.filename}`
+          detail: `${formatCsvRowCountLabel(csv.row_count)} from ${csv.filename}`
         };
       }
       return {

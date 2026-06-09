@@ -133,7 +133,7 @@ export const EMAIL_PREVIEWS = [
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff">
         <tr><td style="padding:28px 32px">
           <p style="font-family:Georgia,'Times New Roman',serif;font-size:15px;color:${B.body};line-height:1.75;margin-bottom:24px">
-            Hi Marcus,<br/><br/>
+            Hi Alex,<br/><br/>
             <strong style="color:${B.heading}">Jordan Blake</strong> has submitted an override request for release <strong style="color:${B.heading}">v2.12.0</strong>. Two signals are below threshold. Your sign-off is required before this release can ship.
           </p>
 

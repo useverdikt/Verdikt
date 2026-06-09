@@ -88,7 +88,7 @@ export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, rel
         ),
         false
       ],
-      ["With observations", statsReleases.length > 0 ? Math.round(statsReleases.length * 0.77) : 0, false],
+      ["With observations", null, false],
       ["Full loops", fallbackLoopCount, true]
     ];
   }, [loopReadiness, loopEligibleLabel, releases, statsReleases.length, fallbackLoopCount]);
