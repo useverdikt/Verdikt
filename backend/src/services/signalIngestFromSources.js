@@ -8,7 +8,7 @@
 const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 const { evaluateReleaseAfterSignalIngest } = require("./domain");
-const { decryptStoredApiKey } = require("./signalIntegrations");
+const { decryptStoredApiKey, normalizeDatadogSite } = require("./signalIntegrations");
 const {
   extractVersionFromRow,
   mapFlatRowToSignals,
@@ -321,7 +321,12 @@ async function pullDatadogSignals(apiKey, appKey, site, extra) {
     return integrationTestMock("datadog");
   }
 
-  const siteHost = String(site || "datadoghq.com").trim() || "datadoghq.com";
+  let siteHost;
+  try {
+    siteHost = normalizeDatadogSite(site);
+  } catch {
+    return { signals: {}, matched: false, error: "invalid_datadog_site" };
+  }
   const base = `https://api.${siteHost}`;
   const from = Math.floor(Date.now() / 1000) - 7200;
   const to = Math.floor(Date.now() / 1000);

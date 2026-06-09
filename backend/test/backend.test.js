@@ -153,6 +153,22 @@ describe("API integration", () => {
       .expect(403);
   });
 
+  it("engineer role cannot mutate thresholds (RBAC)", async () => {
+    const email = `eng_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Engineer" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const uid = me.body.user.id;
+    await run("UPDATE users SET role = ? WHERE id = ?", ["engineer", uid]);
+
+    await agent
+      .post(`/api/workspaces/${ws}/thresholds`)
+      .send({ thresholds: { accuracy: { min: 80, max: 100 } } })
+      .expect(403);
+  });
+
   it("GET /api/signal-definitions requires auth", async () => {
     await request(app).get("/api/signal-definitions").expect(401);
   });
@@ -180,6 +196,27 @@ describe("API integration", () => {
 
     const empty = await agent.get(`/api/workspaces/${ws}/signal-integrations`).expect(200);
     assert.equal(empty.body.integrations.length, 0);
+  });
+
+  it("datadog integration rejects unsupported site (SSRF guard)", async () => {
+    const email = `dd_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "DD" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const bad = await agent
+      .put(`/api/workspaces/${ws}/signal-integrations/datadog`)
+      .send({ apiKey: "dd_test_api_key", appKey: "dd_test_app_key", site: "evil.example.com" })
+      .expect(400);
+    assert.match(bad.body.error, /Unsupported Datadog site/i);
+
+    const ok = await agent
+      .put(`/api/workspaces/${ws}/signal-integrations/datadog`)
+      .send({ apiKey: "dd_test_api_key", appKey: "dd_test_app_key", site: "datadoghq.eu" })
+      .expect(200);
+    assert.equal(ok.body.source_id, "datadog");
   });
 
   it("github label trigger config can be set and cleared", async () => {
