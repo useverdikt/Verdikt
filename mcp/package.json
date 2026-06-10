@@ -1,0 +1,19 @@
+{
+  "name": "@verdikt/mcp",
+  "version": "0.1.0",
+  "description": "Verdikt MCP server — trust layer tools for AI coding agents",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "verdikt-mcp": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": ["verdikt", "mcp", "ai-agents", "release-certification"],
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  }
+}

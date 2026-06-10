@@ -1,6 +1,7 @@
 "use strict";
 
 const { run, queryOne, queryAll } = require("../../database");
+const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
 const {
   nowIso,
   toIsoPlusMinutes,
@@ -55,7 +56,8 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
       release_type = "model_update",
       ai_context = {},
       commit_sha = null,
-      pr_number = null
+      pr_number = null,
+      callback_url = null
     } = req.body || {};
     if (!version) return res.status(400).json({ error: "version is required" });
     if (typeof ai_context !== "object" || Array.isArray(ai_context)) {
@@ -67,15 +69,31 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
       });
     }
 
+    let normalizedCallbackUrl = null;
+    if (callback_url != null && String(callback_url).trim()) {
+      try {
+        normalizedCallbackUrl = await validateOutboundWebhookUrl(String(callback_url).trim());
+      } catch (e) {
+        return res.status(400).json({ error: `callback_url: ${e.message || "invalid"}` });
+      }
+    }
+
     const releaseId = `rel_${Date.now()}`;
     const now = nowIso();
     const deadline = toIsoPlusMinutes(DEFAULT_COLLECTION_WINDOW_MINUTES);
     const environment = "pre-prod";
+    const triggerSource = req.auth?.authType === "api_key" ? "agent" : "manual";
+    const actorType = req.auth?.authType === "api_key" ? "AGENT" : "USER";
+    const actorName =
+      req.auth?.authType === "api_key"
+        ? req.auth.apiKeyName || "agent_runtime"
+        : req.auth.email || "release_owner";
+
     await run(
       `INSERT INTO releases (
       id, workspace_id, version, release_type, environment, status, created_at, updated_at,
-      release_ref, trigger_source, mappings_json, collection_deadline, verdict_issued_at, ai_context_json, commit_sha, pr_number
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      release_ref, trigger_source, mappings_json, collection_deadline, verdict_issued_at, ai_context_json, commit_sha, pr_number, callback_url
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         releaseId,
         req.params.workspaceId,
@@ -86,13 +104,14 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
         now,
         now,
         version,
-        "manual",
+        triggerSource,
         "{}",
         deadline,
         null,
         JSON.stringify(ai_context || {}),
         commit_sha || null,
-        pr_number || null
+        pr_number || null,
+        normalizedCallbackUrl
       ]
     );
 
@@ -100,9 +119,18 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
       workspaceId: req.params.workspaceId,
       releaseId,
       eventType: "RELEASE_CREATED",
-      actorType: "USER",
-      actorName: "release_owner",
-      details: { version, release_type, environment, ai_context, commit_sha: commit_sha || null, pr_number: pr_number || null }
+      actorType,
+      actorName,
+      details: {
+        version,
+        release_type,
+        environment,
+        ai_context,
+        commit_sha: commit_sha || null,
+        pr_number: pr_number || null,
+        callback_url: normalizedCallbackUrl,
+        trigger_source: triggerSource
+      }
     });
 
     return res.status(201).json({
@@ -114,7 +142,9 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
       commit_sha: commit_sha || null,
       pr_number: pr_number || null,
       status: "COLLECTING",
-      collection_deadline: deadline
+      collection_deadline: deadline,
+      callback_url: normalizedCallbackUrl,
+      trigger_source: triggerSource
     });
   } catch (e) {
     next(e);

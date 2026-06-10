@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const { JWT_SECRET, IS_PROD_LIKE, AUTH_COOKIE_NAME, CSRF_COOKIE_NAME, COOKIE_MAX_AGE_MS } = require("../config");
 const { queryOne } = require("../database");
 const { getUserRowForAuthById } = require("../services/authUserLookup");
+const { authenticateApiKey, KEY_PREFIX } = require("../services/apiKeys");
 const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "").trim();
 
 /** Roles allowed to approve certification overrides (server-side; product UI aligns with VP Engineering). */
@@ -75,6 +76,26 @@ function extractBearerToken(req) {
 
 async function authMiddleware(req, res, next) {
   const bearer = extractBearerToken(req);
+  if (bearer && bearer.startsWith(KEY_PREFIX)) {
+    try {
+      const keyRow = await authenticateApiKey(bearer);
+      if (!keyRow) return res.status(401).json({ error: "Invalid or revoked API key" });
+      req.auth = {
+        sub: `apikey:${keyRow.id}`,
+        ws: keyRow.workspace_id,
+        email: `agent:${keyRow.name}`,
+        role: "agent",
+        authType: "api_key",
+        apiKeyId: keyRow.id,
+        apiKeyName: keyRow.name
+      };
+      return next();
+    } catch (e) {
+      console.error("authMiddleware api_key", e);
+      return res.status(500).json({ error: "Authentication failed" });
+    }
+  }
+
   const cookieTok = req.cookies && req.cookies[AUTH_COOKIE_NAME];
   const token = bearer || cookieTok;
   if (!token) {
@@ -91,7 +112,8 @@ async function authMiddleware(req, res, next) {
       sub: row.id,
       ws: row.workspace_id,
       email: row.email,
-      role: row.role
+      role: row.role,
+      authType: "session"
     };
     next();
   } catch (e) {
@@ -101,6 +123,14 @@ async function authMiddleware(req, res, next) {
     console.error("authMiddleware", e);
     return res.status(500).json({ error: "Authentication failed" });
   }
+}
+
+/** JWT session only — blocks agent API keys from control-plane routes. */
+function requireHumanSession(req, res, next) {
+  if (req.auth?.authType === "api_key") {
+    return res.status(403).json({ error: "This action requires a human session, not an API key" });
+  }
+  next();
 }
 
 function requireWorkspaceMatch(req, res, next) {
@@ -148,6 +178,7 @@ module.exports = {
   setAuthCookies,
   clearAuthCookies,
   authMiddleware,
+  requireHumanSession,
   requireWorkspaceMatch,
   requireReleaseAccess,
   requireNonViewer,
