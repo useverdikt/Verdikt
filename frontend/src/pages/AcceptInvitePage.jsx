@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { getSafeApiBase } from "../../lib/apiBase.js";
-import { apiPost } from "../../lib/apiClient.js";
-import { persistAuthSession } from "../../auth/persistSession.js";
+import { getSafeApiBase } from "../lib/apiBase.js";
+import { apiPost } from "../lib/apiClient.js";
+import { persistAuthSession } from "../auth/persistSession.js";
 
 export default function AcceptInvitePage() {
   const [searchParams] = useSearchParams();
