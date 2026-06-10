@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { refreshReleaseDetail } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { filterSimulatorSourcesForMandatory, buildSimulatorThresholdMap, getSimulatorEmptyHint } from "../lib/simulatorMandatorySignals.js";
+import { filterSimulatorSourcesForMandatory, buildSimulatorThresholdMap, getSimulatorEmptyHint, getSimulatorReadiness } from "../lib/simulatorMandatorySignals.js";
 import {
   SIMULATOR_SOURCES,
   applySimulatorThresholds,
@@ -385,10 +385,68 @@ function ReleaseSelector({ releases, selectedId, onSelect, loading }) {
   );
 }
 
+function ReadinessPanel({ readiness, backendOk, userRole, workspaceId }) {
+  if (!backendOk) return null;
+
+  const roleBlocksIngest = userRole === "engineer";
+  const statusColor = readiness.ready && !roleBlocksIngest ? "#22c55e" : "#f59e0b";
+
+  return (
+    <div style={{
+      margin: "24px 32px 0",
+      padding: "14px 18px",
+      borderRadius: 10,
+      background: "#080d16",
+      border: `1px solid ${statusColor}33`,
+      fontSize: 13,
+      lineHeight: 1.55,
+      color: "#8fadc4"
+    }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 24px", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: statusColor, marginBottom: 6 }}>
+            Workspace readiness
+          </div>
+          <div style={{ color: "#c4d4e8", fontWeight: 500 }}>
+            {readiness.ready
+              ? `${readiness.panelCount} simulator panel${readiness.panelCount !== 1 ? "s" : ""} · ${readiness.requiredCount} required signal${readiness.requiredCount !== 1 ? "s" : ""}`
+              : "Not ready — configure required signals first"}
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#6e87a2" }}>
+            Workspace <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{workspaceId}</span>
+            {" · "}
+            {readiness.connectedIntegrationCount} live integration{readiness.connectedIntegrationCount !== 1 ? "s" : ""} connected
+            {readiness.requiredIds.length > 0 && (
+              <> · Required: {readiness.requiredIds.join(", ")}</>
+            )}
+          </div>
+        </div>
+        <div style={{ fontSize: 12, maxWidth: 320 }}>
+          {roleBlocksIngest ? (
+            <span style={{ color: "#f87171" }}>
+              Your role (<strong>engineer</strong>) is read-only — signal ingest will return 403. Use an AI Product Lead or VP Engineering account.
+            </span>
+          ) : readiness.requiredCount === 0 ? (
+            <span>
+              Mark signals as <strong>Required</strong> in{" "}
+              <a href="/thresholds" style={{ color: "#22c55e" }}>App → Thresholds</a>, then Save.
+              Default workspaces usually have the five AI metrics required after migration.
+            </span>
+          ) : (
+            <span style={{ color: "#22c55e" }}>API connected · ingest enabled for your role</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SignalSimulatorPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const releaseFromQuery = searchParams.get("release");
   const [releases, setReleases] = useState([]);
   const [loadingReleases, setLoadingReleases] = useState(true);
   const [selectedReleaseId, setSelectedReleaseId] = useState(null);
@@ -406,6 +464,12 @@ export default function SignalSimulatorPage() {
 
   const [thresholdMap, setThresholdMap] = useState(null);
   const [connectedSources, setConnectedSources] = useState(() => new Set());
+  const [userRole, setUserRole] = useState(null);
+
+  const readiness = useMemo(() => {
+    if (!thresholdMap) return { requiredCount: 0, requiredIds: [], panelCount: 0, connectedIntegrationCount: 0, ready: false };
+    return getSimulatorReadiness(thresholdMap, connectedSources, SIMULATOR_SOURCES);
+  }, [thresholdMap, connectedSources]);
 
   const configuredSources = useMemo(() => {
     if (!thresholdMap) return applySimulatorThresholds(SIMULATOR_SOURCES);
@@ -450,7 +514,11 @@ export default function SignalSimulatorPage() {
           return new Date(b.created_at || 0) - new Date(a.created_at || 0);
         });
         setReleases(rows);
-        if (rows.length > 0) setSelectedReleaseId(rows[0].id);
+        const preferred =
+          (releaseFromQuery && rows.some((r) => r.id === releaseFromQuery) && releaseFromQuery) ||
+          rows[0]?.id ||
+          null;
+        if (preferred) setSelectedReleaseId(preferred);
       } catch (e) {
         showToast(`Failed to load releases: ${e.message}`, "#f87171");
       } finally {
@@ -458,7 +526,21 @@ export default function SignalSimulatorPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [navigate, showToast]);
+  }, [navigate, showToast, releaseFromQuery]);
+
+  useEffect(() => {
+    if (!hasBackend()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await apiGet("/api/auth/me", { navigate });
+        if (!cancelled) setUserRole(me?.user?.role || null);
+      } catch (_) {
+        if (!cancelled) setUserRole(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -658,6 +740,13 @@ export default function SignalSimulatorPage() {
           ⚠ No backend detected — sign in and connect to a live workspace to use the simulator.
         </div>
       )}
+
+      <ReadinessPanel
+        readiness={readiness}
+        backendOk={hasBackend()}
+        userRole={userRole}
+        workspaceId={getWorkspaceId()}
+      />
 
       {hasBackend() && emptyHint && (
         <div style={{
