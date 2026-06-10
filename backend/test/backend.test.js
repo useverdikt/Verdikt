@@ -1515,7 +1515,7 @@ describe("Escalation inbox", () => {
     const me = await human.get("/api/auth/me").expect(200);
     const ws = me.body.user.workspace_id;
 
-    await run("UPDATE users SET role = ? WHERE email = ?", ["vp_engineering", email]);
+    await setUserRole(me.body.user.id, ws, "vp_engineering");
     await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
 
     const rel = await human
