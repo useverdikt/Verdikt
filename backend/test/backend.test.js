@@ -1405,6 +1405,49 @@ describe("Release identity + SHA correlation", () => {
     assert.ok(["merge", "self_heal", "escalate"].includes(gate.body.action));
     assert.equal(gate.body.action, "self_heal");
   });
+
+  it("gate by commit_sha resolves release without release_id (CI path)", async () => {
+    const email = `gate_sha_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Gate SHA" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "gha-gate" }).expect(201);
+    const sha = crypto.randomBytes(20).toString("hex");
+    const agent = request(app);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .send({
+        version: "gha-gate-v1",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: 42,
+        github_owner: "acme",
+        github_repo: "app"
+      })
+      .expect(201);
+
+    const gate = await agent
+      .get(`/api/workspaces/${ws}/gate`)
+      .query({ commit_sha: sha, github_owner: "acme", github_repo: "app", pr_number: 42 })
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .expect(200);
+
+    assert.equal(gate.body.release_id, created.body.id);
+    assert.equal(gate.body.commit_sha, sha);
+    assert.equal(gate.body.action, "self_heal");
+    assert.equal(gate.body.gate.exit_code, 1);
+
+    await agent
+      .get(`/api/workspaces/${ws}/gate`)
+      .query({ commit_sha: "deadbeef" })
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .expect(404);
+  });
 });
 
 describe("Workspace members", () => {
