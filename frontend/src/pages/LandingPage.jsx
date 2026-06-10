@@ -22,7 +22,7 @@ export default memo(function LandingPage() {
   // document title
   useEffect(() => {
     const prev = document.title;
-    document.title = "Verdikt — Release Intelligence System";
+    document.title = "Verdikt — Ship AI Agents with Evidence, Not Hope";
     return () => { document.title = prev; };
   }, []);
 
@@ -36,12 +36,12 @@ export default memo(function LandingPage() {
   // SEO meta tags
   useEffect(() => {
     const metas = [
-      { name: "description", content: "Verdikt certifies releases against quality thresholds, explains confidence with structured reasoning, and aligns predictions with production outcomes." },
-      { property: "og:title", content: "Verdikt — Release Intelligence System" },
-      { property: "og:description", content: "Every release gets a verdict. Every decision gets a record." },
+      { name: "description", content: "Ship AI agents with evidence, not hope. Verdikt evaluates agent releases, records the signals behind every decision, and tells you when human oversight is required." },
+      { property: "og:title", content: "Verdikt — Ship AI Agents with Evidence, Not Hope" },
+      { property: "og:description", content: "Know when to trust your agents before they reach production." },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Verdikt — Release Intelligence System" },
-      { name: "twitter:description", content: "Every release gets a verdict. Every decision gets a record." },
+      { name: "twitter:title", content: "Verdikt — Ship AI Agents with Evidence, Not Hope" },
+      { name: "twitter:description", content: "Know when to trust your agents before they reach production." },
     ];
     const added = metas.map((attrs) => {
       const selector = attrs.name ? `meta[name="${attrs.name}"]` : `meta[property="${attrs.property}"]`;
@@ -184,31 +184,30 @@ export default memo(function LandingPage() {
           <span className="logo-name">Verdikt</span>
         </Link>
         <div className="nav-links">
-          <a href="#gap">The problem</a>
+          <a href="#diagnostic">The question</a>
           <a href="#how">How it works</a>
+          <a href="#record">The record</a>
         </div>
         <SignInLink />
-        <Link to="/request-access" className="nav-cta">Join waitlist →</Link>
+        <Link to="/request-access" className="nav-cta">Get early access →</Link>
       </nav>
 
       {/* ── HERO ── */}
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-copy">
-            <div className="hero-eyebrow">Release Intelligence System</div>
             <h1>
-              Every release<br />
-              gets a verdict.<br />
-              <em>Every decision<br />gets a record.</em>
+              Ship AI agents with evidence,<br />
+              <em>not hope.</em>
             </h1>
             <p className="hero-body">
-              Verdikt sits at your release gate. It evaluates incoming signals against your defined
-              thresholds, issues a structured verdict with confidence and reasoning, then validates
-              each prediction against what actually shipped — and adjusts accordingly.
+              Verdikt evaluates agent releases, records the signals behind every decision, and tells
+              you when human oversight is required.
             </p>
+            <p className="hero-tagline">Know when to trust your agents before they reach production.</p>
             <div className="hero-actions">
               <Link to="/request-access" className="btn-primary">
-                Join waitlist
+                Get early access
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -216,6 +215,7 @@ export default memo(function LandingPage() {
             </div>
             <div className="hero-note">
               Works alongside <strong>Braintrust</strong>, <strong>LangSmith</strong>, any CI pipeline.<br />
+              MCP tools for <strong>Cursor</strong> and <strong>Claude Code</strong>. HTTP API for GitHub Actions.<br />
               No changes to your eval stack.
             </div>
           </div>
@@ -270,37 +270,6 @@ export default memo(function LandingPage() {
         </div>
       </section>
 
-      {/* ── GAP ── */}
-      <section className="gap" id="gap">
-        <div className="gap-inner">
-          <div className="section-rule reveal">The gap</div>
-          <h2 className="reveal reveal-delay-1">
-            Teams collect signals.<br /><em>Nobody closes the loop.</em>
-          </h2>
-          <p className="section-body reveal reveal-delay-2">
-            Eval pipelines are maturing. Monitoring is improving. What&apos;s still missing is the
-            layer that turns those signals into a formal decision — and then validates whether that
-            decision was right.
-          </p>
-          <div className="gap-columns reveal reveal-delay-3">
-            <div className="gap-col have">
-              <div className="gap-col-label">What you already have</div>
-              <div className="gap-item">Braintrust / LangSmith evaluation scores</div>
-              <div className="gap-item">Hallucination and safety detection</div>
-              <div className="gap-item">Latency and throughput monitoring</div>
-              <div className="gap-item">CI signal runners and threshold configs</div>
-            </div>
-            <div className="gap-col missing">
-              <div className="gap-col-label">What&apos;s still missing</div>
-              <div className="gap-item">A formal verdict — not a score, a decision</div>
-              <div className="gap-item">Confidence and structured reasoning per signal</div>
-              <div className="gap-item">Prediction-vs-reality alignment after every deploy</div>
-              <div className="gap-item">A signed, immutable record when risk is accepted</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── HOW ── */}
       <section className="how" id="how">
         <div className="how-inner">
@@ -309,8 +278,7 @@ export default memo(function LandingPage() {
             Four steps.<br /><em>One closed loop.</em>
           </h2>
           <p className="section-body reveal reveal-delay-2">
-            Verdikt is a pipeline, not a dashboard. Every release moves through the same four stages —
-            signal intake, evaluation, verdict, and production validation.
+            Every release moves through the same four stages — ingest, evaluate, verdict, validate.
           </p>
           <div className="pipeline reveal reveal-delay-3">
             <div className="pipeline-step">
@@ -318,8 +286,7 @@ export default memo(function LandingPage() {
               <div className="step-tag signals">Signals</div>
               <div className="step-title">Ingest</div>
               <div className="step-body">
-                CI pushes eval scores, latency, safety, and custom metrics to Verdikt via a single
-                API call. Works with any existing eval runner. Missing signals are flagged, not silently skipped.
+                Label the PR — Verdikt auto-pulls eval scores for that commit.
               </div>
             </div>
             <div className="pipeline-step">
@@ -327,8 +294,7 @@ export default memo(function LandingPage() {
               <div className="step-tag evaluate">Evaluate</div>
               <div className="step-title">Evaluate</div>
               <div className="step-body">
-                Each signal is checked against your workspace thresholds. Early warnings fire when
-                values approach limits. Conflicting signals are surfaced, not averaged away.
+                Weighed against your thresholds — missing metrics flagged, not skipped.
               </div>
             </div>
             <div className="pipeline-step">
@@ -336,9 +302,7 @@ export default memo(function LandingPage() {
               <div className="step-tag verdict">Verdict</div>
               <div className="step-title">Decide</div>
               <div className="step-body">
-                Verdikt issues one of three states: <strong>CERTIFIED</strong>,{" "}
-                <strong>UNCERTIFIED</strong>, or <strong>CERTIFIED WITH OVERRIDE</strong> — with
-                confidence, reasoning, and a cryptographically signed record.
+                <strong>CERTIFIED</strong>, <strong>UNCERTIFIED</strong>, or <strong>OVERRIDE</strong> — each cryptographically signed.
               </div>
             </div>
             <div className="pipeline-step">
@@ -346,9 +310,7 @@ export default memo(function LandingPage() {
               <div className="step-tag align">Align</div>
               <div className="step-title">Validate</div>
               <div className="step-body">
-                After deploy, Verdikt monitors VCS for reverts, hotfixes, and incident signals.
-                Each prediction resolves as <strong>CORRECT</strong>, <strong>MISS</strong>, or{" "}
-                <strong>OVER_BLOCK</strong> — and future confidence adjusts accordingly.
+                Post-deploy: scored <strong>CORRECT</strong>, <strong>MISS</strong>, or <strong>OVER_BLOCK</strong>.
               </div>
             </div>
           </div>
@@ -431,16 +393,18 @@ export default memo(function LandingPage() {
       {/* ── CTA ── */}
       <section className="cta-section" id="cta">
         <div className="cta-inner">
-          <div className="cta-eyebrow reveal">Get on the list</div>
+          <div className="cta-eyebrow reveal">Early access</div>
           <h2 className="reveal reveal-delay-1">
-            First release certified today.<br /><em>Loop starts with your first deploy.</em>
+            First agent. First verdict. First record.<br />
+            <em>The loop starts with your first deploy.</em>
           </h2>
           <p className="cta-sub reveal reveal-delay-2">
-            Closed beta — we&apos;re onboarding design partners in small batches. Same pipeline: connect
-            Verdikt, define thresholds, push signals. No new eval infrastructure.
+            Closed beta — onboarding design partner teams in small batches.
+            Connect Verdikt to GitHub and your eval stack. Define thresholds.
+            Your agents handle the rest. Humans only when it genuinely matters.
           </p>
           <Link to="/request-access" className="cta-btn reveal reveal-delay-3">
-            Join waitlist
+            Get early access
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -464,11 +428,12 @@ export default memo(function LandingPage() {
             <span className="logo-name">Verdikt</span>
           </Link>
           <div className="footer-links">
-            <a href="#gap" aria-label="Jump to the problem section">The problem</a>
+            <a href="#diagnostic" aria-label="Jump to the question section">The question</a>
             <a href="#how" aria-label="Jump to how it works">How it works</a>
+            <a href="#record" aria-label="Jump to the record section">The record</a>
             <a href={`mailto:${CONTACT_EMAIL}`} aria-label="Email Verdikt">{CONTACT_EMAIL}</a>
           </div>
-          <div className="footer-copy">© 2026 Verdikt · Release Intelligence System</div>
+          <div className="footer-copy">© 2026 Verdikt · Evidence, not hope</div>
         </div>
       </footer>
 
