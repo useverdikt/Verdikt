@@ -16,6 +16,82 @@ const {
   resolveReleaseForWorkspaceIngest,
   releaseVerdictLockedAgainstIngest
 } = require("./verdictEngine");
+const {
+  metadataMatchesRelease,
+  commitShaMatches,
+  extractIdentityFromRow,
+  normalizeCommitSha
+} = require("./releaseIdentity");
+
+function sentryReleaseLookupCandidates(release) {
+  const ver = String(release?.version || "").trim();
+  const sha = normalizeCommitSha(release?.commit_sha);
+  const repo = String(release?.github_repo || "").trim();
+  const out = [];
+  const push = (v) => {
+    const s = String(v || "").trim();
+    if (s && !out.includes(s)) out.push(s);
+  };
+  if (sha) {
+    push(sha);
+    if (sha.length > 12) push(sha.slice(0, 12));
+    if (sha.length > 8) push(sha.slice(0, 8));
+    if (sha.length > 7) push(sha.slice(0, 7));
+    if (repo) {
+      push(`${repo}@${sha}`);
+      if (sha.length > 8) push(`${repo}@${sha.slice(0, 8)}`);
+    }
+  }
+  if (ver) push(ver);
+  return out;
+}
+
+function buildDatadogScopedQuery(baseQuery, release) {
+  let q = String(baseQuery || "avg:trace.http.request.duration{*}").trim();
+  const sha = normalizeCommitSha(release?.commit_sha);
+  const ver = String(release?.version || "").trim();
+
+  if (sha && q.includes("{{commit_sha}}")) {
+    q = q.replace(/\{\{commit_sha\}\}/g, sha);
+  }
+  if (ver && q.includes("{{version}}")) {
+    q = q.replace(/\{\{version\}\}/g, ver);
+  }
+
+  if (q.includes("{{commit_sha}}") || q.includes("{{version}}")) {
+    return q;
+  }
+
+  if (sha && q.includes("{*}")) {
+    return q.replace("{*}", `{git.commit.sha:${sha}}`);
+  }
+  if (sha && !q.includes("{")) {
+    return `${q}{git.commit.sha:${sha}}`;
+  }
+  if (ver && q.includes("{*}")) {
+    return q.replace("{*}", `{version:${ver}}`);
+  }
+  return q;
+}
+
+function integrationMatchesRelease(release, { name = "", metadata = {}, tag = "" }) {
+  if (metadataMatchesRelease(release, metadata)) return true;
+  const ver = String(release?.version || "").trim();
+  const sha = release?.commit_sha ? String(release.commit_sha).trim() : "";
+  const tagStr = String(tag || "").trim();
+  const nameStr = String(name || "").trim();
+  if (sha && tagStr && commitShaMatches(sha, tagStr)) return true;
+  if (sha && nameStr && commitShaMatches(sha, nameStr)) return true;
+  if (!ver) return false;
+  return (
+    (nameStr && nameStr.includes(ver)) ||
+    String(metadata.version || "") === ver ||
+    String(metadata.release || "") === ver ||
+    String(metadata.release_version || "") === ver ||
+    String(metadata.release_tag || "") === ver ||
+    (tagStr && tagStr.includes(ver))
+  );
+}
 
 function parseExtraJson(row) {
   if (!row || !row.extra_json) return {};
@@ -59,11 +135,11 @@ function integrationTestMock(sid) {
 
 /**
  * @param {string} apiKey
- * @param {string} version
+ * @param {{ version?: string, commit_sha?: string|null }} release
  */
-async function pullBraintrustExperimentSignals(apiKey, version) {
-  const ver = String(version || "").trim();
-  if (!ver) return { signals: {}, matched: false, error: "empty_version" };
+async function pullBraintrustExperimentSignals(apiKey, release) {
+  const ver = String(release?.version || "").trim();
+  if (!ver && !release?.commit_sha) return { signals: {}, matched: false, error: "empty_release_identity" };
 
   if (process.env.NODE_ENV === "test" || process.env.SKIP_INTEGRATION_PULL === "1") {
     return {
@@ -86,12 +162,7 @@ async function pullBraintrustExperimentSignals(apiKey, version) {
   const match = objs.find((e) => {
     const n = String(e.name || "");
     const meta = e.metadata || {};
-    return (
-      (ver && n.includes(ver)) ||
-      String(meta.version || "") === ver ||
-      String(meta.release || "") === ver ||
-      String(meta.release_version || "") === ver
-    );
+    return integrationMatchesRelease(release, { name: n, metadata: meta });
   });
   if (!match) return { signals: {}, matched: false, error: "no_experiment_for_version" };
 
@@ -117,16 +188,16 @@ function browserStackBasicAuth(username, accessKey) {
 }
 
 /**
- * Pull smoke / e2e pass rates from BrowserStack Automate builds matched by release version.
+ * Pull smoke / e2e pass rates from BrowserStack Automate builds matched by commit SHA or version.
  * @param {string} username
  * @param {string} accessKey
- * @param {string} version
+ * @param {{ version?: string, commit_sha?: string|null }} release
  */
-async function pullBrowserStackSignals(username, accessKey, version) {
-  const ver = String(version || "").trim();
+async function pullBrowserStackSignals(username, accessKey, release) {
+  const ver = String(release?.version || "").trim();
   const user = String(username || "").trim();
   const key = String(accessKey || "").trim();
-  if (!ver) return { signals: {}, matched: false, error: "empty_version" };
+  if (!ver && !release?.commit_sha) return { signals: {}, matched: false, error: "empty_release_identity" };
   if (!user || !key) return { signals: {}, matched: false, error: "missing_browserstack_credentials" };
 
   if (process.env.NODE_ENV === "test" || process.env.SKIP_INTEGRATION_PULL === "1") {
@@ -147,7 +218,7 @@ async function pullBrowserStackSignals(username, accessKey, version) {
   const match = list.find((b) => {
     const n = String(b.name || "");
     const tag = String(b.build_tag || b.tag || "");
-    return (ver && n.includes(ver)) || (ver && tag.includes(ver));
+    return integrationMatchesRelease(release, { name: n, tag });
   });
   if (!match || !match.hashed_id) {
     return { signals: {}, matched: false, error: "no_build_for_version" };
@@ -197,9 +268,9 @@ async function pullBrowserStackSignals(username, accessKey, version) {
   };
 }
 
-async function pullLangSmithSignals(apiKey, version) {
-  const ver = String(version || "").trim();
-  if (!ver) return { signals: {}, matched: false, error: "empty_version" };
+async function pullLangSmithSignals(apiKey, release) {
+  const ver = String(release?.version || "").trim();
+  if (!ver && !release?.commit_sha) return { signals: {}, matched: false, error: "empty_release_identity" };
 
   if (process.env.NODE_ENV === "test" || process.env.SKIP_INTEGRATION_PULL === "1") {
     return integrationTestMock("langsmith");
@@ -234,12 +305,7 @@ async function pullLangSmithSignals(apiKey, version) {
     const n = String(r.name || "");
     const ex = r.extra && typeof r.extra === "object" ? r.extra : {};
     const meta = ex.metadata && typeof ex.metadata === "object" ? ex.metadata : {};
-    return (
-      (ver && n.includes(ver)) ||
-      String(meta.version || "") === ver ||
-      String(meta.release || "") === ver ||
-      String(meta.release_tag || "") === ver
-    );
+    return integrationMatchesRelease(release, { name: n, metadata: meta });
   });
   if (!match) return { signals: {}, matched: false, error: "no_run_for_version" };
 
@@ -258,9 +324,9 @@ async function pullLangSmithSignals(apiKey, version) {
   return { signals: mapped.signals, matched: Object.keys(mapped.signals).length > 0 };
 }
 
-async function pullSentrySignals(token, version) {
-  const ver = String(version || "").trim();
-  if (!ver) return { signals: {}, matched: false, error: "empty_version" };
+async function pullSentrySignals(token, release) {
+  const candidates = sentryReleaseLookupCandidates(release);
+  if (!candidates.length) return { signals: {}, matched: false, error: "empty_release_identity" };
 
   if (process.env.NODE_ENV === "test" || process.env.SKIP_INTEGRATION_PULL === "1") {
     return integrationTestMock("sentry");
@@ -273,13 +339,22 @@ async function pullSentrySignals(token, version) {
   const slug = Array.isArray(orgs) && orgs[0]?.slug ? orgs[0].slug : null;
   if (!slug) return { signals: {}, matched: false, error: "no_sentry_org" };
 
-  const enc = encodeURIComponent(ver);
-  let relRes = await fetch(`https://sentry.io/api/0/organizations/${slug}/releases/${enc}/`, { headers: auth });
-  if (!relRes.ok) {
-    return { signals: {}, matched: false, error: `release_not_found_${relRes.status}` };
+  let rel = null;
+  let matchedVersion = null;
+  for (const lookup of candidates) {
+    const enc = encodeURIComponent(lookup);
+    const relRes = await fetch(`https://sentry.io/api/0/organizations/${slug}/releases/${enc}/`, { headers: auth });
+    if (relRes.ok) {
+      rel = await relRes.json();
+      matchedVersion = lookup;
+      break;
+    }
   }
-  const rel = await relRes.json();
+  if (!rel || !matchedVersion) {
+    return { signals: {}, matched: false, error: "release_not_found" };
+  }
 
+  const enc = encodeURIComponent(matchedVersion);
   let healthRes = await fetch(
     `https://sentry.io/api/0/organizations/${slug}/releases/${enc}/health/sessions/?statsPeriod=24h`,
     { headers: auth }
@@ -314,7 +389,7 @@ async function pullSentrySignals(token, version) {
   return { signals: mapped.signals, matched, error: matched ? undefined : "no_sentry_metrics" };
 }
 
-async function pullDatadogSignals(apiKey, appKey, site, extra) {
+async function pullDatadogSignals(apiKey, appKey, site, extra, release = null) {
   if (!apiKey || !appKey) return { signals: {}, matched: false, error: "missing_datadog_keys" };
 
   if (process.env.NODE_ENV === "test" || process.env.SKIP_INTEGRATION_PULL === "1") {
@@ -335,11 +410,12 @@ async function pullDatadogSignals(apiKey, appKey, site, extra) {
     typeof extra?.datadog_query === "string" && extra.datadog_query.trim()
       ? extra.datadog_query.trim()
       : "avg:trace.http.request.duration{*}";
+  const scopedQuery = buildDatadogScopedQuery(customQuery, release);
 
   const url = new URL(`${base}/api/v1/query`);
   url.searchParams.set("from", String(from));
   url.searchParams.set("to", String(to));
-  url.searchParams.set("query", customQuery);
+  url.searchParams.set("query", scopedQuery);
 
   const res = await fetch(url, {
     headers: {
@@ -434,14 +510,24 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     const csvRow = rows[rowIndex];
-    const ver = extractVersionFromRow(csvRow);
-    if (!ver) {
-      skipped.push({ row: rowIndex, reason: "no_version_column" });
+    const identity = extractIdentityFromRow(csvRow);
+    const ver = identity.version || extractVersionFromRow(csvRow);
+    if (!identity.commit_sha && !ver) {
+      skipped.push({ row: rowIndex, reason: "no_release_identity_column" });
       continue;
     }
-    const rel = await resolveReleaseForWorkspaceIngest(workspaceId, { version: ver });
+    const rel = await resolveReleaseForWorkspaceIngest(workspaceId, {
+      commit_sha: identity.commit_sha,
+      pr_number: identity.pr_number,
+      version: ver
+    });
     if (!rel) {
-      skipped.push({ row: rowIndex, reason: "release_not_found", version: ver });
+      skipped.push({
+        row: rowIndex,
+        reason: "release_not_found",
+        version: ver,
+        commit_sha: identity.commit_sha || null
+      });
       continue;
     }
     if (releaseVerdictLockedAgainstIngest(rel)) {
@@ -502,6 +588,11 @@ async function pullConnectedSourcesForRelease(release) {
   const ws = release.workspace_id;
   const rid = release.id;
   const version = String(release.version || "").trim();
+  const releaseIdentity = {
+    version,
+    commit_sha: release.commit_sha || null,
+    github_repo: release.github_repo || null
+  };
 
   if (releaseVerdictLockedAgainstIngest(release)) {
     return { ok: false, error: "release_locked", sources: {} };
@@ -522,7 +613,7 @@ async function pullConnectedSourcesForRelease(release) {
     const apiKeyPlain = decryptStoredApiKey(integ.api_key, ws, sid);
 
     if (sid === "braintrust") {
-      const pull = await pullBraintrustExperimentSignals(apiKeyPlain, version);
+      const pull = await pullBraintrustExperimentSignals(apiKeyPlain, releaseIdentity);
       if (!pull.matched || !Object.keys(pull.signals || {}).length) {
         out.braintrust = { ok: false, error: pull.error || "no_signals" };
         continue;
@@ -532,7 +623,7 @@ async function pullConnectedSourcesForRelease(release) {
     }
 
     if (sid === "langsmith") {
-      const pull = await pullLangSmithSignals(apiKeyPlain, version);
+      const pull = await pullLangSmithSignals(apiKeyPlain, releaseIdentity);
       if (!pull.matched || !Object.keys(pull.signals || {}).length) {
         out.langsmith = { ok: false, error: pull.error || "no_signals" };
         continue;
@@ -543,7 +634,7 @@ async function pullConnectedSourcesForRelease(release) {
 
     if (sid === "browserstack") {
       const username = extra.username || "";
-      const pull = await pullBrowserStackSignals(username, apiKeyPlain, version);
+      const pull = await pullBrowserStackSignals(username, apiKeyPlain, releaseIdentity);
       if (!pull.matched || !Object.keys(pull.signals || {}).length) {
         out.browserstack = { ok: false, error: pull.error || "no_signals" };
         continue;
@@ -553,7 +644,7 @@ async function pullConnectedSourcesForRelease(release) {
     }
 
     if (sid === "sentry") {
-      const pull = await pullSentrySignals(apiKeyPlain, version);
+      const pull = await pullSentrySignals(apiKeyPlain, releaseIdentity);
       if (!pull.matched || !Object.keys(pull.signals || {}).length) {
         out.sentry = { ok: false, error: pull.error || "no_signals" };
         continue;
@@ -565,7 +656,7 @@ async function pullConnectedSourcesForRelease(release) {
     if (sid === "datadog") {
       const appKey = extra.app_key;
       const site = extra.site || "datadoghq.com";
-      const pull = await pullDatadogSignals(apiKeyPlain, appKey, site, extra);
+      const pull = await pullDatadogSignals(apiKeyPlain, appKey, site, extra, releaseIdentity);
       if (!pull.matched || !Object.keys(pull.signals || {}).length) {
         out.datadog = { ok: false, error: pull.error || "no_signals" };
         continue;
