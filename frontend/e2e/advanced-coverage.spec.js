@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { newReleaseButton, waitForSessionGate } from "./helpers/shell.js";
+import { setUserRoleByEmail } from "./helpers/setUserRole.js";
+import { applySessionToBrowser, loginUser, registerUser } from "./helpers/authSession.js";
 
 const emptyStorage = { cookies: [], origins: [] };
 
@@ -112,20 +114,27 @@ test.describe("modal interaction coverage", () => {
 
 
 test.describe("permission / role matrix", () => {
-  test("Engineer role is read-only on thresholds", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("vdk3_currentUser", JSON.stringify({ name: "Read Only User", role: "engineer" }));
+  test.describe("engineer read-only", () => {
+    test.use({ storageState: emptyStorage });
+
+    test("Engineer role is read-only on thresholds", async ({ page, context }) => {
+      const email = `e2e_eng_${Date.now()}@test.local`;
+      const password = "password123";
+      await registerUser({ email, password, name: "E2E Engineer" });
+      await setUserRoleByEmail(email, "engineer");
+      const session = await loginUser({ email, password });
+      expect(session.user.role).toBe("engineer");
+      await applySessionToBrowser(context, page, session);
+
+      await page.goto("/thresholds");
+      await waitForSessionGateLocal(page);
+      await expect(page.getByText(/READ ONLY/i).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: /Save Thresholds/i })).toHaveCount(0);
     });
-    await page.goto("/thresholds");
-    await waitForSessionGateLocal(page);
-    await expect(page.getByText(/READ ONLY/i).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /Save Thresholds/i })).toHaveCount(0);
   });
 
   test("VP Engineering role can act on release dashboard", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("vdk3_currentUser", JSON.stringify({ name: "Alex VP", role: "vp_engineering" }));
-    });
+    // global-setup logs in demo@verdikt.local (vp_engineering) — server-authoritative role
     await page.goto("/releases");
     await waitForSessionGateLocal(page);
     // Sidebar release actions live in ReleaseCandidateSection (not mounted in current shell); primary CTAs are on the dashboard header.
