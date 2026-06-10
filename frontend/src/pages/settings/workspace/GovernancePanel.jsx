@@ -8,6 +8,11 @@ export default function GovernancePanel({ section, wsId, toast }) {
   const [webhookSaved, setWebhookSaved] = useState(false);
   const [webhookSaving, setWebhookSaving] = useState(false);
 
+  const [gateMode, setGateMode] = useState("default");
+  const [escalationEmail, setEscalationEmail] = useState("");
+  const [escalationSlaHours, setEscalationSlaHours] = useState(24);
+  const [policySaving, setPolicySaving] = useState(false);
+
   const [integrityResult, setIntegrityResult] = useState(null);
   const [integrityLoading, setIntegrityLoading] = useState(false);
 
@@ -15,6 +20,16 @@ export default function GovernancePanel({ section, wsId, toast }) {
 
   useEffect(() => {
     if (section !== "governance" || !wsId) return;
+    fetch(`${apiBase}/api/workspaces/${wsId}/policies`, apiFetchInit())
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const p = data?.policies;
+        if (!p) return;
+        setGateMode(p.gate_mode === "strict" ? "strict" : "default");
+        setEscalationEmail(p.escalation_notify_email || "");
+        setEscalationSlaHours(Number(p.escalation_sla_hours) || 24);
+      })
+      .catch(() => {});
     fetch(`${apiBase}/api/workspaces/${wsId}/outbound-webhook`, apiFetchInit())
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -63,6 +78,34 @@ export default function GovernancePanel({ section, wsId, toast }) {
       toast("Outbound webhook removed");
     } catch {
       toast("Network error");
+    }
+  }
+
+  async function saveAgentPolicies() {
+    if (!wsId) return;
+    setPolicySaving(true);
+    try {
+      const res = await fetch(
+        `${apiBase}/api/workspaces/${wsId}/policies`,
+        apiFetchInit({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gate_mode: gateMode,
+            escalation_notify_email: escalationEmail.trim() || null,
+            escalation_sla_hours: Number(escalationSlaHours) || 24
+          })
+        })
+      );
+      if (res.ok) toast("Agent gate & escalation settings saved");
+      else {
+        const e = await res.json();
+        toast(e.error || "Save failed");
+      }
+    } catch {
+      toast("Network error");
+    } finally {
+      setPolicySaving(false);
     }
   }
 
@@ -175,6 +218,55 @@ export default function GovernancePanel({ section, wsId, toast }) {
               Remove
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="sblock">
+        <div className="sblock-head">
+          <div>
+            <div className="sblock-title">Agent gate &amp; escalations</div>
+            <div className="sblock-desc">
+              Default merge gate for <code>check_gate</code> and who gets emailed when an agent escalates.
+            </div>
+          </div>
+        </div>
+        <div className="sblock-body">
+          <div className="field" style={{ maxWidth: 480 }}>
+            <label className="field-label">Default gate mode</label>
+            <select className="inp" value={gateMode} onChange={(e) => setGateMode(e.target.value)} style={{ marginTop: 6 }}>
+              <option value="default">Default — allow certified with override</option>
+              <option value="strict">Strict — certified only (no override)</option>
+            </select>
+            <div className="field-hint">Agents can still pass <code>?mode=strict</code> per call; this is the workspace default.</div>
+          </div>
+          <div className="field" style={{ maxWidth: 480, marginTop: 12 }}>
+            <label className="field-label">Escalation notify email</label>
+            <input
+              className="inp mono"
+              placeholder="release-manager@company.com"
+              value={escalationEmail}
+              onChange={(e) => setEscalationEmail(e.target.value)}
+              style={{ marginTop: 6 }}
+            />
+            <div className="field-hint">Comma-separated. Falls back to VP/Release Manager roles if empty.</div>
+          </div>
+          <div className="field" style={{ maxWidth: 240, marginTop: 12 }}>
+            <label className="field-label">Escalation SLA (hours)</label>
+            <input
+              className="inp mono"
+              type="number"
+              min={1}
+              max={168}
+              value={escalationSlaHours}
+              onChange={(e) => setEscalationSlaHours(e.target.value)}
+              style={{ marginTop: 6 }}
+            />
+          </div>
+        </div>
+        <div className="sblock-footer">
+          <button type="button" className="btn-primary" onClick={() => void saveAgentPolicies()} disabled={policySaving}>
+            {policySaving ? "Saving…" : "Save agent policies"}
+          </button>
         </div>
       </div>
 
