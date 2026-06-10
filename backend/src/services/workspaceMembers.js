@@ -6,6 +6,14 @@ const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { sendWorkspaceInviteEmail } = require("./email");
 
+/**
+ * RBAC source of truth: workspace_members.role
+ *
+ * users.role is a denormalized cache for the user's home workspace (users.workspace_id).
+ * Always read effective role via getEffectiveRoleForWorkspace().
+ * Always write roles through ensureMemberRow / updateMemberRole / syncHomeWorkspaceRoleCache().
+ */
+
 const VALID_ROLES = new Set([
   "ai_product_lead",
   "ml_engineer",
@@ -52,6 +60,10 @@ async function getEffectiveRoleForWorkspace(userId, workspaceId) {
   return null;
 }
 
+async function syncHomeWorkspaceRoleCache(userId, workspaceId, role) {
+  await run("UPDATE users SET role = ? WHERE id = ? AND workspace_id = ?", [role, userId, workspaceId]);
+}
+
 async function ensureMemberRow({ workspaceId, userId, role, createdAt = null }) {
   const ts = createdAt || nowIso();
   await run(
@@ -60,6 +72,7 @@ async function ensureMemberRow({ workspaceId, userId, role, createdAt = null }) 
      ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = excluded.role`,
     [workspaceId, userId, role, ts]
   );
+  await syncHomeWorkspaceRoleCache(userId, workspaceId, role);
 }
 
 async function listWorkspaceMembersAndInvites(workspaceId) {
@@ -189,11 +202,8 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
   if (!user) return { ok: false, statusCode: 404, error: "user_not_found" };
 
   await ensureMemberRow({ workspaceId: invite.workspace_id, userId, role: invite.role });
-  await run("UPDATE users SET workspace_id = ?, role = ? WHERE id = ?", [
-    invite.workspace_id,
-    invite.role,
-    userId
-  ]);
+  await run("UPDATE users SET workspace_id = ? WHERE id = ?", [invite.workspace_id, userId]);
+  await syncHomeWorkspaceRoleCache(userId, invite.workspace_id, invite.role);
   await run(
     "UPDATE workspace_invites SET accepted_at = ?, accepted_user_id = ? WHERE id = ?",
     [nowIso(), userId, invite.id]
@@ -260,10 +270,7 @@ async function updateMemberRole({ workspaceId, targetUserId, role, actorEmail })
     workspaceId,
     targetUserId
   ]);
-  const user = await queryOne("SELECT workspace_id FROM users WHERE id = ?", [targetUserId]);
-  if (user?.workspace_id === workspaceId) {
-    await run("UPDATE users SET role = ? WHERE id = ?", [role, targetUserId]);
-  }
+  await syncHomeWorkspaceRoleCache(targetUserId, workspaceId, role);
 
   await writeAudit({
     workspaceId,
@@ -329,6 +336,7 @@ module.exports = {
   VALID_ROLES,
   userHasWorkspaceAccess,
   getEffectiveRoleForWorkspace,
+  syncHomeWorkspaceRoleCache,
   ensureMemberRow,
   listWorkspaceMembersAndInvites,
   getInviteByToken,

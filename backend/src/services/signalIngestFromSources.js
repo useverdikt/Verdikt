@@ -16,6 +16,7 @@ const {
   resolveReleaseForWorkspaceIngest,
   releaseVerdictLockedAgainstIngest
 } = require("./verdictEngine");
+const { summarizePullResult, buildIntegrationPullWarnings } = require("./integrationPullStatus");
 const {
   metadataMatchesRelease,
   commitShaMatches,
@@ -604,7 +605,9 @@ async function pullConnectedSourcesForRelease(release) {
   );
 
   if (!integrationRows.length) {
-    return { ok: true, workspace_id: ws, release_id: rid, sources: {}, message: "no_connected_integrations" };
+    const empty = { ok: true, workspace_id: ws, release_id: rid, sources: {}, message: "no_connected_integrations" };
+    empty.warnings = buildIntegrationPullWarnings(empty, release);
+    return empty;
   }
 
   for (const integ of integrationRows) {
@@ -665,7 +668,13 @@ async function pullConnectedSourcesForRelease(release) {
     }
   }
 
-  return { ok: true, workspace_id: ws, release_id: rid, sources: out };
+  return {
+    ok: true,
+    workspace_id: ws,
+    release_id: rid,
+    sources: out,
+    warnings: buildIntegrationPullWarnings({ sources: out, message: null }, release)
+  };
 }
 
 module.exports = {
