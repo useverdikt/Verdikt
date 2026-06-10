@@ -13,6 +13,7 @@
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "npm --prefix backend test",
     "test:frontend": "npm --prefix frontend test",
+    "mcp": "npm --prefix mcp start",
     "seed:demos": "npm --prefix backend run seed:demos"
   },
   "keywords": [],

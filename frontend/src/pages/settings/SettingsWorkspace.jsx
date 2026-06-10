@@ -34,6 +34,7 @@ import GovernancePanel from "./workspace/GovernancePanel.jsx";
 import GeneralSettingsSection from "./workspace/sections/GeneralSettingsSection.jsx";
 import TeamSettingsSection from "./workspace/sections/TeamSettingsSection.jsx";
 import ApiSignalSection from "./workspace/sections/ApiSignalSection.jsx";
+import AgentAccessSection from "./workspace/sections/AgentAccessSection.jsx";
 import TriggerSettingsSection from "./workspace/sections/TriggerSettingsSection.jsx";
 import NotificationsSettingsSection from "./workspace/sections/NotificationsSettingsSection.jsx";
 import BillingSettingsSection from "./workspace/sections/BillingSettingsSection.jsx";
@@ -479,6 +480,7 @@ export default function SettingsWorkspace() {
           csvInputRef={csvInputRef}
           loadSignalSources={loadSignalSources}
         />
+        <AgentAccessSection section={section} wsId={wsId} navigate={navigate} toast={toast} />
         <TriggerSettingsSection
           section={section}
           wsId={wsId}

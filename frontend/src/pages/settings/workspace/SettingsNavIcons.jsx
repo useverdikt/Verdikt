@@ -18,6 +18,13 @@ export const SettingsNavIcons = {
       <path d="M10 11c0-1.1.45-2.1 1.18-2.82" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   ),
+  agent: (
+    <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <rect x="2" y="3" width="10" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M5 6h4M5 8.5h2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <circle cx="10.5" cy="2" r="1" fill="currentColor" />
+    </svg>
+  ),
   thresholds: (
     <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
       <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.1" />

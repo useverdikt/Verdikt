@@ -32,6 +32,8 @@ const { signCertificationRecord } = require("./certSigner");
 const { writeVcsStatus } = require("./vcsWriteback");
 const { openMonitoringWindow } = require("./vcsMonitor");
 const { deliverVerdictWebhook } = require("./outboundWebhook");
+const { deliverReleaseCallback } = require("./releaseCallback");
+const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { broadcastVerdictAndClose } = require("./sseManager");
 
 async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
@@ -144,6 +146,16 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     void deliverVerdictWebhook(fresh, deterministicIntelligence, certSigRow).catch((err) =>
       console.error("[outbound_webhook] async delivery error:", releaseId, err?.message)
     );
+    const trajectory = await computeReleaseTrajectory({
+      workspaceId: fresh.workspace_id,
+      releaseId,
+      releaseRow: fresh
+    }).catch(() => null);
+    void deliverReleaseCallback(fresh, deterministicIntelligence, {
+      trajectory: trajectory?.trajectory ?? "UNKNOWN",
+      degrading_signals: trajectory?.degrading_signals ?? [],
+      trend_note: trajectory?.trend_note ?? null
+    }).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
   } catch (_) {}
 
   // 8. SSE broadcast
