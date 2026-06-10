@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "../../settingsClient.js";
+import AgentPlaybookPanel from "./AgentPlaybookPanel.jsx";
 
 export default function AgentAccessSection({ section, wsId, navigate, toast }) {
   const [keys, setKeys] = useState([]);
@@ -168,10 +169,14 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
             {mcpSnippet}
           </pre>
           <p className="muted" style={{ marginTop: 12 }}>
-            See <code>mcp/README.md</code> in the repo for tool reference: create_release, post_signals, check_gate, escalate.
+            Production flow: <code>verdikt:rc</code> label → integration pull or <code>post_signals</code> →{" "}
+            <code>check_gate</code> reads <code>action</code> (<code>merge</code> | <code>self_heal</code> |{" "}
+            <code>escalate</code>). See playbook below.
           </p>
         </div>
       </div>
+
+      <AgentPlaybookPanel wsId={wsId} toast={toast} />
     </div>
   );
 }
