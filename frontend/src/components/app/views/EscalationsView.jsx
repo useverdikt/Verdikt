@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { apiGet, apiPost } from "../../../pages/settings/settingsClient.js";
 import { getWorkspaceId } from "../../../lib/apiClient.js";
+import EscalationOverrideModal from "../modals/EscalationOverrideModal.jsx";
 
 function formatTs(iso) {
   if (!iso) return "—";
@@ -17,7 +18,8 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [ackBusy, setAckBusy] = useState(null);
+  const [overrideRow, setOverrideRow] = useState(null);
+  const [overrideBusy, setOverrideBusy] = useState(false);
 
   const canAcknowledge = ["vp_engineering", "cto", "org_admin", "release_manager"].includes(
     String(currentUser?.role || "")
@@ -42,16 +44,21 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
     if (wsReady) void load();
   }, [wsReady, load]);
 
-  async function handleAcknowledge(id) {
-    if (!wsId || !canAcknowledge) return;
-    setAckBusy(id);
+  async function handleAcknowledgeAndOverride(payload) {
+    if (!wsId || !overrideRow || !canAcknowledge) return;
+    setOverrideBusy(true);
+    setError(null);
     try {
-      await apiPost(`/api/workspaces/${wsId}/escalations/${id}/acknowledge`, { note: "Reviewed from escalation inbox" });
+      await apiPost(`/api/workspaces/${wsId}/escalations/${overrideRow.id}/acknowledge-and-override`, {
+        note: "Resolved from escalation inbox",
+        ...payload
+      });
+      setOverrideRow(null);
       await load();
     } catch (e) {
-      setError(e?.message || "Acknowledge failed");
+      setError(e?.message || "Acknowledge & override failed");
     } finally {
-      setAckBusy(null);
+      setOverrideBusy(false);
     }
   }
 
@@ -65,7 +72,7 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
           Escalation Inbox
         </h2>
         <p style={{ margin: "8px 0 0", color: C.muted, fontSize: 13 }}>
-          Agent-requested reviews when self-heal is blocked. Acknowledge after triage; approve overrides from the release record.
+          Agent-requested reviews when self-heal is blocked. Acknowledge &amp; Override certifies the release in one step.
         </p>
       </div>
 
@@ -77,7 +84,7 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "140px 1fr 120px 100px",
+            gridTemplateColumns: isMobile ? "1fr" : "140px 1fr 120px 140px",
             gap: 14,
             padding: isMobile ? "8px 12px" : "10px 18px",
             borderBottom: `1px solid ${C.border}`,
@@ -107,7 +114,7 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
               key={row.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "140px 1fr 120px 100px",
+                gridTemplateColumns: isMobile ? "1fr" : "140px 1fr 120px 140px",
                 gap: 14,
                 padding: isMobile ? "12px 12px" : "14px 18px",
                 borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none",
@@ -156,11 +163,11 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
                 {canAcknowledge ? (
                   <button
                     type="button"
-                    className="btn-ghost accent"
-                    disabled={ackBusy === row.id}
-                    onClick={() => void handleAcknowledge(row.id)}
+                    className="btn-primary"
+                    style={{ fontSize: 12, padding: "6px 10px" }}
+                    onClick={() => setOverrideRow(row)}
                   >
-                    {ackBusy === row.id ? "…" : "Acknowledge"}
+                    Ack &amp; Override
                   </button>
                 ) : (
                   <span style={{ fontFamily: C.mono, fontSize: 10, color: C.dim }}>VP/RM only</span>
@@ -170,6 +177,16 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
           ))
         )}
       </div>
+
+      {overrideRow ? (
+        <EscalationOverrideModal
+          row={overrideRow}
+          currentUser={currentUser}
+          busy={overrideBusy}
+          onClose={() => !overrideBusy && setOverrideRow(null)}
+          onConfirm={(payload) => void handleAcknowledgeAndOverride(payload)}
+        />
+      ) : null}
     </div>
   );
 }
