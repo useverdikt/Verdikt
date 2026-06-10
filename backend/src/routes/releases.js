@@ -48,6 +48,10 @@ const { computeGateAction } = require("../services/releaseIdentity");
 const { getWorkspacePolicy } = require("../services/workspaceConfig");
 const { createEscalationRequest, notifyEscalationCreated } = require("../services/escalations");
 const { applyReleaseOverride } = require("../services/releaseOverride");
+const {
+  getLatestIntegrationPullForRelease,
+  summarizePullResult
+} = require("../services/integrationPullStatus");
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -172,15 +176,22 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
 app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
   try {
     const out = await pullConnectedSourcesForRelease(req.releaseRow);
+    const summary = summarizePullResult(out, req.releaseRow);
     await writeAudit({
       workspaceId: req.releaseRow.workspace_id,
       releaseId: req.params.releaseId,
       eventType: "SIGNAL_SOURCES_PULL",
       actorType: "USER",
       actorName: req.auth?.email || "user",
-      details: { ok: out.ok, sources: out.sources ? Object.keys(out.sources) : [] }
+      details: {
+        ok: out.ok,
+        sources: out.sources ? Object.keys(out.sources) : [],
+        results: summary.results,
+        warnings: summary.warnings,
+        commit_sha: req.releaseRow.commit_sha || null
+      }
     });
-    return res.json(out);
+    return res.json({ ...out, integration_pull: summary });
   } catch (err) {
     return res.status(500).json({ error: err.message || String(err) });
   }
@@ -259,6 +270,11 @@ app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async 
   const intelligence = await getReleaseIntelligence(req.params.releaseId);
   const deltas = await listReleaseDeltas(req.params.releaseId);
   const outcome_alignment = await getOutcomeAlignmentForRelease(req.params.releaseId);
+  const integration_pull = await getLatestIntegrationPullForRelease(req.params.releaseId);
+  const connectedIntegrations = await queryAll(
+    "SELECT source_id FROM signal_integrations WHERE workspace_id = ?",
+    [release.workspace_id]
+  );
 
   return res.json({
     release: {
@@ -267,6 +283,8 @@ app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async 
     },
     signals: signalRows,
     deltas,
+    connected_integrations: connectedIntegrations.map((r) => r.source_id),
+    integration_pull,
     override: override
       ? {
           ...override,

@@ -2,6 +2,7 @@ import shared from "../../../../shared/config.json";
 import { C } from "../../theme/tokens.js";
 import { mapBackendStatusToUi, normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
+import { buildReleaseSourceLanes } from "../../lib/releaseSourceLanes.js";
 
 /** App tab id → pathname (also used for legacy ?tab= redirects). */
 const NAV_TO_PATH = {
@@ -512,6 +513,15 @@ const mapBackendDetailToUi = (detail) => {
   for (const s of detail.signals || []) {
     signals[s.signal_id] = s.value;
   }
+  const sourceLanes =
+    release.status === "COLLECTING"
+      ? buildReleaseSourceLanes({
+          connectedIntegrationIds: detail.connected_integrations || [],
+          signalRows: detail.signals || [],
+          integrationPull: detail.integration_pull || null,
+          releaseStatus: release.status
+        })
+      : [];
   const out = {
     id: `rc-${bid.replace(/\W/g, "")}`,
     backendReleaseId: bid,
@@ -521,7 +531,7 @@ const mapBackendDetailToUi = (detail) => {
     environment: release.environment || "",
     status: mapBackendStatusToUi(release.status),
     signals,
-    sources: release.status === "COLLECTING" ? SIGNAL_SOURCES.map((s) => ({ ...s, status: "waiting" })) : []
+    sources: sourceLanes
   };
   if (release.environment) out.buildRef = release.environment;
   if (detail.override) {
@@ -547,6 +557,7 @@ const mapBackendDetailToUi = (detail) => {
   if (Array.isArray(detail.deltas) && detail.deltas.length) {
     out.release_deltas = detail.deltas;
   }
+  if (detail.integration_pull) out.integration_pull = detail.integration_pull;
   return out;
 };
 const parseSemverish = (v) => {
