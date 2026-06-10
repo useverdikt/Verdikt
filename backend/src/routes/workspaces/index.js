@@ -9,4 +9,5 @@ module.exports = function registerWorkspaceRoutes(app) {
   require("./intelligence")(app);
   require("./apiKeys")(app);
   require("./escalations")(app);
+  require("./members")(app);
 };

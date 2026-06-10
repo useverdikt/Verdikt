@@ -4,12 +4,14 @@ import {
   SECTION_LABELS,
   TRIGGER_MODES,
   MVP_TRIGGER_MODE_IDS,
-  DEFAULT_TRIGGER_CONFIG
+  DEFAULT_TRIGGER_CONFIG,
+  ROLES
 } from "./settingsData.js";
 import {
   apiGet,
   apiPost,
   apiPut,
+  apiPatch,
   apiDelete,
   getWorkspaceId,
   onApiUnauthorized
@@ -117,6 +119,7 @@ export default function SettingsWorkspace() {
   };
 
   const [members, setMembers] = useState(() => []);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [rolePolicy, _setRolePolicy] = useState(loadRolePolicy);
 
   const [sources, setSources] = useState(() => cloneSourcesBase());
@@ -195,6 +198,80 @@ export default function SettingsWorkspace() {
   useEffect(() => {
     loadWorkspaceThresholds();
   }, [loadWorkspaceThresholds]);
+
+  const mapMemberRow = useCallback((m) => {
+    const email = String(m.email || "");
+    const name = m.name || email.split("@")[0] || "Member";
+    return {
+      user_id: m.user_id || null,
+      invite_id: m.invite_id || m.id || null,
+      name,
+      email,
+      role: m.role,
+      status: m.status || "active",
+      color: "#6b7280",
+      initials: name.slice(0, 2).toUpperCase()
+    };
+  }, []);
+
+  const loadMembers = useCallback(async () => {
+    if (!wsId) return;
+    setMembersLoading(true);
+    try {
+      const data = await apiGet(`/api/workspaces/${wsId}/members`, { navigate });
+      const active = (Array.isArray(data.members) ? data.members : []).map((m) =>
+        mapMemberRow({ ...m, status: "active" })
+      );
+      const pending = (Array.isArray(data.invites) ? data.invites : []).map((i) =>
+        mapMemberRow({ ...i, name: i.email.split("@")[0], status: "pending", invite_id: i.id })
+      );
+      setMembers([...active, ...pending]);
+    } catch {
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [mapMemberRow, navigate, wsId]);
+
+  useEffect(() => {
+    if (section === "team") void loadMembers();
+  }, [section, loadMembers]);
+
+  const sendMemberInvite = useCallback(
+    async (email, role) => {
+      await apiPost(`/api/workspaces/${wsId}/members/invite`, { email, role }, { navigate });
+      await loadMembers();
+      toast(`Invite sent to ${email}`);
+    },
+    [loadMembers, navigate, toast, wsId]
+  );
+
+  const updateMemberRole = useCallback(
+    async (userId, role, displayName) => {
+      await apiPatch(`/api/workspaces/${wsId}/members/${userId}`, { role }, { navigate });
+      await loadMembers();
+      toast(`${displayName}'s role updated to ${ROLES[role] || role}`);
+    },
+    [loadMembers, navigate, toast, wsId]
+  );
+
+  const removeMember = useCallback(
+    async (userId, displayName) => {
+      await apiDelete(`/api/workspaces/${wsId}/members/${userId}`, { navigate });
+      await loadMembers();
+      toast(`${displayName} removed from workspace`);
+    },
+    [loadMembers, navigate, toast, wsId]
+  );
+
+  const revokeInvite = useCallback(
+    async (inviteId, email) => {
+      await apiDelete(`/api/workspaces/${wsId}/members/invites/${inviteId}`, { navigate });
+      await loadMembers();
+      toast(`Invite revoked for ${email}`);
+    },
+    [loadMembers, navigate, toast, wsId]
+  );
 
   const governanceReadiness = useMemo(
     () => ({
@@ -458,7 +535,8 @@ export default function SettingsWorkspace() {
         <TeamSettingsSection
           section={section}
           members={members}
-          setMembers={setMembers}
+          membersLoading={membersLoading}
+          currentUserEmail={sidebarUser.email}
           inviteEmail={inviteEmail}
           setInviteEmail={setInviteEmail}
           inviteRole={inviteRole}
@@ -466,6 +544,10 @@ export default function SettingsWorkspace() {
           roleLabels={roleLabels}
           rolePolicy={rolePolicy}
           toast={toast}
+          onSendInvite={sendMemberInvite}
+          onUpdateRole={updateMemberRole}
+          onRemoveMember={removeMember}
+          onRevokeInvite={revokeInvite}
         />
         <ApiSignalSection
           section={section}

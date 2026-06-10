@@ -7,7 +7,7 @@ const require = createRequire(path.join(__dirname, "../../../backend/package.jso
 const { Client } = require("pg");
 
 /**
- * Sets users.role for E2E scenarios (server-authoritative RBAC).
+ * Sets users.role and workspace_members.role for E2E (server-authoritative RBAC).
  */
 export async function setUserRoleByEmail(email, role) {
   const connectionString =
@@ -17,13 +17,18 @@ export async function setUserRoleByEmail(email, role) {
   const client = new Client({ connectionString });
   await client.connect();
   try {
-    const result = await client.query("UPDATE users SET role = $1 WHERE email = $2 RETURNING id", [
-      role,
-      email
-    ]);
+    const result = await client.query(
+      "UPDATE users SET role = $1 WHERE email = $2 RETURNING id, workspace_id",
+      [role, email]
+    );
     if (result.rowCount === 0) {
       throw new Error(`E2E: user not found for role update: ${email}`);
     }
+    const { id, workspace_id } = result.rows[0];
+    await client.query(
+      "UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3",
+      [role, workspace_id, id]
+    );
   } finally {
     await client.end();
   }

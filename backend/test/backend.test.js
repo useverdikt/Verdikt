@@ -54,6 +54,15 @@ before(async () => {
 describe("API integration", () => {
   const app = createApp();
 
+  async function setUserRole(userId, workspaceId, role) {
+    await run("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
+    await run("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?", [
+      role,
+      workspaceId,
+      userId
+    ]);
+  }
+
   function signGithubPayload(payload) {
     const raw = JSON.stringify(payload);
     const sig = crypto
@@ -158,7 +167,7 @@ describe("API integration", () => {
     const me = await agent.get("/api/auth/me").expect(200);
     const ws = me.body.user.workspace_id;
     const uid = me.body.user.id;
-    await run("UPDATE users SET role = ? WHERE id = ?", ["viewer", uid]);
+    await setUserRole(uid, ws, "viewer");
 
     await agent
       .post(`/api/workspaces/${ws}/thresholds`)
@@ -174,7 +183,7 @@ describe("API integration", () => {
     const me = await agent.get("/api/auth/me").expect(200);
     const ws = me.body.user.workspace_id;
     const uid = me.body.user.id;
-    await run("UPDATE users SET role = ? WHERE id = ?", ["engineer", uid]);
+    await setUserRole(uid, ws, "engineer");
 
     await agent
       .post(`/api/workspaces/${ws}/thresholds`)
@@ -1398,8 +1407,60 @@ describe("Release identity + SHA correlation", () => {
   });
 });
 
+describe("Workspace members", () => {
+  const app = createApp();
+
+  it("invites a colleague and registers them into the same workspace", async () => {
+    const ownerEmail = `own_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const colleagueEmail = `col_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const owner = request.agent(app);
+    await owner.post("/api/auth/register").send({ email: ownerEmail, password: "password123", name: "Owner" }).expect(200);
+    await owner.post("/api/auth/login").send({ email: ownerEmail, password: "password123" }).expect(200);
+    const me = await owner.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const invited = await owner
+      .post(`/api/workspaces/${ws}/members/invite`)
+      .send({ email: colleagueEmail, role: "vp_engineering" })
+      .expect(201);
+    assert.ok(invited.body.invite.token);
+
+    const colleague = request.agent(app);
+    const reg = await colleague
+      .post("/api/auth/register")
+      .send({
+        email: colleagueEmail,
+        password: "password123",
+        name: "Colleague",
+        invite_token: invited.body.invite.token
+      })
+      .expect(200);
+    assert.equal(reg.body.joined_workspace, true);
+
+    await colleague.post("/api/auth/login").send({ email: colleagueEmail, password: "password123" }).expect(200);
+    const colleagueMe = await colleague.get("/api/auth/me").expect(200);
+    assert.equal(colleagueMe.body.user.workspace_id, ws);
+    assert.equal(colleagueMe.body.user.role, "vp_engineering");
+
+    const releases = await colleague.get(`/api/workspaces/${ws}/releases`).expect(200);
+    assert.ok(Array.isArray(releases.body.releases));
+
+    const members = await owner.get(`/api/workspaces/${ws}/members`).expect(200);
+    assert.equal(members.body.members.length, 2);
+  });
+});
+
 describe("Escalation inbox", () => {
   const app = createApp();
+
+  async function setUserRole(userId, workspaceId, role) {
+    await run("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
+    await run("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?", [
+      role,
+      workspaceId,
+      userId
+    ]);
+  }
 
   it("creates inbox row, lists pending, and acknowledges with override role", async () => {
     const email = `esc_${crypto.randomBytes(4).toString("hex")}@test.local`;
@@ -1434,7 +1495,7 @@ describe("Escalation inbox", () => {
 
     await human.post(`/api/workspaces/${ws}/escalations/${esc.body.escalation.id}/acknowledge`).expect(403);
 
-    await run("UPDATE users SET role = ? WHERE email = ?", ["vp_engineering", email]);
+    await setUserRole(me.body.user.id, ws, "vp_engineering");
     await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
     const ack = await human
       .post(`/api/workspaces/${ws}/escalations/${esc.body.escalation.id}/acknowledge`)
@@ -1454,7 +1515,7 @@ describe("Escalation inbox", () => {
     const me = await human.get("/api/auth/me").expect(200);
     const ws = me.body.user.workspace_id;
 
-    await run("UPDATE users SET role = ? WHERE email = ?", ["vp_engineering", email]);
+    await setUserRole(me.body.user.id, ws, "vp_engineering");
     await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
 
     const rel = await human
