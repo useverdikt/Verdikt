@@ -13,6 +13,7 @@ import ApiBanner from "./components/app/ApiBanner.jsx";
 import AppContentSwitch from "./components/app/AppContentSwitch.jsx";
 import ThresholdsViewPanel from "./components/app/views/ThresholdsView.jsx";
 import AuditViewPanel from "./components/app/views/AuditView.jsx";
+import EscalationsViewPanel from "./components/app/views/EscalationsView.jsx";
 import TrendViewPanel from "./components/app/views/TrendView.jsx";
 import ReleaseViewPanel from "./components/app/views/ReleaseView.jsx";
 import {
@@ -191,6 +192,7 @@ export default function App() {
     { id: "trend", label: "Trend", icon: "∿" },
     { id: "thresholds", label: "Thresholds", icon: "⌗" },
     { id: "audit", label: "Audit Trail", icon: "≡" },
+    { id: "escalations", label: "Escalations", icon: "!" },
     { id: "intelligence", label: "Intelligence", icon: "⊹" },
     { id: "settings", label: "Settings", icon: "⚙" }
   ];
@@ -261,6 +263,21 @@ export default function App() {
       isMobile={isMobile}
       wsReady={wsReady}
       onSelectRelease={handleAuditSelect}
+    />
+  );
+
+  const EscalationsView = () => (
+    <EscalationsViewPanel
+      isMobile={isMobile}
+      wsReady={wsReady}
+      currentUser={currentUser}
+      onSelectRelease={(r) => {
+        if (r?.backendReleaseId) {
+          const match = releases.find((x) => x.backendReleaseId === r.backendReleaseId || x.id === r.backendReleaseId);
+          if (match?.id) setSelectedId(match.id);
+        }
+        navigate("/releases");
+      }}
     />
   );
 
@@ -341,6 +358,7 @@ export default function App() {
           TrendView={TrendView}
           ThresholdsView={ThresholdsView}
           AuditView={AuditView}
+          EscalationsView={EscalationsView}
         />
         {!hasBackend() && !currentUser && (
           <UserSetupModal
