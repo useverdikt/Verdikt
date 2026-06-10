@@ -169,6 +169,45 @@ describe("API integration", () => {
       .expect(403);
   });
 
+  it("outbound webhook rejects private URLs (SSRF guard)", async () => {
+    const email = `owh_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "OWH" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const blocked = await agent
+      .put(`/api/workspaces/${ws}/outbound-webhook`)
+      .send({ url: "http://127.0.0.1/callback", secret: "s3cret" })
+      .expect(400);
+    assert.match(blocked.body.error, /not allowed|private|link-local/i);
+
+    const ok = await agent
+      .put(`/api/workspaces/${ws}/outbound-webhook`)
+      .send({ url: "http://93.184.216.34/verdikt-hook", secret: "s3cret" })
+      .expect(200);
+    assert.equal(ok.body.url, "http://93.184.216.34/verdikt-hook");
+  });
+
+  it("password reset invalidates existing session cookies", async () => {
+    const email = `pwd_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Pwd" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    await agent.get("/api/auth/me").expect(200);
+
+    const forgot = await agent.post("/api/auth/forgot-password").send({ email }).expect(200);
+    assert.ok(forgot.body.reset_token);
+
+    await agent
+      .post("/api/auth/reset-password")
+      .send({ token: forgot.body.reset_token, password: "newpassword12" })
+      .expect(200);
+
+    await agent.get("/api/auth/me").expect(401);
+  });
+
   it("GET /api/signal-definitions requires auth", async () => {
     await request(app).get("/api/signal-definitions").expect(401);
   });
@@ -1114,6 +1153,25 @@ describe("Gemini assistive enrichment (mocked API)", () => {
     } finally {
       global.fetch = prev;
     }
+  });
+});
+
+describe("buildInboundSecretCandidates (unit)", () => {
+  it("excludes global webhook secrets when prod-like fallbacks disabled", () => {
+    const { buildInboundSecretCandidates } = require("../src/services/inboundWebhookSecrets");
+    const onlyWs = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: false });
+    assert.deepEqual(onlyWs, ["workspace-secret-abc"]);
+    const withGlobal = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: true });
+    assert.ok(withGlobal.includes("workspace-secret-abc"));
+    assert.ok(withGlobal.includes(process.env.WEBHOOK_SECRET));
+  });
+});
+
+describe("validateOutboundWebhookUrl (unit)", () => {
+  it("blocks localhost and metadata-style hosts", async () => {
+    const { validateOutboundWebhookUrl } = require("../src/lib/outboundUrl");
+    await assert.rejects(() => validateOutboundWebhookUrl("http://127.0.0.1/hook"), /private|not allowed/i);
+    await assert.rejects(() => validateOutboundWebhookUrl("http://localhost/hook"), /not allowed/i);
   });
 });
 
