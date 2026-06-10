@@ -187,6 +187,17 @@ Typical full set includes AI signals plus perf/mobile/QA, e.g.:
 
 If any required signal is missing, status stays **`COLLECTING`** and `action` is **`self_heal`**.
 
+### SHA tagging (partner requirement)
+
+Integration auto-pull matches eval/build/release data to the **PR head commit SHA**. If Braintrust, BrowserStack, Sentry, or Datadog do not tag runs with `git_sha` / `commit_sha` metadata, the cert window stays `COLLECTING` and the UI shows an **Integration pull · action needed** banner naming the source and fix.
+
+**Partner checklist:**
+1. Apply `verdikt:rc` on a PR with a known head SHA.
+2. Confirm Settings → Signal sources shows each integration **Connected**.
+3. Tag eval runs in Braintrust (and other tools) with the same git SHA.
+4. If pull fails, use Signal Simulator or `post_signals` — do not assume silent success.
+5. Re-pull from the release row or wait for label auto-pull after fixing tags.
+
 ---
 
 ## Escalation (human exception path)
