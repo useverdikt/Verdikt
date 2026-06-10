@@ -23,7 +23,10 @@ app.get("/api/workspaces/:workspaceId/policies", authMiddleware, requireWorkspac
       workspace_id: req.params.workspaceId,
       policies: {
         require_ai_eval: policy.require_ai_eval === 1,
-        ai_missing_policy: policy.ai_missing_policy
+        ai_missing_policy: policy.ai_missing_policy,
+        gate_mode: policy.gate_mode === "strict" ? "strict" : "default",
+        escalation_notify_email: policy.escalation_notify_email || null,
+        escalation_sla_hours: Number(policy.escalation_sla_hours ?? 24)
       }
     });
   } catch (e) {
@@ -34,24 +37,61 @@ app.get("/api/workspaces/:workspaceId/policies", authMiddleware, requireWorkspac
 app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const current = await getWorkspacePolicy(req.params.workspaceId);
-    const { require_ai_eval, ai_missing_policy } = req.body || {};
+    const { require_ai_eval, ai_missing_policy, gate_mode, escalation_notify_email, escalation_sla_hours } =
+      req.body || {};
     const nextRequireAi = typeof require_ai_eval === "boolean" ? (require_ai_eval ? 1 : 0) : current.require_ai_eval;
     const nextMissingPolicy =
       typeof ai_missing_policy === "string" && ["block_uncertified", "allow_without_ai"].includes(ai_missing_policy)
         ? ai_missing_policy
         : current.ai_missing_policy;
+    const nextGateMode =
+      gate_mode === "strict" || gate_mode === "default" ? gate_mode : current.gate_mode || "default";
+    const nextNotifyEmail =
+      escalation_notify_email === null || escalation_notify_email === ""
+        ? null
+        : typeof escalation_notify_email === "string"
+          ? escalation_notify_email.trim().slice(0, 500) || null
+          : current.escalation_notify_email;
+    const nextSlaHours = Number.isFinite(Number(escalation_sla_hours))
+      ? Math.max(1, Math.min(168, Number(escalation_sla_hours)))
+      : Number(current.escalation_sla_hours ?? 24);
+
     await run(
-      "UPDATE workspace_policies SET require_ai_eval = ?, ai_missing_policy = ?, updated_at = ? WHERE workspace_id = ?",
-      [nextRequireAi, nextMissingPolicy, nowIso(), req.params.workspaceId]
+      `UPDATE workspace_policies SET require_ai_eval = ?, ai_missing_policy = ?, gate_mode = ?,
+       escalation_notify_email = ?, escalation_sla_hours = ?, updated_at = ? WHERE workspace_id = ?`,
+      [
+        nextRequireAi,
+        nextMissingPolicy,
+        nextGateMode,
+        nextNotifyEmail,
+        nextSlaHours,
+        nowIso(),
+        req.params.workspaceId
+      ]
     );
     await writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "POLICY_UPDATED",
       actorType: "USER",
-      actorName: "workspace_admin",
-      details: { require_ai_eval: nextRequireAi === 1, ai_missing_policy: nextMissingPolicy }
+      actorName: req.auth?.email || "workspace_admin",
+      details: {
+        require_ai_eval: nextRequireAi === 1,
+        ai_missing_policy: nextMissingPolicy,
+        gate_mode: nextGateMode,
+        escalation_notify_email: nextNotifyEmail,
+        escalation_sla_hours: nextSlaHours
+      }
     });
-    return res.json({ ok: true, policies: { require_ai_eval: nextRequireAi === 1, ai_missing_policy: nextMissingPolicy } });
+    return res.json({
+      ok: true,
+      policies: {
+        require_ai_eval: nextRequireAi === 1,
+        ai_missing_policy: nextMissingPolicy,
+        gate_mode: nextGateMode,
+        escalation_notify_email: nextNotifyEmail,
+        escalation_sla_hours: nextSlaHours
+      }
+    });
   } catch (e) {
     next(e);
   }

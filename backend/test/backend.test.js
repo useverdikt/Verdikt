@@ -1307,6 +1307,73 @@ describe("Release identity + SHA correlation", () => {
   });
 });
 
+describe("Escalation inbox", () => {
+  const app = createApp();
+
+  it("creates inbox row, lists pending, and acknowledges with override role", async () => {
+    const email = `esc_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Esc" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await human
+      .post(`/api/workspaces/${ws}/policies`)
+      .send({ gate_mode: "strict", escalation_sla_hours: 48, escalation_notify_email: "ops@test.local" })
+      .expect(200);
+
+    const rel = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "esc-inbox-v1", release_type: "model_update" })
+      .expect(201);
+
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "esc-agent" }).expect(201);
+    const agent = request(app);
+    const esc = await agent
+      .post(`/api/releases/${rel.body.id}/escalate`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .send({ reason: "Blocked on accuracy", blocking_signals: ["accuracy"] })
+      .expect(202);
+    assert.ok(String(esc.body.escalation.id).startsWith("esc_"));
+
+    const inbox = await human.get(`/api/workspaces/${ws}/escalations`).expect(200);
+    assert.equal(inbox.body.escalations.length, 1);
+    assert.equal(inbox.body.escalations[0].release_id, rel.body.id);
+
+    await human.post(`/api/workspaces/${ws}/escalations/${esc.body.escalation.id}/acknowledge`).expect(403);
+
+    await run("UPDATE users SET role = ? WHERE email = ?", ["vp_engineering", email]);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const ack = await human
+      .post(`/api/workspaces/${ws}/escalations/${esc.body.escalation.id}/acknowledge`)
+      .send({ note: "Reviewed" })
+      .expect(200);
+    assert.equal(ack.body.escalation.state, "resolved");
+
+    const gate = await human.get(`/api/releases/${rel.body.id}/gate`).expect(200);
+    assert.equal(gate.body.mode, "strict");
+  });
+
+  it("gate uses workspace default mode when query param omitted", async () => {
+    const email = `gatepol_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "GatePol" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await human.post(`/api/workspaces/${ws}/policies`).send({ gate_mode: "strict" }).expect(200);
+    const rel = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "gate-pol-v1", release_type: "model_update" })
+      .expect(201);
+
+    const gate = await human.get(`/api/releases/${rel.body.id}/gate`).expect(200);
+    assert.equal(gate.body.mode, "strict");
+  });
+});
+
 describe("Agentic layer", () => {
   const app = createApp();
 
@@ -1374,7 +1441,10 @@ describe("Agentic layer", () => {
             .set("Authorization", `Bearer ${keyRes.body.api_key}`)
             .send({ reason: "Cannot improve accuracy after 2 attempts" })
             .expect(202);
-    if (esc) assert.equal(esc.body.escalation.state, "pending_human_review");
+    if (esc) {
+      assert.equal(esc.body.escalation.state, "pending_human_review");
+      assert.ok(String(esc.body.escalation.id || "").startsWith("esc_"));
+    }
   });
 
   it("validateOutboundWebhookUrl blocks private callback URLs", async () => {

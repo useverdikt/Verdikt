@@ -262,9 +262,116 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+async function sendResendToMany({ to, subject, text, html }) {
+  const apiKey = (process.env.RESEND_API_KEY || "").trim();
+  const base = publicAppBase();
+  if (!apiKey) return { skipped: true, reason: "missing_resend" };
+  const from =
+    (process.env.EMAIL_FROM || "").trim() || "Verdikt <onboarding@resend.dev>";
+  const recipients = (Array.isArray(to) ? to : [to]).map((s) => String(s || "").trim()).filter(Boolean);
+  if (!recipients.length) return { skipped: true, reason: "no_recipients" };
+
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15_000);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ from, to: recipients, subject, text, html }),
+      signal: ac.signal
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errMsg =
+        typeof body.message === "string"
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `HTTP ${res.status}`;
+      return { ok: false, error: errMsg };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
+    return { ok: false, error: msg };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function sendEscalationRequestedEmail({
+  to,
+  workspaceId,
+  releaseId,
+  releaseVersion,
+  prNumber,
+  commitSha,
+  reason,
+  blockingSignals,
+  slaDueAt
+}) {
+  const base = publicAppBase();
+  const inboxUrl = base ? `${base}/escalations` : null;
+  const subject = `Verdikt escalation: ${releaseVersion || releaseId}`;
+  const lines = [
+    "An agent requested human review for a release.",
+    "",
+    `Release: ${releaseVersion || releaseId}`,
+    `Release ID: ${releaseId}`,
+    prNumber != null ? `PR: #${prNumber}` : null,
+    commitSha ? `Commit: ${commitSha.slice(0, 12)}` : null,
+    "",
+    `Reason: ${reason}`,
+    blockingSignals?.length ? `Blocking signals: ${blockingSignals.join(", ")}` : null,
+    slaDueAt ? `Review by: ${slaDueAt}` : null,
+    inboxUrl ? `\nOpen inbox: ${inboxUrl}` : null
+  ].filter(Boolean);
+  const text = lines.join("\n");
+  const html = `<p>An agent requested human review for a release.</p>
+<ul>
+<li><strong>Release:</strong> ${escapeHtml(releaseVersion || releaseId)}</li>
+<li><strong>Workspace:</strong> ${escapeHtml(workspaceId)}</li>
+${prNumber != null ? `<li><strong>PR:</strong> #${escapeHtml(String(prNumber))}</li>` : ""}
+${commitSha ? `<li><strong>Commit:</strong> <code>${escapeHtml(commitSha.slice(0, 12))}</code></li>` : ""}
+</ul>
+<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+${blockingSignals?.length ? `<p><strong>Blocking signals:</strong> ${escapeHtml(blockingSignals.join(", "))}</p>` : ""}
+${slaDueAt ? `<p><strong>Review by:</strong> ${escapeHtml(slaDueAt)}</p>` : ""}
+${inboxUrl ? `<p><a href="${escapeHtml(inboxUrl)}">Open escalation inbox</a></p>` : ""}`;
+
+  return sendResendToMany({ to, subject, text, html });
+}
+
+async function sendEscalationSlaReminderEmail({ to, workspaceId, releaseId, releaseVersion, escalationId, slaDueAt }) {
+  const base = publicAppBase();
+  const inboxUrl = base ? `${base}/escalations` : null;
+  const subject = `Verdikt escalation overdue: ${releaseVersion || releaseId}`;
+  const text = [
+    "An escalation has passed its review SLA and is still pending.",
+    "",
+    `Release: ${releaseVersion || releaseId}`,
+    `Escalation: ${escalationId}`,
+    `SLA due: ${slaDueAt}`,
+    inboxUrl ? `Inbox: ${inboxUrl}` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const html = `<p><strong>Escalation overdue</strong> — still pending human review.</p>
+<p>Release <strong>${escapeHtml(releaseVersion || releaseId)}</strong> (workspace ${escapeHtml(workspaceId)}).</p>
+<p>SLA was due ${escapeHtml(slaDueAt || "—")}.</p>
+${inboxUrl ? `<p><a href="${escapeHtml(inboxUrl)}">Open escalation inbox</a></p>` : ""}`;
+
+  return sendResendToMany({ to, subject, text, html });
+}
+
 module.exports = {
   isPasswordResetEmailConfigured,
   sendPasswordResetEmail,
   sendAlreadyRegisteredEmail,
-  sendWaitlistLeadEmail
+  sendWaitlistLeadEmail,
+  sendEscalationRequestedEmail,
+  sendEscalationSlaReminderEmail
 };

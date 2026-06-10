@@ -45,6 +45,8 @@ const {
 const { computeReleaseTrajectory } = require("../services/gateTrajectory");
 const { getMissingRequiredSignals } = require("../services/verdictEngine");
 const { computeGateAction } = require("../services/releaseIdentity");
+const { getWorkspacePolicy } = require("../services/workspaceConfig");
+const { createEscalationRequest, notifyEscalationCreated } = require("../services/escalations");
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -492,12 +494,35 @@ app.post("/api/releases/:releaseId/escalate", authMiddleware, requireNonViewer, 
       }
     });
 
+    const { escalation, reused } = await createEscalationRequest({
+      workspaceId: release.workspace_id,
+      releaseId: req.params.releaseId,
+      reason: justification,
+      blockingSignals: Array.isArray(blocking_signals) ? blocking_signals : [],
+      attemptedFixes: Array.isArray(attempted_fixes) ? attempted_fixes : [],
+      requestedByType: actorType,
+      requestedByName: actorName,
+      releaseStatus: release.status
+    });
+
+    void notifyEscalationCreated({
+      workspaceId: release.workspace_id,
+      releaseId: req.params.releaseId,
+      escalation,
+      releaseRow: release
+    }).catch((err) => {
+      console.error("[escalation_email]", req.params.releaseId, err);
+    });
+
     return res.status(202).json({
       release_id: req.params.releaseId,
       status: release.status,
       escalation: {
-        state: "pending_human_review",
-        reason: justification.slice(0, 2000)
+        id: escalation.id,
+        state: escalation.state,
+        reason: escalation.reason,
+        sla_due_at: escalation.sla_due_at,
+        reused
       }
     });
   } catch (e) {
@@ -517,7 +542,15 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
     CERTIFIED_WITH_OVERRIDE: "release certified with override"
   };
   const reason = reasonByStatus[release.status] || `release status is ${release.status}`;
-  const mode = req.query.mode === "strict" ? "strict" : "default";
+  const policy = await getWorkspacePolicy(release.workspace_id);
+  const mode =
+    req.query.mode === "strict"
+      ? "strict"
+      : req.query.mode === "default"
+        ? "default"
+        : policy?.gate_mode === "strict"
+          ? "strict"
+          : "default";
   const strictAllowed = release.status === "CERTIFIED";
   const gateAllowed = mode === "strict" ? strictAllowed : allowed;
   const gateReason =

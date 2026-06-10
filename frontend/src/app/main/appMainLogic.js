@@ -8,7 +8,8 @@ const NAV_TO_PATH = {
   release: "/releases",
   trend: "/trends",
   thresholds: "/thresholds",
-  audit: "/audit"
+  audit: "/audit",
+  escalations: "/escalations"
 };
 const S = {
   get: (k, d) => {
