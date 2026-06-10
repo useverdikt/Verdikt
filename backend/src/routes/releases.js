@@ -1,6 +1,7 @@
 "use strict";
 
 const { queryOne, queryAll, run, transaction } = require("../database");
+const { getUserRowForAuthById } = require("../services/authUserLookup");
 
 const {
   nowIso,
@@ -183,14 +184,15 @@ app.post("/api/releases/:releaseId/override", authMiddleware, requireReleaseAcce
   try {
   const {
     approver_type = "PERSON",
-    approver_name,
-    approver_role = null,
     justification,
     metadata = {}
   } = req.body || {};
-  if (!approver_name || !justification) {
-    return res.status(400).json({ error: "approver_name and justification are required" });
+  if (!justification) {
+    return res.status(400).json({ error: "justification is required" });
   }
+  const authUser = await getUserRowForAuthById(req.auth.sub);
+  const approver_name = authUser?.name || authUser?.email || req.auth.email;
+  const approver_role = authUser?.role || req.auth.role;
   const impactSummary = typeof metadata.impact_summary === "string" ? metadata.impact_summary.trim() : "";
   const mitigationPlan = typeof metadata.mitigation_plan === "string" ? metadata.mitigation_plan.trim() : "";
   const followUpDueDate = typeof metadata.follow_up_due_date === "string" ? metadata.follow_up_due_date.trim() : "";
