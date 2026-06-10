@@ -367,11 +367,70 @@ ${inboxUrl ? `<p><a href="${escapeHtml(inboxUrl)}">Open escalation inbox</a></p>
   return sendResendToMany({ to, subject, text, html });
 }
 
+/**
+ * @returns {Promise<{ ok: true } | { skipped: true } | { ok: false, error: string }>}
+ */
+async function sendWorkspaceInviteEmail({ to, token, role, inviterName }) {
+  const apiKey = (process.env.RESEND_API_KEY || "").trim();
+  const base = publicAppBase();
+  if (!apiKey || !base) {
+    return { skipped: true, reason: "missing_resend_or_public_url" };
+  }
+  const from = (process.env.EMAIL_FROM || "").trim() || "Verdikt <onboarding@resend.dev>";
+  const acceptUrl = `${base}/accept-invite?token=${encodeURIComponent(token)}`;
+  const registerUrl = `${base}/onboarding?invite=${encodeURIComponent(token)}`;
+  const inviter = inviterName ? `${inviterName} invited you` : "You've been invited";
+  const subject = `${inviter} to join a Verdikt workspace`;
+  const text = [
+    `${inviter} to join their Verdikt workspace as ${role}.`,
+    "",
+    `Accept (existing account): ${acceptUrl}`,
+    `Create account: ${registerUrl}`,
+    "",
+    "This invite expires in 7 days."
+  ].join("\n");
+  const html = `<p><strong>${escapeHtml(inviter)}</strong> to join their Verdikt workspace as <strong>${escapeHtml(role)}</strong>.</p>
+<p><a href="${escapeHtml(acceptUrl)}">Accept invite</a> (sign in if you already have an account)</p>
+<p>New to Verdikt? <a href="${escapeHtml(registerUrl)}">Create your account</a></p>
+<p style="color:#666;font-size:13px">This invite expires in 7 days.</p>`;
+
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15_000);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ from, to: [to], subject, text, html }),
+      signal: ac.signal
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errMsg =
+        typeof body.message === "string"
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `HTTP ${res.status}`;
+      return { ok: false, error: errMsg };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
+    return { ok: false, error: msg };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 module.exports = {
   isPasswordResetEmailConfigured,
   sendPasswordResetEmail,
   sendAlreadyRegisteredEmail,
   sendWaitlistLeadEmail,
   sendEscalationRequestedEmail,
-  sendEscalationSlaReminderEmail
+  sendEscalationSlaReminderEmail,
+  sendWorkspaceInviteEmail
 };

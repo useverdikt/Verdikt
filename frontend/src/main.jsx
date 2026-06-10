@@ -7,6 +7,7 @@ import LoginPage from "./pages/LoginPage.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import RequestAccessPage from "./pages/RequestAccessPage.jsx";
+import AcceptInvitePage from "./pages/AcceptInvitePage.jsx";
 import ProtectedRoute from "./auth/ProtectedRoute.jsx";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 import RouteLoadingFallback from "./components/RouteLoadingFallback.jsx";
@@ -34,6 +35,7 @@ if (rootEl) {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/request-access" element={<RequestAccessPage />} />
+              <Route path="/accept-invite" element={<AcceptInvitePage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
               <Route
                 path="/settings"

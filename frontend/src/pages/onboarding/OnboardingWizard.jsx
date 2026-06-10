@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { getSafeApiBase } from "../../lib/apiBase.js";
 import { primaryCertEnvFromTiers } from "../../lib/projectEnv.js";
 import { createInitialOnboardingState, RTYPES, STEPS, THRESHOLD_PRESETS } from "./onboardingConstants.js";
@@ -15,6 +15,8 @@ import AccountStep from "./steps/AccountStep.jsx";
 
 export default function OnboardingWizard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("invite") || "";
   const [st, setSt] = useState(createInitialOnboardingState);
   const [regError, setRegError] = useState("");
   const [regStatus, setRegStatus] = useState("");
@@ -25,6 +27,10 @@ export default function OnboardingWizard() {
   const stepContentRef = useRef(null);
 
   useEffect(() => {
+    if (inviteToken) {
+      setRegistrationGate("open");
+      return;
+    }
     let cancelled = false;
     const API_BASE = getSafeApiBase();
     fetch(`${API_BASE}/api/public/registration`)
@@ -38,7 +44,7 @@ export default function OnboardingWizard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [inviteToken]);
 
   useEffect(() => {
     stepContentRef.current?.scrollTo?.(0, 0);
@@ -139,6 +145,7 @@ export default function OnboardingWizard() {
       password: st.password,
       name: st.user.name.trim() || undefined
     };
+    if (inviteToken) body.invite_token = inviteToken;
     try {
       const res = await fetch(`${API_BASE}/api/auth/register`, {
         method: "POST",
