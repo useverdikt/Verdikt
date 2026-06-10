@@ -8,8 +8,14 @@ const SOURCE_MAP = shared.signalSourceMap || {};
 function isManualQaSeverityVisible(thresholdMap) {
   const row = thresholdMap?.manual_qa_worst_severity;
   if (row && (row.max != null || row.min != null)) return true;
-  const ui = readLocalThresholdUiState();
-  return !!ui.manual_qa_showstopper;
+  try {
+    const raw = localStorage.getItem("vdk3_thresholds");
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return Boolean(parsed.manual_qa_showstopper);
+  } catch {
+    return false;
+  }
 }
 
 function isSimulatorSignalRequired(signalId, thresholdMap) {
@@ -89,12 +95,34 @@ export function filterSimulatorSourcesForMandatory(sources, thresholdMap, connec
 
 /** Count signals marked required in threshold map that appear in signalSourceMap. */
 export function countSimulatorEligibleRequired(thresholdMap) {
+  return listRequiredSimulatorSignalIds(thresholdMap).length;
+}
+
+/** Signal IDs marked required-for-cert that the simulator can ingest. */
+export function listRequiredSimulatorSignalIds(thresholdMap) {
   const simSignalIds = new Set(Object.values(SOURCE_MAP).flat());
-  let required = 0;
+  const out = [];
   for (const id of simSignalIds) {
-    if (thresholdMap?.[id]?.required_for_certification) required++;
+    if (isSimulatorSignalRequired(id, thresholdMap)) out.push(id);
   }
-  return required;
+  return out;
+}
+
+/**
+ * Workspace readiness summary for Signal Simulator (shown when logged in).
+ */
+export function getSimulatorReadiness(thresholdMap, connectedSourceIds, sources) {
+  const requiredIds = listRequiredSimulatorSignalIds(thresholdMap);
+  const panels = filterSimulatorSourcesForMandatory(sources, thresholdMap, connectedSourceIds);
+  const connected =
+    connectedSourceIds instanceof Set ? connectedSourceIds : new Set(connectedSourceIds || []);
+  return {
+    requiredCount: requiredIds.length,
+    requiredIds,
+    panelCount: panels.length,
+    connectedIntegrationCount: connected.size,
+    ready: requiredIds.length > 0 && panels.length > 0
+  };
 }
 
 /**

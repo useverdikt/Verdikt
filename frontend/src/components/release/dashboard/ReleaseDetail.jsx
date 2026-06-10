@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import {
   evaluateSignalLocal,
@@ -24,6 +25,10 @@ export default function ReleaseDetail({
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
   const isCollecting = normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
+  const simReleaseId =
+    release.backendReleaseId ||
+    (typeof release.id === "string" && release.id.startsWith("rel_") ? release.id : null);
+  const simHref = simReleaseId ? `/signal-sim?release=${encodeURIComponent(simReleaseId)}` : "/signal-sim";
   const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
 
   const ordered = getOrderedDetailSignals(signalCategories);
@@ -219,6 +224,14 @@ export default function ReleaseDetail({
                 >
                   Pull from connected sources
                 </button>
+                <Link
+                  to={simHref}
+                  className="dab"
+                  style={{ textAlign: "center", textDecoration: "none" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Open Signal Simulator
+                </Link>
               </div>
             </>
           ) : hasOverride && overrideText ? (
