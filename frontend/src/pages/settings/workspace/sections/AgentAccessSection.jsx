@@ -75,10 +75,12 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
   }
 }`;
 
-  const ghaSnippet = `# .github/workflows/verdikt-ci.yml — see repo: .github/workflows/verdikt-post-signals.example.yml
-# Secrets: VERDIKT_WEBHOOK_SECRET, VERDIKT_WORKSPACE_ID
-# Posts signals to: POST /api/workspaces/${wsId || "ws_…"}/integrations/ci
-# Matches release by commit_sha (+ pr_number, repo) — same window as verdikt:rc label`;
+  const flowSnippet = `# Production flow (no GHA signal POST required)
+# 1. Agent opens PR → apply label verdikt:rc (Settings → Release Trigger)
+# 2. Verdikt opens cert window for PR# + commit_sha
+# 3. Signals: integration pull (Braintrust, BrowserStack, …) or MCP post_signals
+# 4. Agent: check_gate(release_id) → action merge | self_heal | escalate
+# Workspace: ${wsId || "ws_…"}`;
 
   return (
     <div className={`section${section === "agent" ? " active" : ""}`} id="panel-agent">
@@ -173,14 +175,13 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
             {mcpSnippet}
           </pre>
           <p className="muted" style={{ marginTop: 12 }}>
-            Production flow: apply <code>verdikt:rc</code> on the PR (or <code>create_release</code> with{" "}
-            <code>commit_sha</code> + <code>pr_number</code>) → CI posts signals → agent calls{" "}
-            <code>check_gate</code> and reads <code>action</code> (<code>merge</code> | <code>self_heal</code> |{" "}
-            <code>escalate</code>).
+            Production flow: apply <code>verdikt:rc</code> on the PR → Verdikt pulls signals from connected
+            integrations (or agent <code>post_signals</code>) → <code>check_gate</code> reads{" "}
+            <code>action</code> (<code>merge</code> | <code>self_heal</code> | <code>escalate</code>). You do not
+            need GitHub Actions to POST signals.
           </p>
           <p className="muted" style={{ marginTop: 8 }}>
-            Full playbook: <code>mcp/README.md</code> · GHA example:{" "}
-            <code>.github/workflows/verdikt-post-signals.example.yml</code>
+            Full playbook: <code>mcp/README.md</code>
           </p>
         </div>
       </div>
@@ -188,23 +189,22 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
       <div className="sblock">
         <div className="sblock-head">
           <div>
-            <div className="sblock-title">GitHub Actions CI webhook</div>
+            <div className="sblock-title">Production cert loop</div>
             <div className="sblock-desc">
-              Post test/eval signals from GHA after your PR runs. Verdikt matches by{" "}
-              <code>commit_sha</code> to the same cert window as the label trigger.
+              Label trigger opens the window; Verdikt correlates metrics to the PR commit — not via a CI webhook by
+              default.
             </div>
           </div>
-          <button type="button" className="btn-ghost accent" onClick={() => copyText(ghaSnippet)}>
-            Copy notes
+          <button type="button" className="btn-ghost accent" onClick={() => copyText(flowSnippet)}>
+            Copy flow
           </button>
         </div>
         <div className="sblock-body">
           <pre className="code-block" style={{ overflow: "auto", fontSize: 12 }}>
-            {ghaSnippet}
+            {flowSnippet}
           </pre>
           <p className="muted" style={{ marginTop: 12 }}>
-            Set secrets <code>VERDIKT_WEBHOOK_SECRET</code> and <code>VERDIKT_WORKSPACE_ID</code> in your app repo.
-            See <code>backend/README.md</code> for the CI webhook contract.
+            Optional CI webhook for custom GHA-only metrics: <code>docs/examples/verdikt-ci-webhook.optional.md</code>
           </p>
         </div>
       </div>

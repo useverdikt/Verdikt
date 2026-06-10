@@ -379,16 +379,19 @@ curl -sS -X POST "$BASE/api/workspaces/ws_demo/integrations/evals" \
   -d "$BODY"
 ```
 
-CI webhook (GitHub Actions / pipeline signals by commit SHA):
+CI webhook (optional — custom GHA metrics only):
 
 `POST /api/workspaces/:workspaceId/integrations/ci`
+
+**Default Verdikt flow does not use this.** Signals arrive via connected integrations (pull by `commit_sha`) or `POST /api/releases/:id/signals` / MCP `post_signals` after the **`verdikt:rc` label** opens the cert window.
+
+Use the CI webhook only when GHA produces metrics not available in Braintrust, BrowserStack, etc. Reference curl: `docs/examples/verdikt-ci-webhook.optional.md`. Requires release-identity API deployment.
 
 - Same signature as evals: `x-verdikt-signature: sha256=<hmac>` over raw JSON body
 - Required: `commit_sha` or `release_id`
 - Required: `signals` object (`signal_id` → numeric value)
 - Optional: `pr_number`, `repo_owner`, `repo_name`, `github_branch`, `release_ref`, `version`, `source`
-- Resolves an existing release by SHA/PR/repo, or opens a new `COLLECTING` session when only `commit_sha` is known
-- Copy-paste GHA workflow: `.github/workflows/verdikt-post-signals.example.yml` in this repo
+- Resolves an existing release by SHA/PR/repo (apply `verdikt:rc` first)
 
 Example:
 

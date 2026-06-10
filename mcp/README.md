@@ -54,14 +54,16 @@ Use this flow when an agent ships code. **Do not** use bare version strings with
 ### Architecture
 
 ```
-GitHub PR + commit          CI / integrations              Verdikt
-─────────────────          ─────────────────              ───────
-Agent opens/updates PR  →  Tests & evals run on SHA   →  Signals ingested
-                           (Braintrust, BS, GHA)          Thresholds checked
-                                                          Regression vs baseline
-Agent labels PR or     →  Release tied to PR# + SHA  →  check_gate → merge/escalate
-MCP create_release
+GitHub PR + commit          Verdikt (cert window)           Integrations / agent
+─────────────────          ─────────────────────           ────────────────────
+Agent opens/updates PR  →  Label verdikt:rc (or MCP      →  Pull Braintrust, BrowserStack,
+                           create_release with SHA)          Sentry, Datadog by commit_sha
+                                                          →  Or agent post_signals from CI output
+Agent calls check_gate  →  Thresholds + regression +     →  merge | self_heal | escalate
+                           trajectory
 ```
+
+Verdikt collects signals — **GHA does not need to POST them** unless you have custom metrics only available in your pipeline (see `docs/examples/verdikt-ci-webhook.optional.md`).
 
 Verdikt compares:
 
@@ -77,11 +79,10 @@ It does **not** analyze git diffs or AST. Signals must represent what CI measure
 Best when GitHub App is connected in **Settings → Release Trigger**. GitHub is the source of truth for repo context.
 
 1. Agent opens or updates a PR on a connected repo.
-2. CI runs on the PR head commit and posts signals (CI webhook, integration pull, or agent `post_signals`).
-3. Agent or human applies label **`verdikt:rc`** (or your configured label).
-4. Verdikt auto-creates a release with `commit_sha`, `pr_number`, PR title, `trigger_source: github_label`.
-5. Agent calls `check_gate(release_id, mode: "strict")`.
-6. Read **`action`**: `merge` → merge PR; `self_heal` → fix and re-run CI; `escalate` → call `escalate` tool.
+2. Apply label **`verdikt:rc`** (or agent `create_release` with `commit_sha`, `pr_number`, `github_owner`, `github_repo`).
+3. Verdikt opens a cert window tied to PR# + SHA. Signals arrive via **integration pull** (`POST …/sources/pull` in dashboard/API) or agent **`post_signals`** — not from GHA by default.
+4. Agent calls `check_gate(release_id, mode: "strict")`.
+5. Read **`action`**: `merge` → merge PR; `self_heal` → fix and re-pull/post signals; `escalate` → call `escalate`.
 
 ### Alternative flow (MCP create_release with GitHub metadata)
 
@@ -143,16 +144,11 @@ Example response:
 
 ---
 
-## CI webhook from GitHub Actions
+## Optional: CI webhook (advanced)
 
-Post signals from GHA after tests/evals. Copy `.github/workflows/verdikt-post-signals.example.yml` into your repo and set secrets:
+Only if GHA computes metrics that Verdikt integrations cannot pull. **Not required** for the label-trigger + integration-pull model.
 
-- `VERDIKT_WEBHOOK_SECRET` — workspace inbound webhook secret (Settings → Integrations, or `WEBHOOK_SECRET` in dev)
-- `VERDIKT_WORKSPACE_ID` — e.g. `ws_…`
-
-The webhook matches releases by **`commit_sha`** (+ optional `pr_number`, `repo_owner`, `repo_name`). Same SHA as the `verdikt:rc` label or `create_release` call → same cert window.
-
-See `backend/README.md` for the full CI webhook contract.
+Reference: `docs/examples/verdikt-ci-webhook.optional.md` (curl only — do not add to `.github/workflows/` unless you intend to run it).
 
 ---
 
@@ -167,7 +163,7 @@ Repo: {OWNER}/{REPO}
 
 Steps:
 1. If no release exists: apply label verdikt:rc OR create_release with version, commit_sha, pr_number, github_owner, github_repo.
-2. Ensure CI signals are posted (GHA webhook or post_signals with CI output).
+2. Trigger integration pull or post_signals with real metrics (do not invent values).
 3. get_verdict — report status and blocking_signals.
 4. check_gate mode strict — report action, exit_code, can_merge, trajectory.
 5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool, do not merge.
