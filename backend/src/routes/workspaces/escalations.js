@@ -5,7 +5,8 @@ const {
   requireWorkspaceMatch,
   requireOverrideApproverRole
 } = require("../deps");
-const { listEscalationsForWorkspace, acknowledgeEscalation } = require("../../services/escalations");
+const { getUserRowForAuthById } = require("../../services/authUserLookup");
+const { listEscalationsForWorkspace, acknowledgeEscalation, acknowledgeEscalationWithOverride } = require("../../services/escalations");
 
 module.exports = function registerEscalationRoutes(app) {
   app.get("/api/workspaces/:workspaceId/escalations", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -47,6 +48,45 @@ module.exports = function registerEscalationRoutes(app) {
           return res.status(code).json({ error: out.error, state: out.state });
         }
         return res.json({ ok: true, escalation: out.escalation });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+
+  app.post(
+    "/api/workspaces/:workspaceId/escalations/:escalationId/acknowledge-and-override",
+    authMiddleware,
+    requireOverrideApproverRole,
+    requireWorkspaceMatch,
+    async (req, res, next) => {
+      try {
+        const { note = "", justification, metadata = {} } = req.body || {};
+        const authUser = await getUserRowForAuthById(req.auth.sub);
+        const out = await acknowledgeEscalationWithOverride({
+          workspaceId: req.params.workspaceId,
+          escalationId: req.params.escalationId,
+          actorEmail: req.auth?.email || authUser?.email || "user",
+          actorName: authUser?.name || req.auth?.email || "user",
+          actorRole: authUser?.role || req.auth?.role || null,
+          note,
+          justification,
+          metadata
+        });
+        if (!out.ok) {
+          const code =
+            out.error === "not_found" || out.error === "release_not_found"
+              ? 404
+              : out.error === "not_pending"
+                ? 409
+                : out.statusCode || 400;
+          return res.status(code).json({ error: out.error, state: out.state });
+        }
+        return res.json({
+          ok: true,
+          escalation: out.escalation,
+          override: out.override
+        });
       } catch (e) {
         next(e);
       }

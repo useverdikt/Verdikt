@@ -26,6 +26,7 @@ const {
   resolveReleaseForWorkspaceIngest
 } = require("../services/domain");
 const { openReleaseSession, buildGithubMappings } = require("../services/releaseIdentity");
+const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
 
 const {
   AI_SIGNAL_DEFINITIONS,
@@ -275,13 +276,17 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       githubBranch: branch
     });
 
-    if (out.reused) return res.status(200).json({ ok: true, reused: true, release_id: out.release?.id || null });
+    if (out.reused) {
+      scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
+      return res.status(200).json({ ok: true, reused: true, release_id: out.release?.id || null });
+    }
     console.log(`[${req.requestId}] github label trigger`, {
       workspace_id: workspaceId,
       repo: `${owner}/${repo}`,
       pr_number: prNumber,
       release_id: out.release?.id
     });
+    scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
     return res.status(201).json({
       ok: true,
       release_id: out.release?.id || null,
