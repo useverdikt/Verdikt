@@ -75,6 +75,11 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
   }
 }`;
 
+  const ghaSnippet = `# .github/workflows/verdikt-ci.yml — see repo: .github/workflows/verdikt-post-signals.example.yml
+# Secrets: VERDIKT_WEBHOOK_SECRET, VERDIKT_WORKSPACE_ID
+# Posts signals to: POST /api/workspaces/${wsId || "ws_…"}/integrations/ci
+# Matches release by commit_sha (+ pr_number, repo) — same window as verdikt:rc label`;
+
   return (
     <div className={`section${section === "agent" ? " active" : ""}`} id="panel-agent">
       <div className="section-header">
@@ -168,7 +173,38 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
             {mcpSnippet}
           </pre>
           <p className="muted" style={{ marginTop: 12 }}>
-            See <code>mcp/README.md</code> in the repo for tool reference: create_release, post_signals, check_gate, escalate.
+            Production flow: apply <code>verdikt:rc</code> on the PR (or <code>create_release</code> with{" "}
+            <code>commit_sha</code> + <code>pr_number</code>) → CI posts signals → agent calls{" "}
+            <code>check_gate</code> and reads <code>action</code> (<code>merge</code> | <code>self_heal</code> |{" "}
+            <code>escalate</code>).
+          </p>
+          <p className="muted" style={{ marginTop: 8 }}>
+            Full playbook: <code>mcp/README.md</code> · GHA example:{" "}
+            <code>.github/workflows/verdikt-post-signals.example.yml</code>
+          </p>
+        </div>
+      </div>
+
+      <div className="sblock">
+        <div className="sblock-head">
+          <div>
+            <div className="sblock-title">GitHub Actions CI webhook</div>
+            <div className="sblock-desc">
+              Post test/eval signals from GHA after your PR runs. Verdikt matches by{" "}
+              <code>commit_sha</code> to the same cert window as the label trigger.
+            </div>
+          </div>
+          <button type="button" className="btn-ghost accent" onClick={() => copyText(ghaSnippet)}>
+            Copy notes
+          </button>
+        </div>
+        <div className="sblock-body">
+          <pre className="code-block" style={{ overflow: "auto", fontSize: 12 }}>
+            {ghaSnippet}
+          </pre>
+          <p className="muted" style={{ marginTop: 12 }}>
+            Set secrets <code>VERDIKT_WEBHOOK_SECRET</code> and <code>VERDIKT_WORKSPACE_ID</code> in your app repo.
+            See <code>backend/README.md</code> for the CI webhook contract.
           </p>
         </div>
       </div>

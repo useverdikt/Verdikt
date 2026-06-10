@@ -227,6 +227,7 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 - `POST /api/hooks/github` (public but requires GitHub `x-hub-signature-256`)
 - `GET /api/hooks/github/setup` (public GitHub App setup redirect callback)
 - `POST /api/workspaces/:workspaceId/integrations/evals` (public, signed integration ingest)
+- `POST /api/workspaces/:workspaceId/integrations/ci` (public, signed CI signal ingest by commit SHA)
 - `POST /api/auth/register` (public)
 - `POST /api/auth/login` (public)
 - `GET /api/auth/me`
@@ -359,8 +360,10 @@ Workspace integration webhook (signed):
 
 - Signature required via `x-verdikt-signature: sha256=<hmac>`
 - Uses `WEBHOOK_SECRET` and the same verification model as other signed inbound webhook endpoints
-- Payload lookup fields (any one):
+- Payload lookup fields (any one, in priority order):
   - `release_id`
+  - `commit_sha` (+ optional `pr_number`, `github_owner`, `github_repo`)
+  - `pr_number` (latest collecting release for that PR)
   - `release_ref`
   - `version`
 - Also accepts `provider`, `payload`, `source` as in the authenticated integration adapter.
@@ -375,6 +378,39 @@ curl -sS -X POST "$BASE/api/workspaces/ws_demo/integrations/evals" \
   -H "x-verdikt-signature: sha256=$SIG" \
   -d "$BODY"
 ```
+
+CI webhook (GitHub Actions / pipeline signals by commit SHA):
+
+`POST /api/workspaces/:workspaceId/integrations/ci`
+
+- Same signature as evals: `x-verdikt-signature: sha256=<hmac>` over raw JSON body
+- Required: `commit_sha` or `release_id`
+- Required: `signals` object (`signal_id` → numeric value)
+- Optional: `pr_number`, `repo_owner`, `repo_name`, `github_branch`, `release_ref`, `version`, `source`
+- Resolves an existing release by SHA/PR/repo, or opens a new `COLLECTING` session when only `commit_sha` is known
+- Copy-paste GHA workflow: `.github/workflows/verdikt-post-signals.example.yml` in this repo
+
+Example:
+
+```bash
+BODY=$(jq -n \
+  --arg sha "$COMMIT_SHA" \
+  --argjson pr "$PR_NUMBER" \
+  --arg owner "$REPO_OWNER" \
+  --arg repo "$REPO_NAME" \
+  '{commit_sha:$sha,pr_number:$pr,repo_owner:$owner,repo_name:$repo,signals:{accuracy:92,safety:91,tone:88,hallucination:95,relevance:90}}')
+SIG=$(printf "%s" "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | sed 's/^.* //')
+curl -sS -X POST "$BASE/api/workspaces/ws_demo/integrations/ci" \
+  -H "Content-Type: application/json" \
+  -H "x-verdikt-signature: sha256=$SIG" \
+  -d "$BODY"
+```
+
+Release identity (agent / label / CI):
+
+- `POST /api/workspaces/:workspaceId/releases` accepts `commit_sha`, `pr_number`, `github_owner`, `github_repo`, `github_branch`
+- Same `(workspace, repo, pr, commit_sha)` returns `reused: true` instead of a duplicate cert window
+- GitHub label trigger (`verdikt:rc`) stores full GitHub identity automatically
 
 Provider webhook template (release_ref lookup):
 
@@ -400,6 +436,11 @@ Response:
 - `gate.allowed` (boolean)
 - `gate.reason` (string)
 - `gate.exit_code` (`0` or `1`) for direct pipeline use
+- `action` (`merge` | `self_heal` | `escalate`) — agent loop hint
+- `can_merge` (boolean) — same as allowed under current `mode`
+- `blocking_signals` — signal IDs failing thresholds
+- `missing_required_signals` — required-for-cert signals not yet ingested
+- `gate.trajectory` — `IMPROVING` | `STABLE` | `DEGRADING` | `UNKNOWN`
 
 Example:
 

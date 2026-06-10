@@ -12,7 +12,7 @@ const server = new McpServer(
   },
   {
     instructions:
-      "Verdikt certifies AI releases before production. Typical flow: create_release → post_signals → check_gate. Escalate to humans when blocked and self-heal is not possible."
+      "Verdikt certifies AI releases before production. Flow: create_release (with commit_sha + pr_number + github_owner/repo) → post_signals or CI webhook → check_gate. Use gate.action: merge | self_heal | escalate. Escalate when blocked and self-heal is not possible."
   }
 );
 
@@ -26,18 +26,34 @@ server.registerTool(
         .enum(["prompt_update", "model_patch", "safety_patch", "policy_change", "model_update"])
         .optional()
         .describe("Type of AI release"),
-      commit_sha: z.string().optional(),
-      pr_number: z.number().int().optional(),
+      commit_sha: z.string().optional().describe("Git commit SHA (full or 7+ chars) — required for production"),
+      pr_number: z.number().int().optional().describe("Pull request number"),
+      github_owner: z.string().optional().describe("GitHub org or user (e.g. useverdikt)"),
+      github_repo: z.string().optional().describe("Repository name (e.g. Verdikt)"),
+      github_branch: z.string().optional().describe("Head branch name"),
       callback_url: z.string().url().optional().describe("HTTPS URL to POST verdict when ready"),
       ai_context: z.record(z.unknown()).optional()
     }
   },
-  async ({ version, release_type, commit_sha, pr_number, callback_url, ai_context }) => {
+  async ({
+    version,
+    release_type,
+    commit_sha,
+    pr_number,
+    github_owner,
+    github_repo,
+    github_branch,
+    callback_url,
+    ai_context
+  }) => {
     const out = await apiRequest("POST", `/api/workspaces/${WORKSPACE_ID}/releases`, {
       version,
       release_type: release_type || "model_update",
       commit_sha: commit_sha || null,
       pr_number: pr_number ?? null,
+      github_owner: github_owner || null,
+      github_repo: github_repo || null,
+      github_branch: github_branch || null,
       callback_url: callback_url || null,
       ai_context: ai_context || {}
     });
@@ -90,7 +106,7 @@ server.registerTool(
 server.registerTool(
   "check_gate",
   {
-    description: "CI gate decision — whether the release may merge/deploy.",
+    description: "CI gate decision — whether the release may merge/deploy. Read action (merge|self_heal|escalate) and gate.exit_code.",
     inputSchema: {
       release_id: z.string(),
       mode: z.enum(["default", "strict"]).optional().describe("strict requires CERTIFIED without override")
