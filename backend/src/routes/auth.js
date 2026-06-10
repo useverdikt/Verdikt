@@ -24,6 +24,13 @@ const {
 } = require("../middleware/rateLimit");
 const { sendPasswordResetEmail, sendAlreadyRegisteredEmail, sendWaitlistLeadEmail } = require("../services/email");
 const { ensureWorkspaceSeeded } = require("../services/domain");
+const {
+  ensureMemberRow,
+  getInviteByToken,
+  acceptWorkspaceInvite,
+  registerUserWithInvite,
+  getEffectiveRoleForWorkspace
+} = require("../services/workspaceMembers");
 
 const { BCRYPT_ROUNDS, IS_PROD_LIKE, ALLOW_PUBLIC_REGISTRATION, SUPABASE_JWT_SECRET } = config;
 
@@ -35,13 +42,16 @@ const REGISTER_RESPONSE_MESSAGE =
 
 module.exports = function registerAuthRoutes(app) {
   app.post("/api/auth/register", async (req, res) => {
-    if (!ALLOW_PUBLIC_REGISTRATION) {
+    const { email: rawEmail, password, name: rawName, invite_token: inviteTokenRaw } = req.body || {};
+    const invite_token = typeof inviteTokenRaw === "string" ? inviteTokenRaw.trim() : "";
+    const hasInvite = invite_token.length > 0;
+
+    if (!ALLOW_PUBLIC_REGISTRATION && !hasInvite) {
       return res.status(403).json({
         error:
           "Self-service registration is not available. Join the waitlist on the site, or sign in if you already have an account."
       });
     }
-    const { email: rawEmail, password, name: rawName } = req.body || {};
     const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
     const name = typeof rawName === "string" ? rawName.trim() : "";
     if (!email || !email.includes("@")) {
@@ -66,16 +76,86 @@ module.exports = function registerAuthRoutes(app) {
       return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
     }
     const id = crypto.randomUUID();
-    const workspace_id = `ws_${id.replace(/-/g, "").slice(0, 16)}`;
     const password_hash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
     const displayName =
       name || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    if (hasInvite) {
+      const invited = await registerUserWithInvite({
+        email,
+        password,
+        name,
+        inviteToken: invite_token,
+        passwordHash: password_hash,
+        displayName,
+        userId: id
+      });
+      if (!invited.ok) {
+        const code =
+          invited.error === "email_already_registered"
+            ? 409
+            : invited.error === "not_found" || invited.error === "expired"
+              ? 404
+              : invited.statusCode || 400;
+        return res.status(code).json({ error: invited.error });
+      }
+      return res.status(200).json({ ok: true, message: REGISTER_RESPONSE_MESSAGE, joined_workspace: true });
+    }
+
+    const workspace_id = `ws_${id.replace(/-/g, "").slice(0, 16)}`;
     await run(
       "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [id, email, password_hash, displayName, workspace_id, "ai_product_lead", nowIso()]
     );
     await ensureWorkspaceSeeded(workspace_id);
+    await ensureMemberRow({ workspaceId: workspace_id, userId: id, role: "ai_product_lead" });
     return res.status(200).json({ ok: true, message: REGISTER_RESPONSE_MESSAGE });
+  });
+
+  app.get("/api/auth/invite/:token", async (req, res) => {
+    const out = await getInviteByToken(req.params.token);
+    if (!out.ok) {
+      const code = out.error === "not_found" ? 404 : 410;
+      return res.status(code).json({ error: out.error });
+    }
+    return res.json({
+      ok: true,
+      email: out.invite.email,
+      role: out.invite.role,
+      workspace_id: out.invite.workspace_id,
+      inviter_name: out.invite.inviter_name,
+      expires_at: out.invite.expires_at
+    });
+  });
+
+  app.post("/api/auth/accept-invite", authMiddleware, async (req, res, next) => {
+    try {
+      const { token } = req.body || {};
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ error: "token is required" });
+      }
+      const out = await acceptWorkspaceInvite({
+        token: token.trim(),
+        userId: req.auth.sub,
+        userEmail: req.auth.email
+      });
+      if (!out.ok) {
+        const code =
+          out.error === "not_found" || out.error === "expired"
+            ? 404
+            : out.error === "invite_email_mismatch"
+              ? 403
+              : out.statusCode || 400;
+        return res.status(code).json({ error: out.error });
+      }
+      const effectiveRole =
+        (await getEffectiveRoleForWorkspace(out.user.id, out.user.workspace_id)) || out.user.role;
+      const tokenJwt = signToken({ ...out.user, role: effectiveRole });
+      setAuthCookies(res, tokenJwt);
+      return res.json({ ok: true, user: publicUser({ ...out.user, role: effectiveRole }) });
+    } catch (e) {
+      next(e);
+    }
   });
 
   app.post("/api/auth/login", async (req, res) => {
@@ -113,9 +193,12 @@ module.exports = function registerAuthRoutes(app) {
       actorName: email,
       details: { ip: req.ip, request_id: req.requestId }
     });
-    const token = signToken(userRow);
+    const effectiveRole =
+      (await getEffectiveRoleForWorkspace(userRow.id, userRow.workspace_id)) || userRow.role;
+    const sessionUser = { ...userRow, role: effectiveRole };
+    const token = signToken(sessionUser);
     setAuthCookies(res, token);
-    return res.json({ user: publicUser(userRow) });
+    return res.json({ user: publicUser(sessionUser) });
   });
 
   app.post("/api/auth/logout", (req, res) => {

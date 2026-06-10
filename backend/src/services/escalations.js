@@ -59,7 +59,9 @@ async function resolveEscalationNotifyEmails(workspaceId) {
       .filter(Boolean);
   }
   const approvers = await queryAll(
-    `SELECT email FROM users WHERE workspace_id = ? AND role IN ('vp_engineering', 'cto', 'org_admin', 'release_manager')`,
+    `SELECT u.email FROM workspace_members wm
+     JOIN users u ON u.id = wm.user_id
+     WHERE wm.workspace_id = ? AND wm.role IN ('vp_engineering', 'cto', 'org_admin', 'release_manager')`,
     [workspaceId]
   );
   return approvers.map((r) => String(r.email || "").trim()).filter(Boolean);
