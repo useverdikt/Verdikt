@@ -18,7 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Docker Hub pulls often timeout on GHA; ECR Public mirrors official postgres image.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -70,7 +71,8 @@ jobs:
     timeout-minutes: 25
     services:
       postgres:
-        image: postgres:16
+        # Docker Hub pulls often timeout on GHA; ECR Public mirrors official postgres image.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
