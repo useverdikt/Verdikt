@@ -1,0 +1,43 @@
+---
+description: Certify GitHub PRs through Verdikt before merge — label trigger, signals, check_gate.action, escalate
+alwaysApply: false
+---
+
+# Verdikt agent playbook
+
+Verdikt is the **trust layer between AI agents and production**. It certifies **signal metrics vs thresholds** for a specific **commit/PR** — it does not review git diffs.
+
+## Production flow (preferred)
+
+1. Open or update a PR on a GitHub repo connected in **Settings → Release Trigger**.
+2. Apply label **`verdikt:rc`** (or configured label) → Verdikt opens a cert window for `commit_sha` + `pr_number`.
+3. Signals arrive via **connected integrations** (Braintrust, BrowserStack, Sentry, Datadog) or **`post_signals`** / MCP with real CI output — do **not** invent values.
+4. Call **`check_gate(release_id)`** (workspace default mode in Settings → Governance; use `mode: strict` when in doubt).
+5. Read **`action`**:
+   - **`merge`** — merge/deploy allowed (`gate.exit_code === 0`)
+   - **`self_heal`** — fix code, re-run evals/CI, post missing signals, check again
+   - **`escalate`** — call **`escalate`** with reason + `blocking_signals`; human reviews **Escalations** inbox
+
+## MCP alternative (when not using label)
+
+Use **`create_release`** with GitHub identity — always include:
+
+- `commit_sha` (PR head SHA)
+- `pr_number`
+- `github_owner`, `github_repo`, `github_branch`
+- `version` (e.g. PR title)
+
+Repeat with same SHA returns `reused: true` — same cert window.
+
+## Do not
+
+- Open releases with bare version strings in production (demo only).
+- POST signals from GHA unless you have metrics with no integration source (`docs/examples/verdikt-ci-webhook.optional.md`).
+- Merge when `action` is not `merge`.
+- Use API keys for human control-plane actions (thresholds, overrides) — escalate instead.
+
+## MCP tools
+
+`create_release` → `post_signals` → `get_verdict` → `check_gate` → `escalate` | merge
+
+Config: `mcp/README.md` and **Settings → Agent access**.
