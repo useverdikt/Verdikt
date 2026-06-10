@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
+import { persistAuthSession } from "../auth/persistSession.js";
 import {
   mergeReleaseIntoList,
   refreshReleaseDetail,
@@ -37,6 +38,7 @@ export function useWorkspaceSync(navigate, nav) {
   );
   const [auditLog, setAuditLog] = useState(() => (hasBackend() ? [] : S.get("audit", DEFAULT_AUDIT)));
   const [currentUser, setCurrentUser] = useState(() => {
+    if (hasBackend()) return null;
     const u = S.get("currentUser", null);
     if (u && u.role === "viewer") return { ...u, role: "engineer" };
     return u;
@@ -157,6 +159,29 @@ export function useWorkspaceSync(navigate, nav) {
   useEffect(() => {
     if (nav === "thresholds") void loadThresholdSuggestions();
   }, [nav, loadThresholdSuggestions]);
+
+  useEffect(() => {
+    if (!hasBackend()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await apiGet("/api/auth/me", { navigate });
+        if (cancelled || !data?.user) return;
+        persistAuthSession({ user: data.user });
+        setCurrentUser({
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role
+        });
+      } catch {
+        /* ProtectedRoute handles unauthenticated redirects */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (!hasBackend()) return;

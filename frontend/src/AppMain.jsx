@@ -342,7 +342,7 @@ export default function App() {
           ThresholdsView={ThresholdsView}
           AuditView={AuditView}
         />
-        {!currentUser && (
+        {!hasBackend() && !currentUser && (
           <UserSetupModal
             roles={ROLES}
             onSave={(user) => {
