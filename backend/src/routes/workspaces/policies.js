@@ -105,18 +105,20 @@ app.put("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, require
   try {
     const { url, secret, events } = req.body || {};
     if (!url || typeof url !== "string") return res.status(400).json({ error: "url is required" });
+    let safeUrl;
     try {
-      new URL(url);
-    } catch {
-      return res.status(400).json({ error: "url must be a valid URL" });
+      const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
+      safeUrl = await validateOutboundWebhookUrl(url);
+    } catch (err) {
+      return res.status(400).json({ error: err.message || "Invalid outbound webhook URL" });
     }
-    await setOutboundWebhook(req.params.workspaceId, { url, secret, events });
+    await setOutboundWebhook(req.params.workspaceId, { url: safeUrl, secret, events });
     writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "OUTBOUND_WEBHOOK_CONFIGURED",
       actorType: "USER",
       actorName: req.auth?.email || "user",
-      details: { url, events }
+      details: { url: safeUrl, events }
     });
     const hook = await getOutboundWebhook(req.params.workspaceId);
     return res.json({ ...hook, secret: hook?.secret ? "***" : null });

@@ -10,11 +10,21 @@ const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "").trim();
 /** Roles allowed to approve certification overrides (server-side; product UI aligns with VP Engineering). */
 const OVERRIDE_APPROVER_ROLES = new Set(["vp_engineering", "cto", "org_admin"]);
 
+function sessionPwdAt(userRow) {
+  return userRow.password_changed_at || userRow.created_at || "";
+}
+
 function signToken(userRow) {
   return jwt.sign(
-    { sub: userRow.id, ws: userRow.workspace_id, email: userRow.email, role: userRow.role },
+    {
+      sub: userRow.id,
+      ws: userRow.workspace_id,
+      email: userRow.email,
+      role: userRow.role,
+      pwd_at: sessionPwdAt(userRow)
+    },
     JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "7d", algorithm: "HS256" }
   );
 }
 
@@ -71,9 +81,12 @@ async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     const row = await getUserRowForAuthById(payload.sub);
     if (!row) return res.status(401).json({ error: "User not found" });
+    if (row.password_changed_at && payload.pwd_at !== row.password_changed_at) {
+      return res.status(401).json({ error: "Session expired — sign in again" });
+    }
     req.auth = {
       sub: row.id,
       ws: row.workspace_id,

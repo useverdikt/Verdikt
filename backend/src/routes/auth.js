@@ -348,9 +348,14 @@ module.exports = function registerAuthRoutes(app) {
       return res.status(400).json({ error: "Invalid or expired reset link" });
     }
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const pwdChangedAt = nowIso();
     await transaction(async (tx) => {
-      await tx.run("UPDATE users SET password_hash = ? WHERE id = ?", [password_hash, row.user_id]);
-      await tx.run("UPDATE password_reset_tokens SET used_at = ? WHERE id = ?", [nowIso(), row.id]);
+      await tx.run("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?", [
+        password_hash,
+        pwdChangedAt,
+        row.user_id
+      ]);
+      await tx.run("UPDATE password_reset_tokens SET used_at = ? WHERE id = ?", [pwdChangedAt, row.id]);
     });
     await writeAudit({
       workspaceId: row.workspace_id,

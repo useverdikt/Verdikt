@@ -10,6 +10,7 @@ const crypto = require("crypto");
 const { queryOne, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeeded } = require("../lib/encryption");
+const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
 
 async function getOutboundWebhook(workspaceId) {
   const row = await queryOne("SELECT * FROM outbound_webhooks WHERE workspace_id = ? AND enabled = 1", [workspaceId]);
@@ -101,9 +102,31 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow) {
   let errorMessage = null;
 
   try {
+    let deliveryUrl;
+    try {
+      deliveryUrl = await validateOutboundWebhookUrl(webhook.url);
+    } catch (urlErr) {
+      errorMessage = urlErr.message || String(urlErr);
+      console.error(`[outbound_webhook] blocked URL for ${release.id}:`, errorMessage);
+      await run(
+        `
+    INSERT INTO outbound_webhook_deliveries
+      (webhook_id, release_id, event_type, payload_json, response_status, error_message, delivered_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `,
+        [webhook.id, release.id, eventType, bodyStr, null, errorMessage, deliveredAt]
+      );
+      return;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(webhook.url, { method: "POST", headers, body: bodyStr, signal: controller.signal });
+    const res = await fetch(deliveryUrl, {
+      method: "POST",
+      headers,
+      body: bodyStr,
+      signal: controller.signal,
+      redirect: "error"
+    });
     clearTimeout(timeout);
     responseStatus = res.status;
     if (!res.ok) {
