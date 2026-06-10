@@ -124,32 +124,7 @@ function mapIntegrationSignals(provider, payload) {
   return { provider, signals: out };
 }
 
-async function resolveReleaseForWorkspaceIngest(workspaceId, { release_id, release_ref, version }) {
-  if (typeof release_id === "string" && release_id.trim()) {
-    const byId = await queryOne("SELECT * FROM releases WHERE id = ? AND workspace_id = ?", [
-      release_id.trim(),
-      workspaceId
-    ]);
-    if (byId) return byId;
-  }
-  const ref = typeof release_ref === "string" && release_ref.trim() ? release_ref.trim() : null;
-  if (ref) {
-    const byRef = await queryOne(
-      "SELECT * FROM releases WHERE workspace_id = ? AND release_ref = ? ORDER BY created_at::timestamptz DESC LIMIT 1",
-      [workspaceId, ref]
-    );
-    if (byRef) return byRef;
-  }
-  const ver = typeof version === "string" && version.trim() ? version.trim() : null;
-  if (ver) {
-    const byVersion = await queryOne(
-      "SELECT * FROM releases WHERE workspace_id = ? AND version = ? ORDER BY created_at::timestamptz DESC LIMIT 1",
-      [workspaceId, ver]
-    );
-    if (byVersion) return byVersion;
-  }
-  return null;
-}
+const { resolveReleaseForWorkspaceIngest } = require("./releaseIdentity");
 
 function releaseVerdictLockedAgainstIngest(release) {
   return (

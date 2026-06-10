@@ -43,6 +43,8 @@ const {
   AI_SIGNAL_DEFINITIONS
 } = require("./deps");
 const { computeReleaseTrajectory } = require("../services/gateTrajectory");
+const { getMissingRequiredSignals } = require("../services/verdictEngine");
+const { computeGateAction } = require("../services/releaseIdentity");
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -531,6 +533,18 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
     releaseId: req.params.releaseId,
     releaseRow: release
   });
+  const missingRequiredSignals = await getMissingRequiredSignals(
+    release.workspace_id,
+    req.params.releaseId,
+    null,
+    release
+  );
+  const action = computeGateAction({
+    status: release.status,
+    gateAllowed,
+    blockingSignals,
+    missingRequiredSignals
+  });
 
   await writeAudit({
     workspaceId: release.workspace_id,
@@ -543,7 +557,8 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
       allowed: gateAllowed,
       status: release.status,
       reason: gateReason,
-      trajectory: trajectoryInfo.trajectory
+      trajectory: trajectoryInfo.trajectory,
+      action
     }
   });
 
@@ -554,7 +569,9 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
     mode,
     certified: allowed,
     can_merge: gateAllowed,
+    action,
     blocking_signals: blockingSignals,
+    missing_required_signals: missingRequiredSignals,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,
