@@ -1175,6 +1175,138 @@ describe("validateOutboundWebhookUrl (unit)", () => {
   });
 });
 
+describe("Release identity + SHA correlation", () => {
+  const app = createApp();
+
+  function signVerdiktWebhook(body) {
+    const raw = JSON.stringify(body);
+    const sig = crypto.createHmac("sha256", process.env.WEBHOOK_SECRET).update(raw).digest("hex");
+    return { raw, signature: `sha256=${sig}` };
+  }
+
+  it("resolves ingest by commit_sha and dedupes agent release opens on same SHA", async () => {
+    const email = `sha_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "SHA" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const keyRes = await human
+      .post(`/api/workspaces/${ws}/api-keys`)
+      .send({ name: "sha-agent" })
+      .expect(201);
+
+    const sha = crypto.randomBytes(20).toString("hex");
+    const prNumber = 88000 + crypto.randomInt(999);
+    const agent = request(app);
+
+    const first = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .send({
+        version: "sha-correlation-v1",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: prNumber,
+        github_owner: "useverdikt",
+        github_repo: "demo-repo"
+      })
+      .expect(201);
+    assert.equal(first.body.reused, false);
+
+    const second = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .send({
+        version: "sha-correlation-v1",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: prNumber,
+        github_owner: "useverdikt",
+        github_repo: "demo-repo"
+      })
+      .expect(200);
+    assert.equal(second.body.reused, true);
+    assert.equal(second.body.id, first.body.id);
+
+    const count = await queryOne(
+      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND commit_sha = ? AND pr_number = ?",
+      [ws, sha, prNumber]
+    );
+    assert.equal(Number(count?.c || 0), 1);
+
+    const { resolveReleaseForWorkspaceIngest } = require("../src/services/releaseIdentity");
+    const resolved = await resolveReleaseForWorkspaceIngest(ws, {
+      commit_sha: sha,
+      pr_number: prNumber,
+      github_owner: "useverdikt",
+      github_repo: "demo-repo"
+    });
+    assert.equal(resolved.id, first.body.id);
+  });
+
+  it("CI webhook attaches signals to release matched by commit_sha", async () => {
+    const email = `ci_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "CI" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const sha = crypto.randomBytes(20).toString("hex");
+    const created = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({
+        version: "ci-target-v1",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: 99001,
+        github_owner: "acme",
+        github_repo: "app"
+      })
+      .expect(201);
+
+    const body = {
+      commit_sha: sha,
+      pr_number: 99001,
+      repo_owner: "acme",
+      repo_name: "app",
+      signals: { accuracy: 92, safety: 91, tone: 88, hallucination: 95, relevance: 90 }
+    };
+    const signed = signVerdiktWebhook(body);
+
+    const ingest = await request(app)
+      .post(`/api/workspaces/${ws}/integrations/ci`)
+      .set("Content-Type", "application/json")
+      .set("x-verdikt-signature", signed.signature)
+      .send(signed.raw)
+      .expect(200);
+
+    assert.equal(ingest.body.release_id, created.body.id);
+    const sigCount = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = ?", [created.body.id]);
+    assert.ok(Number(sigCount?.c || 0) >= 5);
+  });
+
+  it("gate response includes action field for agent loop", async () => {
+    const email = `gate_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Gate" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const created = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "gate-action-v1", release_type: "model_update" })
+      .expect(201);
+
+    const gate = await human.get(`/api/releases/${created.body.id}/gate`).expect(200);
+    assert.ok(["merge", "self_heal", "escalate"].includes(gate.body.action));
+    assert.equal(gate.body.action, "self_heal");
+  });
+});
+
 describe("Agentic layer", () => {
   const app = createApp();
 
@@ -1232,6 +1364,7 @@ describe("Agentic layer", () => {
     assert.ok(gate.body.gate);
     assert.ok(["IMPROVING", "STABLE", "DEGRADING", "UNKNOWN"].includes(gate.body.gate.trajectory));
     assert.equal(typeof gate.body.gate.exit_code, "number");
+    assert.ok(["merge", "self_heal", "escalate"].includes(gate.body.action));
 
     const esc =
       ingest.body.status === "CERTIFIED" || ingest.body.status === "CERTIFIED_WITH_OVERRIDE"

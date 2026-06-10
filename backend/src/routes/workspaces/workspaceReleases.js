@@ -2,16 +2,15 @@
 
 const { run, queryOne, queryAll } = require("../../database");
 const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
+const { openReleaseSession } = require("../../services/releaseIdentity");
 const {
   nowIso,
-  toIsoPlusMinutes,
   writeAudit,
   authMiddleware,
   requireNonViewer,
   requireWorkspaceMatch,
   verifyAuditIntegrity,
-  ALLOWED_RELEASE_TYPES,
-  DEFAULT_COLLECTION_WINDOW_MINUTES
+  ALLOWED_RELEASE_TYPES
 } = require("../deps");
 
 module.exports = function registerRoutes(app) {
@@ -57,6 +56,9 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
       ai_context = {},
       commit_sha = null,
       pr_number = null,
+      github_owner = null,
+      github_repo = null,
+      github_branch = null,
       callback_url = null
     } = req.body || {};
     if (!version) return res.status(400).json({ error: "version is required" });
@@ -78,10 +80,6 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
       }
     }
 
-    const releaseId = `rel_${Date.now()}`;
-    const now = nowIso();
-    const deadline = toIsoPlusMinutes(DEFAULT_COLLECTION_WINDOW_MINUTES);
-    const environment = "pre-prod";
     const triggerSource = req.auth?.authType === "api_key" ? "agent" : "manual";
     const actorType = req.auth?.authType === "api_key" ? "AGENT" : "USER";
     const actorName =
@@ -89,62 +87,45 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
         ? req.auth.apiKeyName || "agent_runtime"
         : req.auth.email || "release_owner";
 
-    await run(
-      `INSERT INTO releases (
-      id, workspace_id, version, release_type, environment, status, created_at, updated_at,
-      release_ref, trigger_source, mappings_json, collection_deadline, verdict_issued_at, ai_context_json, commit_sha, pr_number, callback_url
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        releaseId,
-        req.params.workspaceId,
-        version,
-        release_type,
-        environment,
-        "COLLECTING",
-        now,
-        now,
-        version,
-        triggerSource,
-        "{}",
-        deadline,
-        null,
-        JSON.stringify(ai_context || {}),
-        commit_sha || null,
-        pr_number || null,
-        normalizedCallbackUrl
-      ]
-    );
-
-    await writeAudit({
+    const out = await openReleaseSession({
       workspaceId: req.params.workspaceId,
-      releaseId,
-      eventType: "RELEASE_CREATED",
-      actorType,
-      actorName,
-      details: {
-        version,
-        release_type,
-        environment,
-        ai_context,
-        commit_sha: commit_sha || null,
-        pr_number: pr_number || null,
-        callback_url: normalizedCallbackUrl,
-        trigger_source: triggerSource
-      }
+      version,
+      releaseRef: version,
+      releaseType: release_type,
+      environment: "pre-prod",
+      source: triggerSource,
+      mappings: {},
+      aiContext: ai_context || {},
+      commitSha: commit_sha,
+      prNumber: pr_number,
+      githubOwner: github_owner,
+      githubRepo: github_repo,
+      githubBranch: github_branch,
+      callbackUrl: normalizedCallbackUrl,
+      auditEventType: "RELEASE_CREATED",
+      auditActorType: actorType,
+      auditActorName: actorName
     });
 
-    return res.status(201).json({
-      id: releaseId,
+    const release = out.release;
+    const statusCode = out.reused ? 200 : 201;
+
+    return res.status(statusCode).json({
+      id: release.id,
       workspace_id: req.params.workspaceId,
       version,
       release_type,
-      environment,
-      commit_sha: commit_sha || null,
-      pr_number: pr_number || null,
-      status: "COLLECTING",
-      collection_deadline: deadline,
+      environment: "pre-prod",
+      commit_sha: release.commit_sha || null,
+      pr_number: release.pr_number ?? null,
+      github_owner: release.github_owner || null,
+      github_repo: release.github_repo || null,
+      github_branch: release.github_branch || null,
+      status: release.status,
+      collection_deadline: out.collection_deadline,
       callback_url: normalizedCallbackUrl,
-      trigger_source: triggerSource
+      trigger_source: triggerSource,
+      reused: out.reused
     });
   } catch (e) {
     next(e);
