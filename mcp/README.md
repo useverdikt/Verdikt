@@ -58,9 +58,9 @@ Use this flow when an agent ships code. **Do not** use bare version strings with
 ```
 GitHub PR + commit          Verdikt (cert window)           Integrations / agent
 ─────────────────          ─────────────────────           ────────────────────
-Agent opens/updates PR  →  Label verdikt:rc (or MCP      →  Pull Braintrust, BrowserStack,
-                           create_release with SHA)          Sentry, Datadog by commit_sha
-                                                          →  Or agent post_signals from CI output
+Agent opens/updates PR  →  Label verdikt:rc (or MCP      →  Auto-pull Braintrust, BrowserStack,
+                           create_release with SHA)            Sentry, Datadog by commit_sha
+                                                          →  Or agent post_signals for CI-only metrics
 Agent calls check_gate  →  Thresholds + regression +     →  merge | self_heal | escalate
                            trajectory
 ```
@@ -82,7 +82,7 @@ Best when GitHub App is connected in **Settings → Release Trigger**. GitHub is
 
 1. Agent opens or updates a PR on a connected repo.
 2. Apply label **`verdikt:rc`** (or agent `create_release` with `commit_sha`, `pr_number`, `github_owner`, `github_repo`).
-3. Verdikt opens a cert window tied to PR# + SHA. Signals arrive via **integration pull** or agent **`post_signals`** — not from GHA by default.
+3. Verdikt opens a cert window tied to PR# + SHA and **auto-pulls connected integrations**. Agent **`post_signals`** only for CI-only metrics — not from GHA by default.
 4. Agent calls `check_gate(release_id, mode: "strict")`.
 5. Read **`action`**: `merge` → merge PR; `self_heal` → fix and re-pull/post signals; `escalate` → call `escalate` (human inbox at **Escalations**).
 
@@ -165,7 +165,7 @@ Repo: {OWNER}/{REPO}
 
 Steps:
 1. If no release exists: apply label verdikt:rc OR create_release with version, commit_sha, pr_number, github_owner, github_repo.
-2. Trigger integration pull or post_signals with real metrics (do not invent values).
+2. After label: wait for auto-pull, or post_signals for CI-only metrics (do not invent values).
 3. get_verdict — report status and blocking_signals.
 4. check_gate mode strict — report action, exit_code, can_merge, trajectory.
 5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool, do not merge.
@@ -200,4 +200,4 @@ escalate(
 )
 ```
 
-Humans acknowledge in **Escalations** inbox; SLA reminders use **Settings → Governance** escalation email.
+Humans resolve in **Escalations** inbox via **Acknowledge & Override** (one step); SLA reminders use **Settings → Governance** escalation email.

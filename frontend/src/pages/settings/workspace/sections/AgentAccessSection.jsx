@@ -169,7 +169,7 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
             {mcpSnippet}
           </pre>
           <p className="muted" style={{ marginTop: 12 }}>
-            Production flow: <code>verdikt:rc</code> label → integration pull or <code>post_signals</code> →{" "}
+            Production flow: <code>verdikt:rc</code> label → auto integration pull →{" "}
             <code>check_gate</code> reads <code>action</code> (<code>merge</code> | <code>self_heal</code> |{" "}
             <code>escalate</code>). See playbook below.
           </p>

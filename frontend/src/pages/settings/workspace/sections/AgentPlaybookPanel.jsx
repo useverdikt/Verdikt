@@ -7,7 +7,7 @@ const STEPS = [
   },
   {
     title: "Collect signals",
-    body: "Verdikt pulls from connected integrations by commit SHA, or the agent posts real CI/eval metrics via post_signals. Never invent values."
+    body: "On verdikt:rc, Verdikt auto-pulls connected integrations by commit SHA. Agent can also post_signals for CI-only metrics. Never invent values."
   },
   {
     title: "Check gate",
@@ -28,7 +28,7 @@ Repo: ${owner}/${repo}
 
 Steps:
 1. Ensure cert window exists (verdikt:rc label OR create_release with GitHub identity above).
-2. Confirm required signals are present (integration pull or post_signals from CI).
+2. Wait for integration auto-pull on label, or post_signals for CI-only metrics.
 3. get_verdict — report status and blocking_signals.
 4. check_gate — report action, can_merge, gate.exit_code, trajectory.
 5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool; do not merge.
