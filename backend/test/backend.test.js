@@ -63,6 +63,19 @@ describe("API integration", () => {
     return { raw, sig: `sha256=${sig}` };
   }
 
+  async function waitForAuditEvent(releaseId, eventType, { timeoutMs = 5000 } = {}) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const row = await queryOne(
+        "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+        [releaseId, eventType]
+      );
+      if (row) return row;
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    return null;
+  }
+
   it("GET /health returns ok", async () => {
     const res = await request(app).get("/health").expect(200);
     assert.equal(res.body.ok, true);
@@ -448,6 +461,84 @@ describe("API integration", () => {
       [ws, prNumber, sha]
     );
     assert.equal(Number(count?.c || 0), 1);
+  });
+
+  it("GitHub label trigger schedules async integration pull from connected sources", async () => {
+    const prNumber = 95000 + crypto.randomInt(9999);
+    const sha = crypto.randomBytes(8).toString("hex");
+    const email = `ghpull_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const repo = `PullOnLabel${crypto.randomBytes(3).toString("hex")}`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHPull" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+    await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "verdikt:rc", enabled: true })
+      .expect(200);
+    await agent.put(`/api/workspaces/${ws}/signal-integrations/braintrust`).send({ apiKey: "bt_test_mock_key" }).expect(200);
+
+    const payload = {
+      action: "labeled",
+      label: { name: "verdikt:rc" },
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: {
+        number: prNumber,
+        title: "Auto pull on label",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
+        labels: [{ name: "verdikt:rc" }],
+        head: { sha, ref: "feat/auto-pull" }
+      }
+    };
+    const signed = signGithubPayload(payload);
+
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(201);
+
+    const audit = await waitForAuditEvent(hook.body.release_id, "SIGNAL_SOURCES_PULL");
+    assert.ok(audit, "expected async SIGNAL_SOURCES_PULL audit after label trigger");
+    assert.equal(audit.actor_type, "SYSTEM");
+    assert.equal(audit.actor_name, "github_label_trigger");
+    const details = JSON.parse(audit.details_json || "{}");
+    assert.equal(details.trigger, "github_label");
+    assert.equal(details.async, true);
+    assert.ok(Array.isArray(details.sources));
+
+    const signalCount = await queryOne(
+      "SELECT COUNT(*) AS c FROM signals WHERE release_id = ? AND source = ?",
+      [hook.body.release_id, "pulled:braintrust"]
+    );
+    assert.ok(Number(signalCount?.c || 0) > 0);
+
+    const reused = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    assert.equal(reused.body.reused, true);
+    const auditReused = await waitForAuditEvent(hook.body.release_id, "SIGNAL_SOURCES_PULL");
+    assert.ok(auditReused);
+    const pullCount = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ? AND event_type = ?",
+      [hook.body.release_id, "SIGNAL_SOURCES_PULL"]
+    );
+    assert.ok(Number(pullCount?.c || 0) >= 2);
   });
 
   it("GitHub label trigger deduplicates concurrent simultaneous deliveries (race condition)", async () => {
