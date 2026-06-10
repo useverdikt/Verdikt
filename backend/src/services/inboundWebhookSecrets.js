@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const { queryOne, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { encryptToken, decryptToken, migratePlaintextFieldIfNeeded, looksEncrypted } = require("../lib/encryption");
-const { WEBHOOK_SECRET, WEBHOOK_FALLBACK_SECRET } = require("../config");
+const { WEBHOOK_SECRET, WEBHOOK_FALLBACK_SECRET, IS_PROD_LIKE } = require("../config");
 
 /**
  * Ensures a random per-workspace signing secret exists (encrypted at rest when configured).
@@ -89,13 +89,8 @@ async function verifyInboundWebhookSignature(req, workspaceIdFromRoute = null) {
 
   const provided = signature.slice("sha256=".length);
 
-  const candidates = [];
   const wsSecret = await getPlaintextInboundSecret(workspaceId);
-  if (wsSecret) candidates.push(wsSecret);
-  if (WEBHOOK_FALLBACK_SECRET) candidates.push(WEBHOOK_FALLBACK_SECRET);
-  if (WEBHOOK_SECRET) candidates.push(WEBHOOK_SECRET);
-
-  const uniq = [...new Set(candidates.filter(Boolean))];
+  const uniq = buildInboundSecretCandidates(wsSecret);
   for (const secret of uniq) {
     const expected = hmacHex(secret, rawBody);
     if (timingEqualExpectedProvided(expected, provided)) return true;
@@ -103,8 +98,25 @@ async function verifyInboundWebhookSignature(req, workspaceIdFromRoute = null) {
   return false;
 }
 
+/**
+ * Per-workspace secret always; global fallbacks only outside production-like mode.
+ * @param {string | null | undefined} wsSecret
+ * @param {{ allowGlobalFallbacks?: boolean }} [opts]
+ */
+function buildInboundSecretCandidates(wsSecret, opts = {}) {
+  const allowGlobalFallbacks = opts.allowGlobalFallbacks ?? !IS_PROD_LIKE;
+  const candidates = [];
+  if (wsSecret) candidates.push(wsSecret);
+  if (allowGlobalFallbacks) {
+    if (WEBHOOK_FALLBACK_SECRET) candidates.push(WEBHOOK_FALLBACK_SECRET);
+    if (WEBHOOK_SECRET) candidates.push(WEBHOOK_SECRET);
+  }
+  return [...new Set(candidates.filter(Boolean))];
+}
+
 module.exports = {
   ensureInboundWebhookSecret,
   getPlaintextInboundSecret,
-  verifyInboundWebhookSignature
+  verifyInboundWebhookSignature,
+  buildInboundSecretCandidates
 };
