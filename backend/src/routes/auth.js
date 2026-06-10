@@ -232,9 +232,12 @@ module.exports = function registerAuthRoutes(app) {
             "No application user for this Supabase account. Use Supabase Postgres (DATABASE_URL) with migrations applied, or add auth_user_id in local SQLite."
         });
       }
-      const token = signToken(userRow);
+      const effectiveRole =
+        (await getEffectiveRoleForWorkspace(userRow.id, userRow.workspace_id)) || userRow.role;
+      const sessionUser = { ...userRow, role: effectiveRole };
+      const token = signToken(sessionUser);
       setAuthCookies(res, token);
-      return res.json({ user: publicUser(userRow) });
+      return res.json({ user: publicUser(sessionUser) });
     } catch (e) {
       console.error(`[${req.requestId}] session-from-supabase`, e);
       return res.status(500).json({ error: "Session exchange failed" });
@@ -453,6 +456,12 @@ module.exports = function registerAuthRoutes(app) {
   app.get("/api/auth/me", authMiddleware, async (req, res) => {
     const userRow = await getUserRowForAuthById(req.auth.sub);
     if (!userRow) return res.status(401).json({ error: "User not found" });
-    return res.json({ user: publicUser(userRow) });
+    return res.json({
+      user: publicUser({
+        ...userRow,
+        role: req.auth.role || userRow.role,
+        workspace_id: req.auth.ws || userRow.workspace_id
+      })
+    });
   });
 };

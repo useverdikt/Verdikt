@@ -2,6 +2,7 @@
 
 const { writeAudit } = require("./audit");
 const { pullConnectedSourcesForRelease } = require("./signalIngestFromSources");
+const { summarizePullResult } = require("./integrationPullStatus");
 
 /**
  * Pull connected integrations for a release opened by GitHub label trigger.
@@ -11,6 +12,7 @@ async function runIntegrationPullForRelease(releaseRow, { requestId = null, trig
   if (!releaseRow?.id) return { skipped: true, reason: "missing_release" };
 
   const out = await pullConnectedSourcesForRelease(releaseRow);
+  const summary = summarizePullResult(out, releaseRow);
 
   await writeAudit({
     workspaceId: releaseRow.workspace_id,
@@ -22,6 +24,9 @@ async function runIntegrationPullForRelease(releaseRow, { requestId = null, trig
       trigger,
       ok: out.ok,
       sources: out.sources ? Object.keys(out.sources) : [],
+      results: summary.results,
+      warnings: summary.warnings,
+      commit_sha: releaseRow.commit_sha || null,
       request_id: requestId || null,
       async: true
     }
@@ -31,11 +36,12 @@ async function runIntegrationPullForRelease(releaseRow, { requestId = null, trig
     console.log(`[${requestId}] github label integration pull`, {
       release_id: releaseRow.id,
       ok: out.ok,
-      sources: out.sources ? Object.keys(out.sources) : []
+      sources: out.sources ? Object.keys(out.sources) : [],
+      warnings: summary.warnings?.length || 0
     });
   }
 
-  return out;
+  return { ...out, integration_pull: summary };
 }
 
 /** Fire-and-forget integration pull after label webhook opens or reuses a cert window. */

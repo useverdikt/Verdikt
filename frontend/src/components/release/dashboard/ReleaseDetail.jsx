@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import IntegrationPullBanner from "../../IntegrationPullBanner.jsx";
 import {
   evaluateSignalLocal,
   formatSignalValueLocal,
@@ -189,6 +190,13 @@ export default function ReleaseDetail({
         <div>
           {release.status === "collecting" ? (
             <>
+              {release.integration_pull && (
+                <IntegrationPullBanner
+                  integrationPull={release.integration_pull}
+                  releaseId={simReleaseId}
+                  compact
+                />
+              )}
               {midCollecting}
               <div className="dl" style={{ marginTop: 18 }}>
                 Actions
