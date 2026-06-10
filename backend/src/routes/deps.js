@@ -42,6 +42,7 @@ const {
   buildIntelligenceTrace,
   resolveReleaseForWorkspaceIngest
 } = require("../services/domain");
+const { normalizeCommitSha } = require("../services/releaseIdentity");
 const { verifyCertificationRecord, getCertSignaturePublic, signCertificationRecord } = require("../services/certSigner");
 const { verifyAuditIntegrity } = require("../services/auditIntegrity");
 const { getBaselinePolicy, setBaselinePolicy } = require("../services/baselineEngine");
@@ -133,6 +134,7 @@ module.exports = {
   assessOverrideJustification,
   buildIntelligenceTrace,
   resolveReleaseForWorkspaceIngest,
+  normalizeCommitSha,
   verifyCertificationRecord,
   getCertSignaturePublic,
   signCertificationRecord,

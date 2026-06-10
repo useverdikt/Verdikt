@@ -389,19 +389,42 @@ curl -sS -X POST "$BASE/api/workspaces/ws_demo/integrations/evals" \
 
 ## CI/CD release gate contract
 
+### By release ID (MCP / agents)
+
 `GET /api/releases/:releaseId/gate`
 
 - Query param: `mode` (optional)
   - `default` (or omitted): allows `CERTIFIED` and `CERTIFIED_WITH_OVERRIDE`
   - `strict`: allows `CERTIFIED` only
 
-Response:
+### By commit SHA (GitHub Actions)
+
+`GET /api/workspaces/:workspaceId/gate`
+
+- Query params:
+  - `commit_sha` (required) — PR head SHA
+  - `github_owner`, `github_repo`, `pr_number` (recommended — disambiguates)
+  - `mode` (optional) — same as above
+- Auth: workspace API key (`Authorization: Bearer vdk_live_…`)
+- Returns `404` if no cert window exists for that SHA (apply `verdikt:rc` first)
+
+Example (GHA-friendly):
+
+```bash
+curl -sS "$BASE/api/workspaces/$WS/gate?commit_sha=$SHA&pr_number=$PR&github_owner=$OWNER&github_repo=$REPO" \
+  -H "Authorization: Bearer $VERDIKT_API_KEY"
+```
+
+Copy-paste workflow: `docs/examples/verdikt-gate-gha.yml`
+
+Response (both endpoints):
 
 - `gate.allowed` (boolean)
 - `gate.reason` (string)
 - `gate.exit_code` (`0` or `1`) for direct pipeline use
+- `action`: `merge` | `self_heal` | `escalate`
 
-Example:
+Example exit-code check:
 
 ```bash
 GATE=$(curl -sS "$BASE/api/releases/$REL_ID/gate?mode=strict" -H "Authorization: Bearer $TOKEN")

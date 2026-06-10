@@ -1,0 +1,47 @@
+# Optional: block PR merge until Verdikt certifies this commit.
+#
+# Copy to your repo as .github/workflows/verdikt-gate.yml and set secrets:
+#   VERDIKT_API_URL     — e.g. https://api.useverdikt.com
+#   VERDIKT_API_KEY     — workspace API key (Settings → Agent access)
+#   VERDIKT_WORKSPACE_ID
+#
+# Prerequisites:
+#   1. GitHub label trigger configured in Verdikt (verdikt:rc on PR)
+#   2. Branch protection requires this check to pass before merge
+#
+# Flow: label opens cert window → signals collect → this job asks gate by commit SHA.
+
+name: Verdikt gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  verdikt-gate:
+    if: contains(github.event.pull_request.labels.*.name, 'verdikt:rc')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check Verdikt gate
+        env:
+          VERDIKT_API_URL: ${{ secrets.VERDIKT_API_URL }}
+          VERDIKT_API_KEY: ${{ secrets.VERDIKT_API_KEY }}
+          VERDIKT_WORKSPACE_ID: ${{ secrets.VERDIKT_WORKSPACE_ID }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          URL="${VERDIKT_API_URL%/}/api/workspaces/${VERDIKT_WORKSPACE_ID}/gate"
+          QUERY="commit_sha=${COMMIT_SHA}&pr_number=${PR_NUMBER}&github_owner=${REPO_OWNER}&github_repo=${REPO_NAME}&mode=default"
+          RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
+          echo "$RESP" | jq .
+          EXIT=$(echo "$RESP" | jq -r '.gate.exit_code // 1')
+          REASON=$(echo "$RESP" | jq -r '.gate.reason // "gate failed"')
+          ACTION=$(echo "$RESP" | jq -r '.action // "unknown"')
+          echo "Verdikt: action=${ACTION} — ${REASON}"
+          exit "$EXIT"
