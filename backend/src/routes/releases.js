@@ -42,6 +42,7 @@ const {
   extendCollectionDeadline,
   AI_SIGNAL_DEFINITIONS
 } = require("./deps");
+const { computeReleaseTrajectory } = require("../services/gateTrajectory");
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -457,6 +458,51 @@ app.post("/api/releases/:releaseId/intelligence/outcome", authMiddleware, requir
   }
 });
 
+app.post("/api/releases/:releaseId/escalate", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+  try {
+    const release = req.releaseRow;
+    const { reason, blocking_signals = [], attempted_fixes = [] } = req.body || {};
+    const justification = String(reason || "").trim();
+    if (!justification) {
+      return res.status(400).json({ error: "reason is required" });
+    }
+    if (release.status === "CERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE") {
+      return res.status(400).json({ error: "release is already certified; escalation not needed" });
+    }
+
+    const actorType = req.auth?.authType === "api_key" ? "AGENT" : "USER";
+    const actorName =
+      req.auth?.authType === "api_key"
+        ? req.auth.apiKeyName || "agent_runtime"
+        : req.auth.email || "user";
+
+    await writeAudit({
+      workspaceId: release.workspace_id,
+      releaseId: req.params.releaseId,
+      eventType: "ESCALATION_REQUESTED",
+      actorType,
+      actorName,
+      details: {
+        reason: justification.slice(0, 2000),
+        blocking_signals: Array.isArray(blocking_signals) ? blocking_signals : [],
+        attempted_fixes: Array.isArray(attempted_fixes) ? attempted_fixes : [],
+        status: release.status
+      }
+    });
+
+    return res.status(202).json({
+      release_id: req.params.releaseId,
+      status: release.status,
+      escalation: {
+        state: "pending_human_review",
+        reason: justification.slice(0, 2000)
+      }
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
   const release = req.releaseRow;
@@ -477,13 +523,28 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
       ? "strict mode requires CERTIFIED without override"
       : reason;
 
+  const intelligence = await getReleaseIntelligence(req.params.releaseId);
+  const failedSignals = intelligence?.verdict?.failed_signals ?? [];
+  const blockingSignals = failedSignals.map((f) => f.signal_id).filter(Boolean);
+  const trajectoryInfo = await computeReleaseTrajectory({
+    workspaceId: release.workspace_id,
+    releaseId: req.params.releaseId,
+    releaseRow: release
+  });
+
   await writeAudit({
     workspaceId: release.workspace_id,
     releaseId: req.params.releaseId,
     eventType: "RELEASE_GATE_CHECKED",
-    actorType: "SYSTEM",
-    actorName: "ci_pipeline",
-    details: { mode, allowed: gateAllowed, status: release.status, reason: gateReason }
+    actorType: req.auth?.authType === "api_key" ? "AGENT" : "SYSTEM",
+    actorName: req.auth?.authType === "api_key" ? req.auth.apiKeyName || "agent_runtime" : "ci_pipeline",
+    details: {
+      mode,
+      allowed: gateAllowed,
+      status: release.status,
+      reason: gateReason,
+      trajectory: trajectoryInfo.trajectory
+    }
   });
 
   return res.json({
@@ -491,10 +552,17 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
     workspace_id: release.workspace_id,
     status: release.status,
     mode,
+    certified: allowed,
+    can_merge: gateAllowed,
+    blocking_signals: blockingSignals,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,
-      exit_code: gateAllowed ? 0 : 1
+      exit_code: gateAllowed ? 0 : 1,
+      trajectory: trajectoryInfo.trajectory,
+      degrading_signals: trajectoryInfo.degrading_signals,
+      improving_signals: trajectoryInfo.improving_signals,
+      trend_note: trajectoryInfo.trend_note
     }
   });
   } catch (e) {

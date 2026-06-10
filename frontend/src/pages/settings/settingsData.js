@@ -3,6 +3,7 @@
 export const SECTION_LABELS = {
   general: "General",
   team: "Team & Roles",
+  agent: "Agent access",
   api: "Signal Sources",
   trigger: "Release Trigger",
   governance: "Governance",
