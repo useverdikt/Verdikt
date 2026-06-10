@@ -19,3 +19,6 @@ backend/data/backups/
 
 # Local signal simulator CSV exports (repo root)
 /signals-*.csv
+
+# Internal-only docs (not for repo / partners)
+docs/TECH_DEBT.md
