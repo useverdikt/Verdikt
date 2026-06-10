@@ -47,6 +47,7 @@ const { getMissingRequiredSignals } = require("../services/verdictEngine");
 const { computeGateAction } = require("../services/releaseIdentity");
 const { getWorkspacePolicy } = require("../services/workspaceConfig");
 const { createEscalationRequest, notifyEscalationCreated } = require("../services/escalations");
+const { applyReleaseOverride } = require("../services/releaseOverride");
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -192,127 +193,26 @@ app.post("/api/releases/:releaseId/override", authMiddleware, requireReleaseAcce
     justification,
     metadata = {}
   } = req.body || {};
-  if (!justification) {
-    return res.status(400).json({ error: "justification is required" });
-  }
   const authUser = await getUserRowForAuthById(req.auth.sub);
   const approver_name = authUser?.name || authUser?.email || req.auth.email;
   const approver_role = authUser?.role || req.auth.role;
-  const impactSummary = typeof metadata.impact_summary === "string" ? metadata.impact_summary.trim() : "";
-  const mitigationPlan = typeof metadata.mitigation_plan === "string" ? metadata.mitigation_plan.trim() : "";
-  const followUpDueDate = typeof metadata.follow_up_due_date === "string" ? metadata.follow_up_due_date.trim() : "";
-  if (impactSummary.length < 8 || mitigationPlan.length < 8 || !/^\d{4}-\d{2}-\d{2}$/.test(followUpDueDate)) {
-    return res.status(400).json({
-      error: "metadata.impact_summary, metadata.mitigation_plan, and metadata.follow_up_due_date (YYYY-MM-DD) are required"
-    });
-  }
-  const release = req.releaseRow;
 
-  if (release.status === "CERTIFIED") {
-    return res.status(400).json({ error: "override not needed for certified release" });
-  }
-  if (release.status === "CERTIFIED_WITH_OVERRIDE") {
-    return res.status(400).json({ error: "release already has an approved override; create a new release to change certification" });
-  }
-
-  const ts = nowIso();
-  await run(
-    `INSERT INTO override_history (release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      req.params.releaseId,
-      approver_type.toUpperCase(),
-      approver_name,
-      approver_role,
-      justification,
-      JSON.stringify(metadata),
-      ts
-    ]
-  );
-  const existingOv = await queryOne("SELECT created_at FROM overrides WHERE release_id = ?", [req.params.releaseId]);
-  const overrideCreatedAt = existingOv?.created_at || ts;
-  await run(
-    `INSERT INTO overrides (release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(release_id) DO UPDATE SET
-       approver_type = excluded.approver_type,
-       approver_name = excluded.approver_name,
-       approver_role = excluded.approver_role,
-       justification = excluded.justification,
-       metadata_json = excluded.metadata_json,
-       updated_at = excluded.updated_at`,
-    [
-      req.params.releaseId,
-      approver_type.toUpperCase(),
-      approver_name,
-      approver_role,
-      justification,
-      JSON.stringify(metadata),
-      overrideCreatedAt,
-      ts
-    ]
-  );
-
-  await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
-    "CERTIFIED_WITH_OVERRIDE",
-    nowIso(),
-    req.params.releaseId
-  ]);
-
-  const deltaRowsForOverride = await listReleaseDeltas(req.params.releaseId);
-  const regression_signals = deltaRowsForOverride.filter((d) => !d.passed).map((d) => d.signal_id);
-
-  const overrideAssessment = await assessOverrideJustification({
+  const out = await applyReleaseOverride(req.releaseRow, {
+    approver_type,
+    approver_name,
+    approver_role,
     justification,
-    metadata,
-    workspaceId: release.workspace_id,
-    regression_signals
+    metadata
   });
-  const overrideTrace = buildIntelligenceTrace({
-    releaseId: req.params.releaseId,
-    workspaceId: release.workspace_id,
-    releaseType: release.release_type,
-    output: overrideAssessment
-  });
-  await upsertReleaseIntelligence(req.params.releaseId, release.workspace_id, {
-    override: overrideAssessment,
-    trace: overrideTrace
-  });
-
-  await writeAudit({
-    workspaceId: release.workspace_id,
-    releaseId: req.params.releaseId,
-    eventType: "OVERRIDE_APPROVED",
-    actorType: approver_type.toUpperCase(),
-    actorName: approver_name,
-    details: { approver_role, justification, metadata }
-  });
-  await writeAudit({
-    workspaceId: release.workspace_id,
-    releaseId: req.params.releaseId,
-    eventType: "OVERRIDE_JUSTIFICATION_ASSESSED",
-    actorType: "SYSTEM",
-    actorName: "assistive_intelligence",
-    details: overrideAssessment
-  });
-
-  // Sign the override certification record
-  let overrideCertSig = null;
-  try {
-    const freshRelease = await queryOne("SELECT * FROM releases WHERE id = ?", [req.params.releaseId]);
-    if (freshRelease) {
-      const intel = await getReleaseIntelligence(req.params.releaseId);
-      overrideCertSig = await signCertificationRecord(freshRelease, intel?.verdict);
-    }
-  } catch (_) { /* non-fatal */ }
+  if (!out.ok) {
+    return res.status(out.statusCode || 400).json({ error: out.error });
+  }
 
   return res.json({
-    release_id: req.params.releaseId,
-    status: "CERTIFIED_WITH_OVERRIDE",
-    assistive: {
-      override_assessment: overrideAssessment
-    },
-    cert_signature: overrideCertSig
+    release_id: out.release_id,
+    status: out.status,
+    assistive: out.assistive,
+    cert_signature: out.cert_signature
   });
   } catch (e) {
     next(e);

@@ -6,6 +6,7 @@ const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { getWorkspacePolicy } = require("./workspaceConfig");
 const { sendEscalationRequestedEmail, sendEscalationSlaReminderEmail } = require("./email");
+const { applyReleaseOverride } = require("./releaseOverride");
 
 const PENDING = "pending_human_review";
 const RESOLVED = "resolved";
@@ -202,6 +203,71 @@ async function acknowledgeEscalation({ workspaceId, escalationId, actorEmail, no
   return { ok: true, escalation: rowToEscalation(updated) };
 }
 
+async function acknowledgeEscalationWithOverride({
+  workspaceId,
+  escalationId,
+  actorEmail,
+  actorName,
+  actorRole,
+  note = "",
+  justification,
+  metadata = {}
+}) {
+  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = ? AND workspace_id = ?", [
+    escalationId,
+    workspaceId
+  ]);
+  if (!row) return { ok: false, error: "not_found" };
+  if (row.state !== PENDING) return { ok: false, error: "not_pending", state: row.state };
+
+  const release = await queryOne("SELECT * FROM releases WHERE id = ? AND workspace_id = ?", [
+    row.release_id,
+    workspaceId
+  ]);
+  if (!release) return { ok: false, error: "release_not_found" };
+
+  const overrideOut = await applyReleaseOverride(release, {
+    approver_type: "PERSON",
+    approver_name: actorName || actorEmail || "user",
+    approver_role: actorRole || null,
+    justification,
+    metadata
+  });
+  if (!overrideOut.ok) {
+    return {
+      ok: false,
+      error: overrideOut.error,
+      statusCode: overrideOut.statusCode || 400
+    };
+  }
+
+  const now = nowIso();
+  await run(
+    `UPDATE escalation_requests SET state = ?, acknowledged_at = ?, acknowledged_by = ?, updated_at = ? WHERE id = ?`,
+    [RESOLVED, now, actorEmail || actorName || "user", now, escalationId]
+  );
+
+  await writeAudit({
+    workspaceId,
+    releaseId: row.release_id,
+    eventType: "ESCALATION_ACKNOWLEDGED_WITH_OVERRIDE",
+    actorType: "USER",
+    actorName: actorEmail || actorName || "user",
+    details: {
+      escalation_id: escalationId,
+      note: String(note || "").slice(0, 500),
+      override_status: overrideOut.status
+    }
+  });
+
+  const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = ?", [escalationId]);
+  return {
+    ok: true,
+    escalation: rowToEscalation(updated),
+    override: overrideOut
+  };
+}
+
 async function runEscalationSlaSweep() {
   const now = nowIso();
   const nowMs = Date.now();
@@ -254,6 +320,7 @@ module.exports = {
   notifyEscalationCreated,
   listEscalationsForWorkspace,
   acknowledgeEscalation,
+  acknowledgeEscalationWithOverride,
   runEscalationSlaSweep,
   PENDING,
   RESOLVED

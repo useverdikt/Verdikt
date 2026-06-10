@@ -10,8 +10,8 @@ Verdikt is the **trust layer between AI agents and production**. It certifies **
 ## Production flow (preferred)
 
 1. Open or update a PR on a GitHub repo connected in **Settings → Release Trigger**.
-2. Apply label **`verdikt:rc`** (or configured label) → Verdikt opens a cert window for `commit_sha` + `pr_number`.
-3. Signals arrive via **connected integrations** (Braintrust, BrowserStack, Sentry, Datadog) or **`post_signals`** / MCP with real CI output — do **not** invent values.
+2. Apply label **`verdikt:rc`** (or configured label) → Verdikt opens a cert window for `commit_sha` + `pr_number` and **auto-pulls connected integrations**.
+3. Signals arrive from integrations (Braintrust, BrowserStack, Sentry, Datadog) or **`post_signals`** / MCP with real CI output — do **not** invent values. No manual `sources/pull` needed after label.
 4. Call **`check_gate(release_id)`** (workspace default mode in Settings → Governance; use `mode: strict` when in doubt).
 5. Read **`action`**:
    - **`merge`** — merge/deploy allowed (`gate.exit_code === 0`)
