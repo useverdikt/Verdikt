@@ -18,7 +18,7 @@ export function useAppNavigation() {
 
   useEffect(() => {
     const p = location.pathname.replace(/\/$/, "") || "/";
-    const known = new Set(["/releases", "/trends", "/thresholds", "/audit"]);
+    const known = new Set(["/releases", "/trends", "/thresholds", "/audit", "/escalations"]);
     if (!known.has(p)) navigate("/releases", { replace: true });
   }, [location.pathname, navigate]);
 
@@ -28,7 +28,8 @@ export function useAppNavigation() {
       "/releases": "release",
       "/trends": "trend",
       "/thresholds": "thresholds",
-      "/audit": "audit"
+      "/audit": "audit",
+      "/escalations": "escalations"
     };
     return map[p] || "release";
   }, [location.pathname]);

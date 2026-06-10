@@ -10,6 +10,10 @@ const {
   startCollectionDeadlineSweepJob
 } = require("./jobs/collectionSweep");
 const { runVcsMonitorSweep, startVcsMonitorSweepJob } = require("./jobs/vcsMonitorSweep");
+const {
+  runEscalationSlaSweepJobOnce,
+  startEscalationSlaSweepJob
+} = require("./jobs/escalationSlaSweep");
 
 const SHUTDOWN_MS = Math.max(1000, Number(process.env.SHUTDOWN_GRACE_MS || 10_000));
 
@@ -39,6 +43,8 @@ async function startServer() {
   await runCollectionDeadlineSweep();
   const sweepInterval = startCollectionDeadlineSweepJob();
   const vcsMonitorInterval = startVcsMonitorSweepJob();
+  const escalationSlaInterval = startEscalationSlaSweepJob();
+  await runEscalationSlaSweepJobOnce();
   // Run an initial VCS sweep shortly after startup to pick up any windows
   // that were pending before the last restart
   setTimeout(() => void runVcsMonitorSweep().catch(() => {}), 8_000);
@@ -55,6 +61,7 @@ async function startServer() {
     console.warn(`Received ${signal}, closing HTTP server and database…`);
     if (sweepInterval) clearInterval(sweepInterval);
     if (vcsMonitorInterval) clearInterval(vcsMonitorInterval);
+    if (escalationSlaInterval) clearInterval(escalationSlaInterval);
     server.close(async (err) => {
       // start-server-and-test (and some hosts) may close the socket before our handler runs
       if (err && err.code !== "ERR_SERVER_NOT_RUNNING") {

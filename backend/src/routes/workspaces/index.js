@@ -8,4 +8,5 @@ module.exports = function registerWorkspaceRoutes(app) {
   require("./github")(app);
   require("./intelligence")(app);
   require("./apiKeys")(app);
+  require("./escalations")(app);
 };

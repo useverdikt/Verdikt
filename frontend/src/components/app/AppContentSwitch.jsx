@@ -6,7 +6,8 @@ export default function AppContentSwitch({
   ReleaseView,
   TrendView,
   ThresholdsView,
-  AuditView
+  AuditView,
+  EscalationsView
 }) {
   // Release view owns its own layout (header + body-split) — no outer padding
   if (nav === "release") {
@@ -27,6 +28,7 @@ export default function AppContentSwitch({
       {nav === "trend" && <TrendView />}
       {nav === "thresholds" && <ThresholdsView />}
       {nav === "audit" && <AuditView />}
+      {nav === "escalations" && <EscalationsView />}
     </div>
   );
 }

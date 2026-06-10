@@ -16,10 +16,13 @@ const defaultRequiredIds = new Set(sharedPkg.defaultRequiredSignalIds || []);
 
 function normalizePolicyRow(row) {
   if (!row) return row;
-  if (typeof row.require_ai_eval === "boolean") {
-    return { ...row, require_ai_eval: row.require_ai_eval ? 1 : 0 };
+  const out = { ...row };
+  if (typeof out.require_ai_eval === "boolean") {
+    out.require_ai_eval = out.require_ai_eval ? 1 : 0;
   }
-  return row;
+  if (!out.gate_mode) out.gate_mode = "default";
+  if (out.escalation_sla_hours == null) out.escalation_sla_hours = 24;
+  return out;
 }
 
 function isDefaultRequiredSignal(signalId) {
