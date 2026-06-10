@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ROLES } from "../../settingsData.js";
 import { ROLE_CARD_ORDER, ROLE_CARD_PERMS } from "../settingsWorkspaceModel.js";
 
@@ -64,15 +64,22 @@ function RoleCards({ rolePolicy }) {
 export default function TeamSettingsSection({
   section,
   members,
-  setMembers,
+  membersLoading,
+  currentUserEmail,
   inviteEmail,
   setInviteEmail,
   inviteRole,
   setInviteRole,
   roleLabels,
   rolePolicy,
-  toast
+  toast,
+  onSendInvite,
+  onUpdateRole,
+  onRemoveMember,
+  onRevokeInvite
 }) {
+  const [inviteBusy, setInviteBusy] = useState(false);
+
   return (
     <div className={`section${section === "team" ? " active" : ""}`} id="panel-team">
       <div className="section-header">
@@ -81,107 +88,91 @@ export default function TeamSettingsSection({
           Team &amp; <em>Roles</em>
         </h1>
         <p className="section-desc">
-          You decide who can approve a release. Every override is permanently on record — named, justified, and timestamped. Who holds override authority is configurable per workspace.
+          Invite colleagues to this workspace. Everyone shares the same releases, GitHub connection, thresholds, and escalation inbox.
         </p>
-      </div>
-      <div className="sblock">
-        <div className="sblock-head">
-          <div>
-            <div className="sblock-title">Who can override</div>
-            <div className="sblock-desc">Override authority is configurable per org.</div>
-          </div>
-        </div>
-        <div className="sblock-body">
-          <div className="gov-option">
-            <div>
-              <div className="gov-label">Override submission</div>
-              <div className="gov-desc">Minimum role required to submit an override request</div>
-            </div>
-            <select className="gov-select" onChange={() => toast("Override governance updated")}>
-              <option>AI Product Lead</option>
-              <option>ML / AI Engineer</option>
-            </select>
-          </div>
-          <div className="gov-option">
-            <div>
-              <div className="gov-label">Override approval</div>
-              <div className="gov-desc">Who must sign off before an overridden release ships</div>
-            </div>
-            <select className="gov-select" onChange={() => toast("Override governance updated")}>
-              <option>AI Product Lead or VP Engineering</option>
-            </select>
-          </div>
-          <div className="gov-option">
-            <div>
-              <div className="gov-label">Smoke gate override</div>
-              <div className="gov-desc">Smoke test failures are permanently UNCERTIFIED — override is not available</div>
-            </div>
-            <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--red)", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--red)" }} />
-              LOCKED — NO OVERRIDE
-            </div>
-          </div>
-        </div>
       </div>
       <div className="sblock">
         <div className="sblock-head">
           <div>
             <div className="sblock-title">Members</div>
             <div className="sblock-desc">
-              {members.filter((m) => m.status === "active").length} members · {members.filter((m) => m.status === "pending").length} pending invites
+              {members.filter((m) => m.status === "active").length} members ·{" "}
+              {members.filter((m) => m.status === "pending").length} pending invites
             </div>
           </div>
         </div>
         <div className="sblock-body">
-          {members.map((m, i) => (
-            <div key={`${m.email}-${i}`} className="member-row">
-              <div className="member-av" style={{ background: m.color }}>
-                {m.initials}
+          {membersLoading ? (
+            <p className="muted">Loading members…</p>
+          ) : members.length === 0 ? (
+            <p className="muted">No members yet.</p>
+          ) : (
+            members.map((m, i) => (
+              <div key={`${m.email}-${m.status}-${i}`} className="member-row">
+                <div className="member-av" style={{ background: m.color }}>
+                  {m.initials}
+                </div>
+                <div className="member-info">
+                  <div className="member-name">{m.name}</div>
+                  <div className="member-email">{m.email}</div>
+                </div>
+                <div className="member-status" style={{ color: m.status === "active" ? "var(--green)" : "var(--amber)" }}>
+                  <div className="status-dot" style={{ background: m.status === "active" ? "var(--green)" : "var(--amber)" }} />
+                  {m.status === "active" ? "Active" : "Pending invite"}
+                </div>
+                {m.status === "active" ? (
+                  <select
+                    className="member-role"
+                    value={m.role}
+                    onChange={(e) => {
+                      void onUpdateRole(m.user_id, e.target.value, m.name).catch((err) =>
+                        toast(err?.message || "Could not update role")
+                      );
+                    }}
+                  >
+                    {Object.entries(roleLabels).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="member-role" style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--dim)" }}>
+                    {roleLabels[m.role] || m.role}
+                  </div>
+                )}
+                {m.status === "active" && m.email !== currentUserEmail ? (
+                  <button
+                    type="button"
+                    className="btn-remove"
+                    title="Remove member"
+                    onClick={() => {
+                      if (!window.confirm(`Remove ${m.name} from this workspace?`)) return;
+                      void onRemoveMember(m.user_id, m.name).catch((err) => toast(err?.message || "Could not remove member"));
+                    }}
+                  >
+                    ✕
+                  </button>
+                ) : m.status === "pending" ? (
+                  <button
+                    type="button"
+                    className="btn-remove"
+                    title="Revoke invite"
+                    onClick={() => {
+                      void onRevokeInvite(m.invite_id, m.email).catch((err) => toast(err?.message || "Could not revoke invite"));
+                    }}
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <div style={{ width: 26 }} />
+                )}
               </div>
-              <div className="member-info">
-                <div className="member-name">{m.name}</div>
-                <div className="member-email">{m.email}</div>
-              </div>
-              <div className="member-status" style={{ color: m.status === "active" ? "var(--green)" : "var(--amber)" }}>
-                <div className="status-dot" style={{ background: m.status === "active" ? "var(--green)" : "var(--amber)" }} />
-                {m.status === "active" ? "Active" : "Pending invite"}
-              </div>
-              <select
-                className="member-role"
-                value={m.role}
-                onChange={(e) => {
-                  const next = [...members];
-                  next[i] = { ...next[i], role: e.target.value };
-                  setMembers(next);
-                  toast(`${m.name}'s role updated to ${roleLabels[e.target.value]}`);
-                }}
-              >
-                {Object.entries(roleLabels).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-              {m.email !== "jordan@useverdikt.com" ? (
-                <button
-                  type="button"
-                  className="btn-remove"
-                  title="Remove member"
-                  onClick={() => {
-                    setMembers((prev) => prev.filter((_, j) => j !== i));
-                    toast(`${m.name} removed from workspace`);
-                  }}
-                >
-                  ✕
-                </button>
-              ) : (
-                <div style={{ width: 26 }} />
-              )}
-            </div>
-          ))}
+            ))
+          )}
         </div>
         <div className="sblock-footer" style={{ flexDirection: "column", alignItems: "stretch", gap: 12 }}>
-          <div className="footer-note">Invite a new member</div>
+          <div className="footer-note">Invite a colleague</div>
           <div className="invite-row">
             <input className="inp" placeholder="colleague@company.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
             <select className="role-select" value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
@@ -194,29 +185,21 @@ export default function TeamSettingsSection({
             <button
               type="button"
               className="btn-save"
-              disabled={!inviteEmail.trim()}
+              disabled={!inviteEmail.trim() || inviteBusy}
               onClick={() => {
                 const email = inviteEmail.trim();
                 if (!email || !email.includes("@")) {
                   toast("Enter a valid email address");
                   return;
                 }
-                setMembers((prev) => [
-                  ...prev,
-                  {
-                    name: email.split("@")[0],
-                    email,
-                    role: inviteRole,
-                    status: "pending",
-                    color: "#6b7280",
-                    initials: email.slice(0, 2).toUpperCase()
-                  }
-                ]);
-                setInviteEmail("");
-                toast(`Invite sent to ${email}`);
+                setInviteBusy(true);
+                void onSendInvite(email, inviteRole)
+                  .then(() => setInviteEmail(""))
+                  .catch((err) => toast(err?.message || "Could not send invite"))
+                  .finally(() => setInviteBusy(false));
               }}
             >
-              Send invite
+              {inviteBusy ? "Sending…" : "Send invite"}
             </button>
           </div>
         </div>
@@ -227,11 +210,6 @@ export default function TeamSettingsSection({
             <div className="sblock-title">Role permissions</div>
             <div className="sblock-desc">What each role can do inside Verdikt.</div>
           </div>
-        </div>
-        <div className="sblock-body" style={{ paddingBottom: 0 }}>
-          <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--dim)", letterSpacing: "0.1em", marginBottom: 10 }}>EDIT CORE POLICY FLAGS</div>
-          <div style={{ fontSize: 11, color: "var(--mid)", marginBottom: 10 }}>Advanced role-policy editing is hidden in MVP mode.</div>
-          <div style={{ display: "none" }} />
         </div>
         <div className="sblock-body">
           <div className="role-cards">

@@ -6,6 +6,7 @@ const { JWT_SECRET, IS_PROD_LIKE, AUTH_COOKIE_NAME, CSRF_COOKIE_NAME, COOKIE_MAX
 const { queryOne } = require("../database");
 const { getUserRowForAuthById } = require("../services/authUserLookup");
 const { authenticateApiKey, KEY_PREFIX } = require("../services/apiKeys");
+const { userHasWorkspaceAccess, getEffectiveRoleForWorkspace } = require("../services/workspaceMembers");
 const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "").trim();
 
 /** Roles allowed to approve certification overrides (server-side; product UI aligns with VP Engineering). */
@@ -108,11 +109,13 @@ async function authMiddleware(req, res, next) {
     if (row.password_changed_at && payload.pwd_at !== row.password_changed_at) {
       return res.status(401).json({ error: "Session expired — sign in again" });
     }
+    const effectiveRole =
+      (await getEffectiveRoleForWorkspace(row.id, row.workspace_id)) || row.role;
     req.auth = {
       sub: row.id,
       ws: row.workspace_id,
       email: row.email,
-      role: row.role,
+      role: effectiveRole,
       authType: "session"
     };
     next();
@@ -133,20 +136,43 @@ function requireHumanSession(req, res, next) {
   next();
 }
 
-function requireWorkspaceMatch(req, res, next) {
-  if (req.params.workspaceId !== req.auth.ws) {
-    return res.status(403).json({ error: "Workspace access denied" });
+async function requireWorkspaceMatch(req, res, next) {
+  try {
+    if (req.auth?.authType === "api_key") {
+      if (req.params.workspaceId !== req.auth.ws) {
+        return res.status(403).json({ error: "Workspace access denied" });
+      }
+      return next();
+    }
+    const allowed = await userHasWorkspaceAccess(req.auth.sub, req.params.workspaceId);
+    if (!allowed) {
+      return res.status(403).json({ error: "Workspace access denied" });
+    }
+    const role = await getEffectiveRoleForWorkspace(req.auth.sub, req.params.workspaceId);
+    if (role) req.auth.role = role;
+    next();
+  } catch (e) {
+    next(e);
   }
-  next();
 }
 
 async function requireReleaseAccess(req, res, next) {
   try {
     const release = await queryOne("SELECT * FROM releases WHERE id = ?", [req.params.releaseId]);
     if (!release) return res.status(404).json({ error: "release not found" });
-    if (req.auth.ws !== release.workspace_id) {
+    if (req.auth?.authType === "api_key") {
+      if (req.auth.ws !== release.workspace_id) {
+        return res.status(403).json({ error: "Release access denied" });
+      }
+      req.releaseRow = release;
+      return next();
+    }
+    const allowed = await userHasWorkspaceAccess(req.auth.sub, release.workspace_id);
+    if (!allowed) {
       return res.status(403).json({ error: "Release access denied" });
     }
+    const role = await getEffectiveRoleForWorkspace(req.auth.sub, release.workspace_id);
+    if (role) req.auth.role = role;
     req.releaseRow = release;
     next();
   } catch (e) {

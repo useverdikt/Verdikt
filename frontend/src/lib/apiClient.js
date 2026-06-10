@@ -123,6 +123,26 @@ export async function apiPut(path, body, options = {}) {
 
 /**
  * @param {string} path
+ * @param {unknown} [body]
+ * @param {{ navigate?: import('react-router-dom').NavigateFunction }} [options]
+ */
+export async function apiPatch(path, body, options = {}) {
+  const { navigate } = options;
+  const res = await fetch(
+    buildUrl(path),
+    apiFetchInit({
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {})
+    })
+  );
+  if (res.status === 401) handleUnauthorized(navigate);
+  if (!res.ok) throw new Error(await readErrorMessage(res, path, "PATCH"));
+  return res.json();
+}
+
+/**
+ * @param {string} path
  * @param {{ navigate?: import('react-router-dom').NavigateFunction }} [options]
  */
 export async function apiDelete(path, options = {}) {

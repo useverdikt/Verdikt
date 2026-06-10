@@ -23,10 +23,12 @@ async function main() {
   const email = (process.env.PROVISION_EMAIL || process.argv[2] || "").trim().toLowerCase();
   const password = process.env.PROVISION_PASSWORD || process.argv[3];
   const name = (process.env.PROVISION_NAME || process.argv[4] || "").trim();
+  const existingWorkspaceId = (process.env.PROVISION_WORKSPACE_ID || process.argv[5] || "").trim();
+  const role = (process.env.PROVISION_ROLE || "ai_product_lead").trim();
 
   if (!email || !email.includes("@")) {
-    console.error("Usage: node scripts/provision-user.js <email> <password> [full name]");
-    console.error("  or: PROVISION_EMAIL=... PROVISION_PASSWORD=... PROVISION_NAME='...' npm run provision:user");
+    console.error("Usage: node scripts/provision-user.js <email> <password> [full name] [workspace_id] [role]");
+    console.error("  or: PROVISION_EMAIL=... PROVISION_PASSWORD=... PROVISION_NAME='...' PROVISION_WORKSPACE_ID=ws_... npm run provision:user");
     process.exit(1);
   }
   if (typeof password !== "string" || password.length < 8) {
@@ -41,16 +43,35 @@ async function main() {
   }
 
   const id = crypto.randomUUID();
-  const workspace_id = `ws_${id.replace(/-/g, "").slice(0, 16)}`;
+  const workspace_id = existingWorkspaceId || `ws_${id.replace(/-/g, "").slice(0, 16)}`;
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const displayName =
     name || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+  if (existingWorkspaceId) {
+    const ws = await queryOne("SELECT workspace_id FROM workspace_members WHERE workspace_id = ? LIMIT 1", [
+      existingWorkspaceId
+    ]);
+    if (!ws) {
+      const rel = await queryOne("SELECT workspace_id FROM releases WHERE workspace_id = ? LIMIT 1", [
+        existingWorkspaceId
+      ]);
+      if (!rel) {
+        console.error("Workspace not found:", existingWorkspaceId);
+        process.exit(1);
+      }
+    }
+  }
+
   await run(
     "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [id, email, password_hash, displayName, workspace_id, "ai_product_lead", nowIso()]
+    [id, email, password_hash, displayName, workspace_id, role, nowIso()]
   );
-  await ensureWorkspaceSeeded(workspace_id);
+  if (!existingWorkspaceId) {
+    await ensureWorkspaceSeeded(workspace_id);
+  }
+  const { ensureMemberRow } = require("../src/services/workspaceMembers");
+  await ensureMemberRow({ workspaceId: workspace_id, userId: id, role });
 
   console.log("Created user:", email);
   console.log("Workspace ID:", workspace_id);
