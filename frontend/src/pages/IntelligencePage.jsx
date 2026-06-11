@@ -10,6 +10,7 @@ import { OverrideAnalyticsPanel } from "./intelligence/panels/OverrideAnalyticsP
 import { VcsMonitorPanel } from "./intelligence/panels/VcsMonitorPanel.jsx";
 import { ProductionHealthPanel } from "./intelligence/panels/ProductionHealthPanel.jsx";
 import { ThresholdSimulatorPanel } from "./intelligence/panels/ThresholdSimulatorPanel.jsx";
+import DeferredMount from "./intelligence/DeferredMount.jsx";
 
 export default function IntelligencePage() {
   const wsId = getWorkspaceId();
@@ -131,16 +132,26 @@ export default function IntelligencePage() {
           <div style={{ gridColumn: "1 / -1" }}>
             <CorrelationPanel wsId={wsId} />
           </div>
-          <SignalReliabilityPanel wsId={wsId} />
-          <OverrideAnalyticsPanel wsId={wsId} />
+          <DeferredMount>
+            <SignalReliabilityPanel wsId={wsId} />
+          </DeferredMount>
+          <DeferredMount>
+            <OverrideAnalyticsPanel wsId={wsId} />
+          </DeferredMount>
           <div style={{ gridColumn: "1 / -1" }}>
-            <VcsMonitorPanel wsId={wsId} />
+            <DeferredMount minHeight={160}>
+              <VcsMonitorPanel wsId={wsId} />
+            </DeferredMount>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <ProductionHealthPanel wsId={wsId} prodObservationEnabled={prodObsEnabled} />
+            <DeferredMount minHeight={160}>
+              <ProductionHealthPanel wsId={wsId} prodObservationEnabled={prodObsEnabled} />
+            </DeferredMount>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <ThresholdSimulatorPanel wsId={wsId} />
+            <DeferredMount minHeight={200}>
+              <ThresholdSimulatorPanel wsId={wsId} />
+            </DeferredMount>
           </div>
         </div>
       </div>
