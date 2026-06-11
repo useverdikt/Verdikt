@@ -7,6 +7,8 @@ const { queryOne } = require("../database");
 const { getUserRowForAuthById } = require("../services/authUserLookup");
 const { authenticateApiKey, KEY_PREFIX } = require("../services/apiKeys");
 const { userHasWorkspaceAccess, getEffectiveRoleForWorkspace } = require("../services/workspaceMembers");
+const { runWithAuditContext } = require("../lib/auditContext");
+const { resolveAgentSessionForApiKey } = require("../services/agentSession");
 const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "").trim();
 
 /** Roles allowed to approve certification overrides (server-side; product UI aligns with VP Engineering). */
@@ -75,6 +77,14 @@ function extractBearerToken(req) {
   return null;
 }
 
+function continueAuthenticated(req, res, next) {
+  const ctx = {
+    agentSessionId: req.auth?.agentSessionId || null,
+    auth: req.auth || null
+  };
+  return runWithAuditContext(ctx, () => next());
+}
+
 async function authMiddleware(req, res, next) {
   const bearer = extractBearerToken(req);
   if (bearer && bearer.startsWith(KEY_PREFIX)) {
@@ -90,7 +100,9 @@ async function authMiddleware(req, res, next) {
         apiKeyId: keyRow.id,
         apiKeyName: keyRow.name
       };
-      return next();
+      const sessionId = await resolveAgentSessionForApiKey(req, keyRow);
+      if (sessionId) req.auth.agentSessionId = sessionId;
+      return continueAuthenticated(req, res, next);
     } catch (e) {
       console.error("authMiddleware api_key", e);
       return res.status(500).json({ error: "Authentication failed" });
@@ -118,7 +130,7 @@ async function authMiddleware(req, res, next) {
       role: effectiveRole,
       authType: "session"
     };
-    next();
+    continueAuthenticated(req, res, next);
   } catch (e) {
     if (e && (e.name === "JsonWebTokenError" || e.name === "TokenExpiredError")) {
       return res.status(401).json({ error: "Invalid or expired token" });

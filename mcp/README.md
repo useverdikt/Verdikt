@@ -34,6 +34,8 @@ Local API: use `http://127.0.0.1:8787` for `VERDIKT_API_URL`.
 
 In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule: `.cursor/rules/verdikt.mdc`.
 
+**Agent session ID:** MCP sends `X-Verdikt-Agent-Session` on every request (stable per process). Audit events for that run share the same session — retrieve the chain via `GET /api/workspaces/:id/agent-sessions/:sessionId/audit`. Optional header `X-Verdikt-Agent-Label` (e.g. `cursor-pr-42`).
+
 ---
 
 ## Tools
