@@ -1,18 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   mergeReleaseIntoList,
   mergeListStubsWithExisting,
   isReleaseDetailPending,
   releaseIdsNeedingDetail,
-  coalesceReleaseDetailFetch,
-  _resetReleaseDetailFetchStateForTests
+  chartWindowPendingIds,
+  allPendingReleaseIds
 } from "./releaseDetailRefresh.js";
-
-vi.mock("./apiClient.js", () => ({
-  apiGet: vi.fn()
-}));
-
-import { apiGet } from "./apiClient.js";
 
 describe("mergeReleaseIntoList", () => {
   it("merges mapped detail by backendReleaseId and preserves local id", () => {
@@ -82,35 +76,13 @@ describe("releaseIdsNeedingDetail", () => {
   });
 });
 
-describe("coalesceReleaseDetailFetch", () => {
-  beforeEach(() => {
-    _resetReleaseDetailFetchStateForTests();
-    vi.mocked(apiGet).mockReset();
-  });
-
-  it("dedupes concurrent fetches for the same release id", async () => {
-    vi.mocked(apiGet).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(
-            () =>
-              resolve({
-                release: { id: "rel_1", status: "CERTIFIED", version: "v1" },
-                signals: []
-              }),
-            20
-          );
-        })
-    );
-
-    const navigate = vi.fn();
-    const [a, b] = await Promise.all([
-      coalesceReleaseDetailFetch("rel_1", navigate),
-      coalesceReleaseDetailFetch("rel_1", navigate)
-    ]);
-
-    expect(apiGet).toHaveBeenCalledTimes(1);
-    expect(a).toBe(b);
-    expect(a?.backendReleaseId).toBe("rel_1");
+describe("chartWindowPendingIds", () => {
+  it("returns only pending ids from the chart window slice", () => {
+    const releases = Array.from({ length: 5 }, (_, i) => ({
+      backendReleaseId: `rel_${i}`,
+      detailLoaded: i < 3
+    }));
+    expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_3", "rel_4"]);
+    expect(allPendingReleaseIds(releases)).toEqual(["rel_3", "rel_4"]);
   });
 });

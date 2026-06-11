@@ -5,11 +5,16 @@ import {
   mergeReleaseIntoList,
   refreshReleaseDetail,
   RELEASE_UPDATED_EVENT,
-  hydrateReleaseDetails,
-  coalesceReleaseDetailFetch,
+  awaitReleaseDetail,
+  enqueueReleaseHydration,
   mergeListStubsWithExisting,
   isReleaseDetailPending,
-  releaseIdsNeedingDetail
+  allPendingReleaseIds,
+  chartWindowPendingIds,
+  resetHydrationPool,
+  syncHydratedFromReleases,
+  setHydrationNavigate,
+  setOnEach
 } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
@@ -58,26 +63,42 @@ export function useWorkspaceSync(navigate, nav) {
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
-
-  const shouldSkipHydratedId = useCallback((backendReleaseId) => {
-    const row = releasesRef.current.find((r) => r.backendReleaseId === backendReleaseId);
-    return row ? !isReleaseDetailPending(row) : false;
-  }, []);
+  const workspaceIdRef = useRef(getWorkspaceId());
 
   const scheduleReleaseHydration = useCallback(
-    (mergedReleases, { isCancelled = () => false, priorityCount = 0 } = {}) => {
-      const ids = releaseIdsNeedingDetail(mergedReleases, { priorityCount });
-      if (!ids.length) return;
-      void hydrateReleaseDetails(ids, navigate, {
-        isCancelled,
-        shouldSkipId: shouldSkipHydratedId,
-        onEach: (mapped) => {
-          setReleases((prev) => mergeReleaseIntoList(prev, mapped));
+    (mergedReleases, { priorityChartWindow = false } = {}) => {
+      syncHydratedFromReleases(mergedReleases, isReleaseDetailPending);
+      const pending = allPendingReleaseIds(mergedReleases);
+      if (pending.length) {
+        enqueueReleaseHydration(pending, { priority: false });
+      }
+      if (priorityChartWindow) {
+        const chartIds = chartWindowPendingIds(mergedReleases, TREND_CHART_MAX_POINTS);
+        if (chartIds.length) {
+          enqueueReleaseHydration(chartIds, { priority: true });
         }
-      });
+      }
     },
-    [navigate, shouldSkipHydratedId]
+    []
   );
+
+  useEffect(() => {
+    if (!hasBackend()) return;
+    setHydrationNavigate(navigate);
+    setOnEach((mapped) => {
+      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
+    });
+    return () => setOnEach(null);
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!hasBackend()) return;
+    const wsId = getWorkspaceId();
+    if (workspaceIdRef.current !== wsId) {
+      resetHydrationPool();
+      workspaceIdRef.current = wsId;
+    }
+  });
 
   useEffect(() => {
     if (hasBackend()) return;
@@ -131,8 +152,7 @@ export function useWorkspaceSync(navigate, nav) {
           });
           setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
           scheduleReleaseHydration(merged, {
-            isCancelled,
-            priorityCount: nav === "trend" ? TREND_CHART_MAX_POINTS : 0
+            priorityChartWindow: nav === "trend"
           });
         } else {
           setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
@@ -224,8 +244,12 @@ export function useWorkspaceSync(navigate, nav) {
 
   useEffect(() => {
     if (!hasBackend() || nav !== "trend") return;
-    scheduleReleaseHydration(releasesRef.current, { priorityCount: TREND_CHART_MAX_POINTS });
-  }, [nav, scheduleReleaseHydration]);
+    syncHydratedFromReleases(releasesRef.current, isReleaseDetailPending);
+    const chartIds = chartWindowPendingIds(releasesRef.current, TREND_CHART_MAX_POINTS);
+    if (chartIds.length) {
+      enqueueReleaseHydration(chartIds, { priority: true });
+    }
+  }, [nav]);
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -253,7 +277,8 @@ export function useWorkspaceSync(navigate, nav) {
       if (existing && !isReleaseDetailPending(existing)) return existing;
       try {
         setApiBanner(null);
-        const mapped = await coalesceReleaseDetailFetch(backendReleaseId, navigate);
+        setHydrationNavigate(navigate);
+        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true });
         if (mapped) {
           setReleases((prev) => mergeReleaseIntoList(prev, mapped));
         }
@@ -332,7 +357,8 @@ export function useWorkspaceSync(navigate, nav) {
       if (!backendReleaseId || !hasBackend()) return null;
       try {
         setApiBanner(null);
-        const mapped = await coalesceReleaseDetailFetch(backendReleaseId, navigate);
+        setHydrationNavigate(navigate);
+        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true });
         if (!mapped) return null;
         setReleases((prev) => mergeReleaseIntoList(prev, mapped));
         return mapped;
