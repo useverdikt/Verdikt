@@ -122,4 +122,41 @@ app.delete("/api/workspaces/:workspaceId/signal-csv-imports", authMiddleware, re
     next(e);
   }
 });
+
+const {
+  getIntegrationReadiness,
+  probeIntegrationReadiness
+} = require("../../services/integrationReadiness");
+
+/** Partner onboarding: which integrations are connected and how to tag commit SHA. */
+app.get(
+  "/api/workspaces/:workspaceId/integration-readiness",
+  authMiddleware,
+  requireWorkspaceMatch,
+  async (req, res, next) => {
+    try {
+      return res.json(await getIntegrationReadiness(req.params.workspaceId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+/** Dry-run: can Verdikt find vendor data for this commit SHA? (no cert window required) */
+app.post(
+  "/api/workspaces/:workspaceId/integration-readiness/probe",
+  authMiddleware,
+  requireNonViewer,
+  requireWorkspaceMatch,
+  async (req, res, next) => {
+    try {
+      const { commit_sha, version } = req.body || {};
+      const out = await probeIntegrationReadiness(req.params.workspaceId, commit_sha, { version });
+      if (out.error) return res.status(400).json({ error: out.error });
+      return res.json(out);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 };
