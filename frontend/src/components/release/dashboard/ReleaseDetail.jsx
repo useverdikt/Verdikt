@@ -2,6 +2,11 @@ import { Link } from "react-router-dom";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import IntegrationPullBanner from "../../IntegrationPullBanner.jsx";
 import {
+  SignalEvidenceBlock,
+  SignalSourceBadge,
+  provenanceSourceForSignal
+} from "../SignalEvidenceProvenance.jsx";
+import {
   evaluateSignalLocal,
   formatSignalValueLocal,
   formatThresholdLineLocal,
@@ -107,6 +112,7 @@ export default function ReleaseDetail({
     const { pass } = evaluateSignalLocal(sig, raw, thr);
     const display = formatSignalValueLocal(sig, raw);
     const thLine = formatThresholdLineLocal(sig, thr);
+    const provSource = provenanceSourceForSignal(release, sig.id);
 
     return (
       <div className="sig-row" key={sig.id}>
@@ -114,6 +120,11 @@ export default function ReleaseDetail({
         <div className="sv">
           <div className={`sa ${pass ? "p" : "f"}`}>{display}</div>
           {thLine ? <div className="st">{thLine}</div> : null}
+          {provSource != null && !isCollecting ? (
+            <div className="st" style={{ marginTop: 4 }}>
+              <SignalSourceBadge source={provSource} compact />
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -181,6 +192,9 @@ export default function ReleaseDetail({
 
   return (
     <div className="release-detail">
+      {!isCollecting && receivedSignalCount > 0 ? (
+        <SignalEvidenceBlock release={release} showFlag />
+      ) : null}
       <div className="detail-grid">
         <div>
           <div className="dl">Signal evaluation</div>

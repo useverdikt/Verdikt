@@ -23,13 +23,13 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
     const before = typeof req.query.before === "string" && req.query.before.trim() ? req.query.before.trim() : null;
     const rows = before
       ? await queryAll(
-          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at
+          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality
            FROM releases WHERE workspace_id = ? AND created_at::timestamptz < ?::timestamptz
            ORDER BY created_at::timestamptz DESC LIMIT ?`,
           [ws, before, limit]
         )
       : await queryAll(
-          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at
+          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality
            FROM releases WHERE workspace_id = ? ORDER BY created_at::timestamptz DESC LIMIT ?`,
           [ws, limit]
         );
