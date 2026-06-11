@@ -22,14 +22,22 @@ export function setOnEach(fn) {
   onEach = fn;
 }
 
+/** Resolve all pending awaitReleaseDetail waiters (logout / workspace switch). */
+function rejectAllWaiters() {
+  for (const waiters of pendingWaiters.values()) {
+    for (const resolve of waiters) resolve(null);
+  }
+  pendingWaiters.clear();
+}
+
 /** Clear queue and hydrated state (logout / workspace switch). */
 export function reset() {
   generation += 1;
   queue.length = 0;
+  rejectAllWaiters();
   inFlight.clear();
   hydrated.clear();
   resultCache.clear();
-  pendingWaiters.clear();
 }
 
 export function syncHydratedFromReleases(releases, isPending) {
@@ -40,12 +48,6 @@ export function syncHydratedFromReleases(releases, isPending) {
       hydrated.add(id);
     }
   }
-}
-
-function markHydrated(id, mapped) {
-  hydrated.add(id);
-  inFlight.delete(id);
-  if (mapped) resultCache.set(id, mapped);
 }
 
 function settleWaiters(id, mapped) {
@@ -142,21 +144,16 @@ function drainPool() {
     const id = item.id;
 
     fetchAndMapReleaseDetail(id, navigate)
+      .then((mapped) => mapped, () => null)
       .then((mapped) => {
         if (gen !== generation) return;
         inFlight.delete(id);
         if (mapped) {
-          markHydrated(id, mapped);
+          hydrated.add(id);
+          resultCache.set(id, mapped);
           onEach?.(mapped);
-          settleWaiters(id, mapped);
-        } else {
-          settleWaiters(id, null);
         }
-      })
-      .catch(() => {
-        if (gen !== generation) return;
-        inFlight.delete(id);
-        settleWaiters(id, null);
+        settleWaiters(id, mapped);
       })
       .finally(() => {
         workers -= 1;

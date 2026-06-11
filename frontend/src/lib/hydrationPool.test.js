@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   enqueue,
   awaitReleaseDetail,
+  reset,
   setHydrationNavigate,
   setOnEach,
   _peekQueueIdsForTests,
@@ -93,6 +94,23 @@ describe("hydrationPool", () => {
     expect(fetchAndMapReleaseDetail).toHaveBeenCalledTimes(1);
     expect(a).toBe(b);
     expect(a?.backendReleaseId).toBe("rel_1");
+  });
+
+  it("reset resolves in-flight awaitReleaseDetail waiters with null", async () => {
+    let release;
+    const hold = new Promise((resolve) => {
+      release = resolve;
+    });
+
+    vi.mocked(fetchAndMapReleaseDetail).mockImplementation(() => hold.then(() => mapped("rel_1")));
+
+    const pending = awaitReleaseDetail("rel_1", { priority: true });
+    reset();
+    setHydrationNavigate(vi.fn());
+
+    await expect(pending).resolves.toBeNull();
+
+    release();
   });
 
   it("reset clears hydrated state so ids can be fetched again", async () => {
