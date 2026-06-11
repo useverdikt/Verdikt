@@ -41,7 +41,7 @@ Workflow file: `.github/workflows/verdikt-gate.yml` (runs only when PR has label
 
 ---
 
-## Smoke PR (~20 min)
+## Smoke PR (~20 mins)
 
 ### 1. Open a test PR
 
