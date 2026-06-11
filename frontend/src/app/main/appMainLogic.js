@@ -567,7 +567,30 @@ const mapBackendDetailToUi = (detail) => {
     out.release_deltas = detail.deltas;
   }
   if (detail.integration_pull) out.integration_pull = detail.integration_pull;
+  out.detailLoaded = true;
   return out;
+};
+
+/** Lightweight row from GET /workspaces/:id/releases list — no N+1 detail fetch. */
+const mapBackendListRowToUi = (row) => {
+  const bid = row.id;
+  return {
+    id: `rc-${bid.replace(/\W/g, "")}`,
+    backendReleaseId: bid,
+    version: row.version,
+    date: (row.created_at || "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+    releaseType: row.release_type || "model_update",
+    environment: row.environment || "",
+    status: mapBackendStatusToUi(row.status),
+    signals: {},
+    signalRows: [],
+    evidenceQuality: row.evidence_quality ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    verdict_issued_at: row.verdict_issued_at,
+    collection_deadline: row.collection_deadline,
+    detailLoaded: false
+  };
 };
 const parseSemverish = (v) => {
   const m = String(v || "").match(/(\d+)\.(\d+)\.(\d+)/);
@@ -910,6 +933,7 @@ export {
   evaluateSignal,
   SIGNAL_SOURCES,
   mapBackendDetailToUi,
+  mapBackendListRowToUi,
   parseSemverish,
   semverDesc,
   releaseSortTimestampMs,
