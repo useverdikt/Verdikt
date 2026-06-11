@@ -1448,6 +1448,53 @@ describe("Release identity + SHA correlation", () => {
       .set("Authorization", `Bearer ${keyRes.body.api_key}`)
       .expect(404);
   });
+
+  it("agent session header correlates audit events for chain of evidence", async () => {
+    const email = `agent_sess_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Agent Sess" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "session-test" }).expect(201);
+    const sessionId = `as_${crypto.randomBytes(16).toString("hex")}`;
+    const agent = request(app);
+    const sha = crypto.randomBytes(20).toString("hex");
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .set("X-Verdikt-Agent-Label", "cursor-cert-run")
+      .send({
+        version: "agent-session-v1",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: 7,
+        github_owner: "acme",
+        github_repo: "app"
+      })
+      .expect(201);
+
+    await agent
+      .get(`/api/releases/${created.body.id}/gate`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .expect(200);
+
+    const trail = await human
+      .get(`/api/workspaces/${ws}/agent-sessions/${sessionId}/audit`)
+      .expect(200);
+
+    assert.equal(trail.body.session.id, sessionId);
+    assert.equal(trail.body.session.label, "cursor-cert-run");
+    assert.ok(trail.body.event_count >= 2);
+    const types = trail.body.events.map((e) => e.event_type);
+    assert.ok(types.includes("RELEASE_CREATED") || types.some((t) => t.includes("RELEASE")));
+    assert.ok(types.includes("RELEASE_GATE_CHECKED"));
+    assert.ok(trail.body.events.every((e) => e.actor_type === "AGENT" || e.event_type === "RELEASE_GATE_CHECKED"));
+  });
 });
 
 describe("Workspace members", () => {
