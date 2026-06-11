@@ -417,7 +417,21 @@ curl -sS "$BASE/api/workspaces/$WS/gate?commit_sha=$SHA&pr_number=$PR&github_own
 
 Copy-paste workflow: `docs/examples/verdikt-gate-gha.yml`
 
-Response (both endpoints):
+With branch protection requiring this check, **nothing merges without Verdikt's permission** once configured.
+
+### Per-release verdict callback (agents)
+
+Pass optional **`callback_url`** (HTTPS) on `POST /api/workspaces/:workspaceId/releases` or MCP `create_release`. When a verdict is issued, Verdikt POSTs event **`verdikt.verdict`** to that URL (async, 15s timeout, no rollback on delivery failure).
+
+- **Per-release**, agent-oriented — push instead of polling `check_gate`
+- **Unsigned** — use HTTPS and a non-guessable path; for HMAC-signed workspace-wide delivery use **Settings → Governance → Outbound webhook**
+- Validated against SSRF (private/metadata hosts blocked; HTTPS required in production)
+
+Example payload fields: `status`, `failed_signals`, `gate.can_merge`, `gate.blocking_signals`, `gate.trajectory`.
+
+Full contract + local test receiver: `docs/examples/verdikt-verdict-callback.md`
+
+Response (both gate endpoints):
 
 - `gate.allowed` (boolean)
 - `gate.reason` (string)
@@ -438,7 +452,7 @@ echo "$GATE" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.
 - `POST /api/workspaces/:workspaceId/policies` updates:
   - `require_ai_eval` (boolean)
   - `ai_missing_policy` (`block_uncertified` | `allow_without_ai`)
-- Release creation (`POST /api/workspaces/:workspaceId/releases`) accepts optional `ai_context` object (for metadata such as model version, prompt bundle, eval run id, dataset version, evaluator version).
+- Release creation (`POST /api/workspaces/:workspaceId/releases`) accepts optional `ai_context` object (for metadata such as model version, prompt bundle, eval run id, dataset version, evaluator version) and optional **`callback_url`** (HTTPS URL for push verdict delivery — see `docs/examples/verdikt-verdict-callback.md`).
 - `GET /api/releases/:releaseId` includes parsed `release.ai_context`.
 
 ## AI threshold suggestions

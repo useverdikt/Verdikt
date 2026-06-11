@@ -10,6 +10,7 @@
 #   2. Branch protection requires this check to pass before merge
 #
 # Flow: label opens cert window → signals collect → this job asks gate by commit SHA.
+# Agent push alternative: callback_url on create_release → docs/examples/verdikt-verdict-callback.md
 
 name: Verdikt gate
 
