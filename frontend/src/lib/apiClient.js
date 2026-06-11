@@ -5,6 +5,7 @@
 import { getSafeApiBase } from "./apiBase.js";
 import { getCsrfHeader } from "./csrfCookie.js";
 import { signOutSupabase } from "../auth/supabaseAuth.js";
+import { reset as resetHydrationPool } from "./hydrationPool.js";
 
 const CURRENT_USER_KEY = "vdk3_currentUser";
 
@@ -42,6 +43,7 @@ function buildUrl(path) {
 }
 
 function handleUnauthorized(navigate) {
+  resetHydrationPool();
   void signOutSupabase();
   void fetch(`${getSafeApiBase()}/api/auth/logout`, apiFetchInit({ method: "POST" }));
   localStorage.removeItem(CURRENT_USER_KEY);
