@@ -1257,13 +1257,16 @@ describe("Gemini assistive enrichment (mocked API)", () => {
 });
 
 describe("buildInboundSecretCandidates (unit)", () => {
-  it("excludes global webhook secrets when prod-like fallbacks disabled", () => {
+  it("uses only workspace secret when present (no global fallback)", () => {
     const { buildInboundSecretCandidates } = require("../src/services/inboundWebhookSecrets");
-    const onlyWs = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: false });
+    const onlyWs = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: true });
     assert.deepEqual(onlyWs, ["workspace-secret-abc"]);
-    const withGlobal = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: true });
-    assert.ok(withGlobal.includes("workspace-secret-abc"));
-    assert.ok(withGlobal.includes(process.env.WEBHOOK_SECRET));
+  });
+
+  it("falls back to global WEBHOOK_SECRET in dev when workspace secret missing", () => {
+    const { buildInboundSecretCandidates } = require("../src/services/inboundWebhookSecrets");
+    const globalOnly = buildInboundSecretCandidates(null, { allowGlobalFallbacks: true });
+    assert.deepEqual(globalOnly, [process.env.WEBHOOK_SECRET]);
   });
 });
 
@@ -1278,9 +1281,11 @@ describe("validateOutboundWebhookUrl (unit)", () => {
 describe("Release identity + SHA correlation", () => {
   const app = createApp();
 
-  function signVerdiktWebhook(body) {
+  async function signVerdiktWebhook(workspaceId, body) {
+    const { getPlaintextInboundSecret } = require("../src/services/inboundWebhookSecrets");
+    const secret = (await getPlaintextInboundSecret(workspaceId)) || process.env.WEBHOOK_SECRET;
     const raw = JSON.stringify(body);
-    const sig = crypto.createHmac("sha256", process.env.WEBHOOK_SECRET).update(raw).digest("hex");
+    const sig = crypto.createHmac("sha256", secret).update(raw).digest("hex");
     return { raw, signature: `sha256=${sig}` };
   }
 
@@ -1374,7 +1379,7 @@ describe("Release identity + SHA correlation", () => {
       repo_name: "app",
       signals: { accuracy: 92, safety: 91, tone: 88, hallucination: 95, relevance: 90 }
     };
-    const signed = signVerdiktWebhook(body);
+    const signed = await signVerdiktWebhook(ws, body);
 
     const ingest = await request(app)
       .post(`/api/workspaces/${ws}/integrations/ci`)
