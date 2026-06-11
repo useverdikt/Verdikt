@@ -1746,6 +1746,33 @@ describe("Agentic layer", () => {
   });
 });
 
+describe("Integration readiness (SHA tagging)", () => {
+  const app = createApp();
+
+  it("returns partner checklist and probe accepts commit_sha", async () => {
+    const email = `ready_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Ready" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const checklist = await human.get(`/api/workspaces/${ws}/integration-readiness`).expect(200);
+    assert.ok(Array.isArray(checklist.body.integrations));
+    assert.ok(checklist.body.integrations.length >= 5);
+    assert.equal(checklist.body.sha_tagging_required, true);
+    assert.ok(checklist.body.partner_checklist?.length >= 3);
+
+    const sha = crypto.randomBytes(20).toString("hex");
+    const probe = await human
+      .post(`/api/workspaces/${ws}/integration-readiness/probe`)
+      .send({ commit_sha: sha })
+      .expect(200);
+    assert.equal(probe.body.commit_sha, sha);
+    assert.ok(Array.isArray(probe.body.probes));
+  });
+});
+
 const skipLiveGemini = process.env.GEMINI_LIVE_TEST !== "1" || !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === GEMINI_STUB;
 
 (skipLiveGemini ? describe.skip : describe)("Gemini live API (set GEMINI_API_KEY to a real key to run)", () => {
