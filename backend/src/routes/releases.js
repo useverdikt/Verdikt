@@ -6,6 +6,7 @@ const { getUserRowForAuthById } = require("../services/authUserLookup");
 const {
   nowIso,
   writeAudit,
+  auditActorFromAuth,
   listReleaseDeltas,
   authMiddleware,
   requireNonViewer,
@@ -116,6 +117,23 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, r
   }
 
   const out = await evaluateReleaseAfterSignalIngest(release, req.params.releaseId, source, insertedCount);
+  if (req.auth?.authType === "api_key" && insertedCount > 0) {
+    const actor = auditActorFromAuth(req.auth);
+    await writeAudit({
+      workspaceId: release.workspace_id,
+      releaseId: req.params.releaseId,
+      eventType: "AGENT_SIGNALS_POSTED",
+      actorType: actor.actorType,
+      actorName: actor.actorName,
+      details: {
+        source,
+        signal_ids: Object.keys(signals).filter((k) => !rejected.includes(k)),
+        inserted_count: insertedCount,
+        idempotency_key: idempotencyKey,
+        api_key_id: actor.api_key_id
+      }
+    });
+  }
   // Attach schema warnings if any unrecognised signal names were submitted
   if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
   if (idempotencyKey) out.idempotency_key = idempotencyKey;
@@ -174,12 +192,13 @@ app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireNonView
   try {
     const out = await pullConnectedSourcesForRelease(req.releaseRow);
     const summary = summarizePullResult(out, req.releaseRow);
+    const actor = auditActorFromAuth(req.auth);
     await writeAudit({
       workspaceId: req.releaseRow.workspace_id,
       releaseId: req.params.releaseId,
       eventType: "SIGNAL_SOURCES_PULL",
-      actorType: "USER",
-      actorName: req.auth?.email || "user",
+      actorType: actor.actorType,
+      actorName: actor.actorName,
       details: {
         ok: out.ok,
         sources: out.sources ? Object.keys(out.sources) : [],
@@ -363,12 +382,13 @@ app.post("/api/releases/:releaseId/intelligence/outcome", authMiddleware, requir
     recorded_at: nowIso()
   };
   await upsertReleaseIntelligence(req.params.releaseId, req.releaseRow.workspace_id, { outcome: payload });
+  const actor = auditActorFromAuth(req.auth);
   await writeAudit({
     workspaceId: req.releaseRow.workspace_id,
     releaseId: req.params.releaseId,
     eventType: "INTELLIGENCE_OUTCOME_RECORDED",
-    actorType: "USER",
-    actorName: req.auth.email || "user",
+    actorType: actor.actorType,
+    actorName: actor.actorName,
     details: payload
   });
   return res.json({ release_id: req.params.releaseId, outcome: payload });

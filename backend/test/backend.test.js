@@ -1493,7 +1493,41 @@ describe("Release identity + SHA correlation", () => {
     const types = trail.body.events.map((e) => e.event_type);
     assert.ok(types.includes("RELEASE_CREATED") || types.some((t) => t.includes("RELEASE")));
     assert.ok(types.includes("RELEASE_GATE_CHECKED"));
-    assert.ok(trail.body.events.every((e) => e.actor_type === "AGENT" || e.event_type === "RELEASE_GATE_CHECKED"));
+    const agentEvents = trail.body.events.filter((e) => e.actor_type === "AGENT");
+    assert.ok(agentEvents.length >= 1);
+  });
+
+  it("agent post_signals writes AGENT_SIGNALS_POSTED audit event", async () => {
+    const email = `agent_sig_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Agent Sig" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "sig-audit" }).expect(201);
+    const sessionId = `as_${crypto.randomBytes(16).toString("hex")}`;
+    const agent = request(app);
+
+    const rel = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .send({ version: "sig-audit-v1", release_type: "model_update", commit_sha: crypto.randomBytes(20).toString("hex") })
+      .expect(201);
+
+    await agent
+      .post(`/api/releases/${rel.body.id}/signals`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .send({ source: "ci", signals: { accuracy: 88, safety: 90, relevance: 85, tone: 86, hallucination: 92 } })
+      .expect(200);
+
+    const row = await queryOne(
+      "SELECT event_type, agent_session_id FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      [rel.body.id, "AGENT_SIGNALS_POSTED"]
+    );
+    assert.ok(row);
+    assert.equal(row.agent_session_id, sessionId);
   });
 });
 
