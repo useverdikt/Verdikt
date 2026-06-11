@@ -1,0 +1,45 @@
+# Read-only production smoke — API liveness and gate contract sanity.
+#
+# Secrets (repository settings):
+#   PROD_API_URL — e.g. https://api.useverdikt.com
+#   PROD_SMOKE_API_KEY — optional workspace API key for gate 404 check
+#   PROD_SMOKE_WORKSPACE_ID — required when API key is set
+
+name: Prod smoke
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Health ready
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL || 'https://api.useverdikt.com' }}
+        run: |
+          set -euo pipefail
+          URL="${PROD_API_URL%/}/health/ready"
+          echo "GET $URL"
+          curl -sS -f --max-time 20 "$URL" | jq .
+
+      - name: Gate 404 for unknown SHA (optional)
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL || 'https://api.useverdikt.com' }}
+          PROD_SMOKE_API_KEY: ${{ secrets.PROD_SMOKE_API_KEY }}
+          PROD_SMOKE_WORKSPACE_ID: ${{ secrets.PROD_SMOKE_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROD_SMOKE_API_KEY:-}" ] || [ -z "${PROD_SMOKE_WORKSPACE_ID:-}" ]; then
+            echo "Skipping gate check — set PROD_SMOKE_API_KEY and PROD_SMOKE_WORKSPACE_ID for full smoke."
+            exit 0
+          fi
+          SHA="0000000000000000000000000000000000000000"
+          URL="${PROD_API_URL%/}/api/workspaces/${PROD_SMOKE_WORKSPACE_ID}/gate?commit_sha=${SHA}"
+          CODE=$(curl -sS -o /tmp/gate.json -w "%{http_code}" -H "Authorization: Bearer ${PROD_SMOKE_API_KEY}" "$URL")
+          echo "HTTP $CODE"
+          cat /tmp/gate.json || true
+          test "$CODE" = "404"
