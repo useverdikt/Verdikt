@@ -126,3 +126,10 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 - [ ] GitHub commit status visible on PR
 - [ ] Screenshot of audit trail + cert record for sales deck
 - [ ] (Stretch) One alignment row after deploy
+
+---
+
+## Agent autonomy run
+
+Agent-owned: branch → PR → `verdikt:rc` → poll `check_gate_by_sha` → report `missing_required_signals`.  
+Human-owned: Signal Simulator ingest only when agent requests it.
