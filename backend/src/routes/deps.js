@@ -6,7 +6,7 @@
 
 const config = require("../config");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
-const { writeAudit } = require("../services/audit");
+const { writeAudit, auditActorFromAuth } = require("../services/audit");
 const { listReleaseDeltas } = require("../services/delta");
 const {
   authMiddleware,
@@ -104,6 +104,7 @@ module.exports = {
   nowIso,
   toIsoPlusMinutes,
   writeAudit,
+  auditActorFromAuth,
   listReleaseDeltas,
   authMiddleware,
   requireWorkspaceMatch,
