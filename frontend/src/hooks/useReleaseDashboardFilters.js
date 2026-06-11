@@ -23,6 +23,12 @@ export function useReleaseDashboardFilters(releases) {
     if (activeFilter === "OVERRIDE") {
       list = list.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
     }
+    if (activeFilter === "INTEGRATION") {
+      list = list.filter((r) => r.evidenceQuality === "INTEGRATION_BACKED");
+    }
+    if (activeFilter === "SIMULATOR") {
+      list = list.filter((r) => r.evidenceQuality === "SIMULATOR_BACKED");
+    }
     if (searchQ.trim()) {
       const q = searchQ.toLowerCase();
       list = list.filter((r) => String(r.version || "").toLowerCase().includes(q));

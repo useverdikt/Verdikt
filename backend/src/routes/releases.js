@@ -50,6 +50,12 @@ const {
   getLatestIntegrationPullForRelease,
   summarizePullResult
 } = require("../services/integrationPullStatus");
+const {
+  resolveEvidenceForRelease,
+  persistReleaseEvidenceQuality
+} = require("../services/evidenceQuality");
+
+const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -248,9 +254,9 @@ app.post("/api/releases/:releaseId/override", authMiddleware, requireReleaseAcce
 
 app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
-  const release = req.releaseRow;
+  let release = req.releaseRow;
   const signalRows = await queryAll(
-    "SELECT signal_id, value, source, created_at FROM signals WHERE release_id = ? ORDER BY id DESC",
+    "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = ? ORDER BY id DESC",
     [req.params.releaseId]
   );
   const override = await queryOne("SELECT * FROM overrides WHERE release_id = ?", [req.params.releaseId]);
@@ -292,10 +298,29 @@ app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async 
     [release.workspace_id]
   );
 
+  let evidence_quality = release.evidence_quality ?? null;
+  let evidence_summary = null;
+  ({ evidence_quality, evidence_summary } = resolveEvidenceForRelease(release, signalRows));
+
+  if (
+    !release.evidence_quality &&
+    CERT_LIKE_STATUSES.has(String(release.status || "").toUpperCase()) &&
+    signalRows.length > 0
+  ) {
+    try {
+      const persisted = await persistReleaseEvidenceQuality(req.params.releaseId);
+      evidence_quality = persisted.evidence_quality;
+      evidence_summary = persisted.evidence_summary;
+      release = { ...release, evidence_quality, evidence_summary_json: JSON.stringify(evidence_summary) };
+    } catch (_) {}
+  }
+
   return res.json({
     release: {
       ...release,
-      ai_context: JSON.parse(release.ai_context_json || "{}")
+      ai_context: JSON.parse(release.ai_context_json || "{}"),
+      evidence_quality,
+      evidence_summary
     },
     signals: signalRows,
     deltas,

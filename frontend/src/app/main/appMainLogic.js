@@ -3,6 +3,7 @@ import { C } from "../../theme/tokens.js";
 import { mapBackendStatusToUi, normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
 import { buildReleaseSourceLanes } from "../../lib/releaseSourceLanes.js";
+import { latestSignalRowMap } from "../../lib/signalProvenance.js";
 
 /** App tab id → pathname (also used for legacy ?tab= redirects). */
 const NAV_TO_PATH = {
@@ -509,10 +510,15 @@ const SIGNAL_SOURCES = [
 const mapBackendDetailToUi = (detail) => {
   const release = detail.release;
   const bid = release.id;
-  const signals = {};
-  for (const s of detail.signals || []) {
-    signals[s.signal_id] = s.value;
-  }
+  const signalRows = (detail.signals || []).map((s) => ({
+    id: s.id,
+    signal_id: s.signal_id,
+    value: s.value,
+    source: s.source ?? null,
+    created_at: s.created_at ?? null
+  }));
+  const rowMap = latestSignalRowMap(signalRows);
+  const signals = Object.fromEntries(Object.entries(rowMap).map(([k, v]) => [k, v.value]));
   const sourceLanes =
     release.status === "COLLECTING"
       ? buildReleaseSourceLanes({
@@ -531,6 +537,9 @@ const mapBackendDetailToUi = (detail) => {
     environment: release.environment || "",
     status: mapBackendStatusToUi(release.status),
     signals,
+    signalRows: Object.values(rowMap),
+    evidenceQuality: release.evidence_quality ?? null,
+    evidence_summary: release.evidence_summary ?? null,
     sources: sourceLanes
   };
   if (release.environment) out.buildRef = release.environment;

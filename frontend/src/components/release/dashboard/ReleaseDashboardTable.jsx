@@ -25,7 +25,7 @@ export default function ReleaseDashboardTable({
       <div className="panel-header">
         <div className="panel-title">Release history</div>
         <div className="panel-actions">
-          {["All", "CERTIFIED", "UNCERTIFIED", "OVERRIDE"].map((f) => (
+          {["All", "CERTIFIED", "UNCERTIFIED", "OVERRIDE", "INTEGRATION", "SIMULATOR"].map((f) => (
             <button
               key={f}
               type="button"

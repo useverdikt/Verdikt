@@ -2,6 +2,11 @@ import React, { useEffect, useRef } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
+import {
+  SignalEvidenceBlock,
+  SignalSourceBadge,
+  provenanceSourceForSignal
+} from "../../release/SignalEvidenceProvenance.jsx";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -141,6 +146,10 @@ export default function CertificationRecordModal({
             </div>
           )}
 
+          {rs !== UI_RELEASE_STATUS.COLLECTING && Object.keys(release.signals || {}).length > 0 ? (
+            <SignalEvidenceBlock release={release} showFlag />
+          ) : null}
+
           {/* Recommendation Panel */}
           {backendReleaseId && (
             <div style={{ marginBottom: 16 }}>
@@ -160,7 +169,13 @@ export default function CertificationRecordModal({
                   if (isWaived) return { label: sig.label, display: "WAIVED", color: C.amber };
                   if (val === undefined || val === null) return null;
                   const { pass } = evaluateSignal(sig, val, thresholds[sig.id]);
-                  return { label: sig.label, display: fmtVal(sig, val), color: pass ? C.green : C.red };
+                  const provSource = provenanceSourceForSignal(release, sig.id);
+                  return {
+                    label: sig.label,
+                    display: fmtVal(sig, val),
+                    color: pass ? C.green : C.red,
+                    provSource
+                  };
                 })
                 .filter(Boolean);
               return (
@@ -172,9 +187,12 @@ export default function CertificationRecordModal({
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {catSignals.map((s, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "60%" }}>{s.label}</span>
-                        <span style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 700, color: s.color, flexShrink: 0 }}>{s.display}</span>
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "55%" }}>{s.label}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                          {s.provSource != null ? <SignalSourceBadge source={s.provSource} compact /> : null}
+                          <span style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 700, color: s.color }}>{s.display}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
