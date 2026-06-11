@@ -31,9 +31,8 @@ const DEFAULT_JWT_SECRET = "dev-insecure-change-with-env-JWT_SECRET";
 const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 /** Local dev default; must match `openssl ... -hmac "${WEBHOOK_SECRET:-dev-webhook-secret}"` in scripts/test-e2e.sh */
 const DEFAULT_DEV_WEBHOOK_SECRET = "dev-webhook-secret";
+/** Local dev fallback when a workspace has no per-workspace inbound secret yet (dev/test only). */
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || (IS_PROD_LIKE ? "" : DEFAULT_DEV_WEBHOOK_SECRET);
-/** Optional legacy global HMAC secret; still accepted after per-workspace inbound secrets exist. */
-const WEBHOOK_FALLBACK_SECRET = (process.env.WEBHOOK_FALLBACK_SECRET || "").trim();
 /** Optional GitHub webhook secret for POST /api/hooks/github (PR label trigger). */
 const GITHUB_WEBHOOK_SECRET = (process.env.GITHUB_WEBHOOK_SECRET || "").trim();
 /** GitHub App config for install/connect flow. */
@@ -134,7 +133,6 @@ module.exports = {
   DEFAULT_JWT_SECRET,
   JWT_SECRET,
   WEBHOOK_SECRET,
-  WEBHOOK_FALLBACK_SECRET,
   GITHUB_WEBHOOK_SECRET,
   GITHUB_APP_ID,
   GITHUB_APP_SLUG,

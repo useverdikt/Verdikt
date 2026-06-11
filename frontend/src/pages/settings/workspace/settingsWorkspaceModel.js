@@ -46,7 +46,7 @@ export const SOURCES_INITIAL = [
     sourceId: "braintrust",
     icon: "✦",
     name: "Braintrust",
-    detail: "AI eval scores — accuracy, safety, tone, hallucination, relevance",
+    detail: "API pull — AI eval scores (tag runs with PR commit SHA)",
     status: "not connected",
     statusColor: "var(--dim)",
     mapping: null
@@ -55,7 +55,7 @@ export const SOURCES_INITIAL = [
     sourceId: "browserstack",
     icon: "◎",
     name: "BrowserStack",
-    detail: "Smoke and E2E regression pass rates",
+    detail: "API pull — smoke/E2E pass rates (build_tag or SDK git SHA)",
     status: "not connected",
     statusColor: "var(--dim)",
     mapping: null
@@ -64,7 +64,7 @@ export const SOURCES_INITIAL = [
     sourceId: "sentry",
     icon: "⚡",
     name: "Sentry",
-    detail: "Crash rate, error rate, exception volume",
+    detail: "API pull — crash/error rates (Sentry release = commit SHA)",
     status: "not connected",
     statusColor: "var(--dim)",
     mapping: null
@@ -73,7 +73,7 @@ export const SOURCES_INITIAL = [
     sourceId: "datadog",
     icon: "◈",
     name: "Datadog",
-    detail: "API latency and runtime health",
+    detail: "API pull — latency/health (git.commit.sha or DD_GIT_COMMIT_SHA)",
     status: "not connected",
     statusColor: "var(--dim)",
     mapping: null

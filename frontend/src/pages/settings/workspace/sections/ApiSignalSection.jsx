@@ -1,6 +1,7 @@
 import React from "react";
 import { apiDelete, apiPostFormData } from "../../settingsClient.js";
 import { sourceStatusDisplay, formatCsvRowCountLabel } from "../settingsWorkspaceModel.js";
+import IntegrationReadinessPanel from "./IntegrationReadinessPanel.jsx";
 
 export default function ApiSignalSection({
   section,
@@ -23,14 +24,15 @@ export default function ApiSignalSection({
           <em>Signal Sources</em>
         </h1>
         <p className="section-desc">
-          Connect external signal sources and ingest data into this workspace.
+          Connect vendor APIs — Verdikt pulls metrics by commit SHA when you certify a release. Not embedded SDKs.
         </p>
       </div>
+      <IntegrationReadinessPanel wsId={wsId} navigate={navigate} toast={toast} />
       <div className="sblock">
         <div className="sblock-head">
           <div>
             <div className="sblock-title">Signal sources</div>
-            <div className="sblock-desc">API integrations and CSV import that feed signal data into Verdikt.</div>
+            <div className="sblock-desc">Save API credentials; data is fetched on cert window open or manual pull.</div>
           </div>
           <button type="button" className="btn-ghost accent" onClick={() => toast("Add source — coming in integration docs")}>
             + Add source
