@@ -1,6 +1,13 @@
+import crypto from "node:crypto";
+
 const BASE = (process.env.VERDIKT_API_URL || "http://127.0.0.1:8787").replace(/\/$/, "");
 const API_KEY = (process.env.VERDIKT_API_KEY || "").trim();
 const WORKSPACE_ID = (process.env.VERDIKT_WORKSPACE_ID || "").trim();
+
+/** Stable per MCP process — ties create_release → post_signals → check_gate in audit trail. */
+export const AGENT_SESSION_ID =
+  (process.env.VERDIKT_AGENT_SESSION_ID || "").trim() ||
+  `as_${crypto.randomUUID().replace(/-/g, "")}`;
 
 function requireConfig() {
   if (!API_KEY) throw new Error("VERDIKT_API_KEY is required");
@@ -14,7 +21,8 @@ export async function apiRequest(method, path, body) {
     headers: {
       Authorization: `Bearer ${API_KEY}`,
       "Content-Type": "application/json",
-      Accept: "application/json"
+      Accept: "application/json",
+      "X-Verdikt-Agent-Session": AGENT_SESSION_ID
     },
     body: body != null ? JSON.stringify(body) : undefined
   });

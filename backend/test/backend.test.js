@@ -1257,13 +1257,16 @@ describe("Gemini assistive enrichment (mocked API)", () => {
 });
 
 describe("buildInboundSecretCandidates (unit)", () => {
-  it("excludes global webhook secrets when prod-like fallbacks disabled", () => {
+  it("uses only workspace secret when present (no global fallback)", () => {
     const { buildInboundSecretCandidates } = require("../src/services/inboundWebhookSecrets");
-    const onlyWs = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: false });
+    const onlyWs = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: true });
     assert.deepEqual(onlyWs, ["workspace-secret-abc"]);
-    const withGlobal = buildInboundSecretCandidates("workspace-secret-abc", { allowGlobalFallbacks: true });
-    assert.ok(withGlobal.includes("workspace-secret-abc"));
-    assert.ok(withGlobal.includes(process.env.WEBHOOK_SECRET));
+  });
+
+  it("falls back to global WEBHOOK_SECRET in dev when workspace secret missing", () => {
+    const { buildInboundSecretCandidates } = require("../src/services/inboundWebhookSecrets");
+    const globalOnly = buildInboundSecretCandidates(null, { allowGlobalFallbacks: true });
+    assert.deepEqual(globalOnly, [process.env.WEBHOOK_SECRET]);
   });
 });
 
@@ -1278,9 +1281,11 @@ describe("validateOutboundWebhookUrl (unit)", () => {
 describe("Release identity + SHA correlation", () => {
   const app = createApp();
 
-  function signVerdiktWebhook(body) {
+  async function signVerdiktWebhook(workspaceId, body) {
+    const { getPlaintextInboundSecret } = require("../src/services/inboundWebhookSecrets");
+    const secret = (await getPlaintextInboundSecret(workspaceId)) || process.env.WEBHOOK_SECRET;
     const raw = JSON.stringify(body);
-    const sig = crypto.createHmac("sha256", process.env.WEBHOOK_SECRET).update(raw).digest("hex");
+    const sig = crypto.createHmac("sha256", secret).update(raw).digest("hex");
     return { raw, signature: `sha256=${sig}` };
   }
 
@@ -1374,7 +1379,7 @@ describe("Release identity + SHA correlation", () => {
       repo_name: "app",
       signals: { accuracy: 92, safety: 91, tone: 88, hallucination: 95, relevance: 90 }
     };
-    const signed = signVerdiktWebhook(body);
+    const signed = await signVerdiktWebhook(ws, body);
 
     const ingest = await request(app)
       .post(`/api/workspaces/${ws}/integrations/ci`)
@@ -1447,6 +1452,87 @@ describe("Release identity + SHA correlation", () => {
       .query({ commit_sha: "deadbeef" })
       .set("Authorization", `Bearer ${keyRes.body.api_key}`)
       .expect(404);
+  });
+
+  it("agent session header correlates audit events for chain of evidence", async () => {
+    const email = `agent_sess_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Agent Sess" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "session-test" }).expect(201);
+    const sessionId = `as_${crypto.randomBytes(16).toString("hex")}`;
+    const agent = request(app);
+    const sha = crypto.randomBytes(20).toString("hex");
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .set("X-Verdikt-Agent-Label", "cursor-cert-run")
+      .send({
+        version: "agent-session-v1",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: 7,
+        github_owner: "acme",
+        github_repo: "app"
+      })
+      .expect(201);
+
+    await agent
+      .get(`/api/releases/${created.body.id}/gate`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .expect(200);
+
+    const trail = await human
+      .get(`/api/workspaces/${ws}/agent-sessions/${sessionId}/audit`)
+      .expect(200);
+
+    assert.equal(trail.body.session.id, sessionId);
+    assert.equal(trail.body.session.label, "cursor-cert-run");
+    assert.ok(trail.body.event_count >= 2);
+    const types = trail.body.events.map((e) => e.event_type);
+    assert.ok(types.includes("RELEASE_CREATED") || types.some((t) => t.includes("RELEASE")));
+    assert.ok(types.includes("RELEASE_GATE_CHECKED"));
+    const agentEvents = trail.body.events.filter((e) => e.actor_type === "AGENT");
+    assert.ok(agentEvents.length >= 1);
+  });
+
+  it("agent post_signals writes AGENT_SIGNALS_POSTED audit event", async () => {
+    const email = `agent_sig_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Agent Sig" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "sig-audit" }).expect(201);
+    const sessionId = `as_${crypto.randomBytes(16).toString("hex")}`;
+    const agent = request(app);
+
+    const rel = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .send({ version: "sig-audit-v1", release_type: "model_update", commit_sha: crypto.randomBytes(20).toString("hex") })
+      .expect(201);
+
+    await agent
+      .post(`/api/releases/${rel.body.id}/signals`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .set("X-Verdikt-Agent-Session", sessionId)
+      .send({ source: "ci", signals: { accuracy: 88, safety: 90, relevance: 85, tone: 86, hallucination: 92 } })
+      .expect(200);
+
+    const row = await queryOne(
+      "SELECT event_type, agent_session_id FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      [rel.body.id, "AGENT_SIGNALS_POSTED"]
+    );
+    assert.ok(row);
+    assert.equal(row.agent_session_id, sessionId);
   });
 });
 
@@ -1696,6 +1782,33 @@ describe("Agentic layer", () => {
     const { validateOutboundWebhookUrl } = require("../src/lib/outboundUrl");
     await assert.rejects(() => validateOutboundWebhookUrl("http://127.0.0.1/callback"), /private|not allowed/i);
     await assert.doesNotReject(() => validateOutboundWebhookUrl("https://93.184.216.34/verdikt"));
+  });
+});
+
+describe("Integration readiness (SHA tagging)", () => {
+  const app = createApp();
+
+  it("returns partner checklist and probe accepts commit_sha", async () => {
+    const email = `ready_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Ready" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const checklist = await human.get(`/api/workspaces/${ws}/integration-readiness`).expect(200);
+    assert.ok(Array.isArray(checklist.body.integrations));
+    assert.ok(checklist.body.integrations.length >= 5);
+    assert.equal(checklist.body.sha_tagging_required, true);
+    assert.ok(checklist.body.partner_checklist?.length >= 3);
+
+    const sha = crypto.randomBytes(20).toString("hex");
+    const probe = await human
+      .post(`/api/workspaces/${ws}/integration-readiness/probe`)
+      .send({ commit_sha: sha })
+      .expect(200);
+    assert.equal(probe.body.commit_sha, sha);
+    assert.ok(Array.isArray(probe.body.probes));
   });
 });
 

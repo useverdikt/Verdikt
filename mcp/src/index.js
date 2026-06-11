@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { apiRequest, jsonResult, WORKSPACE_ID } from "./client.js";
+import { formatGateForAgent } from "./gateFormat.js";
 
 const server = new McpServer(
   {
@@ -96,7 +97,8 @@ server.registerTool(
 server.registerTool(
   "check_gate",
   {
-    description: "CI gate decision — whether the release may merge/deploy. Read action: merge | self_heal | escalate.",
+    description:
+      "CI gate decision. IMPORTANT: read top-level action (merge | self_heal | escalate), not gate.exit_code alone.",
     inputSchema: {
       release_id: z.string(),
       mode: z.enum(["default", "strict"]).optional().describe("strict requires CERTIFIED without override")
@@ -105,7 +107,31 @@ server.registerTool(
   async ({ release_id, mode }) => {
     const qs = mode === "strict" ? "?mode=strict" : "";
     const out = await apiRequest("GET", `/api/releases/${release_id}/gate${qs}`);
-    return jsonResult(out);
+    return jsonResult(formatGateForAgent(out));
+  }
+);
+
+server.registerTool(
+  "check_gate_by_sha",
+  {
+    description:
+      "Gate by PR commit SHA (same as GitHub Actions). Read action, not exit_code alone.",
+    inputSchema: {
+      commit_sha: z.string().describe("PR head commit SHA"),
+      pr_number: z.number().int().optional(),
+      github_owner: z.string().optional(),
+      github_repo: z.string().optional(),
+      mode: z.enum(["default", "strict"]).optional()
+    }
+  },
+  async ({ commit_sha, pr_number, github_owner, github_repo, mode }) => {
+    const params = new URLSearchParams({ commit_sha });
+    if (pr_number != null) params.set("pr_number", String(pr_number));
+    if (github_owner) params.set("github_owner", github_owner);
+    if (github_repo) params.set("github_repo", github_repo);
+    if (mode === "strict") params.set("mode", "strict");
+    const out = await apiRequest("GET", `/api/workspaces/${WORKSPACE_ID}/gate?${params.toString()}`);
+    return jsonResult(formatGateForAgent(out));
   }
 );
 

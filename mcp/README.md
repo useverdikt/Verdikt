@@ -34,6 +34,8 @@ Local API: use `http://127.0.0.1:8787` for `VERDIKT_API_URL`.
 
 In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule: `.cursor/rules/verdikt.mdc`.
 
+**Agent session ID:** MCP sends `X-Verdikt-Agent-Session` on every request (stable per process). Audit events for that run share the same session — retrieve the chain via `GET /api/workspaces/:id/agent-sessions/:sessionId/audit`. Optional header `X-Verdikt-Agent-Label` (e.g. `cursor-pr-42`).
+
 ---
 
 ## Tools
@@ -43,7 +45,8 @@ In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule
 | `create_release` | Open certification window (anchor with `commit_sha`, `pr_number`, `github_owner`, `github_repo`; optional `callback_url` for push verdict) |
 | `post_signals` | Submit eval/QA/perf metrics (usually from CI output) |
 | `get_verdict` | Read status, blocking signals, intelligence |
-| `check_gate` | Merge/deploy decision — read `action` and `gate.exit_code` |
+| `check_gate` | Merge/deploy decision — read **`action`** (`merge` \| `self_heal` \| `escalate`), not `exit_code` alone |
+| `check_gate_by_sha` | Same gate by PR commit SHA (parity with GHA) |
 | `escalate` | Hand off to human when blocked and self-heal failed |
 | `record_outcome` | Post-prod calibration (`incident` / `no_incident`) |
 
@@ -86,7 +89,7 @@ Best when GitHub App is connected in **Settings → Release Trigger**. GitHub is
 1. Agent opens or updates a PR on a connected repo.
 2. Apply label **`verdikt:rc`** (or agent `create_release` with `commit_sha`, `pr_number`, `github_owner`, `github_repo`).
 3. Verdikt opens a cert window tied to PR# + SHA and **auto-pulls connected integrations**. Agent **`post_signals`** only for CI-only metrics — not from GHA by default.
-4. Agent calls `check_gate(release_id, mode: "strict")`.
+4. Call **`check_gate`** or **`check_gate_by_sha`** (mode strict) — read **`action`**, not `exit_code` alone.
 5. Read **`action`**: `merge` → merge PR; `self_heal` → fix and re-pull/post signals; `escalate` → call `escalate` (human inbox at **Escalations**).
 
 ### Alternative flow (MCP create_release with GitHub metadata)
@@ -119,7 +122,17 @@ create_release(version: "agent-demo-v1")  # no GitHub anchor — not for product
 
 ## Agent loop (`check_gate.action`)
 
-After `check_gate`, use the top-level **`action`** field (not just `exit_code`):
+**Agents must read `action`, not `gate.exit_code` alone.**  
+`exit_code` is for GitHub Actions branch protection (pass/fail). `action` tells the agent what to do next.
+
+| Field | Who uses it | Meaning |
+|-------|-------------|---------|
+| `gate.exit_code` | GHA / CI | `0` = check passes, `1` = blocked |
+| `action` | Agents (MCP) | `merge` \| `self_heal` \| `escalate` |
+
+Example: `CERTIFIED_WITH_OVERRIDE` may yield `exit_code: 0` in default mode but `action: escalate` in strict mode — an agent that only checks exit code could merge incorrectly.
+
+After `check_gate`, use the top-level **`action`** field:
 
 | `action` | Agent behavior |
 |----------|----------------|

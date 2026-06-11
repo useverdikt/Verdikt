@@ -7,6 +7,15 @@
   "bin": {
     "verdikt-mcp": "src/index.js"
   },
+  "files": ["src", "README.md"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/useverdikt/Verdikt.git",
+    "directory": "mcp"
+  },
   "scripts": {
     "start": "node src/index.js"
   },
