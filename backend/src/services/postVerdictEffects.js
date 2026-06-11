@@ -31,6 +31,7 @@ const { computeAndPersistRecommendation } = require("./recommendationEngine");
 const { signCertificationRecord } = require("./certSigner");
 const { writeVcsStatus } = require("./vcsWriteback");
 const { openMonitoringWindow } = require("./vcsMonitor");
+const { persistReleaseEvidenceQuality } = require("./evidenceQuality");
 const { deliverVerdictWebhook } = require("./outboundWebhook");
 const { deliverReleaseCallback } = require("./releaseCallback");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
@@ -125,6 +126,13 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
 
   // 4. If merge to main/master happened while collecting, promote after verdict.
   await maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus);
+
+  // 4b. Persist evidence quality (signal provenance summary for cert record).
+  try {
+    await persistReleaseEvidenceQuality(releaseId);
+  } catch (err) {
+    console.error("[evidence_quality] persist failed:", releaseId, err?.message);
+  }
 
   // 5. VCS status write-back (async — does not block)
   try {

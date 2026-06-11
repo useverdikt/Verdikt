@@ -5,6 +5,7 @@ import {
   verdictMeta
 } from "./releaseDashboardUtils.js";
 import { ExpandChevron } from "./ReleaseDashboardIcons.jsx";
+import { EvidenceQualityFlag } from "../SignalEvidenceProvenance.jsx";
 
 export default function ReleaseRow({
   release,
@@ -90,6 +91,11 @@ export default function ReleaseRow({
           <div className="vbadge-dot"></div>
           {verdict.label}
         </div>
+        {release.evidenceQuality && normalizeReleaseStatus(release.status) !== UI_RELEASE_STATUS.COLLECTING ? (
+          <div style={{ marginTop: 6 }}>
+            <EvidenceQualityFlag flag={release.evidenceQuality} compact />
+          </div>
+        ) : null}
       </div>
 
       <div className="td sig-cell">
