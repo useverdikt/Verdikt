@@ -40,7 +40,7 @@ In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule
 
 | Tool | Purpose |
 |------|---------|
-| `create_release` | Open certification window (anchor with `commit_sha`, `pr_number`, `github_owner`, `github_repo`) |
+| `create_release` | Open certification window (anchor with `commit_sha`, `pr_number`, `github_owner`, `github_repo`; optional `callback_url` for push verdict) |
 | `post_signals` | Submit eval/QA/perf metrics (usually from CI output) |
 | `get_verdict` | Read status, blocking signals, intelligence |
 | `check_gate` | Merge/deploy decision — read `action` and `gate.exit_code` |
@@ -62,10 +62,13 @@ Agent opens/updates PR  →  Label verdikt:rc (or MCP      →  Auto-pull Braint
                            create_release with SHA)            Sentry, Datadog by commit_sha
                                                           →  Or agent post_signals for CI-only metrics
 Agent calls check_gate  →  Thresholds + regression +     →  merge | self_heal | escalate
-                           trajectory
+  OR receives POST          trajectory
+  on callback_url       →  (optional push — see below)
 ```
 
 Verdikt collects signals — **GHA does not need to POST them** unless you have custom metrics only available in your pipeline (see `docs/examples/verdikt-ci-webhook.optional.md`).
+
+**Merge enforcement:** GitHub Actions + branch protection can **block the merge button** until Verdikt certifies (`docs/examples/verdikt-gate-gha.yml`). Agents advise; GHA enforces.
 
 Verdikt compares:
 
@@ -146,6 +149,31 @@ Example response:
 
 ---
 
+## Verdict callback (`callback_url`) — push instead of poll
+
+When opening a cert window, pass **`callback_url`** (HTTPS) on `create_release`. Verdikt **POSTs** a `verdikt.verdict` payload when the verdict is ready — your agent runner does not need to poll `check_gate`.
+
+```javascript
+create_release({
+  version: "Ship feature (#42)",
+  commit_sha: "<PR head SHA>",
+  pr_number: 42,
+  github_owner: "org",
+  github_repo: "app",
+  callback_url: "https://agent-runner.example.com/hooks/verdikt-verdict"
+})
+```
+
+**Payload highlights:** `status`, `gate.can_merge`, `gate.blocking_signals`, `gate.trajectory`, `failed_signals`.
+
+**Typical pattern:** callback wakes the agent → agent reads `gate.can_merge` → merge or self-heal. Run **GHA gate + branch protection** in parallel so nothing merges without Verdikt's permission even if the agent misbehaves.
+
+Full contract + example receiver: `docs/examples/verdikt-verdict-callback.md`
+
+**Not the same as** Settings → Governance **outbound webhook** (workspace-wide, HMAC-signed, all releases).
+
+---
+
 ## Optional: CI webhook (advanced)
 
 Only if GHA computes metrics that Verdikt integrations cannot pull. **Not required** for the label-trigger + integration-pull model.
@@ -164,11 +192,12 @@ Commit: {COMMIT_SHA}
 Repo: {OWNER}/{REPO}
 
 Steps:
-1. If no release exists: apply label verdikt:rc OR create_release with version, commit_sha, pr_number, github_owner, github_repo.
+1. If no release exists: apply label verdikt:rc OR create_release with version, commit_sha, pr_number, github_owner, github_repo (optional callback_url for push verdict).
 2. After label: wait for auto-pull, or post_signals for CI-only metrics (do not invent values).
-3. get_verdict — report status and blocking_signals.
+3. get_verdict — report status and blocking_signals (or wait for callback_url POST with event verdikt.verdict).
 4. check_gate mode strict — report action, exit_code, can_merge, trajectory.
 5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool, do not merge.
+6. GHA gate + branch protection must pass before merge — Verdikt enforces at the button, not only via agent honor system.
 
 Do not invent signal values — use CI output or integration pull results.
 ```
