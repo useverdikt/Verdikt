@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "../../settingsClient.js";
 import AgentPlaybookPanel from "./AgentPlaybookPanel.jsx";
+import EnableGateWizard from "./EnableGateWizard.jsx";
 
 export default function AgentAccessSection({ section, wsId, navigate, toast }) {
   const [keys, setKeys] = useState([]);
@@ -176,6 +177,7 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
         </div>
       </div>
 
+      <EnableGateWizard wsId={wsId} toast={toast} />
       <AgentPlaybookPanel wsId={wsId} toast={toast} />
     </div>
   );
