@@ -4,7 +4,16 @@ const crypto = require("crypto");
 const { queryOne, queryAll, run } = require("../database");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("./audit");
+const { writeVcsStatus } = require("./vcsWriteback");
 const { DEFAULT_COLLECTION_WINDOW_MINUTES } = require("../config");
+
+function scheduleCollectingVcsWriteback(release) {
+  if (!release || release.status !== "COLLECTING") return;
+  if (!release.commit_sha && !release.pr_number) return;
+  void writeVcsStatus(release, []).catch((err) =>
+    console.error(`[vcs_writeback] collecting status for ${release.id}:`, err?.message || err)
+  );
+}
 
 function normalizeCommitSha(sha) {
   const s = String(sha || "").trim().toLowerCase();
@@ -222,6 +231,7 @@ async function openReleaseSession({
   if (key) {
     const claim = await claimReleaseIdempotency(key, releaseId);
     if (claim.reused && claim.release) {
+      scheduleCollectingVcsWriteback(claim.release);
       return { reused: true, release: claim.release, collection_deadline: claim.release.collection_deadline };
     }
   }
@@ -287,6 +297,7 @@ async function openReleaseSession({
   });
 
   const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  scheduleCollectingVcsWriteback(release);
   return { reused: false, release, collection_deadline: deadline };
 }
 
