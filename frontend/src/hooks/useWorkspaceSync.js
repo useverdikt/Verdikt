@@ -100,7 +100,7 @@ export function useWorkspaceSync(navigate, nav) {
       resetHydrationPool();
       workspaceIdRef.current = wsId;
     }
-  });
+  }, []);
 
   useEffect(() => {
     if (hasBackend()) return;
@@ -400,7 +400,8 @@ export function useWorkspaceSync(navigate, nav) {
     ensureReleaseDetail,
     refreshReleaseFromBackend,
     loadMoreReleases,
-    addAudit
+    addAudit,
+    openAuditRecord
   };
 }
 
