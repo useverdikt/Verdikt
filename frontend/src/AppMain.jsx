@@ -84,6 +84,7 @@ export default function App() {
     loadThresholdSuggestions,
     addAudit,
     refreshReleaseFromBackend,
+    ensureReleaseDetail,
     refreshAuditFromServer,
     openAuditRecord
   } = workspace;
@@ -221,12 +222,14 @@ export default function App() {
       signalSources={SIGNAL_SOURCES}
       releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
       onCollectingAction={actions.handleCollectingAction}
+      onEnsureReleaseDetail={ensureReleaseDetail}
     />
   );
 
   const TrendView = () => (
     <TrendViewPanel
       releases={releases}
+      wsReady={wsReady}
       signalCategories={SIGNAL_CATEGORIES}
       thresholds={thresholds}
       trendChartMaxPoints={TREND_CHART_MAX_POINTS}

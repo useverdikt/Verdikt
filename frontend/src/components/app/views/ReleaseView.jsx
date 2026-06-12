@@ -22,7 +22,8 @@ export default function ReleaseView({
   handleRunVerdict,
   signalSources,
   releaseVersionPrimarySecondary,
-  onCollectingAction
+  onCollectingAction,
+  onEnsureReleaseDetail
 }) {
   const setupChecklist = (() => {
     let thresholdsConfigured = false;
@@ -73,6 +74,7 @@ export default function ReleaseView({
       onViewFullRecord={onViewFullRecord}
       onBeginOverride={onBeginOverride}
       onCollectingAction={onCollectingAction}
+      onEnsureReleaseDetail={onEnsureReleaseDetail}
       setupChecklist={setupChecklist}
     />
   );

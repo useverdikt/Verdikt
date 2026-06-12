@@ -13,6 +13,8 @@ import {
   getOrderedDetailSignals,
   regressionRequiredLocal
 } from "./releaseDashboardUtils.js";
+import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
+import ReleaseDetailLoadingSkeleton from "./ReleaseDetailLoadingSkeleton.jsx";
 
 export default function ReleaseDetail({
   release,
@@ -36,6 +38,7 @@ export default function ReleaseDetail({
     (typeof release.id === "string" && release.id.startsWith("rel_") ? release.id : null);
   const simHref = simReleaseId ? `/signal-sim?release=${encodeURIComponent(simReleaseId)}` : "/signal-sim";
   const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
+  const detailPending = isReleaseDetailPending(release);
 
   const ordered = getOrderedDetailSignals(signalCategories);
 
@@ -192,6 +195,10 @@ export default function ReleaseDetail({
 
   return (
     <div className="release-detail">
+      {detailPending ? (
+        <ReleaseDetailLoadingSkeleton signalCount={ordered.length} />
+      ) : (
+        <>
       {!isCollecting && receivedSignalCount > 0 ? (
         <SignalEvidenceBlock release={release} showFlag />
       ) : null}
@@ -309,6 +316,8 @@ export default function ReleaseDetail({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
