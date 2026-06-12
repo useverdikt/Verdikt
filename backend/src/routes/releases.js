@@ -54,6 +54,11 @@ const {
   resolveEvidenceForRelease,
   persistReleaseEvidenceQuality
 } = require("../services/evidenceQuality");
+const {
+  extractIdempotencyKey,
+  countSignalsForIdempotencyKey,
+  respondToDuplicateSignalIngest
+} = require("../services/signalIngestIdempotency");
 
 const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
@@ -72,29 +77,17 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, r
   }
 
   // Idempotency: clients may provide X-Idempotency-Key header or body.idempotency_key
-  const idempotencyKey = (
-    req.headers["x-idempotency-key"] ||
-    req.body?.idempotency_key ||
-    null
-  );
+  const idempotencyKey = extractIdempotencyKey(req);
 
   // Schema validation — surface warnings for unrecognised signal names
   const schemaCheck = validateSignalPayload(signals);
 
-  // Check idempotency: if key provided and all signals already exist under that key → 409
   if (idempotencyKey) {
-    const countRow = await queryOne(
-      "SELECT COUNT(*) AS c FROM signals WHERE release_id = ? AND idempotency_key = ?",
-      [req.params.releaseId, idempotencyKey]
-    );
-    const existingCount = Number(countRow?.c ?? 0);
+    const existingCount = await countSignalsForIdempotencyKey(req.params.releaseId, idempotencyKey);
     if (existingCount > 0) {
-      return res.status(409).json({
-        error: "duplicate_request",
-        message: "Signals for this idempotency key were already ingested. Returning original result.",
-        idempotency_key: idempotencyKey,
-        release_id: req.params.releaseId
-      });
+      const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, source, idempotencyKey);
+      if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
+      return res.json(out);
     }
   }
 
@@ -162,12 +155,26 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
       status: release.status
     });
   }
-  const insertIntSql =
-    "INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, ?, ?, ?, ?)";
   const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
+  const idempotencyKey = extractIdempotencyKey(req);
+  if (idempotencyKey) {
+    const existingCount = await countSignalsForIdempotencyKey(req.params.releaseId, idempotencyKey);
+    if (existingCount > 0) {
+      const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, ingestSource, idempotencyKey);
+      return res.json({
+        ...out,
+        integration: {
+          provider: String(provider),
+          mapped_signal_ids: Object.keys(mapped.signals)
+        }
+      });
+    }
+  }
+  const insertIntSql =
+    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?)";
   await transaction(async (tx) => {
     for (const [signalId, value] of Object.entries(mapped.signals)) {
-      await tx.run(insertIntSql, [req.params.releaseId, signalId, value, ingestSource, nowIso()]);
+      await tx.run(insertIntSql, [req.params.releaseId, signalId, value, ingestSource, nowIso(), idempotencyKey]);
     }
   });
 
@@ -184,6 +191,7 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
   });
 
   const out = await evaluateReleaseAfterSignalIngest(release, req.params.releaseId, ingestSource, Object.keys(mapped.signals).length);
+  if (idempotencyKey) out.idempotency_key = idempotencyKey;
   return res.json({
     ...out,
     integration: {
