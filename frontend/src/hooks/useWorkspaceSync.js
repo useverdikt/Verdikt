@@ -400,6 +400,8 @@ export function useWorkspaceSync(navigate, nav) {
     ensureReleaseDetail,
     refreshReleaseFromBackend,
     loadMoreReleases,
+    releasesNextBefore,
+    releasesLoadingMore,
     addAudit,
     openAuditRecord
   };
