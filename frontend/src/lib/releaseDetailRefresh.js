@@ -3,6 +3,14 @@ import { mapBackendDetailToUi } from "../app/main/appMainLogic.js";
 
 export const RELEASE_UPDATED_EVENT = "verdikt:release-updated";
 
+/** Whether a release row still needs full detail (list stub before background hydration). */
+export function isReleaseDetailPending(release) {
+  if (!release?.backendReleaseId) return false;
+  if (release.detailLoaded === true) return false;
+  if (release.detailLoaded === false) return true;
+  return false;
+}
+
 /** Fetch full release detail and map to UI release shape. */
 export async function fetchAndMapReleaseDetail(backendReleaseId, navigate) {
   const detail = await apiGet(`/api/releases/${backendReleaseId}`, { navigate });
