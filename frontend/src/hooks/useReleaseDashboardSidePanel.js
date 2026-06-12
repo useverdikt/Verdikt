@@ -4,13 +4,20 @@ import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import { reliabilityLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
 import { fetchLoopReadiness, getCachedLoopReadiness } from "../lib/loopReadinessCache.js";
+import { fetchSignalReliability, getCachedSignalReliability } from "../lib/signalReliabilityCache.js";
 
 export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases }) {
   const [loopReadiness, setLoopReadiness] = useState(() =>
     prodObservationEnabled && wsId ? getCachedLoopReadiness(wsId) : null
   );
-  const [signalReliability, setSignalReliability] = useState([]);
-  const [signalReliabilityComputedAt, setSignalReliabilityComputedAt] = useState(null);
+  const [signalReliability, setSignalReliability] = useState(() => {
+    const cached = wsId ? getCachedSignalReliability(wsId) : null;
+    return Array.isArray(cached?.signals) ? cached.signals : [];
+  });
+  const [signalReliabilityComputedAt, setSignalReliabilityComputedAt] = useState(() => {
+    const cached = wsId ? getCachedSignalReliability(wsId) : null;
+    return cached?.summary?.computed_at || cached?.signals?.[0]?.computed_at || null;
+  });
 
   const statsReleases = useMemo(
     () => (wsId ? releases.filter((r) => r.backendReleaseId) : releases),
@@ -32,11 +39,11 @@ export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, rel
     return () => { active = false; };
   }, [wsId, prodObservationEnabled]);
 
-  // Fetch signal-reliability independently — does not wait on loop-readiness.
+  // Fetch signal-reliability via shared cache — does not wait on loop-readiness.
   useEffect(() => {
     if (!wsId) return;
     let active = true;
-    apiGet(`/api/workspaces/${wsId}/signal-reliability`)
+    fetchSignalReliability(wsId, apiGet)
       .then((relData) => {
         if (!active) return;
         setSignalReliability(Array.isArray(relData?.signals) ? relData.signals : []);

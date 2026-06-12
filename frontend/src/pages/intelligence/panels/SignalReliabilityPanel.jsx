@@ -1,24 +1,29 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { authHeaders } from "../../../lib/apiClient.js";
-import { api, json } from "../api.js";
+import { apiGet, authHeaders } from "../../../lib/apiClient.js";
+import { api } from "../api.js";
 import { C, GRADE_COLOR } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
 import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
 import { panelErrorMessage } from "../panelLoad.js";
+import {
+  fetchSignalReliability,
+  getCachedSignalReliability,
+  resetSignalReliabilityCache
+} from "../../../lib/signalReliabilityCache.js";
 
 export function SignalReliabilityPanel({ wsId }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => getCachedSignalReliability(wsId));
   const [loading, setLoading] = useState(false);
   const [computing, setComputing] = useState(false);
   const [error, setError] = useState(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ force = false } = {}) => {
+    if (force) resetSignalReliabilityCache(wsId);
     setLoading(true);
     setError(null);
     try {
-      setData(await json(`/api/workspaces/${wsId}/signal-reliability`));
+      setData(await fetchSignalReliability(wsId, apiGet));
     } catch (err) {
-      setData(null);
       setError(panelErrorMessage(err, "Could not load signal reliability data."));
     } finally {
       setLoading(false);
@@ -29,11 +34,11 @@ export function SignalReliabilityPanel({ wsId }) {
     setComputing(true);
     try {
       await api(`/api/workspaces/${wsId}/signal-reliability/compute`, { method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ window_n: 20 }) });
-      await load();
+      await load({ force: true });
     } finally { setComputing(false); }
   };
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <Card title="Signal Reliability" eyebrow="SOURCE HEALTH"
