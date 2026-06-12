@@ -3,17 +3,16 @@ import React from "react";
 export default function AppContentSwitch({
   isMobile,
   nav,
-  ReleaseView,
-  TrendView,
-  ThresholdsView,
-  AuditView,
-  EscalationsView
+  releaseContent,
+  trendContent,
+  thresholdsContent,
+  auditContent,
+  escalationsContent
 }) {
-  // Release view owns its own layout (header + body-split) — no outer padding
   if (nav === "release") {
     return (
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <ReleaseView />
+        {releaseContent}
       </div>
     );
   }
@@ -25,10 +24,10 @@ export default function AppContentSwitch({
       padding: isMobile ? "16px 12px 18px" : "24px 28px",
       minWidth: 0,
     }}>
-      {nav === "trend" && <TrendView />}
-      {nav === "thresholds" && <ThresholdsView />}
-      {nav === "audit" && <AuditView />}
-      {nav === "escalations" && <EscalationsView />}
+      {nav === "trend" && trendContent}
+      {nav === "thresholds" && thresholdsContent}
+      {nav === "audit" && auditContent}
+      {nav === "escalations" && escalationsContent}
     </div>
   );
 }
