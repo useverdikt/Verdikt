@@ -210,6 +210,14 @@ function requireOverrideApproverRole(req, res, next) {
   next();
 }
 
+/** Restrict workspace membership mutations to org admins. */
+function requireOrgAdmin(req, res, next) {
+  if (req.auth.role !== "org_admin") {
+    return res.status(403).json({ error: "Organization admin role required for member management" });
+  }
+  next();
+}
+
 module.exports = {
   signToken,
   publicUser,
@@ -221,6 +229,7 @@ module.exports = {
   requireReleaseAccess,
   requireNonViewer,
   requireOverrideApproverRole,
+  requireOrgAdmin,
   READ_ONLY_ROLES,
   OVERRIDE_APPROVER_ROLES
 };

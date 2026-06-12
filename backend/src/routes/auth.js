@@ -105,10 +105,10 @@ module.exports = function registerAuthRoutes(app) {
     const workspace_id = `ws_${id.replace(/-/g, "").slice(0, 16)}`;
     await run(
       "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [id, email, password_hash, displayName, workspace_id, "ai_product_lead", nowIso()]
+      [id, email, password_hash, displayName, workspace_id, "org_admin", nowIso()]
     );
     await ensureWorkspaceSeeded(workspace_id);
-    await ensureMemberRow({ workspaceId: workspace_id, userId: id, role: "ai_product_lead" });
+    await ensureMemberRow({ workspaceId: workspace_id, userId: id, role: "org_admin" });
     return res.status(200).json({ ok: true, message: REGISTER_RESPONSE_MESSAGE });
   });
 
