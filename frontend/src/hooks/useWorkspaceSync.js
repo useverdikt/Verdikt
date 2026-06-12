@@ -63,6 +63,8 @@ export function useWorkspaceSync(navigate, nav) {
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
+  const navRef = useRef(nav);
+  navRef.current = nav;
   const workspaceIdRef = useRef(getWorkspaceId());
 
   const scheduleReleaseHydration = useCallback(
@@ -152,7 +154,7 @@ export function useWorkspaceSync(navigate, nav) {
           });
           setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
           scheduleReleaseHydration(merged, {
-            priorityChartWindow: nav === "trend"
+            priorityChartWindow: navRef.current === "trend"
           });
         } else {
           setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
@@ -178,7 +180,7 @@ export function useWorkspaceSync(navigate, nav) {
         if (!isCancelled()) setWsReady(true);
       }
     },
-    [navigate, nav, scheduleReleaseHydration]
+    [navigate, scheduleReleaseHydration]
   );
 
   const refreshAuditFromServer = useCallback(async () => {
