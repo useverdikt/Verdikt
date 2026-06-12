@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { apiGet } from "../../../lib/apiClient.js";
 import { C, BAND_META } from "../theme.js";
 import { btnStyle } from "../styles.js";
-import { Card, EmptyState, ErrorState } from "../ui.jsx";
+import { Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
 import { panelErrorMessage } from "../panelLoad.js";
 import { fullLoopBarPct, pipelineFunnelBarPct } from "../../../lib/loopReadinessUi.js";
 import { fetchLoopReadiness, getCachedLoopReadiness, resetLoopReadinessCache } from "../../../lib/loopReadinessCache.js";
