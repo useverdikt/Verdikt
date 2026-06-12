@@ -1,25 +1,29 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { json } from "../api.js";
+import { apiGet } from "../../../lib/apiClient.js";
 import { C, BAND_META } from "../theme.js";
 import { btnStyle } from "../styles.js";
-import { Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
+import { Card, EmptyState, ErrorState } from "../ui.jsx";
 import { panelErrorMessage } from "../panelLoad.js";
 import { fullLoopBarPct, pipelineFunnelBarPct } from "../../../lib/loopReadinessUi.js";
+import { fetchLoopReadiness, getCachedLoopReadiness, resetLoopReadinessCache } from "../../../lib/loopReadinessCache.js";
 
 export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() =>
+    prodObservationEnabled && wsId ? getCachedLoopReadiness(wsId) : null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ force = false } = {}) => {
     if (!prodObservationEnabled) return;
+    if (force) resetLoopReadinessCache(wsId);
     setLoading(true);
     setError(null);
     try {
-      setData(await json(`/api/workspaces/${wsId}/loop-readiness`));
+      const result = await fetchLoopReadiness(wsId, apiGet);
+      setData(result);
     } catch (err) {
-      setData(null);
       setError(panelErrorMessage(err, "Could not load loop readiness data."));
     } finally {
       setLoading(false);
@@ -27,7 +31,7 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
   }, [wsId, prodObservationEnabled]);
 
   useEffect(() => {
-    if (prodObservationEnabled) load();
+    if (prodObservationEnabled) void load();
   }, [load, prodObservationEnabled]);
 
   if (!prodObservationEnabled) {
@@ -60,7 +64,7 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
       title="Feedback Loop Readiness"
       eyebrow="PRE-RELEASE → VERDICT → POST-DEPLOY → ALIGNMENT"
       action={
-        <button onClick={load} disabled={loading} style={btnStyle(C.accent)}>
+        <button onClick={() => load({ force: true })} disabled={loading} style={btnStyle(C.accent)}>
           {loading ? "Loading…" : "Refresh"}
         </button>
       }
