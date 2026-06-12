@@ -1577,6 +1577,44 @@ describe("Workspace members", () => {
     const members = await owner.get(`/api/workspaces/${ws}/members`).expect(200);
     assert.equal(members.body.members.length, 2);
   });
+
+  it("rejects member mutations from non-admin roles", async () => {
+    const ownerEmail = `own2_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const engineerEmail = `eng_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const owner = request.agent(app);
+    await owner.post("/api/auth/register").send({ email: ownerEmail, password: "password123", name: "Owner2" }).expect(200);
+    await owner.post("/api/auth/login").send({ email: ownerEmail, password: "password123" }).expect(200);
+    const me = await owner.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const invited = await owner
+      .post(`/api/workspaces/${ws}/members/invite`)
+      .send({ email: engineerEmail, role: "engineer" })
+      .expect(201);
+
+    const engineer = request.agent(app);
+    await engineer
+      .post("/api/auth/register")
+      .send({
+        email: engineerEmail,
+        password: "password123",
+        name: "Engineer",
+        invite_token: invited.body.invite.token
+      })
+      .expect(200);
+    await engineer.post("/api/auth/login").send({ email: engineerEmail, password: "password123" }).expect(200);
+    const engineerMe = await engineer.get("/api/auth/me").expect(200);
+
+    await engineer
+      .post(`/api/workspaces/${ws}/members/invite`)
+      .send({ email: `blocked_${crypto.randomBytes(4).toString("hex")}@test.local`, role: "engineer" })
+      .expect(403);
+
+    await engineer
+      .patch(`/api/workspaces/${ws}/members/${engineerMe.body.user.id}`)
+      .send({ role: "org_admin" })
+      .expect(403);
+  });
 });
 
 describe("Escalation inbox", () => {
@@ -1622,6 +1660,8 @@ describe("Escalation inbox", () => {
     assert.equal(inbox.body.escalations.length, 1);
     assert.equal(inbox.body.escalations[0].release_id, rel.body.id);
 
+    await setUserRole(me.body.user.id, ws, "engineer");
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
     await human.post(`/api/workspaces/${ws}/escalations/${esc.body.escalation.id}/acknowledge`).expect(403);
 
     await setUserRole(me.body.user.id, ws, "vp_engineering");
