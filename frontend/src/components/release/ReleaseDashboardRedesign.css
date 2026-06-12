@@ -703,3 +703,79 @@
   50%       { opacity: 1; }
 }
 .release-redesign .coll-pulse { animation: cp 2s ease-in-out infinite; }
+
+/* ── RELEASE DETAIL LOADING SKELETON ───────────────────────────────────────── */
+.release-detail-loading {
+  padding: 4px 0 8px;
+}
+
+.release-detail-loading-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.release-detail-loading-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #18243a;
+  border-top-color: #3b82f6;
+  animation: release-detail-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes release-detail-spin {
+  to { transform: rotate(360deg); }
+}
+
+.release-detail-loading-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: #6e87a2;
+  letter-spacing: 0.04em;
+}
+
+.release-detail-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.release-detail-sk-row {
+  pointer-events: none;
+}
+
+.release-detail-sk-bar {
+  display: block;
+  border-radius: 4px;
+  background: #18243a;
+}
+
+.release-detail-sk-bar--label {
+  width: 72%;
+  height: 10px;
+  margin-bottom: 2px;
+}
+
+.release-detail-sk-bar--value {
+  width: 48%;
+  height: 14px;
+  margin-bottom: 6px;
+}
+
+.release-detail-sk-bar--meta {
+  width: 36%;
+  height: 8px;
+}
+
+.release-detail-sk-bar--block {
+  width: 100%;
+  height: 10px;
+  margin-bottom: 10px;
+}
+
+.sk-pulse {
+  animation: sk-pulse 1.4s ease-in-out infinite;
+}

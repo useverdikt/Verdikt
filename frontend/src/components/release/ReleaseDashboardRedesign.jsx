@@ -23,9 +23,10 @@ export function ReleaseDashboard({
   onViewFullRecord,
   onBeginOverride,
   onCollectingAction,
+  onEnsureReleaseDetail,
   setupChecklist
 }) {
-  const filters = useReleaseDashboardFilters(releases);
+  const filters = useReleaseDashboardFilters(releases, { onEnsureReleaseDetail });
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
   const { stats, releaseCatStatuses, recentActivity } = useReleaseDashboardStats({
     releases,
