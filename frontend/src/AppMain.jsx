@@ -86,7 +86,10 @@ export default function App() {
     refreshReleaseFromBackend,
     ensureReleaseDetail,
     refreshAuditFromServer,
-    openAuditRecord
+    openAuditRecord,
+    loadMoreReleases,
+    releasesNextBefore,
+    releasesLoadingMore
   } = workspace;
 
   const {
@@ -297,6 +300,9 @@ export default function App() {
               releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
               onCollectingAction={actions.handleCollectingAction}
               onEnsureReleaseDetail={ensureReleaseDetail}
+              hasMoreReleases={Boolean(releasesNextBefore)}
+              loadingMoreReleases={releasesLoadingMore}
+              onLoadMoreReleases={loadMoreReleases}
             />
           }
           trendContent={

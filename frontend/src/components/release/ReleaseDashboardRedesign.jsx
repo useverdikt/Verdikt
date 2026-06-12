@@ -24,7 +24,10 @@ export function ReleaseDashboard({
   onBeginOverride,
   onCollectingAction,
   onEnsureReleaseDetail,
-  setupChecklist
+  setupChecklist,
+  hasMoreReleases = false,
+  loadingMoreReleases = false,
+  onLoadMoreReleases
 }) {
   const filters = useReleaseDashboardFilters(releases, { onEnsureReleaseDetail });
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
@@ -69,6 +72,9 @@ export function ReleaseDashboard({
             onViewFullRecord={onViewFullRecord}
             onBeginOverride={onBeginOverride}
             onCollectingAction={onCollectingAction}
+            hasMoreReleases={hasMoreReleases}
+            loadingMoreReleases={loadingMoreReleases}
+            onLoadMoreReleases={onLoadMoreReleases}
           />
         </div>
 
