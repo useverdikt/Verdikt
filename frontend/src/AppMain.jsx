@@ -198,92 +198,6 @@ export default function App() {
     { id: "settings", label: "Settings", icon: "⚙" }
   ];
 
-  const ReleaseView = () => (
-    <ReleaseViewPanel
-      current={current}
-      releases={sortedReleasesForSidebar}
-      wsReady={wsReady}
-      wsId={getWorkspaceId()}
-      prodObservationEnabled={!!project.prodObservation}
-      formatReleaseAge={formatSidebarReleaseAge}
-      thresholds={thresholds}
-      releaseTypes={RELEASE_TYPES}
-      signalCategories={SIGNAL_CATEGORIES}
-      calcCategoryStatus={calcCategoryStatus}
-      setDetailCat={setDetailCat}
-      setShowStartCert={setShowStartCert}
-      onViewFullRecord={setAuditDetail}
-      onBeginOverride={(release) => {
-        if (release?.id) setSelectedId(release.id);
-        setShowOverride(true);
-      }}
-      handleSimulateSignal={actions.handleSimulateSignal}
-      handleRunVerdict={actions.handleRunVerdict}
-      signalSources={SIGNAL_SOURCES}
-      releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
-      onCollectingAction={actions.handleCollectingAction}
-      onEnsureReleaseDetail={ensureReleaseDetail}
-    />
-  );
-
-  const TrendView = () => (
-    <TrendViewPanel
-      releases={releases}
-      wsReady={wsReady}
-      signalCategories={SIGNAL_CATEGORIES}
-      thresholds={thresholds}
-      trendChartMaxPoints={TREND_CHART_MAX_POINTS}
-      getRegressionRequired={getRegressionRequired}
-      evaluateSignal={evaluateSignal}
-      calcCategoryStatus={calcCategoryStatus}
-      catStatusColor={catStatusColor}
-      trendChartXLabel={trendChartXLabel}
-      formatReleaseDisplayName={formatReleaseDisplayName}
-    />
-  );
-
-  const ThresholdsView = () => (
-    <ThresholdsViewPanel
-      thresholds={thresholds}
-      thresholdRequired={thresholdRequired}
-      defaultThresholds={DEFAULT_THRESHOLDS}
-      signalCategories={SIGNAL_CATEGORIES}
-      isMobile={isMobile}
-      currentUser={currentUser}
-      canAct={canAct}
-      suggestions={thresholdSuggestions}
-      suggestNote={thresholdSuggestNote}
-      onApplySuggestion={actions.handleApplySuggestion}
-      onDismissSuggestion={actions.handleDismissSuggestion}
-      onSave={actions.handleThresholdSave}
-    />
-  );
-
-  const AuditView = () => (
-    <AuditViewPanel
-      auditLog={auditLog}
-      releases={releases}
-      isMobile={isMobile}
-      wsReady={wsReady}
-      onSelectRelease={handleAuditSelect}
-    />
-  );
-
-  const EscalationsView = () => (
-    <EscalationsViewPanel
-      isMobile={isMobile}
-      wsReady={wsReady}
-      currentUser={currentUser}
-      onSelectRelease={(r) => {
-        if (r?.backendReleaseId) {
-          const match = releases.find((x) => x.backendReleaseId === r.backendReleaseId || x.id === r.backendReleaseId);
-          if (match?.id) setSelectedId(match.id);
-        }
-        navigate("/releases");
-      }}
-    />
-  );
-
   return (
     <>
       <ApiBanner message={apiBanner} onDismiss={() => setApiBanner(null)} />
@@ -358,11 +272,87 @@ export default function App() {
         <AppContentSwitch
           isMobile={isMobile}
           nav={nav}
-          ReleaseView={ReleaseView}
-          TrendView={TrendView}
-          ThresholdsView={ThresholdsView}
-          AuditView={AuditView}
-          EscalationsView={EscalationsView}
+          releaseContent={
+            <ReleaseViewPanel
+              current={current}
+              releases={sortedReleasesForSidebar}
+              wsReady={wsReady}
+              wsId={getWorkspaceId()}
+              prodObservationEnabled={!!project.prodObservation}
+              formatReleaseAge={formatSidebarReleaseAge}
+              thresholds={thresholds}
+              releaseTypes={RELEASE_TYPES}
+              signalCategories={SIGNAL_CATEGORIES}
+              calcCategoryStatus={calcCategoryStatus}
+              setDetailCat={setDetailCat}
+              setShowStartCert={setShowStartCert}
+              onViewFullRecord={setAuditDetail}
+              onBeginOverride={(release) => {
+                if (release?.id) setSelectedId(release.id);
+                setShowOverride(true);
+              }}
+              handleSimulateSignal={actions.handleSimulateSignal}
+              handleRunVerdict={actions.handleRunVerdict}
+              signalSources={SIGNAL_SOURCES}
+              releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
+              onCollectingAction={actions.handleCollectingAction}
+              onEnsureReleaseDetail={ensureReleaseDetail}
+            />
+          }
+          trendContent={
+            <TrendViewPanel
+              releases={releases}
+              wsReady={wsReady}
+              signalCategories={SIGNAL_CATEGORIES}
+              thresholds={thresholds}
+              trendChartMaxPoints={TREND_CHART_MAX_POINTS}
+              getRegressionRequired={getRegressionRequired}
+              evaluateSignal={evaluateSignal}
+              calcCategoryStatus={calcCategoryStatus}
+              catStatusColor={catStatusColor}
+              trendChartXLabel={trendChartXLabel}
+              formatReleaseDisplayName={formatReleaseDisplayName}
+            />
+          }
+          thresholdsContent={
+            <ThresholdsViewPanel
+              thresholds={thresholds}
+              thresholdRequired={thresholdRequired}
+              defaultThresholds={DEFAULT_THRESHOLDS}
+              signalCategories={SIGNAL_CATEGORIES}
+              isMobile={isMobile}
+              currentUser={currentUser}
+              canAct={canAct}
+              suggestions={thresholdSuggestions}
+              suggestNote={thresholdSuggestNote}
+              onApplySuggestion={actions.handleApplySuggestion}
+              onDismissSuggestion={actions.handleDismissSuggestion}
+              onSave={actions.handleThresholdSave}
+            />
+          }
+          auditContent={
+            <AuditViewPanel
+              auditLog={auditLog}
+              releases={releases}
+              isMobile={isMobile}
+              wsReady={wsReady}
+              onSelectRelease={handleAuditSelect}
+            />
+          }
+          escalationsContent={
+            <EscalationsViewPanel
+              isMobile={isMobile}
+              wsReady={wsReady}
+              currentUser={currentUser}
+              onSelectRelease={(r) => {
+                if (r?.backendReleaseId) {
+                  const match = releases.find((x) => x.backendReleaseId === r.backendReleaseId || x.id === r.backendReleaseId);
+                  if (match?.id) setSelectedId(match.id);
+                }
+                navigate("/releases");
+              }}
+            />
+          }
         />
         {!hasBackend() && !currentUser && (
           <UserSetupModal
