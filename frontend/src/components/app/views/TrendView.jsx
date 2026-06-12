@@ -4,6 +4,7 @@ import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import { C } from "../../../theme/tokens.js";
 import TrendViewLoadingSkeleton from "../TrendViewLoadingSkeleton.jsx";
 
+
 export default function TrendView({
   releases,
   wsReady = true,
@@ -19,8 +20,13 @@ export default function TrendView({
 }) {
   const historyFull = [...releases].reverse();
   const chartHistory = historyFull.slice(-trendChartMaxPoints);
-  const chartNeedsDetail = chartHistory.some(isReleaseDetailPending);
-  const showTrendSkeleton = !wsReady || (historyFull.length >= 2 && chartNeedsDetail);
+  const pendingCount = chartHistory.filter(isReleaseDetailPending).length;
+  // Show the skeleton only when we have no hydrated data at all.
+  // Once at least 2 ready points exist, render the chart and let it fill in.
+  const readyHistory = chartHistory.filter((r) => !isReleaseDetailPending(r));
+  const showTrendSkeleton = !wsReady || readyHistory.length < 2;
+  // Chart operates only on hydrated releases so pass-rate is meaningful.
+  const chartData = readyHistory;
   const W = 580, H = 160, PL = 38, PB = 26, iW = W - PL - 14, iH = H - PB - 10;
   const passRate = (r) => {
     const all = signalCategories.flatMap((c) => c.signals).map((sig) => {
@@ -32,8 +38,8 @@ export default function TrendView({
     }).filter((x) => x !== null);
     return all.length ? Math.round(all.filter(Boolean).length / all.length * 100) : 0;
   };
-  const pts = chartHistory.map((r, i) => ({
-    x: PL + i / Math.max(chartHistory.length - 1, 1) * iW,
+  const pts = chartData.map((r, i) => ({
+    x: PL + i / Math.max(chartData.length - 1, 1) * iW,
     y: 10 + (100 - passRate(r)) / 100 * iH,
     r,
     rate: passRate(r)
@@ -47,8 +53,20 @@ export default function TrendView({
         <h2 style={{ margin: 0, fontFamily: C.serif, fontSize: 28, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.1 }}>Signal Trend</h2>
       </div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 22 }}>
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 16, letterSpacing: "0.1em", fontFamily: C.mono }}>
-          SIGNAL PASS RATE — RELEASE HISTORY
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.1em", fontFamily: C.mono }}>
+            SIGNAL PASS RATE — RELEASE HISTORY
+          </div>
+          {pendingCount > 0 && !showTrendSkeleton && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.dim, fontFamily: C.mono }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%", border: `1.5px solid ${C.dim}`,
+                borderTopColor: "transparent", display: "inline-block",
+                animation: "verdikt-spin 0.8s linear infinite"
+              }} />
+              {pendingCount} release{pendingCount > 1 ? "s" : ""} loading…
+            </div>
+          )}
         </div>
         {historyFull.length < 2 ? (
           <div style={{ textAlign: "center", padding: "30px", color: C.muted }}>Add more releases to see the trend.</div>
@@ -95,14 +113,14 @@ export default function TrendView({
             )}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginTop: 16 }}>
               <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: "0.1em", fontFamily: C.mono, textTransform: "uppercase" }}>
-                CATEGORY PASS/FAIL (columns match chart: R1–R{chartHistory.length})
+                CATEGORY PASS/FAIL (columns match chart: R1–R{chartData.length})
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
                       <td style={{ padding: "10px 16px", fontSize: 9.5, color: C.dim, fontFamily: C.mono, fontWeight: 700, minWidth: 160, letterSpacing: "0.09em" }}>CATEGORY</td>
-                      {chartHistory.map((r, ri) => (
+                      {chartData.map((r, ri) => (
                         <td key={r.id} style={{ padding: "10px 8px", fontSize: 9.5, color: C.dim, fontFamily: C.mono, textAlign: "center", whiteSpace: "nowrap", fontWeight: 700, letterSpacing: "0.09em" }} title={r.version}>
                           R{ri + 1}
                         </td>
@@ -117,7 +135,7 @@ export default function TrendView({
                             <span style={{ color: cat.color }}>{cat.icon}</span>{cat.label}
                           </div>
                         </td>
-                        {chartHistory.map((r) => {
+                        {chartData.map((r) => {
                           const status = calcCategoryStatus(cat.id, r.signals, thresholds, r.releaseType);
                           const sc = catStatusColor(status);
                           return (
