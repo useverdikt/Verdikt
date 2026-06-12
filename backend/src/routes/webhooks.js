@@ -27,6 +27,11 @@ const {
 } = require("../services/domain");
 const { openReleaseSession, buildGithubMappings } = require("../services/releaseIdentity");
 const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
+const {
+  extractIdempotencyKey,
+  countSignalsForIdempotencyKey,
+  respondToDuplicateSignalIngest
+} = require("../services/signalIngestIdempotency");
 
 const {
   AI_SIGNAL_DEFINITIONS,
@@ -344,12 +349,27 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
       supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency"])
     });
   }
-  const insertHookSql =
-    "INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, ?, ?, ?, ?)";
   const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
+  const idempotencyKey = extractIdempotencyKey(req, [req.headers["x-github-delivery"]]);
+  if (idempotencyKey) {
+    const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
+    if (existingCount > 0) {
+      const out = await respondToDuplicateSignalIngest(release, release.id, ingestSource, idempotencyKey);
+      return res.json({
+        ...out,
+        integration: {
+          provider: String(provider),
+          mapped_signal_ids: Object.keys(mapped.signals),
+          ingest_mode: "workspace_webhook"
+        }
+      });
+    }
+  }
+  const insertHookSql =
+    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?)";
   await transaction(async (tx) => {
     for (const [signalId, value] of Object.entries(mapped.signals)) {
-      await tx.run(insertHookSql, [release.id, signalId, value, ingestSource, nowIso()]);
+      await tx.run(insertHookSql, [release.id, signalId, value, ingestSource, nowIso(), idempotencyKey]);
     }
   });
 
@@ -367,6 +387,7 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
   });
 
   const out = await evaluateReleaseAfterSignalIngest(release, release.id, ingestSource, Object.keys(mapped.signals).length);
+  if (idempotencyKey) out.idempotency_key = idempotencyKey;
   return res.json({
     ...out,
     integration: {
@@ -465,12 +486,28 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
       });
     }
 
-    const insertHookSql =
-      "INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, ?, ?, ?, ?)";
     const ingestSource = typeof source === "string" && source.trim() ? source.trim() : "ci_webhook";
+    const idempotencyKey = extractIdempotencyKey(req, [req.headers["x-github-delivery"]]);
+    if (idempotencyKey) {
+      const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
+      if (existingCount > 0) {
+        const out = await respondToDuplicateSignalIngest(release, release.id, ingestSource, idempotencyKey);
+        return res.json({
+          ...out,
+          release_id: release.id,
+          integration: {
+            provider: "ci",
+            mapped_signal_ids: Object.keys(mapped.signals),
+            ingest_mode: "ci_webhook"
+          }
+        });
+      }
+    }
+    const insertHookSql =
+      "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?)";
     await transaction(async (tx) => {
       for (const [signalId, value] of Object.entries(mapped.signals)) {
-        await tx.run(insertHookSql, [release.id, signalId, value, ingestSource, nowIso()]);
+        await tx.run(insertHookSql, [release.id, signalId, value, ingestSource, nowIso(), idempotencyKey]);
       }
     });
 
@@ -496,6 +533,7 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
       ingestSource,
       Object.keys(mapped.signals).length
     );
+    if (idempotencyKey) out.idempotency_key = idempotencyKey;
     return res.json({
       ...out,
       release_id: release.id,
