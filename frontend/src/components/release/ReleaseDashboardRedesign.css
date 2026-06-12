@@ -243,7 +243,7 @@
 .release-redesign .table-head,
 .release-redesign .release-row {
   display: grid;
-  grid-template-columns: 24px 1fr 120px 130px 84px;
+  grid-template-columns: 24px 1fr minmax(108px, 128px) 108px 84px;
   padding: 0 16px;
 }
 .release-redesign .table-head {
@@ -280,6 +280,14 @@
   color: #6e87a2;
 }
 .release-redesign .td.r { justify-content: flex-end; text-align: right; }
+
+.release-redesign .verdict-cell {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
 
 .release-redesign .expand-icon {
   color: #384d60;
@@ -364,6 +372,15 @@
 .release-redesign .sig-frac { color: #6e87a2; }
 .release-redesign .sig-frac .fp { color: #22c55e; }
 .release-redesign .sig-frac .ff { color: #ef4444; }
+.release-redesign .sig-mini--loading .sd.sk-pulse {
+  background: #1e2e42;
+  border: 1px solid #243050;
+}
+.release-redesign .sig-frac--loading {
+  color: #384d60;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
 
 /* ── TIME CELL ──────────────────────────────────────────────────────────────── */
 .release-redesign .time-cell {
