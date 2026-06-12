@@ -70,15 +70,15 @@ export function useWorkspaceSync(navigate, nav) {
   const scheduleReleaseHydration = useCallback(
     (mergedReleases, { priorityChartWindow = false } = {}) => {
       syncHydratedFromReleases(mergedReleases, isReleaseDetailPending);
-      const pending = allPendingReleaseIds(mergedReleases);
-      if (pending.length) {
-        enqueueReleaseHydration(pending, { priority: false });
-      }
       if (priorityChartWindow) {
         const chartIds = chartWindowPendingIds(mergedReleases, TREND_CHART_MAX_POINTS);
         if (chartIds.length) {
           enqueueReleaseHydration(chartIds, { priority: true });
         }
+      }
+      const pending = allPendingReleaseIds(mergedReleases);
+      if (pending.length) {
+        enqueueReleaseHydration(pending, { priority: false });
       }
     },
     []
