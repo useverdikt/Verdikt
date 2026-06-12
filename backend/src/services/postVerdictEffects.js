@@ -36,6 +36,7 @@ const { deliverVerdictWebhook } = require("./outboundWebhook");
 const { deliverReleaseCallback } = require("./releaseCallback");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { broadcastVerdictAndClose } = require("./sseManager");
+const { computeSignalReliability } = require("./signalReliability");
 
 async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
   try {
@@ -166,7 +167,17 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     }).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
   } catch (_) {}
 
-  // 8. SSE broadcast
+  // 8. Signal reliability recompute (async — does not block)
+  const verdictIssued = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
+  if (verdictIssued.has(nextStatus)) {
+    try {
+      void computeSignalReliability(release.workspace_id).catch((err) =>
+        console.error("[signal_reliability] async recompute failed:", releaseId, err?.message)
+      );
+    } catch (_) {}
+  }
+
+  // 9. SSE broadcast
   try {
     broadcastVerdictAndClose(releaseId, {
       release_id: releaseId,
