@@ -1,4 +1,5 @@
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import {
   envClass,
   envDisplayLabel,
@@ -39,6 +40,7 @@ export default function ReleaseRow({
   const failCount = dots.filter((d) => d === "f").length;
   const warnCount = dots.filter((d) => d === "w").length;
   const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
+  const detailPending = isReleaseDetailPending(release);
 
   const timeLabel = formatAge ? formatAge(release) : release.date || "—";
   const subLabel =
@@ -86,44 +88,57 @@ export default function ReleaseRow({
         </div>
       </div>
 
-      <div className="td">
+      <div className="td verdict-cell">
         <div className={`vbadge ${verdict.cls}`}>
           <div className="vbadge-dot"></div>
           {verdict.label}
         </div>
         {release.evidenceQuality && normalizeReleaseStatus(release.status) !== UI_RELEASE_STATUS.COLLECTING ? (
-          <div style={{ marginTop: 6 }}>
-            <EvidenceQualityFlag flag={release.evidenceQuality} compact />
-          </div>
+          <EvidenceQualityFlag flag={release.evidenceQuality} compact />
         ) : null}
       </div>
 
       <div className="td sig-cell">
-        <div className="sig-mini">
-          {dots.map((d, i) => (
-            <div key={i} className={`sd ${d}`}></div>
-          ))}
-        </div>
-        <div className="sig-frac">
-          {release.status === "collecting" ? (
-            <>
-              <span className="fp">{passCount}</span> / {dots.length} received
-            </>
-          ) : failCount > 0 ? (
-            <>
-              <span className="ff">{failCount} failed</span>
-              {warnCount > 0 ? ` · ${warnCount} warn` : ""}
-            </>
-          ) : warnCount > 0 ? (
-            <>
-              <span className="fp">{passCount}</span> / {dots.length} · {warnCount} warn
-            </>
-          ) : (
-            <>
-              <span className="fp">{passCount}</span> / {dots.length} passed
-            </>
-          )}
-        </div>
+        {detailPending ? (
+          <>
+            <div className="sig-mini sig-mini--loading" aria-hidden="true">
+              {signalCategories.slice(0, 5).map((_, i) => (
+                <div key={i} className="sd sk-pulse" />
+              ))}
+            </div>
+            <div className="sig-frac sig-frac--loading sk-pulse" aria-busy="true">
+              Loading signals…
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="sig-mini">
+              {dots.map((d, i) => (
+                <div key={i} className={`sd ${d}`}></div>
+              ))}
+            </div>
+            <div className="sig-frac">
+              {release.status === "collecting" ? (
+                <>
+                  <span className="fp">{passCount}</span> / {dots.length} received
+                </>
+              ) : failCount > 0 ? (
+                <>
+                  <span className="ff">{failCount} failed</span>
+                  {warnCount > 0 ? ` · ${warnCount} warn` : ""}
+                </>
+              ) : warnCount > 0 ? (
+                <>
+                  <span className="fp">{passCount}</span> / {dots.length} · {warnCount} warn
+                </>
+              ) : (
+                <>
+                  <span className="fp">{passCount}</span> / {dots.length} passed
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="td r time-cell">
