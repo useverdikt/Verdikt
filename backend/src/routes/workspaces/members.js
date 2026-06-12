@@ -4,6 +4,7 @@ const {
   authMiddleware,
   requireHumanSession,
   requireNonViewer,
+  requireOrgAdmin,
   requireWorkspaceMatch
 } = require("../../middleware/auth");
 const { getUserRowForAuthById } = require("../../services/authUserLookup");
@@ -30,6 +31,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     authMiddleware,
     requireHumanSession,
     requireNonViewer,
+    requireOrgAdmin,
     requireWorkspaceMatch,
     async (req, res, next) => {
       try {
@@ -57,6 +59,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     authMiddleware,
     requireHumanSession,
     requireNonViewer,
+    requireOrgAdmin,
     requireWorkspaceMatch,
     async (req, res, next) => {
       try {
@@ -82,6 +85,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     authMiddleware,
     requireHumanSession,
     requireNonViewer,
+    requireOrgAdmin,
     requireWorkspaceMatch,
     async (req, res, next) => {
       try {
@@ -106,6 +110,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     authMiddleware,
     requireHumanSession,
     requireNonViewer,
+    requireOrgAdmin,
     requireWorkspaceMatch,
     async (req, res, next) => {
       try {
