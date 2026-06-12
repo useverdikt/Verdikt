@@ -3,9 +3,12 @@ import { apiGet } from "../lib/apiClient.js";
 import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import { reliabilityLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
+import { fetchLoopReadiness, getCachedLoopReadiness } from "../lib/loopReadinessCache.js";
 
 export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases }) {
-  const [loopReadiness, setLoopReadiness] = useState(null);
+  const [loopReadiness, setLoopReadiness] = useState(() =>
+    prodObservationEnabled && wsId ? getCachedLoopReadiness(wsId) : null
+  );
   const [signalReliability, setSignalReliability] = useState([]);
   const [signalReliabilityComputedAt, setSignalReliabilityComputedAt] = useState(null);
 
@@ -19,34 +22,36 @@ export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, rel
     [statsReleases]
   );
 
+  // Fetch loop-readiness independently via the shared cache (stale-while-revalidate).
+  useEffect(() => {
+    if (!wsId || !prodObservationEnabled) return;
+    let active = true;
+    fetchLoopReadiness(wsId, apiGet)
+      .then((data) => { if (active && data) setLoopReadiness(data); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [wsId, prodObservationEnabled]);
+
+  // Fetch signal-reliability independently — does not wait on loop-readiness.
   useEffect(() => {
     if (!wsId) return;
     let active = true;
-    const loadSidePanelData = async () => {
-      const [loopResult, relResult] = await Promise.allSettled([
-        prodObservationEnabled ? apiGet(`/api/workspaces/${wsId}/loop-readiness`) : Promise.resolve(null),
-        apiGet(`/api/workspaces/${wsId}/signal-reliability`)
-      ]);
-      if (!active) return;
-      if (loopResult.status === "fulfilled") {
-        setLoopReadiness(loopResult.value);
-      }
-      if (relResult.status === "fulfilled") {
-        const relData = relResult.value;
+    apiGet(`/api/workspaces/${wsId}/signal-reliability`)
+      .then((relData) => {
+        if (!active) return;
         setSignalReliability(Array.isArray(relData?.signals) ? relData.signals : []);
         setSignalReliabilityComputedAt(
           relData?.summary?.computed_at || relData?.signals?.[0]?.computed_at || null
         );
-      } else {
-        setSignalReliability([]);
-        setSignalReliabilityComputedAt(null);
-      }
-    };
-    void loadSidePanelData();
-    return () => {
-      active = false;
-    };
-  }, [wsId, prodObservationEnabled, releases.length]);
+      })
+      .catch(() => {
+        if (active) {
+          setSignalReliability([]);
+          setSignalReliabilityComputedAt(null);
+        }
+      });
+    return () => { active = false; };
+  }, [wsId]);
 
   const reliabilityRows = useMemo(() => {
     if (!signalReliability.length) return [];
