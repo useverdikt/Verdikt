@@ -23,16 +23,15 @@ export default function ReleaseView({
   signalSources,
   releaseVersionPrimarySecondary,
   onCollectingAction,
-  onEnsureReleaseDetail
+  onEnsureReleaseDetail,
+  hasMoreReleases = false,
+  loadingMoreReleases = false,
+  onLoadMoreReleases
 }) {
   const setupChecklist = (() => {
-    let thresholdsConfigured = false;
-    try {
-      const t = JSON.parse(localStorage.getItem("vdk3_thresholds") || "{}");
-      thresholdsConfigured = ["accuracy", "safety", "tone", "hallucination", "relevance"].every(
-        (k) => t[k] !== undefined && t[k] !== null && t[k] !== ""
-      );
-    } catch (_) {}
+    const thresholdsConfigured = ["accuracy", "safety", "tone", "hallucination", "relevance"].every(
+      (k) => thresholds[k] !== undefined && thresholds[k] !== null && thresholds[k] !== ""
+    );
     const apiBaseConfigured =
       getSafeApiBase() === "" ||
       (import.meta.env.DEV && (localStorage.getItem("vdk3_api_base") || "").trim().length > 0) ||
@@ -76,6 +75,9 @@ export default function ReleaseView({
       onCollectingAction={onCollectingAction}
       onEnsureReleaseDetail={onEnsureReleaseDetail}
       setupChecklist={setupChecklist}
+      hasMoreReleases={hasMoreReleases}
+      loadingMoreReleases={loadingMoreReleases}
+      onLoadMoreReleases={onLoadMoreReleases}
     />
   );
 }

@@ -18,7 +18,10 @@ export default function ReleaseDashboardTable({
   releaseVersionPrimarySecondary,
   onViewFullRecord,
   onBeginOverride,
-  onCollectingAction
+  onCollectingAction,
+  hasMoreReleases = false,
+  loadingMoreReleases = false,
+  onLoadMoreReleases
 }) {
   return (
     <>
@@ -136,6 +139,19 @@ export default function ReleaseDashboardTable({
           })
         )}
       </div>
+
+      {hasMoreReleases && visibleReleases.length > 0 ? (
+        <div style={{ padding: "16px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <button
+            type="button"
+            className="pf"
+            disabled={loadingMoreReleases}
+            onClick={onLoadMoreReleases}
+          >
+            {loadingMoreReleases ? "Loading more…" : "Load more releases"}
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }
