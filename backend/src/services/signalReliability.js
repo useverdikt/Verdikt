@@ -59,12 +59,17 @@ async function computeSignalReliability(workspaceId, windowN = 20) {
   if (releases.length < 2) return [];
 
   const n = releases.length;
-  const releaseSignals = new Map();
-  for (const rel of releases) {
-    const sigs = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [rel.id]);
-    const map = {};
-    for (const s of sigs) map[s.signal_id] = s.value;
-    releaseSignals.set(rel.id, map);
+  const releaseIds = releases.map((rel) => rel.id);
+  const placeholders = releaseIds.map(() => "?").join(", ");
+  const allSigs = await queryAll(
+    `SELECT release_id, signal_id, value FROM signals WHERE release_id IN (${placeholders}) ORDER BY id ASC`,
+    releaseIds
+  );
+
+  const releaseSignals = new Map(releaseIds.map((id) => [id, {}]));
+  for (const sig of allSigs) {
+    const map = releaseSignals.get(sig.release_id);
+    if (map) map[sig.signal_id] = sig.value;
   }
 
   const allSignalIds = new Set();
@@ -141,4 +146,4 @@ async function getReliabilitySummary(workspaceId) {
   return { grades: summary, total: rows.length, computed_at: rows[0]?.computed_at || null };
 }
 
-module.exports = { computeSignalReliability, getSignalReliability, getReliabilitySummary };
+module.exports = { computeSignalReliability, getSignalReliability, getReliabilitySummary, toGrade, cv };
