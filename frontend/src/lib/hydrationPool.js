@@ -59,10 +59,14 @@ export function syncHydratedFromReleases(releases, isPending) {
   for (const release of releases) {
     const id = release?.backendReleaseId;
     if (!id) continue;
-    if (!isPending(release)) {
-      hydrated.add(cacheKey(id, false));
-      if (release.detailLoaded) hydrated.add(cacheKey(id, true));
+    if (isPending(release)) {
+      hydrated.delete(cacheKey(id, false));
+      hydrated.delete(cacheKey(id, true));
+      resultCache.delete(id);
+      continue;
     }
+    hydrated.add(cacheKey(id, false));
+    if (release.detailLoaded) hydrated.add(cacheKey(id, true));
   }
 }
 

@@ -67,8 +67,18 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     if (!hasBackend()) return;
     setHydrationNavigate(navigate);
     setOnEach((mapped) => setReleases((prev) => mergeReleaseIntoList(prev, mapped)));
-    return () => setOnEach(null);
+    return () => {
+      setOnEach(null);
+      resetHydrationPool();
+    };
   }, [navigate]);
+
+  useEffect(() => {
+    if (!hasBackend() || nav !== "release") return;
+    syncHydratedFromReleases(releasesRef.current, isSummaryPending);
+    const pending = initialReleaseTablePendingIds(releasesRef.current);
+    if (pending.length) enqueueReleaseHydration(pending, { priority: false });
+  }, [nav]);
 
   useEffect(() => {
     if (!hasBackend()) return;

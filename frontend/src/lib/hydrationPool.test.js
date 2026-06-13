@@ -3,6 +3,7 @@ import {
   enqueue,
   awaitReleaseDetail,
   reset,
+  syncHydratedFromReleases,
   setHydrationNavigate,
   setOnEach,
   _peekQueueIdsForTests,
@@ -140,5 +141,22 @@ describe("hydrationPool", () => {
 
     expect(fetchAndMapReleaseSummary).toHaveBeenCalledTimes(3);
     expect(result?.backendReleaseId).toBe("rel_retry");
+  });
+
+  it("syncHydratedFromReleases clears stale hydrated keys for pending releases", async () => {
+    vi.mocked(fetchAndMapReleaseSummary).mockResolvedValue(mapped("rel_1", { full: false }));
+
+    await awaitReleaseDetail("rel_1", { full: false });
+    expect(fetchAndMapReleaseSummary).toHaveBeenCalledTimes(1);
+
+    syncHydratedFromReleases(
+      [{ backendReleaseId: "rel_1", summaryLoaded: false, signals: {} }],
+      (release) =>
+        !release.summaryLoaded &&
+        !Object.values(release.signals || {}).some((value) => value != null)
+    );
+
+    enqueue(["rel_1"], { full: false });
+    await vi.waitFor(() => expect(fetchAndMapReleaseSummary).toHaveBeenCalledTimes(2));
   });
 });
