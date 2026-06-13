@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { authHeaders } from "../../../lib/apiClient.js";
-import { api } from "../api.js";
+import { apiPost } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
 import { Badge, Card } from "../ui.jsx";
@@ -80,16 +79,10 @@ export function ThresholdSimulatorPanel({ wsId }) {
     }
     setSimulating(true);
     try {
-      const res = await api(`/api/workspaces/${wsId}/thresholds/simulate`, {
-        method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ proposed_thresholds: proposed, limit: 50 })
+      const data = await apiPost(`/api/workspaces/${wsId}/thresholds/simulate`, {
+        proposed_thresholds: proposed,
+        limit: 50
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setResult({ error: typeof data.error === "string" ? data.error : `Simulation failed (${res.status})` });
-        return;
-      }
       setResult(data);
     } catch (e) {
       setResult({ error: e?.message || "Simulation failed — check network and try again." });

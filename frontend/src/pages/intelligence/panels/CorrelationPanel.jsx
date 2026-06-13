@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { authHeaders } from "../../../lib/apiClient.js";
-import { api, json } from "../api.js";
+import { apiGet, apiPost } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle } from "../styles.js";
 import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
@@ -18,8 +17,8 @@ export function CorrelationPanel({ wsId }) {
     setError(null);
     try {
       const [corrR, ftR] = await Promise.allSettled([
-        json(`/api/workspaces/${wsId}/correlations`),
-        json(`/api/workspaces/${wsId}/failure-mode-trends`)
+        apiGet(`/api/workspaces/${wsId}/correlations`),
+        apiGet(`/api/workspaces/${wsId}/failure-mode-trends`)
       ]);
       if (corrR.status === "fulfilled") setData(corrR.value);
       else setData(null);
@@ -41,7 +40,7 @@ export function CorrelationPanel({ wsId }) {
   const compute = async () => {
     setComputing(true);
     try {
-      await api(`/api/workspaces/${wsId}/correlations/compute`, { method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ window_n: 20 }) });
+      await apiPost(`/api/workspaces/${wsId}/correlations/compute`, { window_n: 20 });
       await load();
     } finally { setComputing(false); }
   };

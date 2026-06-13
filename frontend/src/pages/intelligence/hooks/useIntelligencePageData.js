@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { normalizeStoredProject } from "../../../lib/projectEnv.js";
-import { authHeaders } from "../../../lib/apiClient.js";
-import { api } from "../api.js";
+import { apiPost } from "../../../lib/apiClient.js";
 
 export function readProdObservationEnabled() {
   try {
@@ -39,28 +38,10 @@ export function useIntelligencePageData(wsId) {
         setBackfillResult({ error: "Workspace not resolved. Sign out and sign in again." });
         return;
       }
-      const res = await api(`/api/workspaces/${wsId}/recommendations/backfill`, {
-        method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" }
-      });
-      const raw = await res.text();
-      let d = {};
-      try {
-        d = raw ? JSON.parse(raw) : {};
-      } catch {
-        d = {};
-      }
-      if (!res.ok) {
-        setBackfillResult({
-          error:
-            (typeof d.error === "string" && d.error) ||
-            `Backfill failed (${res.status})`
-        });
-        return;
-      }
+      const d = await apiPost(`/api/workspaces/${wsId}/recommendations/backfill`, {});
       setBackfillResult(d && typeof d === "object" ? d : { error: "Unexpected backfill response" });
     } catch (e) {
-      setBackfillResult({ error: `Backfill failed (${String(e?.message || "network")})` });
+      setBackfillResult({ error: e?.message || "Backfill failed (network)" });
     } finally {
       setBackfilling(false);
     }
