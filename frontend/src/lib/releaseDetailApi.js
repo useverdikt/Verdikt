@@ -3,7 +3,7 @@ import { mapBackendDetailToUi, mapBackendSummaryToUi } from "../app/main/appMain
 
 /** Fetch full release detail and map to UI release shape. */
 export async function fetchAndMapReleaseDetail(backendReleaseId, navigate) {
-  const detail = await apiGet(`/api/releases/${backendReleaseId}`, { navigate });
+  const detail = await apiGet(`/api/releases/${backendReleaseId}/detail`, { navigate });
   return mapBackendDetailToUi(detail);
 }
 

@@ -7,7 +7,6 @@ const {
   nowIso,
   writeAudit,
   auditActorFromAuth,
-  listReleaseDeltas,
   authMiddleware,
   requireNonViewer,
   requireReleaseAccess,
@@ -33,7 +32,6 @@ const {
   getRecommendation,
   ingestProductionSignals,
   getProductionObservations,
-  getOutcomeAlignmentForRelease,
   computeOutcomeAlignment,
   setIncidentRef,
   openMonitoringWindow,
@@ -46,23 +44,14 @@ const {
 const { buildReleaseGateResponse } = require("../services/releaseGate");
 const { createEscalationRequest, notifyEscalationCreated } = require("../services/escalations");
 const { applyReleaseOverride } = require("../services/releaseOverride");
-const {
-  getLatestIntegrationPullForRelease,
-  summarizePullResult
-} = require("../services/integrationPullStatus");
-const {
-  resolveEvidenceForRelease,
-  persistReleaseEvidenceQuality
-} = require("../services/evidenceQuality");
-const { buildReleaseSummary, loadLastSignalEvaluation } = require("../services/releaseDetail");
+const { summarizePullResult } = require("../services/integrationPullStatus");
+const { buildReleaseSummary, buildReleaseDetail } = require("../services/releaseDetail");
 const {
   extractIdempotencyKey,
   countSignalsForIdempotencyKey,
   respondToDuplicateSignalIngest
 } = require("../services/signalIngestIdempotency");
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
-
-const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
 module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
@@ -241,77 +230,24 @@ app.get("/api/releases/:releaseId/summary", authMiddleware, requireReleaseAccess
   }
 });
 
+app.get("/api/releases/:releaseId/detail", authMiddleware, requireReleaseAccess, async (req, res, next) => {
+  try {
+    return res.json(await buildReleaseDetail(req.releaseRow));
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
-  let release = req.releaseRow;
-  const signalRows = await queryAll(
-    "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = ? ORDER BY id DESC",
-    [req.params.releaseId]
-  );
-  const override = await queryOne("SELECT * FROM overrides WHERE release_id = ?", [req.params.releaseId]);
-  const overrideHistoryRows = await queryAll(
-    "SELECT id, release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at FROM override_history WHERE release_id = ? ORDER BY id ASC",
-    [req.params.releaseId]
-  );
-  const last_signal_evaluation = await loadLastSignalEvaluation(req.params.releaseId);
+  const detail = await buildReleaseDetail(req.releaseRow);
   const auditRows = await queryAll(
     "SELECT event_type, actor_type, actor_name, details_json, created_at FROM audit_events WHERE release_id = ? ORDER BY id DESC",
     [req.params.releaseId]
   );
   const audit = auditRows.map((e) => ({ ...e, details: JSON.parse(e.details_json || "{}") }));
-  const intelligence = await getReleaseIntelligence(req.params.releaseId);
-  const deltas = await listReleaseDeltas(req.params.releaseId);
-  const outcome_alignment = await getOutcomeAlignmentForRelease(req.params.releaseId);
-  const integration_pull = await getLatestIntegrationPullForRelease(req.params.releaseId);
-  const connectedIntegrations = await queryAll(
-    "SELECT source_id FROM signal_integrations WHERE workspace_id = ?",
-    [release.workspace_id]
-  );
 
-  let evidence_quality = release.evidence_quality ?? null;
-  let evidence_summary = null;
-  ({ evidence_quality, evidence_summary } = resolveEvidenceForRelease(release, signalRows));
-
-  if (
-    !release.evidence_quality &&
-    CERT_LIKE_STATUSES.has(String(release.status || "").toUpperCase()) &&
-    signalRows.length > 0
-  ) {
-    try {
-      const persisted = await persistReleaseEvidenceQuality(req.params.releaseId);
-      evidence_quality = persisted.evidence_quality;
-      evidence_summary = persisted.evidence_summary;
-      release = { ...release, evidence_quality, evidence_summary_json: JSON.stringify(evidence_summary) };
-    } catch (_) {}
-  }
-
-  return res.json({
-    release: {
-      ...release,
-      ai_context: JSON.parse(release.ai_context_json || "{}"),
-      evidence_quality,
-      evidence_summary
-    },
-    signals: signalRows,
-    deltas,
-    connected_integrations: connectedIntegrations.map((r) => r.source_id),
-    integration_pull,
-    override: override
-      ? {
-          ...override,
-          metadata: JSON.parse(override.metadata_json || "{}"),
-          updated_at: override.updated_at || override.created_at
-        }
-      : null,
-    override_history: overrideHistoryRows.map((row) => ({
-      ...row,
-      metadata: JSON.parse(row.metadata_json || "{}")
-    })),
-    last_signal_evaluation,
-    intelligence,
-    outcome_alignment,
-    audit
-  });
+  return res.json({ ...detail, audit });
   } catch (e) {
     next(e);
   }
