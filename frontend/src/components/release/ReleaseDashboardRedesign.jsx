@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import "./ReleaseDashboardRedesign.css";
 import { useReleaseDashboardFilters } from "../../hooks/useReleaseDashboardFilters.js";
 import { useReleaseDashboardStats } from "../../hooks/useReleaseDashboardStats.js";
@@ -24,6 +25,7 @@ export function ReleaseDashboard({
   onBeginOverride,
   onCollectingAction,
   onEnsureReleaseDetail,
+  onHydrateVisibleSummaries,
   setupChecklist,
   hasMoreReleases = false,
   loadingMoreReleases = false,
@@ -31,6 +33,11 @@ export function ReleaseDashboard({
 }) {
   const filters = useReleaseDashboardFilters(releases, { onEnsureReleaseDetail });
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
+
+  useEffect(() => {
+    onHydrateVisibleSummaries?.(filters.visibleReleases);
+  }, [filters.visibleReleases, onHydrateVisibleSummaries]);
+
   const { stats, releaseCatStatuses, recentActivity } = useReleaseDashboardStats({
     releases,
     wsId,

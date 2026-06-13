@@ -9,7 +9,8 @@ import {
   mergeListStubsWithExisting,
   isReleaseDetailPending,
   isSummaryPending,
-  allPendingReleaseIds,
+  initialReleaseTablePendingIds,
+  pendingSummaryIdsForReleases,
   chartWindowPendingIds,
   resetHydrationPool,
   syncHydratedFromReleases,
@@ -47,9 +48,19 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     if (priorityChartWindow) {
       const chartIds = chartWindowPendingIds(mergedReleases, TREND_CHART_MAX_POINTS);
       if (chartIds.length) enqueueReleaseHydration(chartIds, { priority: true });
+      return;
     }
-    const pending = allPendingReleaseIds(mergedReleases);
+    const pending = initialReleaseTablePendingIds(mergedReleases);
     if (pending.length) enqueueReleaseHydration(pending, { priority: false });
+  }, []);
+
+  const hydrateVisibleSummaries = useCallback((visibleReleases) => {
+    if (!hasBackend() || !visibleReleases?.length) return;
+    const ids = pendingSummaryIdsForReleases(
+      releasesRef.current,
+      visibleReleases.map((r) => r.backendReleaseId)
+    );
+    if (ids.length) enqueueReleaseHydration(ids, { priority: false });
   }, []);
 
   useEffect(() => {
@@ -166,7 +177,11 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
           appended = stubs.filter((s) => !seen.has(s.backendReleaseId));
           return [...prev, ...appended];
         });
-        if (appended.length) scheduleReleaseHydration(appended);
+        if (appended.length) {
+          syncHydratedFromReleases(releasesRef.current, isSummaryPending);
+          const pending = initialReleaseTablePendingIds(appended);
+          if (pending.length) enqueueReleaseHydration(pending, { priority: false });
+        }
       }
     } catch (e) {
       setApiBanner?.(e.message || "Failed to load more releases");
@@ -210,6 +225,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     refreshReleaseFromBackend,
     loadMoreReleases,
     openAuditRecord,
+    hydrateVisibleSummaries,
     navRef
   };
 }

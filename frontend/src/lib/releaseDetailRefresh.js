@@ -58,9 +58,26 @@ export function mergeListStubsWithExisting(prev, stubs) {
   });
 }
 
+/** Max summary hydrations enqueued on initial list sync (rest via visible-row callback). */
+export const RELEASE_TABLE_INITIAL_HYDRATE = 20;
+
 /** All release ids that still need summary hydration. */
 export function allPendingReleaseIds(releases) {
   return releases.filter(isSummaryPending).map((r) => r.backendReleaseId);
+}
+
+/** Pending summary ids limited to a subset of backend release ids (e.g. visible table rows). */
+export function pendingSummaryIdsForReleases(releases, backendIds) {
+  const idSet = new Set((backendIds || []).filter(Boolean));
+  if (!idSet.size) return [];
+  return releases
+    .filter((r) => idSet.has(r.backendReleaseId) && isSummaryPending(r))
+    .map((r) => r.backendReleaseId);
+}
+
+/** First N pending summary ids for initial table hydration after list sync. */
+export function initialReleaseTablePendingIds(releases, { limit = RELEASE_TABLE_INITIAL_HYDRATE } = {}) {
+  return allPendingReleaseIds(releases).slice(0, limit);
 }
 
 /** Chart-window release ids that still need summary hydration (for trends priority enqueue). */

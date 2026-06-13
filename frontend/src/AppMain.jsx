@@ -85,6 +85,7 @@ export default function App() {
     addAudit,
     refreshReleaseFromBackend,
     ensureReleaseDetail,
+    hydrateVisibleSummaries,
     refreshAuditFromServer,
     openAuditRecord,
     loadMoreReleases,
@@ -300,6 +301,7 @@ export default function App() {
               releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
               onCollectingAction={actions.handleCollectingAction}
               onEnsureReleaseDetail={ensureReleaseDetail}
+              onHydrateVisibleSummaries={hydrateVisibleSummaries}
               hasMoreReleases={Boolean(releasesNextBefore)}
               loadingMoreReleases={releasesLoadingMore}
               onLoadMoreReleases={loadMoreReleases}
