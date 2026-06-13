@@ -46,6 +46,7 @@ const { createEscalationRequest, notifyEscalationCreated } = require("../service
 const { applyReleaseOverride } = require("../services/releaseOverride");
 const { summarizePullResult } = require("../services/integrationPullStatus");
 const { buildReleaseSummary, buildReleaseDetail } = require("../services/releaseDetail");
+const { listReleaseAuditEvents } = require("../services/releaseAudit");
 const {
   extractIdempotencyKey,
   countSignalsForIdempotencyKey,
@@ -255,14 +256,26 @@ app.get("/api/releases/:releaseId/detail", authMiddleware, requireReleaseAccess,
   }
 });
 
+app.get("/api/releases/:releaseId/audit", authMiddleware, requireReleaseAccess, async (req, res, next) => {
+  try {
+    const { events, next_before } = await listReleaseAuditEvents(req.params.releaseId, {
+      limit: req.query.limit,
+      before: req.query.before
+    });
+    return res.json({
+      release_id: req.params.releaseId,
+      events,
+      next_before
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
   const detail = await buildReleaseDetail(req.releaseRow);
-  const auditRows = await queryAll(
-    "SELECT event_type, actor_type, actor_name, details_json, created_at FROM audit_events WHERE release_id = ? ORDER BY id DESC",
-    [req.params.releaseId]
-  );
-  const audit = auditRows.map((e) => ({ ...e, details: JSON.parse(e.details_json || "{}") }));
+  const { events: audit } = await listReleaseAuditEvents(req.params.releaseId, { limit: 50 });
 
   return res.json({ ...detail, audit });
   } catch (e) {
