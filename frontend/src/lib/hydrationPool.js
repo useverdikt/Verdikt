@@ -1,17 +1,29 @@
-import { fetchAndMapReleaseDetail } from "./releaseDetailApi.js";
+import { fetchAndMapReleaseDetail, fetchAndMapReleaseSummary } from "./releaseDetailApi.js";
 
 const MAX_WORKERS = 6;
 
 const queue = [];
+/** @type {Set<string>} keys like `rel_1:summary` or `rel_1:full` */
 const inFlight = new Set();
+/** @type {Set<string>} */
 const hydrated = new Set();
+/** @type {Map<string, object>} latest mapped release by backend id */
 const resultCache = new Map();
+/** @type {Map<string, Array<(v: object|null) => void>>} */
 const pendingWaiters = new Map();
 
 let workers = 0;
 let onEach = null;
 let navigate = null;
 let generation = 0;
+
+function cacheKey(id, full) {
+  return `${id}:${full ? "full" : "summary"}`;
+}
+
+function waiterKey(id, full) {
+  return cacheKey(id, full);
+}
 
 export function setHydrationNavigate(nav) {
   navigate = nav;
@@ -22,7 +34,6 @@ export function setOnEach(fn) {
   onEach = fn;
 }
 
-/** Resolve all pending awaitReleaseDetail waiters (logout / workspace switch). */
 function rejectAllWaiters() {
   for (const waiters of pendingWaiters.values()) {
     for (const resolve of waiters) resolve(null);
@@ -30,7 +41,6 @@ function rejectAllWaiters() {
   pendingWaiters.clear();
 }
 
-/** Clear queue and hydrated state (logout / workspace switch). */
 export function reset() {
   generation += 1;
   queue.length = 0;
@@ -44,42 +54,50 @@ export function syncHydratedFromReleases(releases, isPending) {
   if (!Array.isArray(releases) || typeof isPending !== "function") return;
   for (const release of releases) {
     const id = release?.backendReleaseId;
-    if (id && !isPending(release)) {
-      hydrated.add(id);
+    if (!id) continue;
+    if (!isPending(release)) {
+      hydrated.add(cacheKey(id, false));
+      if (release.detailLoaded) hydrated.add(cacheKey(id, true));
     }
   }
 }
 
-function settleWaiters(id, mapped) {
-  const waiters = pendingWaiters.get(id);
+function settleWaiters(key, mapped) {
+  const waiters = pendingWaiters.get(key);
   if (!waiters) return;
-  pendingWaiters.delete(id);
+  pendingWaiters.delete(key);
   for (const resolve of waiters) resolve(mapped ?? null);
 }
 
-function addWaiter(id) {
+function addWaiter(key) {
   return new Promise((resolve) => {
-    if (!pendingWaiters.has(id)) pendingWaiters.set(id, []);
-    pendingWaiters.get(id).push(resolve);
+    if (!pendingWaiters.has(key)) pendingWaiters.set(key, []);
+    pendingWaiters.get(key).push(resolve);
   });
+}
+
+function clearHydrated(id) {
+  hydrated.delete(cacheKey(id, true));
+  hydrated.delete(cacheKey(id, false));
 }
 
 /**
  * @param {string[]} ids
- * @param {{ priority?: boolean, force?: boolean }} opts
+ * @param {{ priority?: boolean, force?: boolean, full?: boolean }} opts
  */
-export function enqueue(ids, { priority = false, force = false } = {}) {
+export function enqueue(ids, { priority = false, force = false, full = false } = {}) {
   if (!ids?.length) return;
 
   if (force) {
     for (const id of ids) {
-      hydrated.delete(id);
+      clearHydrated(id);
       resultCache.delete(id);
     }
   }
 
+  const keyFor = (id) => cacheKey(id, full);
   const pending = ids.filter(
-    (id) => id && (force || !hydrated.has(id)) && !inFlight.has(id)
+    (id) => id && (force || !hydrated.has(keyFor(id))) && !inFlight.has(keyFor(id))
   );
   if (!pending.length) {
     drainPool();
@@ -87,19 +105,16 @@ export function enqueue(ids, { priority = false, force = false } = {}) {
   }
 
   const pendingSet = new Set(pending);
+  const itemFor = (id) => ({ id, priority, full });
 
   if (priority) {
     const filtered = queue.filter((item) => !pendingSet.has(item.id));
-    queue.splice(
-      0,
-      queue.length,
-      ...pending.map((id) => ({ id, priority: true })),
-      ...filtered
-    );
+    queue.splice(0, queue.length, ...pending.map(itemFor), ...filtered);
   } else {
     for (const id of pending) {
-      if (!queue.some((item) => item.id === id)) {
-        queue.push({ id, priority: false });
+      const next = itemFor(id);
+      if (!queue.some((item) => item.id === id && item.full === full)) {
+        queue.push(next);
       }
     }
   }
@@ -107,18 +122,22 @@ export function enqueue(ids, { priority = false, force = false } = {}) {
   drainPool();
 }
 
-/** Await a single release detail (expand, refresh, audit). Shares the global pool. */
-export async function awaitReleaseDetail(id, { priority = false, force = false } = {}) {
+export async function awaitReleaseDetail(id, { priority = false, force = false, full = true } = {}) {
   if (!id) return null;
-  if (!force && hydrated.has(id) && resultCache.has(id)) {
-    return resultCache.get(id);
-  }
-  if (!force && inFlight.has(id)) {
-    return addWaiter(id);
+  const key = waiterKey(id, full);
+
+  if (!force) {
+    const cached = resultCache.get(id);
+    if (full && cached?.detailLoaded) return cached;
+    if (!full && cached?.summaryLoaded && hydrated.has(cacheKey(id, false))) return cached;
   }
 
-  const waiter = addWaiter(id);
-  enqueue([id], { priority, force });
+  if (!force && inFlight.has(key)) {
+    return addWaiter(key);
+  }
+
+  const waiter = addWaiter(key);
+  enqueue([id], { priority, force, full });
   return waiter;
 }
 
@@ -131,29 +150,33 @@ function drainPool() {
       queue.shift();
       continue;
     }
-    if (hydrated.has(item.id) || inFlight.has(item.id)) {
+
+    const key = cacheKey(item.id, item.full);
+    if (hydrated.has(key) || inFlight.has(key)) {
       queue.shift();
       continue;
     }
     if (!navigate) return;
 
     queue.shift();
-
-    inFlight.add(item.id);
+    inFlight.add(key);
     workers += 1;
-    const id = item.id;
 
-    fetchAndMapReleaseDetail(id, navigate)
+    const { id, full } = item;
+    const fetchFn = full ? fetchAndMapReleaseDetail : fetchAndMapReleaseSummary;
+
+    fetchFn(id, navigate)
       .then((mapped) => mapped, () => null)
       .then((mapped) => {
         if (gen !== generation) return;
-        inFlight.delete(id);
+        inFlight.delete(key);
         if (mapped) {
-          hydrated.add(id);
+          hydrated.add(key);
+          if (full) hydrated.add(cacheKey(id, false));
           resultCache.set(id, mapped);
           onEach?.(mapped);
         }
-        settleWaiters(id, mapped);
+        settleWaiters(key, mapped);
       })
       .finally(() => {
         workers -= 1;
@@ -162,12 +185,10 @@ function drainPool() {
   }
 }
 
-/** Test-only: inspect pending queue order. */
 export function _peekQueueIdsForTests() {
   return queue.map((item) => item.id);
 }
 
-/** Test-only: reset pool and worker accounting. */
 export function _resetHydrationPoolForTests() {
   reset();
   workers = 0;

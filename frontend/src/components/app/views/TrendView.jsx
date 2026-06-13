@@ -1,6 +1,6 @@
 import React from "react";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
-import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
+import { isReleaseDetailPending, isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
 import { C } from "../../../theme/tokens.js";
 import TrendViewLoadingSkeleton from "../TrendViewLoadingSkeleton.jsx";
 
@@ -20,10 +20,8 @@ export default function TrendView({
 }) {
   const historyFull = [...releases].reverse();
   const chartHistory = historyFull.slice(-trendChartMaxPoints);
-  const pendingCount = chartHistory.filter(isReleaseDetailPending).length;
-  // Show the skeleton only when we have no hydrated data at all.
-  // Once at least 2 ready points exist, render the chart and let it fill in.
-  const readyHistory = chartHistory.filter((r) => !isReleaseDetailPending(r));
+  const pendingCount = chartHistory.filter(isSummaryPending).length;
+  const readyHistory = chartHistory.filter((r) => !isSummaryPending(r));
   const showTrendSkeleton = !wsReady || readyHistory.length < 2;
   // Chart operates only on hydrated releases so pass-rate is meaningful.
   const chartData = readyHistory;

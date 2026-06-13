@@ -568,7 +568,16 @@ const mapBackendDetailToUi = (detail) => {
   }
   if (detail.integration_pull) out.integration_pull = detail.integration_pull;
   out.detailLoaded = true;
+  out.summaryLoaded = true;
   return out;
+};
+
+/** Lightweight row from GET /releases/:id/summary — signals + alignment for trends/list. */
+const mapBackendSummaryToUi = (detail) => {
+  const mapped = mapBackendDetailToUi(detail);
+  mapped.detailLoaded = false;
+  mapped.summaryLoaded = true;
+  return mapped;
 };
 
 /** Lightweight row from GET /workspaces/:id/releases list — no N+1 detail fetch. */
@@ -933,6 +942,7 @@ export {
   evaluateSignal,
   SIGNAL_SOURCES,
   mapBackendDetailToUi,
+  mapBackendSummaryToUi,
   mapBackendListRowToUi,
   parseSemverish,
   semverDesc,
