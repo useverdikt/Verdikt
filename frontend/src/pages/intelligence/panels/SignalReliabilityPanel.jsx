@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { apiGet, authHeaders } from "../../../lib/apiClient.js";
-import { api } from "../api.js";
+import { apiGet, apiPost } from "../../../lib/apiClient.js";
 import { C, GRADE_COLOR } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
 import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
@@ -33,7 +32,7 @@ export function SignalReliabilityPanel({ wsId }) {
   const compute = async () => {
     setComputing(true);
     try {
-      await api(`/api/workspaces/${wsId}/signal-reliability/compute`, { method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ window_n: 20 }) });
+      await apiPost(`/api/workspaces/${wsId}/signal-reliability/compute`, { window_n: 20 });
       await load({ force: true });
     } finally { setComputing(false); }
   };
