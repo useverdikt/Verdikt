@@ -24,6 +24,7 @@ export default function ReleaseView({
   releaseVersionPrimarySecondary,
   onCollectingAction,
   onEnsureReleaseDetail,
+  onHydrateVisibleSummaries,
   hasMoreReleases = false,
   loadingMoreReleases = false,
   onLoadMoreReleases
@@ -74,6 +75,7 @@ export default function ReleaseView({
       onBeginOverride={onBeginOverride}
       onCollectingAction={onCollectingAction}
       onEnsureReleaseDetail={onEnsureReleaseDetail}
+      onHydrateVisibleSummaries={onHydrateVisibleSummaries}
       setupChecklist={setupChecklist}
       hasMoreReleases={hasMoreReleases}
       loadingMoreReleases={loadingMoreReleases}

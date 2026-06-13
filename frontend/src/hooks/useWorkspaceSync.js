@@ -193,6 +193,7 @@ export function useWorkspaceSync(navigate, nav) {
     refreshAuditFromServer,
     loadThresholdSuggestions,
     ensureReleaseDetail: releasesApi.ensureReleaseDetail,
+    hydrateVisibleSummaries: releasesApi.hydrateVisibleSummaries,
     refreshReleaseFromBackend: releasesApi.refreshReleaseFromBackend,
     loadMoreReleases: releasesApi.loadMoreReleases,
     releasesNextBefore: releasesApi.releasesNextBefore,
