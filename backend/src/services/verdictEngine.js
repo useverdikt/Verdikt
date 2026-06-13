@@ -42,8 +42,17 @@ async function resolveReleaseRow(releaseId, releaseRow) {
   return queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
 }
 
-async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest = null, releaseRow = null) {
-  const thresholds = await getThresholdMap(workspaceId);
+async function getMissingRequiredSignals(
+  workspaceId,
+  releaseId,
+  preloadedLatest = null,
+  releaseRow = null,
+  preloadedThresholdMap = null
+) {
+  const thresholds =
+    preloadedThresholdMap && typeof preloadedThresholdMap === "object"
+      ? preloadedThresholdMap
+      : await getThresholdMap(workspaceId);
   const latest =
     preloadedLatest && typeof preloadedLatest === "object" ? preloadedLatest : await getLatestSignalMap(releaseId);
   return Object.keys(thresholds).filter((signalId) => {
@@ -58,8 +67,17 @@ async function getMissingRequiredSignals(workspaceId, releaseId, preloadedLatest
  * Pure verdict computation — no DB writes, no side effects.
  * Evaluates all ingested signals against thresholds; missing checks are scoped separately.
  */
-async function computeVerdict(workspaceId, releaseId, preloadedLatest = null, releaseRow = null) {
-  const thresholds = await getThresholdMap(workspaceId);
+async function computeVerdict(
+  workspaceId,
+  releaseId,
+  preloadedLatest = null,
+  releaseRow = null,
+  preloadedThresholdMap = null
+) {
+  const thresholds =
+    preloadedThresholdMap && typeof preloadedThresholdMap === "object"
+      ? preloadedThresholdMap
+      : await getThresholdMap(workspaceId);
   const latest =
     preloadedLatest && typeof preloadedLatest === "object"
       ? preloadedLatest

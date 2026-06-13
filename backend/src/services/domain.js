@@ -57,8 +57,17 @@ const { runPostVerdictEffects } = require("./postVerdictEffects");
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
 
 async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
-  const latest = await getLatestSignalMap(releaseId);
-  const missingRequiredSignals = await getMissingRequiredSignals(release.workspace_id, releaseId, latest, release);
+  const [latest, thresholdMap] = await Promise.all([
+    getLatestSignalMap(releaseId),
+    getThresholdMap(release.workspace_id)
+  ]);
+  const missingRequiredSignals = await getMissingRequiredSignals(
+    release.workspace_id,
+    releaseId,
+    latest,
+    release,
+    thresholdMap
+  );
   const missingAiSignals = missingRequiredSignals.filter((id) => AI_SIGNAL_IDS.includes(id));
   const missingNonAiSignals = missingRequiredSignals.filter((id) => !AI_SIGNAL_IDS.includes(id));
   const deadlineMs = release.collection_deadline ? Date.parse(release.collection_deadline) : Number.NaN;
@@ -72,8 +81,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       releaseId
     ]);
 
-    const thresholdsForWarning = await getThresholdMap(release.workspace_id);
-    const ewResult = computeEarlyWarnings(release, latest, thresholdsForWarning, null);
+    const ewResult = computeEarlyWarnings(release, latest, thresholdMap, null);
     try {
       await persistEarlyWarning(releaseId, release.workspace_id, ewResult);
     } catch (_) {}
@@ -120,7 +128,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   }
 
   // ── Compute verdict ───────────────────────────────────────────────────────
-  const verdict = await computeVerdict(release.workspace_id, releaseId, latest, release);
+  const verdict = await computeVerdict(release.workspace_id, releaseId, latest, release, thresholdMap);
   if (verdict.deltaAnalysis) {
     await persistReleaseDeltas(releaseId, verdict.deltaAnalysis.pendingInserts);
     const regFailCount = verdict.deltaAnalysis.failures.filter(
