@@ -128,4 +128,17 @@ describe("hydrationPool", () => {
     await awaitReleaseDetail("rel_1");
     expect(fetchAndMapReleaseDetail).toHaveBeenCalledTimes(2);
   });
+
+  it("retries failed fetches up to three attempts before settling null", async () => {
+    vi.mocked(fetchAndMapReleaseSummary)
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(mapped("rel_retry", { full: false }));
+
+    setHydrationNavigate(vi.fn());
+    const result = await awaitReleaseDetail("rel_retry", { full: false });
+
+    expect(fetchAndMapReleaseSummary).toHaveBeenCalledTimes(3);
+    expect(result?.backendReleaseId).toBe("rel_retry");
+  });
 });
