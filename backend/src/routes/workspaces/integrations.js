@@ -50,7 +50,7 @@ app.get("/api/workspaces/:workspaceId/signal-integrations", authMiddleware, requ
 app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
   try {
     const out = await upsertIntegration(req.params.workspaceId, req.params.sourceId, req.body || {});
-    writeAudit({
+    await writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "SIGNAL_SOURCE_CONNECTED",
       actorType: "USER",
@@ -67,7 +67,7 @@ app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMid
   try {
     const ok = await deleteIntegration(req.params.workspaceId, req.params.sourceId);
     if (!ok) return res.status(404).json({ error: "integration not found" });
-    writeAudit({
+    await writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "SIGNAL_SOURCE_DISCONNECTED",
       actorType: "USER",
@@ -92,7 +92,7 @@ app.post(
     }
     try {
       const out = await importCsv(req.params.workspaceId, req.file.buffer, req.file.originalname);
-      writeAudit({
+      await writeAudit({
         workspaceId: req.params.workspaceId,
         eventType: "SIGNAL_CSV_IMPORTED",
         actorType: "USER",
@@ -110,7 +110,7 @@ app.post(
 app.delete("/api/workspaces/:workspaceId/signal-csv-imports", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
   await deleteCsvImports(req.params.workspaceId);
-  writeAudit({
+  await writeAudit({
     workspaceId: req.params.workspaceId,
     eventType: "SIGNAL_CSV_CLEARED",
     actorType: "USER",
