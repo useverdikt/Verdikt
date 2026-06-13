@@ -9,6 +9,7 @@ import {
   enqueueReleaseHydration,
   mergeListStubsWithExisting,
   isReleaseDetailPending,
+  isSummaryPending,
   allPendingReleaseIds,
   chartWindowPendingIds,
   resetHydrationPool,
@@ -69,7 +70,7 @@ export function useWorkspaceSync(navigate, nav) {
 
   const scheduleReleaseHydration = useCallback(
     (mergedReleases, { priorityChartWindow = false } = {}) => {
-      syncHydratedFromReleases(mergedReleases, isReleaseDetailPending);
+      syncHydratedFromReleases(mergedReleases, isSummaryPending);
       if (priorityChartWindow) {
         const chartIds = chartWindowPendingIds(mergedReleases, TREND_CHART_MAX_POINTS);
         if (chartIds.length) {
@@ -246,7 +247,7 @@ export function useWorkspaceSync(navigate, nav) {
 
   useEffect(() => {
     if (!hasBackend() || nav !== "trend") return;
-    syncHydratedFromReleases(releasesRef.current, isReleaseDetailPending);
+    syncHydratedFromReleases(releasesRef.current, isSummaryPending);
     const chartIds = chartWindowPendingIds(releasesRef.current, TREND_CHART_MAX_POINTS);
     if (chartIds.length) {
       enqueueReleaseHydration(chartIds, { priority: true });
@@ -280,7 +281,7 @@ export function useWorkspaceSync(navigate, nav) {
       try {
         setApiBanner(null);
         setHydrationNavigate(navigate);
-        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true });
+        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, full: true });
         if (mapped) {
           setReleases((prev) => mergeReleaseIntoList(prev, mapped));
         }
@@ -360,7 +361,7 @@ export function useWorkspaceSync(navigate, nav) {
       try {
         setApiBanner(null);
         setHydrationNavigate(navigate);
-        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true });
+        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, full: true });
         if (!mapped) return null;
         setReleases((prev) => mergeReleaseIntoList(prev, mapped));
         return mapped;

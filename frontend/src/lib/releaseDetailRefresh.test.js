@@ -3,6 +3,7 @@ import {
   mergeReleaseIntoList,
   mergeListStubsWithExisting,
   isReleaseDetailPending,
+  isSummaryPending,
   releaseIdsNeedingDetail,
   chartWindowPendingIds,
   allPendingReleaseIds
@@ -56,12 +57,22 @@ describe("mergeListStubsWithExisting", () => {
 });
 
 describe("isReleaseDetailPending", () => {
-  it("treats detailLoaded false as pending", () => {
-    expect(isReleaseDetailPending({ backendReleaseId: "rel_1", detailLoaded: false })).toBe(true);
+  it("treats summary-only rows as pending full detail", () => {
+    expect(isReleaseDetailPending({ backendReleaseId: "rel_1", summaryLoaded: true, detailLoaded: false })).toBe(true);
   });
 
-  it("treats hydrated rows as not pending", () => {
+  it("treats fully hydrated rows as not pending", () => {
     expect(isReleaseDetailPending({ backendReleaseId: "rel_1", detailLoaded: true })).toBe(false);
+  });
+});
+
+describe("isSummaryPending", () => {
+  it("treats summaryLoaded rows as not pending", () => {
+    expect(isSummaryPending({ backendReleaseId: "rel_1", summaryLoaded: true, detailLoaded: false })).toBe(false);
+  });
+
+  it("treats stubs without signals as pending", () => {
+    expect(isSummaryPending({ backendReleaseId: "rel_1", detailLoaded: false, signals: {} })).toBe(true);
   });
 });
 
@@ -77,9 +88,10 @@ describe("releaseIdsNeedingDetail", () => {
 });
 
 describe("chartWindowPendingIds", () => {
-  it("returns only pending ids from the chart window slice", () => {
+  it("returns only summary-pending ids from the chart window slice", () => {
     const releases = Array.from({ length: 5 }, (_, i) => ({
       backendReleaseId: `rel_${i}`,
+      summaryLoaded: i < 3,
       detailLoaded: i < 3
     }));
     expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_3", "rel_4"]);
