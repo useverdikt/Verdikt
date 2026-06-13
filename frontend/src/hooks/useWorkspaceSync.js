@@ -2,25 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
 import { persistAuthSession } from "../auth/persistSession.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
-import {
-  S,
-  DEFAULT_THRESHOLDS,
-  DEFAULT_AUDIT,
-  mapWorkspaceAuditEventsToLog
-} from "../app/main/appMainLogic.js";
+import { S } from "../app/main/appMainLogic.js";
 import { useWorkspaceReleases } from "./useWorkspaceReleases.js";
+import { useWorkspaceThresholds } from "./useWorkspaceThresholds.js";
+import { useWorkspaceAudit } from "./useWorkspaceAudit.js";
 
 export function useWorkspaceSync(navigate, nav) {
   const [wsReady, setWsReady] = useState(!hasBackend());
-  const [thresholds, setThresholds] = useState(() => ({
-    ...DEFAULT_THRESHOLDS,
-    ...S.get("thresholds", {})
-  }));
-  const [thresholdRequired, setThresholdRequired] = useState(() =>
-    S.get("thresholdRequired", defaultRequiredFlags())
-  );
-  const [auditLog, setAuditLog] = useState(() => (hasBackend() ? [] : S.get("audit", DEFAULT_AUDIT)));
   const [currentUser, setCurrentUser] = useState(() => {
     if (hasBackend()) return null;
     const u = S.get("currentUser", null);
@@ -29,24 +17,10 @@ export function useWorkspaceSync(navigate, nav) {
   });
   const [apiBanner, setApiBanner] = useState(null);
   const [workspaceSyncing, setWorkspaceSyncing] = useState(false);
-  const [thresholdSuggestions, setThresholdSuggestions] = useState([]);
-  const [thresholdSuggestNote, setThresholdSuggestNote] = useState("");
 
   const releasesApi = useWorkspaceReleases(navigate, nav, { setApiBanner });
-
-  useEffect(() => {
-    if (hasBackend()) return;
-    S.set("thresholds", thresholds);
-  }, [thresholds]);
-
-  useEffect(() => {
-    S.set("thresholdRequired", thresholdRequired);
-  }, [thresholdRequired]);
-
-  useEffect(() => {
-    if (hasBackend()) return;
-    S.set("audit", auditLog);
-  }, [auditLog]);
+  const thresholdsApi = useWorkspaceThresholds(navigate, nav);
+  const auditApi = useWorkspaceAudit(navigate, { setApiBanner });
 
   useEffect(() => {
     if (currentUser) S.set("currentUser", currentUser);
@@ -66,18 +40,11 @@ export function useWorkspaceSync(navigate, nav) {
           apiGet(`/api/workspaces/${getWorkspaceId()}/audit`, { navigate }).catch((e) => ({ _error: e }))
         ]);
         if (isCancelled()) return;
-        const map = thData?.thresholds || {};
-        const parsed = applyThresholdApiMap(map);
-        setThresholds((prev) => ({ ...DEFAULT_THRESHOLDS, ...prev, ...parsed.thresholds }));
-        setThresholdRequired((prev) => ({ ...defaultRequiredFlags(), ...prev, ...parsed.required }));
+        thresholdsApi.applyThresholdsFromApi(thData);
         releasesApi.applyReleaseListFromServer(relData, {
           priorityChartWindow: releasesApi.navRef.current === "trend"
         });
-        if (auditData?._error) {
-          setApiBanner((prev) => prev || auditData._error.message || "Failed to load audit log");
-        } else {
-          setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
-        }
+        auditApi.applyAuditFromApi(auditData);
       } catch (e) {
         if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");
       } finally {
@@ -85,46 +52,8 @@ export function useWorkspaceSync(navigate, nav) {
         if (!isCancelled()) setWsReady(true);
       }
     },
-    [navigate, releasesApi]
+    [navigate, releasesApi, thresholdsApi, auditApi]
   );
-
-  const refreshAuditFromServer = useCallback(async () => {
-    if (!hasBackend()) return;
-    try {
-      setApiBanner(null);
-      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/audit`, { navigate });
-      setAuditLog(mapWorkspaceAuditEventsToLog(data?.events || []));
-    } catch (e) {
-      setApiBanner(e.message || "Failed to refresh audit log");
-    }
-  }, [navigate]);
-
-  const loadThresholdSuggestions = useCallback(async () => {
-    if (!hasBackend()) {
-      setThresholdSuggestions([]);
-      setThresholdSuggestNote("");
-      return;
-    }
-    setThresholdSuggestNote("Loading suggestions…");
-    try {
-      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/threshold-suggestions`, { navigate });
-      setThresholdSuggestions(Array.isArray(data?.suggestions) ? data.suggestions : []);
-      setThresholdSuggestNote("");
-    } catch (e) {
-      const msg = e?.message || "";
-      if (msg.includes("404") || msg.toLowerCase().includes("disabled")) {
-        setThresholdSuggestions([]);
-        setThresholdSuggestNote("Suggestions are currently disabled for this workspace.");
-        return;
-      }
-      setThresholdSuggestions([]);
-      setThresholdSuggestNote("Suggestions unavailable");
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    if (nav === "thresholds") void loadThresholdSuggestions();
-  }, [nav, loadThresholdSuggestions]);
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -158,47 +87,35 @@ export function useWorkspaceSync(navigate, nav) {
     };
   }, [navigate, refreshWorkspaceFromServer]);
 
-  const addAudit = useCallback(
-    (e) =>
-      setAuditLog((p) => [
-        {
-          id: Date.now(),
-          ...e
-        },
-        ...p
-      ]),
-    []
-  );
-
   return {
     wsReady,
     releases: releasesApi.releases,
     setReleases: releasesApi.setReleases,
     selectedId: releasesApi.selectedId,
     setSelectedId: releasesApi.setSelectedId,
-    thresholds,
-    setThresholds,
-    thresholdRequired,
-    setThresholdRequired,
-    auditLog,
-    setAuditLog,
+    thresholds: thresholdsApi.thresholds,
+    setThresholds: thresholdsApi.setThresholds,
+    thresholdRequired: thresholdsApi.thresholdRequired,
+    setThresholdRequired: thresholdsApi.setThresholdRequired,
+    auditLog: auditApi.auditLog,
+    setAuditLog: auditApi.setAuditLog,
     currentUser,
     setCurrentUser,
     apiBanner,
     setApiBanner,
     workspaceSyncing,
-    thresholdSuggestions,
-    thresholdSuggestNote,
+    thresholdSuggestions: thresholdsApi.thresholdSuggestions,
+    thresholdSuggestNote: thresholdsApi.thresholdSuggestNote,
     refreshWorkspaceFromServer,
-    refreshAuditFromServer,
-    loadThresholdSuggestions,
+    refreshAuditFromServer: auditApi.refreshAuditFromServer,
+    loadThresholdSuggestions: thresholdsApi.loadThresholdSuggestions,
     ensureReleaseDetail: releasesApi.ensureReleaseDetail,
     hydrateVisibleSummaries: releasesApi.hydrateVisibleSummaries,
     refreshReleaseFromBackend: releasesApi.refreshReleaseFromBackend,
     loadMoreReleases: releasesApi.loadMoreReleases,
     releasesNextBefore: releasesApi.releasesNextBefore,
     releasesLoadingMore: releasesApi.releasesLoadingMore,
-    addAudit,
+    addAudit: auditApi.addAudit,
     openAuditRecord: releasesApi.openAuditRecord
   };
 }
