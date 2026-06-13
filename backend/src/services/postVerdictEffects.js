@@ -98,6 +98,8 @@ async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextSt
  * @returns {{ recommendation, certSigRow }}
  */
 async function runPostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence) {
+  const freshRelease = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
+
   // 1. Failure mode classification
   try {
     const failedIds = failedSignals.map((f) => f.signal_id).filter(Boolean);
@@ -107,8 +109,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
   // 2. Recommendation engine
   let recommendation = null;
   try {
-    const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
-    recommendation = await computeAndPersistRecommendation(fresh);
+    recommendation = await computeAndPersistRecommendation(freshRelease);
   } catch (err) {
     console.error("[recommendation_engine] failed:", releaseId, err?.message);
   }
@@ -118,8 +119,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
   const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
   if (certLike.has(nextStatus)) {
     try {
-      const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
-      certSigRow = await signCertificationRecord(fresh, deterministicIntelligence);
+      certSigRow = await signCertificationRecord(freshRelease, deterministicIntelligence);
     } catch (err) {
       console.error("[cert_signer] signing failed:", releaseId, err?.message);
     }
@@ -137,30 +137,27 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
 
   // 5. VCS status write-back (async — does not block)
   try {
-    const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
-    void writeVcsStatus(fresh, failedSignals).catch((err) =>
+    void writeVcsStatus(freshRelease, failedSignals).catch((err) =>
       console.error("[vcs_writeback] async error:", releaseId, err?.message)
     );
   } catch (_) {}
 
   // 6. VCS monitoring window (automatic post-deploy inference over next 2 hours)
   try {
-    const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
-    await openMonitoringWindow(fresh, 120);
+    await openMonitoringWindow(freshRelease, 120);
   } catch (_) {}
 
   // 7. Outbound verdict webhook (async — does not block)
   try {
-    const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
-    void deliverVerdictWebhook(fresh, deterministicIntelligence, certSigRow).catch((err) =>
+    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow).catch((err) =>
       console.error("[outbound_webhook] async delivery error:", releaseId, err?.message)
     );
     const trajectory = await computeReleaseTrajectory({
-      workspaceId: fresh.workspace_id,
+      workspaceId: freshRelease.workspace_id,
       releaseId,
-      releaseRow: fresh
+      releaseRow: freshRelease
     }).catch(() => null);
-    void deliverReleaseCallback(fresh, deterministicIntelligence, {
+    void deliverReleaseCallback(freshRelease, deterministicIntelligence, {
       trajectory: trajectory?.trajectory ?? "UNKNOWN",
       degrading_signals: trajectory?.degrading_signals ?? [],
       trend_note: trajectory?.trend_note ?? null
