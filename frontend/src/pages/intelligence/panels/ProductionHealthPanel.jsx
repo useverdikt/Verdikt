@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { json } from "../api.js";
+import { apiGet } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
 import { Badge, Card, Spinner, ErrorState } from "../ui.jsx";
@@ -61,7 +61,7 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
     setLoading(true);
     setError(null);
     try {
-      setData(await json(`/api/workspaces/${wsId}/production-health`));
+      setData(await apiGet(`/api/workspaces/${wsId}/production-health`));
     } catch (err) {
       setData(null);
       setError(panelErrorMessage(err, "Could not load production health data."));

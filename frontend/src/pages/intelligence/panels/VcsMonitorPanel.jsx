@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { json } from "../api.js";
+import { apiGet } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
 import { Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
@@ -29,7 +29,7 @@ export function VcsMonitorPanel({ wsId }) {
     setLoading(true);
     setError(null);
     try {
-      setData(await json(`/api/workspaces/${wsId}/vcs-monitor`));
+      setData(await apiGet(`/api/workspaces/${wsId}/vcs-monitor`));
     } catch (err) {
       setData(null);
       setError(panelErrorMessage(err, "Could not load VCS monitor data."));

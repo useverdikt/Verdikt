@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { json } from "../api.js";
+import { apiGet } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle } from "../styles.js";
 import { Badge, Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
@@ -14,7 +14,7 @@ export function OverrideAnalyticsPanel({ wsId }) {
     setLoading(true);
     setError(null);
     try {
-      setData(await json(`/api/workspaces/${wsId}/override-analytics`));
+      setData(await apiGet(`/api/workspaces/${wsId}/override-analytics`));
     } catch (err) {
       setData(null);
       setError(panelErrorMessage(err, "Could not load override analytics."));
