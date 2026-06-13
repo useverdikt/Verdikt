@@ -1,12 +1,15 @@
 import { fetchAndMapReleaseDetail, fetchAndMapReleaseSummary } from "./releaseDetailApi.js";
 
 const MAX_WORKERS = 6;
+const MAX_FETCH_ATTEMPTS = 3;
 
 const queue = [];
 /** @type {Set<string>} keys like `rel_1:summary` or `rel_1:full` */
 const inFlight = new Set();
 /** @type {Set<string>} */
 const hydrated = new Set();
+/** @type {Map<string, number>} failed fetch attempts per cache key */
+const failCounts = new Map();
 /** @type {Map<string, object>} latest mapped release by backend id */
 const resultCache = new Map();
 /** @type {Map<string, Array<(v: object|null) => void>>} */
@@ -47,6 +50,7 @@ export function reset() {
   rejectAllWaiters();
   inFlight.clear();
   hydrated.clear();
+  failCounts.clear();
   resultCache.clear();
 }
 
@@ -92,6 +96,7 @@ export function enqueue(ids, { priority = false, force = false, full = false } =
     for (const id of ids) {
       clearHydrated(id);
       resultCache.delete(id);
+      failCounts.delete(cacheKey(id, full));
     }
   }
 
@@ -171,12 +176,25 @@ function drainPool() {
         if (gen !== generation) return;
         inFlight.delete(key);
         if (mapped) {
+          failCounts.delete(key);
           hydrated.add(key);
           if (full) hydrated.add(cacheKey(id, false));
           resultCache.set(id, mapped);
           onEach?.(mapped);
+          settleWaiters(key, mapped);
+          return;
         }
-        settleWaiters(key, mapped);
+
+        const attempts = (failCounts.get(key) || 0) + 1;
+        failCounts.set(key, attempts);
+        if (attempts < MAX_FETCH_ATTEMPTS) {
+          queue.unshift({ id, priority: true, full });
+          drainPool();
+          return;
+        }
+
+        failCounts.delete(key);
+        settleWaiters(key, null);
       })
       .finally(() => {
         workers -= 1;
