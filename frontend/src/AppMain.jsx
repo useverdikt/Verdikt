@@ -90,7 +90,10 @@ export default function App() {
     openAuditRecord,
     loadMoreReleases,
     releasesNextBefore,
-    releasesLoadingMore
+    releasesLoadingMore,
+    loadMoreAudit,
+    auditNextBefore,
+    auditLoadingMore
   } = workspace;
 
   const {
@@ -344,6 +347,10 @@ export default function App() {
               releases={releases}
               isMobile={isMobile}
               wsReady={wsReady}
+              wsId={getWorkspaceId()}
+              hasMoreAudit={Boolean(auditNextBefore)}
+              loadingMoreAudit={auditLoadingMore}
+              onLoadMoreAudit={loadMoreAudit}
               onSelectRelease={handleAuditSelect}
             />
           }

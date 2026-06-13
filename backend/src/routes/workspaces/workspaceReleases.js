@@ -134,12 +134,23 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonView
 
 app.get("/api/workspaces/:workspaceId/audit", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
-    const raw = await queryAll(
-      "SELECT event_type, actor_type, actor_name, release_id, details_json, created_at FROM audit_events WHERE workspace_id = ? ORDER BY id DESC LIMIT 200",
-      [req.params.workspaceId]
-    );
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
+    const beforeRaw = req.query.before;
+    const beforeId = beforeRaw != null && String(beforeRaw).trim() !== "" ? Number(beforeRaw) : null;
+    const params = [req.params.workspaceId];
+    let sql =
+      "SELECT id, event_type, actor_type, actor_name, release_id, details_json, created_at FROM audit_events WHERE workspace_id = ?";
+    if (Number.isFinite(beforeId)) {
+      sql += " AND id < ?";
+      params.push(beforeId);
+    }
+    sql += " ORDER BY id DESC LIMIT ?";
+    params.push(limit);
+
+    const raw = await queryAll(sql, params);
     const rows = raw.map((e) => ({ ...e, details: JSON.parse(e.details_json || "{}") }));
-    return res.json({ workspace_id: req.params.workspaceId, events: rows });
+    const next_before = rows.length === limit ? rows[rows.length - 1].id : null;
+    return res.json({ workspace_id: req.params.workspaceId, events: rows, next_before });
   } catch (e) {
     next(e);
   }

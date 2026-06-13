@@ -71,7 +71,7 @@ const mapWorkspaceAuditEventsToLog = (events) => {
     const version = typeof details.version === "string" ? details.version : null;
     const rid = e.release_id || null;
     return {
-      id: `srv-${idx}-${e.created_at || idx}`,
+      id: e.id != null ? `srv-${e.id}` : `srv-${idx}-${e.created_at || idx}`,
       ts: formatAuditTsFromIso(e.created_at),
       event: humanizeAuditEventType(e.event_type),
       _rawEventType: e.event_type,
