@@ -6,7 +6,10 @@ import {
   isSummaryPending,
   releaseIdsNeedingDetail,
   chartWindowPendingIds,
-  allPendingReleaseIds
+  allPendingReleaseIds,
+  pendingSummaryIdsForReleases,
+  initialReleaseTablePendingIds,
+  RELEASE_TABLE_INITIAL_HYDRATE
 } from "./releaseDetailRefresh.js";
 
 describe("mergeReleaseIntoList", () => {
@@ -96,5 +99,28 @@ describe("chartWindowPendingIds", () => {
     }));
     expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_3", "rel_4"]);
     expect(allPendingReleaseIds(releases)).toEqual(["rel_3", "rel_4"]);
+  });
+});
+
+describe("pendingSummaryIdsForReleases", () => {
+  it("returns pending ids only for the given backend id subset", () => {
+    const releases = [
+      { backendReleaseId: "rel_a", summaryLoaded: false, signals: {} },
+      { backendReleaseId: "rel_b", summaryLoaded: true, detailLoaded: false },
+      { backendReleaseId: "rel_c", summaryLoaded: false, signals: {} }
+    ];
+    expect(pendingSummaryIdsForReleases(releases, ["rel_a", "rel_b"])).toEqual(["rel_a"]);
+  });
+});
+
+describe("initialReleaseTablePendingIds", () => {
+  it("caps initial hydration to the configured limit", () => {
+    const releases = Array.from({ length: 30 }, (_, i) => ({
+      backendReleaseId: `rel_${i}`,
+      summaryLoaded: false,
+      signals: {}
+    }));
+    expect(initialReleaseTablePendingIds(releases)).toHaveLength(RELEASE_TABLE_INITIAL_HYDRATE);
+    expect(initialReleaseTablePendingIds(releases, { limit: 5 })).toHaveLength(5);
   });
 });
