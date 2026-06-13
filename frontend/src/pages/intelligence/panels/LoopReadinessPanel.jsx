@@ -1,38 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import { apiGet } from "../../../lib/apiClient.js";
 import { C, BAND_META } from "../theme.js";
 import { btnStyle } from "../styles.js";
 import { Card, Spinner, EmptyState, ErrorState } from "../ui.jsx";
 import { panelErrorMessage } from "../panelLoad.js";
 import { fullLoopBarPct, pipelineFunnelBarPct } from "../../../lib/loopReadinessUi.js";
-import { fetchLoopReadiness, getCachedLoopReadiness, resetLoopReadinessCache } from "../../../lib/loopReadinessCache.js";
+import { useLoopReadiness } from "../../../hooks/useLoopReadiness.js";
 
 export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
-  const [data, setData] = useState(() =>
-    prodObservationEnabled && wsId ? getCachedLoopReadiness(wsId) : null
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const load = useCallback(async ({ force = false } = {}) => {
-    if (!prodObservationEnabled) return;
-    if (force) resetLoopReadinessCache(wsId);
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchLoopReadiness(wsId, apiGet);
-      setData(result);
-    } catch (err) {
-      setError(panelErrorMessage(err, "Could not load loop readiness data."));
-    } finally {
-      setLoading(false);
-    }
-  }, [wsId, prodObservationEnabled]);
-
-  useEffect(() => {
-    if (prodObservationEnabled) void load();
-  }, [load, prodObservationEnabled]);
+  const { data, loading, error, reload } = useLoopReadiness(wsId, { enabled: prodObservationEnabled });
 
   if (!prodObservationEnabled) {
     return (
@@ -64,18 +40,17 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
       title="Feedback Loop Readiness"
       eyebrow="PRE-RELEASE → VERDICT → POST-DEPLOY → ALIGNMENT"
       action={
-        <button onClick={() => load({ force: true })} disabled={loading} style={btnStyle(C.accent)}>
+        <button onClick={() => reload({ force: true })} disabled={loading} style={btnStyle(C.accent)}>
           {loading ? "Loading…" : "Refresh"}
         </button>
       }
     >
       {loading && !data ? <Spinner /> : error ? (
-        <ErrorState msg={error} onRetry={load} />
+        <ErrorState msg={panelErrorMessage(error, "Could not load loop readiness data.")} onRetry={reload} />
       ) : !data ? (
         <EmptyState msg="No loop readiness data yet." />
       ) : (
         <>
-          {/* Band badge + stale warning */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
             <div style={{
               display: "inline-flex", alignItems: "center", gap: 8,
@@ -95,18 +70,17 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
             </div>
           </div>
 
-          {/* Pipeline progress bar */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 10, fontFamily: C.mono, color: C.dim, letterSpacing: "0.08em", marginBottom: 8, fontWeight: 700 }}>
               PIPELINE FUNNEL
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {[
-                { label: "Releases created",         value: data.total_releases,                  color: C.muted, mode: "total" },
-                { label: "Verdicts issued",           value: data.verdict_issued,                   color: C.muted, mode: "total" },
-                { label: "Eligible for loop",         value: data.eligible_releases,                color: C.muted, note: `verdict > ${data.eligibility_minutes ?? 30}m ago`, mode: "total" },
-                { label: "With production signals",   value: data.with_production_observations,     color: C.amber, mode: "eligible" },
-                { label: "With alignment computed",   value: data.with_alignment,                   color: C.green, mode: "full_loop" },
+                { label: "Releases created", value: data.total_releases, color: C.muted, mode: "total" },
+                { label: "Verdicts issued", value: data.verdict_issued, color: C.muted, mode: "total" },
+                { label: "Eligible for loop", value: data.eligible_releases, color: C.muted, note: `verdict > ${data.eligibility_minutes ?? 30}m ago`, mode: "total" },
+                { label: "With production signals", value: data.with_production_observations, color: C.amber, mode: "eligible" },
+                { label: "With alignment computed", value: data.with_alignment, color: C.green, mode: "full_loop" }
               ].map(({ label, value, color, note, mode }) => {
                 const reliableMin = data.band_thresholds?.reliable_min_loops ?? 10;
                 const pct = mode === "full_loop"
@@ -130,7 +104,6 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
             </div>
           </div>
 
-          {/* Key stats row */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginBottom: 16 }}>
             {[
               {
@@ -173,7 +146,6 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
             ))}
           </div>
 
-          {/* Fixed thresholds (for transparency) */}
           <div style={{ padding: "10px 14px", background: C.raise, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.dim, lineHeight: 1.7 }}>
             <span style={{ fontFamily: C.mono, color: C.muted, fontWeight: 700 }}>Band thresholds (fixed):</span>
             {" "}Exploratory ≤{data.band_thresholds?.exploratory_max ?? 2} loops · Emerging until Reliable ·

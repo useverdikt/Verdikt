@@ -3,13 +3,11 @@ import { apiGet } from "../lib/apiClient.js";
 import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import { reliabilityLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
-import { fetchLoopReadiness, getCachedLoopReadiness } from "../lib/loopReadinessCache.js";
+import { useLoopReadiness } from "./useLoopReadiness.js";
 import { fetchSignalReliability, getCachedSignalReliability } from "../lib/signalReliabilityCache.js";
 
 export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases }) {
-  const [loopReadiness, setLoopReadiness] = useState(() =>
-    prodObservationEnabled && wsId ? getCachedLoopReadiness(wsId) : null
-  );
+  const { data: loopReadiness } = useLoopReadiness(wsId, { enabled: prodObservationEnabled });
   const [signalReliability, setSignalReliability] = useState(() => {
     const cached = wsId ? getCachedSignalReliability(wsId) : null;
     return Array.isArray(cached?.signals) ? cached.signals : [];
@@ -28,16 +26,6 @@ export function useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, rel
     () => statsReleases.filter((r) => hasComputedAlignment(r.alignmentVerdict)).length,
     [statsReleases]
   );
-
-  // Fetch loop-readiness independently via the shared cache (stale-while-revalidate).
-  useEffect(() => {
-    if (!wsId || !prodObservationEnabled) return;
-    let active = true;
-    fetchLoopReadiness(wsId, apiGet)
-      .then((data) => { if (active && data) setLoopReadiness(data); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [wsId, prodObservationEnabled]);
 
   // Fetch signal-reliability via shared cache — does not wait on loop-readiness.
   useEffect(() => {
