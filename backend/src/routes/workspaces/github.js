@@ -39,7 +39,7 @@ app.put("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireN
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
-  writeAudit({ workspaceId: req.params.workspaceId, eventType: "VCS_INTEGRATION_CONFIGURED", actorType: "USER", actorName: req.auth?.email || "user", details: { provider, owner, repo } });
+  await writeAudit({ workspaceId: req.params.workspaceId, eventType: "VCS_INTEGRATION_CONFIGURED", actorType: "USER", actorName: req.auth?.email || "user", details: { provider, owner, repo } });
   const cfg = await getVcsIntegration(req.params.workspaceId);
   return res.json({ ...cfg, access_token: "***" });
   } catch (e) {
@@ -50,7 +50,7 @@ app.put("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireN
 app.delete("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
   await deleteVcsIntegration(req.params.workspaceId);
-  writeAudit({ workspaceId: req.params.workspaceId, eventType: "VCS_INTEGRATION_REMOVED", actorType: "USER", actorName: req.auth?.email || "user", details: {} });
+  await writeAudit({ workspaceId: req.params.workspaceId, eventType: "VCS_INTEGRATION_REMOVED", actorType: "USER", actorName: req.auth?.email || "user", details: {} });
   return res.json({ ok: true });
   } catch (e) {
     next(e);
