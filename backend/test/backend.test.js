@@ -741,6 +741,19 @@ describe("API integration", () => {
     }
   });
 
+  it("loop-readiness returns cached on repeat request", async () => {
+    const email = `lrc_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Lrc" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent.get(`/api/workspaces/${ws}/loop-readiness`).expect(200);
+    const second = await agent.get(`/api/workspaces/${ws}/loop-readiness`).expect(200);
+    assert.equal(second.body.cached, true);
+  });
+
   it("GitHub merge promotes to prod after verdict is issued", async () => {
     const email = `ghp_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
