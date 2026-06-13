@@ -1,30 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
-import { persistAuthSession } from "../auth/persistSession.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { S } from "../app/main/appMainLogic.js";
 import { useWorkspaceReleases } from "./useWorkspaceReleases.js";
 import { useWorkspaceThresholds } from "./useWorkspaceThresholds.js";
 import { useWorkspaceAudit } from "./useWorkspaceAudit.js";
+import { useWorkspaceAuth } from "./useWorkspaceAuth.js";
 
 export function useWorkspaceSync(navigate, nav) {
   const [wsReady, setWsReady] = useState(!hasBackend());
-  const [currentUser, setCurrentUser] = useState(() => {
-    if (hasBackend()) return null;
-    const u = S.get("currentUser", null);
-    if (u && u.role === "viewer") return { ...u, role: "engineer" };
-    return u;
-  });
   const [apiBanner, setApiBanner] = useState(null);
   const [workspaceSyncing, setWorkspaceSyncing] = useState(false);
 
+  const { currentUser, setCurrentUser } = useWorkspaceAuth(navigate);
   const releasesApi = useWorkspaceReleases(navigate, nav, { setApiBanner });
   const thresholdsApi = useWorkspaceThresholds(navigate, nav);
   const auditApi = useWorkspaceAudit(navigate, { setApiBanner });
-
-  useEffect(() => {
-    if (currentUser) S.set("currentUser", currentUser);
-  }, [currentUser]);
 
   const refreshWorkspaceFromServer = useCallback(
     async (opts = {}) => {
@@ -54,29 +44,6 @@ export function useWorkspaceSync(navigate, nav) {
     },
     [navigate, releasesApi, thresholdsApi, auditApi]
   );
-
-  useEffect(() => {
-    if (!hasBackend()) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await apiGet("/api/auth/me", { navigate });
-        if (cancelled || !data?.user) return;
-        persistAuthSession({ user: data.user });
-        setCurrentUser({
-          id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
-          role: data.user.role
-        });
-      } catch {
-        /* ProtectedRoute handles unauthenticated redirects */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
 
   useEffect(() => {
     if (!hasBackend()) return;
