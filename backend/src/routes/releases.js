@@ -54,6 +54,7 @@ const {
   resolveEvidenceForRelease,
   persistReleaseEvidenceQuality
 } = require("../services/evidenceQuality");
+const { buildReleaseSummary, loadLastSignalEvaluation } = require("../services/releaseDetail");
 const {
   extractIdempotencyKey,
   countSignalsForIdempotencyKey,
@@ -260,6 +261,14 @@ app.post("/api/releases/:releaseId/override", authMiddleware, requireReleaseAcce
   }
 });
 
+app.get("/api/releases/:releaseId/summary", authMiddleware, requireReleaseAccess, async (req, res, next) => {
+  try {
+    return res.json(await buildReleaseSummary(req.releaseRow));
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
   let release = req.releaseRow;
@@ -272,26 +281,7 @@ app.get("/api/releases/:releaseId", authMiddleware, requireReleaseAccess, async 
     "SELECT id, release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at FROM override_history WHERE release_id = ? ORDER BY id ASC",
     [req.params.releaseId]
   );
-  const lastEvalRow = await queryOne(
-    `SELECT details_json FROM audit_events
-       WHERE release_id = ? AND event_type = 'SIGNALS_INGESTED'
-       ORDER BY id DESC LIMIT 1`,
-    [req.params.releaseId]
-  );
-  let last_signal_evaluation = null;
-  if (lastEvalRow) {
-    try {
-      const d = JSON.parse(lastEvalRow.details_json || "{}");
-      last_signal_evaluation = {
-        threshold_failed_signals: Array.isArray(d.threshold_failed_signals) ? d.threshold_failed_signals : undefined,
-        missing_signals: Array.isArray(d.missing_signals) ? d.missing_signals : undefined,
-        failed_signals: Array.isArray(d.failed_signals) ? d.failed_signals : undefined,
-        computed_status: d.computed_status
-      };
-    } catch {
-      last_signal_evaluation = null;
-    }
-  }
+  const last_signal_evaluation = await loadLastSignalEvaluation(req.params.releaseId);
   const auditRows = await queryAll(
     "SELECT event_type, actor_type, actor_name, details_json, created_at FROM audit_events WHERE release_id = ? ORDER BY id DESC",
     [req.params.releaseId]
