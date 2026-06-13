@@ -1,46 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
 import { persistAuthSession } from "../auth/persistSession.js";
-import {
-  mergeReleaseIntoList,
-  refreshReleaseDetail,
-  RELEASE_UPDATED_EVENT,
-  awaitReleaseDetail,
-  enqueueReleaseHydration,
-  mergeListStubsWithExisting,
-  isReleaseDetailPending,
-  isSummaryPending,
-  allPendingReleaseIds,
-  chartWindowPendingIds,
-  resetHydrationPool,
-  syncHydratedFromReleases,
-  setHydrationNavigate,
-  setOnEach
-} from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
 import {
   S,
   DEFAULT_THRESHOLDS,
   DEFAULT_AUDIT,
-  TREND_CHART_MAX_POINTS,
-  mapWorkspaceAuditEventsToLog,
-  mapBackendListRowToUi
+  mapWorkspaceAuditEventsToLog
 } from "../app/main/appMainLogic.js";
+import { useWorkspaceReleases } from "./useWorkspaceReleases.js";
 
 export function useWorkspaceSync(navigate, nav) {
   const [wsReady, setWsReady] = useState(!hasBackend());
-  const [releases, setReleases] = useState(() => {
-    if (hasBackend()) return [];
-    const s = S.get("releases", null);
-    return Array.isArray(s) ? s : [];
-  });
-  const [selectedId, setSelectedId] = useState(() => {
-    if (hasBackend()) return null;
-    const s = S.get("releases", null);
-    const list = Array.isArray(s) ? s : [];
-    return list[0]?.id ?? null;
-  });
   const [thresholds, setThresholds] = useState(() => ({
     ...DEFAULT_THRESHOLDS,
     ...S.get("thresholds", {})
@@ -59,54 +31,8 @@ export function useWorkspaceSync(navigate, nav) {
   const [workspaceSyncing, setWorkspaceSyncing] = useState(false);
   const [thresholdSuggestions, setThresholdSuggestions] = useState([]);
   const [thresholdSuggestNote, setThresholdSuggestNote] = useState("");
-  const [_releasesTotalCount, setReleasesTotalCount] = useState(null);
-  const [releasesNextBefore, setReleasesNextBefore] = useState(null);
-  const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
-  const releasesRef = useRef(releases);
-  releasesRef.current = releases;
-  const navRef = useRef(nav);
-  navRef.current = nav;
-  const workspaceIdRef = useRef(getWorkspaceId());
 
-  const scheduleReleaseHydration = useCallback(
-    (mergedReleases, { priorityChartWindow = false } = {}) => {
-      syncHydratedFromReleases(mergedReleases, isSummaryPending);
-      if (priorityChartWindow) {
-        const chartIds = chartWindowPendingIds(mergedReleases, TREND_CHART_MAX_POINTS);
-        if (chartIds.length) {
-          enqueueReleaseHydration(chartIds, { priority: true });
-        }
-      }
-      const pending = allPendingReleaseIds(mergedReleases);
-      if (pending.length) {
-        enqueueReleaseHydration(pending, { priority: false });
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (!hasBackend()) return;
-    setHydrationNavigate(navigate);
-    setOnEach((mapped) => {
-      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-    });
-    return () => setOnEach(null);
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!hasBackend()) return;
-    const wsId = getWorkspaceId();
-    if (workspaceIdRef.current !== wsId) {
-      resetHydrationPool();
-      workspaceIdRef.current = wsId;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (hasBackend()) return;
-    S.set("releases", releases);
-  }, [releases]);
+  const releasesApi = useWorkspaceReleases(navigate, nav, { setApiBanner });
 
   useEffect(() => {
     if (hasBackend()) return;
@@ -134,46 +60,24 @@ export function useWorkspaceSync(navigate, nav) {
       if (manual) setWorkspaceSyncing(true);
       try {
         if (!isCancelled()) setApiBanner(null);
-        const [thData, relData] = await Promise.all([
+        const [thData, relData, auditData] = await Promise.all([
           apiGet(`/api/workspaces/${getWorkspaceId()}/thresholds`, { navigate }),
-          apiGet(`/api/workspaces/${getWorkspaceId()}/releases?limit=50`, { navigate })
+          apiGet(`/api/workspaces/${getWorkspaceId()}/releases?limit=50`, { navigate }),
+          apiGet(`/api/workspaces/${getWorkspaceId()}/audit`, { navigate }).catch((e) => ({ _error: e }))
         ]);
         if (isCancelled()) return;
         const map = thData?.thresholds || {};
         const parsed = applyThresholdApiMap(map);
         setThresholds((prev) => ({ ...DEFAULT_THRESHOLDS, ...prev, ...parsed.thresholds }));
         setThresholdRequired((prev) => ({ ...defaultRequiredFlags(), ...prev, ...parsed.required }));
-        const rows = relData?.releases || [];
-        setReleasesNextBefore(relData?.next_before || null);
-        if (rows.length) {
-          setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
-          const stubs = rows.map(mapBackendListRowToUi);
-          let merged = stubs;
-          setReleases((prev) => {
-            merged = mergeListStubsWithExisting(prev, stubs);
-            return merged;
-          });
-          setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
-          scheduleReleaseHydration(merged, {
-            priorityChartWindow: navRef.current === "trend"
-          });
+        releasesApi.applyReleaseListFromServer(relData, {
+          priorityChartWindow: releasesApi.navRef.current === "trend"
+        });
+        if (auditData?._error) {
+          setApiBanner((prev) => prev || auditData._error.message || "Failed to load audit log");
         } else {
-          setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
-          setReleases([]);
-          setSelectedId(null);
+          setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
         }
-        void (async () => {
-          try {
-            const auditData = await apiGet(`/api/workspaces/${getWorkspaceId()}/audit`, { navigate });
-            if (!isCancelled()) {
-              setAuditLog(mapWorkspaceAuditEventsToLog(auditData?.events || []));
-            }
-          } catch (e) {
-            if (!isCancelled()) {
-              setApiBanner((prev) => prev || e.message || "Failed to load audit log");
-            }
-          }
-        })();
       } catch (e) {
         if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");
       } finally {
@@ -181,7 +85,7 @@ export function useWorkspaceSync(navigate, nav) {
         if (!isCancelled()) setWsReady(true);
       }
     },
-    [navigate, scheduleReleaseHydration]
+    [navigate, releasesApi]
   );
 
   const refreshAuditFromServer = useCallback(async () => {
@@ -246,15 +150,6 @@ export function useWorkspaceSync(navigate, nav) {
   }, [navigate]);
 
   useEffect(() => {
-    if (!hasBackend() || nav !== "trend") return;
-    syncHydratedFromReleases(releasesRef.current, isSummaryPending);
-    const chartIds = chartWindowPendingIds(releasesRef.current, TREND_CHART_MAX_POINTS);
-    if (chartIds.length) {
-      enqueueReleaseHydration(chartIds, { priority: true });
-    }
-  }, [nav]);
-
-  useEffect(() => {
     if (!hasBackend()) return;
     const cancelledRef = { cancelled: false };
     void refreshWorkspaceFromServer({ cancelledRef });
@@ -262,83 +157,6 @@ export function useWorkspaceSync(navigate, nav) {
       cancelledRef.cancelled = true;
     };
   }, [navigate, refreshWorkspaceFromServer]);
-
-  useEffect(() => {
-    const onReleaseUpdated = (event) => {
-      const mapped = event?.detail;
-      if (!mapped?.backendReleaseId) return;
-      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-    };
-    window.addEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
-    return () => window.removeEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
-  }, []);
-
-  const ensureReleaseDetail = useCallback(
-    async (backendReleaseId) => {
-      if (!hasBackend() || !backendReleaseId) return null;
-      const existing = releasesRef.current.find((r) => r.backendReleaseId === backendReleaseId);
-      if (existing && !isReleaseDetailPending(existing)) return existing;
-      try {
-        setApiBanner(null);
-        setHydrationNavigate(navigate);
-        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, full: true });
-        if (mapped) {
-          setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-        }
-        return mapped;
-      } catch (e) {
-        setApiBanner(e.message || "Failed to load release details");
-        return null;
-      }
-    },
-    [navigate]
-  );
-
-  const refreshReleaseFromBackend = useCallback(
-    async (backendReleaseId) => {
-      if (!hasBackend() || !backendReleaseId) return;
-      try {
-        setApiBanner(null);
-        const mapped = await refreshReleaseDetail(backendReleaseId, navigate, { emit: false, force: true });
-        if (mapped) {
-          setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-        }
-      } catch (e) {
-        setApiBanner(e.message || "Failed to refresh release from server");
-      }
-    },
-    [navigate]
-  );
-
-  const loadMoreReleases = useCallback(async () => {
-    if (!hasBackend() || !releasesNextBefore || releasesLoadingMore) return;
-    setReleasesLoadingMore(true);
-    try {
-      setApiBanner(null);
-      const data = await apiGet(
-        `/api/workspaces/${getWorkspaceId()}/releases?limit=50&before=${encodeURIComponent(releasesNextBefore)}`,
-        { navigate }
-      );
-      const rows = data?.releases || [];
-      setReleasesNextBefore(data?.next_before || null);
-      const stubs = rows.map(mapBackendListRowToUi);
-      if (stubs.length) {
-        let appended = [];
-        setReleases((prev) => {
-          const seen = new Set(prev.map((r) => r.backendReleaseId));
-          appended = stubs.filter((s) => !seen.has(s.backendReleaseId));
-          return [...prev, ...appended];
-        });
-        if (appended.length) {
-          scheduleReleaseHydration(appended);
-        }
-      }
-    } catch (e) {
-      setApiBanner(e.message || "Failed to load more releases");
-    } finally {
-      setReleasesLoadingMore(false);
-    }
-  }, [navigate, releasesNextBefore, releasesLoadingMore, scheduleReleaseHydration]);
 
   const addAudit = useCallback(
     (e) =>
@@ -352,36 +170,12 @@ export function useWorkspaceSync(navigate, nav) {
     []
   );
 
-  const openAuditRecord = useCallback(
-    async (linkedRelease, backendReleaseId, { showToast, toastColor }) => {
-      if (linkedRelease) {
-        return linkedRelease;
-      }
-      if (!backendReleaseId || !hasBackend()) return null;
-      try {
-        setApiBanner(null);
-        setHydrationNavigate(navigate);
-        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, full: true });
-        if (!mapped) return null;
-        setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-        return mapped;
-      } catch (e) {
-        setApiBanner(e.message || "Could not load release record from audit entry");
-        if (showToast && toastColor) {
-          showToast("Could not load certification record for this audit entry", toastColor);
-        }
-        return null;
-      }
-    },
-    [navigate]
-  );
-
   return {
     wsReady,
-    releases,
-    setReleases,
-    selectedId,
-    setSelectedId,
+    releases: releasesApi.releases,
+    setReleases: releasesApi.setReleases,
+    selectedId: releasesApi.selectedId,
+    setSelectedId: releasesApi.setSelectedId,
     thresholds,
     setThresholds,
     thresholdRequired,
@@ -398,13 +192,13 @@ export function useWorkspaceSync(navigate, nav) {
     refreshWorkspaceFromServer,
     refreshAuditFromServer,
     loadThresholdSuggestions,
-    ensureReleaseDetail,
-    refreshReleaseFromBackend,
-    loadMoreReleases,
-    releasesNextBefore,
-    releasesLoadingMore,
+    ensureReleaseDetail: releasesApi.ensureReleaseDetail,
+    refreshReleaseFromBackend: releasesApi.refreshReleaseFromBackend,
+    loadMoreReleases: releasesApi.loadMoreReleases,
+    releasesNextBefore: releasesApi.releasesNextBefore,
+    releasesLoadingMore: releasesApi.releasesLoadingMore,
     addAudit,
-    openAuditRecord
+    openAuditRecord: releasesApi.openAuditRecord
   };
 }
 
