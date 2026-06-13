@@ -59,6 +59,7 @@ const {
   countSignalsForIdempotencyKey,
   respondToDuplicateSignalIngest
 } = require("../services/signalIngestIdempotency");
+const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
 
 const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
@@ -156,42 +157,13 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
     });
   }
   const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
-  const idempotencyKey = extractIdempotencyKey(req);
-  if (idempotencyKey) {
-    const existingCount = await countSignalsForIdempotencyKey(req.params.releaseId, idempotencyKey);
-    if (existingCount > 0) {
-      const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, ingestSource, idempotencyKey);
-      return res.json({
-        ...out,
-        integration: {
-          provider: String(provider),
-          mapped_signal_ids: Object.keys(mapped.signals)
-        }
-      });
-    }
-  }
-  const insertIntSql =
-    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?)";
-  await transaction(async (tx) => {
-    for (const [signalId, value] of Object.entries(mapped.signals)) {
-      await tx.run(insertIntSql, [req.params.releaseId, signalId, value, ingestSource, nowIso(), idempotencyKey]);
-    }
+  const out = await ingestIntegrationSignals({
+    release,
+    mappedSignals: mapped.signals,
+    source: ingestSource,
+    idempotencyKey: resolveIntegrationIdempotencyKey(req),
+    auditDetails: { provider: String(provider) }
   });
-
-  await writeAudit({
-    workspaceId: release.workspace_id,
-    releaseId: req.params.releaseId,
-    eventType: "INTEGRATION_SIGNALS_MAPPED",
-    actorType: "SYSTEM",
-    actorName: ingestSource,
-    details: {
-      provider: String(provider),
-      mapped_signal_ids: Object.keys(mapped.signals)
-    }
-  });
-
-  const out = await evaluateReleaseAfterSignalIngest(release, req.params.releaseId, ingestSource, Object.keys(mapped.signals).length);
-  if (idempotencyKey) out.idempotency_key = idempotencyKey;
   return res.json({
     ...out,
     integration: {
