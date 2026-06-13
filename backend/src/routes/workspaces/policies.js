@@ -114,7 +114,7 @@ app.put("/api/workspaces/:workspaceId/baseline-policy", authMiddleware, requireN
     return res.status(400).json({ error: err.message });
   }
   const policy = await getBaselinePolicy(req.params.workspaceId);
-  writeAudit({
+  await writeAudit({
     workspaceId: req.params.workspaceId,
     eventType: "BASELINE_POLICY_UPDATED",
     actorType: "USER",
@@ -153,7 +153,7 @@ app.put("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, require
       return res.status(400).json({ error: err.message || "Invalid outbound webhook URL" });
     }
     await setOutboundWebhook(req.params.workspaceId, { url: safeUrl, secret, events });
-    writeAudit({
+    await writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "OUTBOUND_WEBHOOK_CONFIGURED",
       actorType: "USER",
@@ -170,7 +170,7 @@ app.put("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, require
 app.delete("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     await deleteOutboundWebhook(req.params.workspaceId);
-    writeAudit({
+    await writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "OUTBOUND_WEBHOOK_REMOVED",
       actorType: "USER",
