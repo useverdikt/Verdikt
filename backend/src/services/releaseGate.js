@@ -2,9 +2,9 @@
 
 const { writeAudit } = require("./audit");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
-const { getMissingRequiredSignals } = require("./verdictEngine");
+const { getMissingRequiredSignals, getLatestSignalMap } = require("./verdictEngine");
 const { computeGateAction } = require("./releaseIdentity");
-const { getWorkspacePolicy } = require("./workspaceConfig");
+const { getWorkspacePolicy, getThresholdMap } = require("./workspaceConfig");
 const { getReleaseIntelligence } = require("./domain");
 
 /**
@@ -21,7 +21,19 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     CERTIFIED_WITH_OVERRIDE: "release certified with override"
   };
   const reason = reasonByStatus[release.status] || `release status is ${release.status}`;
-  const policy = await getWorkspacePolicy(release.workspace_id);
+
+  const [policy, intelligence, thresholdMap, trajectoryInfo, latest] = await Promise.all([
+    getWorkspacePolicy(release.workspace_id),
+    getReleaseIntelligence(releaseId),
+    getThresholdMap(release.workspace_id),
+    computeReleaseTrajectory({
+      workspaceId: release.workspace_id,
+      releaseId,
+      releaseRow: release
+    }),
+    getLatestSignalMap(releaseId)
+  ]);
+
   const mode =
     modeOverride === "strict"
       ? "strict"
@@ -37,19 +49,14 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
       ? "strict mode requires CERTIFIED without override"
       : reason;
 
-  const intelligence = await getReleaseIntelligence(releaseId);
   const failedSignals = intelligence?.verdict?.failed_signals ?? [];
   const blockingSignals = failedSignals.map((f) => f.signal_id).filter(Boolean);
-  const trajectoryInfo = await computeReleaseTrajectory({
-    workspaceId: release.workspace_id,
-    releaseId,
-    releaseRow: release
-  });
   const missingRequiredSignals = await getMissingRequiredSignals(
     release.workspace_id,
     releaseId,
-    null,
-    release
+    latest,
+    release,
+    thresholdMap
   );
   const action = computeGateAction({
     status: release.status,
