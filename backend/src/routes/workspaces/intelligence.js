@@ -18,7 +18,7 @@ const {
   OUTCOME_CRITERIA,
   getWorkspaceMonitoringSummary
 } = require("../deps");
-const { computeWorkspaceLoopReadiness } = require("../../services/loopReadinessStats");
+const { getWorkspaceLoopReadinessCached } = require("../../services/loopReadinessCache");
 
 module.exports = function registerRoutes(app) {
 app.post("/api/workspaces/:workspaceId/correlations/compute", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
@@ -134,7 +134,7 @@ app.get("/api/workspaces/:workspaceId/production-health/criteria", authMiddlewar
 });
 app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
-    return res.json(await computeWorkspaceLoopReadiness(req.params.workspaceId));
+    return res.json(await getWorkspaceLoopReadinessCached(req.params.workspaceId));
   } catch (e) {
     next(e);
   }
