@@ -754,6 +754,31 @@ describe("API integration", () => {
     assert.equal(second.body.cached, true);
   });
 
+  it("GET /releases/:id/audit supports pagination", async () => {
+    const email = `rau_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "RAu" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Release audit page", release_type: "model_update", environment: "pre-prod" })
+      .expect(201);
+    const relId = created.body.id;
+
+    await agent
+      .post(`/api/releases/${relId}/signals`)
+      .send({ source: "test", signals: { accuracy: 90, safety: 95, tone: 90, hallucination: 95, relevance: 85 } })
+      .expect(200);
+
+    const page = await agent.get(`/api/releases/${relId}/audit?limit=5`).expect(200);
+    assert.equal(page.body.release_id, relId);
+    assert.ok(Array.isArray(page.body.events));
+    assert.ok(page.body.events.length >= 1);
+    assert.ok(page.body.events[0].event_type);
+  });
+
   it("GitHub merge promotes to prod after verdict is issued", async () => {
     const email = `ghp_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
