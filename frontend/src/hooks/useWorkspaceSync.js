@@ -16,6 +16,10 @@ export function useWorkspaceSync(navigate, nav) {
   const thresholdsApi = useWorkspaceThresholds(navigate, nav);
   const auditApi = useWorkspaceAudit(navigate, { setApiBanner });
 
+  const { applyReleaseListFromServer, navRef: releasesNavRef } = releasesApi;
+  const { applyThresholdsFromApi } = thresholdsApi;
+  const { applyAuditFromApi } = auditApi;
+
   const refreshWorkspaceFromServer = useCallback(
     async (opts = {}) => {
       const { cancelledRef, manual } = opts;
@@ -30,11 +34,11 @@ export function useWorkspaceSync(navigate, nav) {
           apiGet(`/api/workspaces/${getWorkspaceId()}/audit?limit=50`, { navigate }).catch((e) => ({ _error: e }))
         ]);
         if (isCancelled()) return;
-        thresholdsApi.applyThresholdsFromApi(thData);
-        releasesApi.applyReleaseListFromServer(relData, {
-          priorityChartWindow: releasesApi.navRef.current === "trend"
+        applyThresholdsFromApi(thData);
+        applyReleaseListFromServer(relData, {
+          priorityChartWindow: releasesNavRef.current === "trend"
         });
-        auditApi.applyAuditFromApi(auditData);
+        applyAuditFromApi(auditData);
       } catch (e) {
         if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");
       } finally {
@@ -42,7 +46,7 @@ export function useWorkspaceSync(navigate, nav) {
         if (!isCancelled()) setWsReady(true);
       }
     },
-    [navigate, releasesApi, thresholdsApi, auditApi]
+    [navigate, applyReleaseListFromServer, applyThresholdsFromApi, applyAuditFromApi, releasesNavRef]
   );
 
   useEffect(() => {
