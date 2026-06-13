@@ -1,5 +1,5 @@
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
-import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
+import { isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
 import {
   envClass,
   envDisplayLabel,
@@ -40,7 +40,7 @@ export default function ReleaseRow({
   const failCount = dots.filter((d) => d === "f").length;
   const warnCount = dots.filter((d) => d === "w").length;
   const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
-  const detailPending = isReleaseDetailPending(release);
+  const summaryPending = isSummaryPending(release);
 
   const timeLabel = formatAge ? formatAge(release) : release.date || "—";
   const subLabel =
@@ -99,7 +99,7 @@ export default function ReleaseRow({
       </div>
 
       <div className="td sig-cell">
-        {detailPending ? (
+        {summaryPending ? (
           <>
             <div className="sig-mini sig-mini--loading" aria-hidden="true">
               {signalCategories.slice(0, 5).map((_, i) => (
