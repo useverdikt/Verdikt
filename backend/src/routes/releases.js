@@ -60,12 +60,6 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, r
     return res.status(400).json({ error: "signals object is required" });
   }
   const release = req.releaseRow;
-  if (releaseVerdictLockedAgainstIngest(release)) {
-    return res.status(409).json({
-      error: "release verdict is locked after certification; further signal ingest is not accepted",
-      status: release.status
-    });
-  }
 
   // Idempotency: clients may provide X-Idempotency-Key header or body.idempotency_key
   const idempotencyKey = extractIdempotencyKey(req);
@@ -80,6 +74,13 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, r
       if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
       return res.json(out);
     }
+  }
+
+  if (releaseVerdictLockedAgainstIngest(release)) {
+    return res.status(409).json({
+      error: "release verdict is locked after certification; further signal ingest is not accepted",
+      status: release.status
+    });
   }
 
   const insertSql =
@@ -140,18 +141,34 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
     });
   }
   const release = req.releaseRow;
+  const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
+  const idempotencyKey = resolveIntegrationIdempotencyKey(req);
+  if (idempotencyKey) {
+    const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
+    if (existingCount > 0) {
+      const out = await respondToDuplicateSignalIngest(release, release.id, ingestSource, idempotencyKey);
+      return res.json({
+        ...out,
+        inserted_count: 0,
+        duplicate: true,
+        integration: {
+          provider: String(provider),
+          mapped_signal_ids: Object.keys(mapped.signals)
+        }
+      });
+    }
+  }
   if (releaseVerdictLockedAgainstIngest(release)) {
     return res.status(409).json({
       error: "release verdict is locked after certification; further signal ingest is not accepted",
       status: release.status
     });
   }
-  const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
   const out = await ingestIntegrationSignals({
     release,
     mappedSignals: mapped.signals,
     source: ingestSource,
-    idempotencyKey: resolveIntegrationIdempotencyKey(req),
+    idempotencyKey,
     auditDetails: { provider: String(provider) }
   });
   return res.json({
