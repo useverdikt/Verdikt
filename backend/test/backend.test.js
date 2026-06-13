@@ -722,6 +722,25 @@ describe("API integration", () => {
     assert.equal(Number(auditAfter.c), Number(auditBefore.c));
   });
 
+  it("GET workspace audit supports limit and before cursor pagination", async () => {
+    const email = `aud_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Aud" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const page1 = await agent.get(`/api/workspaces/${ws}/audit?limit=2`).expect(200);
+    assert.ok(Array.isArray(page1.body.events));
+    if (page1.body.events.length === 2) {
+      assert.ok(page1.body.next_before);
+      const page2 = await agent
+        .get(`/api/workspaces/${ws}/audit?limit=2&before=${page1.body.next_before}`)
+        .expect(200);
+      assert.ok(page2.body.events.every((e) => e.id < page1.body.next_before));
+    }
+  });
+
   it("GitHub merge promotes to prod after verdict is issued", async () => {
     const email = `ghp_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);

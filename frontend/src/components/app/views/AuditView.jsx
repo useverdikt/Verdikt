@@ -1,5 +1,56 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { C } from "../../../theme/tokens.js";
+import { apiGet } from "../../../lib/apiClient.js";
+
+function AuditIntegrityBadge({ wsId, wsReady }) {
+  const [integrity, setIntegrity] = useState(null);
+
+  useEffect(() => {
+    if (!wsReady || !wsId) return;
+    let cancelled = false;
+    void apiGet(`/api/workspaces/${wsId}/audit/integrity`)
+      .then((data) => {
+        if (!cancelled) setIntegrity(data);
+      })
+      .catch(() => {
+        if (!cancelled) setIntegrity(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wsId, wsReady]);
+
+  if (!wsReady || !integrity) return null;
+
+  const tampered = Array.isArray(integrity.tampered) ? integrity.tampered.length : 0;
+  const verified = Number(integrity.ok || 0);
+  const ok = tampered === 0;
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 10,
+        padding: "6px 10px",
+        borderRadius: 8,
+        border: `1px solid ${ok ? C.green + "44" : C.red + "44"}`,
+        background: ok ? C.green + "12" : C.red + "12",
+        fontFamily: C.mono,
+        fontSize: 11,
+        color: ok ? C.green : C.red
+      }}
+    >
+      <span>{ok ? "✓" : "!"}</span>
+      <span>
+        {ok
+          ? `Audit integrity verified (${verified} events)`
+          : `Integrity alert — ${tampered} tampered event${tampered === 1 ? "" : "s"}`}
+      </span>
+    </div>
+  );
+}
 
 function AuditSkeletonRows({ count = 6, isMobile }) {
   return (
@@ -34,7 +85,17 @@ function AuditSkeletonRows({ count = 6, isMobile }) {
   );
 }
 
-export default function AuditView({ auditLog, releases, isMobile, wsReady = true, onSelectRelease }) {
+export default function AuditView({
+  auditLog,
+  releases,
+  isMobile,
+  wsReady = true,
+  wsId,
+  hasMoreAudit = false,
+  loadingMoreAudit = false,
+  onLoadMoreAudit,
+  onSelectRelease
+}) {
   const releaseLookup = useMemo(() => {
     const byBackendId = new Map();
     const byVersion = new Map();
@@ -53,6 +114,7 @@ export default function AuditView({ auditLog, releases, isMobile, wsReady = true
         <p style={{ margin: "8px 0 0", color: C.muted, fontSize: 13 }}>
           Immutable quality record. Every verdict, override, waiver, and release decision — permanently on record. Click any release-linked entry to view its full certification record.
         </p>
+        <AuditIntegrityBadge wsId={wsId} wsReady={wsReady} />
       </div>
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -123,6 +185,31 @@ export default function AuditView({ auditLog, releases, isMobile, wsReady = true
             );
           })
         )}
+        {hasMoreAudit ? (
+          <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.border}`, textAlign: "center" }}>
+            <button
+              type="button"
+              onClick={() => onLoadMoreAudit?.()}
+              disabled={loadingMoreAudit}
+              style={{
+                fontFamily: C.mono,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: C.accent,
+                background: "transparent",
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                padding: "8px 14px",
+                cursor: loadingMoreAudit ? "wait" : "pointer",
+                opacity: loadingMoreAudit ? 0.7 : 1
+              }}
+            >
+              {loadingMoreAudit ? "Loading…" : "Load older events"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -37,7 +37,7 @@ export function useWorkspaceSync(navigate, nav) {
         const [thData, relData, auditData] = await Promise.all([
           apiGet(`/api/workspaces/${getWorkspaceId()}/thresholds`, { navigate }),
           apiGet(`/api/workspaces/${getWorkspaceId()}/releases?limit=50`, { navigate }),
-          apiGet(`/api/workspaces/${getWorkspaceId()}/audit`, { navigate }).catch((e) => ({ _error: e }))
+          apiGet(`/api/workspaces/${getWorkspaceId()}/audit?limit=50`, { navigate }).catch((e) => ({ _error: e }))
         ]);
         if (isCancelled()) return;
         thresholdsApi.applyThresholdsFromApi(thData);
@@ -116,7 +116,10 @@ export function useWorkspaceSync(navigate, nav) {
     releasesNextBefore: releasesApi.releasesNextBefore,
     releasesLoadingMore: releasesApi.releasesLoadingMore,
     addAudit: auditApi.addAudit,
-    openAuditRecord: releasesApi.openAuditRecord
+    openAuditRecord: releasesApi.openAuditRecord,
+    loadMoreAudit: auditApi.loadMoreAudit,
+    auditNextBefore: auditApi.auditNextBefore,
+    auditLoadingMore: auditApi.auditLoadingMore
   };
 }
 
