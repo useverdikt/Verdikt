@@ -3,6 +3,7 @@
 const express = require("express");
 
 const { setupCoreMiddleware } = require("./middleware/core");
+const { registerErrorHandlers } = require("./middleware/errorHandler");
 const registerRoutes = require("./routes");
 
 function createApp() {
@@ -12,6 +13,7 @@ function createApp() {
   }
   setupCoreMiddleware(app);
   registerRoutes(app);
+  registerErrorHandlers(app);
   return app;
 }
 
