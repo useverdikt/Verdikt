@@ -18,7 +18,7 @@ const {
   OUTCOME_CRITERIA,
   getWorkspaceMonitoringSummary
 } = require("../deps");
-const { LOOP_BAND_THRESHOLDS, LOOP_ELIGIBILITY_MINUTES, loopEligibilityCutoffIso, computeLoopBand, computeLoopNextAction } = require("../../services/loopReadiness");
+const { computeWorkspaceLoopReadiness } = require("../../services/loopReadinessStats");
 
 module.exports = function registerRoutes(app) {
 app.post("/api/workspaces/:workspaceId/correlations/compute", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
@@ -134,115 +134,7 @@ app.get("/api/workspaces/:workspaceId/production-health/criteria", authMiddlewar
 });
 app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
-  const wsId = req.params.workspaceId;
-  const eligibleCutoff = loopEligibilityCutoffIso();
-
-  // All releases in this workspace
-  const trRow = await queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [wsId]);
-  const totalReleases = Number(trRow?.c ?? 0);
-
-  // Releases with a verdict issued (regardless of age)
-  const viRow = await queryOne(
-    "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND verdict_issued_at IS NOT NULL",
-    [wsId]
-  );
-  const verdictIssued = Number(viRow?.c ?? 0);
-
-  // Eligible releases: verdict issued more than LOOP_ELIGIBILITY_MINUTES ago
-  const elRow = await queryOne(
-    `SELECT COUNT(*) AS c FROM releases
-              WHERE workspace_id = ? AND verdict_issued_at IS NOT NULL
-              AND verdict_issued_at::timestamptz <= ?::timestamptz`,
-    [wsId, eligibleCutoff]
-  );
-  const eligible = Number(elRow?.c ?? 0);
-
-  // Eligible releases that have at least one production observation
-  const woRow = await queryOne(
-    `SELECT COUNT(DISTINCT po.release_id) AS c
-              FROM production_observations po
-              JOIN releases r ON r.id = po.release_id
-              WHERE r.workspace_id = ?
-              AND r.verdict_issued_at IS NOT NULL
-              AND r.verdict_issued_at::timestamptz <= ?::timestamptz`,
-    [wsId, eligibleCutoff]
-  );
-  const withObservations = Number(woRow?.c ?? 0);
-
-  // Eligible releases with a computed alignment (full loop = verdict + observation + alignment)
-  const waRow = await queryOne(
-    `SELECT COUNT(DISTINCT oa.release_id) AS c
-              FROM outcome_alignments oa
-              JOIN releases r ON r.id = oa.release_id
-              WHERE r.workspace_id = ?
-              AND r.verdict_issued_at IS NOT NULL
-              AND r.verdict_issued_at::timestamptz <= ?::timestamptz`,
-    [wsId, eligibleCutoff]
-  );
-  const withAlignment = Number(waRow?.c ?? 0);
-
-  const fullLoopCount = withAlignment; // alignment implies verdict + observation + alignment
-  const fullLoopRatePct = eligible > 0 ? Math.round((fullLoopCount / eligible) * 100) : 0;
-
-  // Age of the most recent full loop
-  const lastLoopRow = await queryOne(
-    `SELECT oa.computed_at
-              FROM outcome_alignments oa
-              JOIN releases r ON r.id = oa.release_id
-              WHERE r.workspace_id = ?
-              AND r.verdict_issued_at IS NOT NULL
-              AND r.verdict_issued_at::timestamptz <= ?::timestamptz
-              ORDER BY oa.computed_at::timestamptz DESC
-              LIMIT 1`,
-    [wsId, eligibleCutoff]
-  );
-  const lastFullLoopAt = lastLoopRow?.computed_at ?? null;
-  const lastFullLoopDaysAgo = lastFullLoopAt
-    ? Math.floor((Date.now() - Date.parse(lastFullLoopAt)) / (24 * 60 * 60 * 1000))
-    : null;
-
-  // Quality band
-  const band = computeLoopBand(fullLoopCount, fullLoopRatePct);
-
-  // Stale: any band, no full loop in 90 days
-  const isStale = lastFullLoopDaysAgo !== null && lastFullLoopDaysAgo > LOOP_BAND_THRESHOLDS.stale_threshold_days;
-
-  // Has observations but no full loops (VCS integration working but alignment not triggering)
-  const observationsWithoutAlignment = Math.max(0, withObservations - withAlignment);
-
-  return res.json({
-    workspace_id: wsId,
-    band,                          // "Exploratory" | "Emerging" | "Reliable"
-    is_stale: isStale,             // true if last full loop > 90 days ago
-    // Counts
-    total_releases: totalReleases,
-    verdict_issued: verdictIssued,
-    eligible_releases: eligible,
-    eligibility_minutes: LOOP_ELIGIBILITY_MINUTES,
-    with_production_observations: withObservations,
-    with_alignment: withAlignment,
-    full_loop_count: fullLoopCount,
-    full_loop_rate_pct: fullLoopRatePct,
-    observations_without_alignment: observationsWithoutAlignment,
-    // Recency
-    last_full_loop_at: lastFullLoopAt,
-    last_full_loop_days_ago: lastFullLoopDaysAgo,
-    // Thresholds (surfaced for transparency — these are fixed)
-    band_thresholds: {
-      exploratory_max: LOOP_BAND_THRESHOLDS.exploratory_max,
-      emerging_min_loops: LOOP_BAND_THRESHOLDS.exploratory_max + 1,
-      reliable_min_loops: LOOP_BAND_THRESHOLDS.reliable_min_loops,
-      reliable_min_rate_pct: LOOP_BAND_THRESHOLDS.reliable_min_rate_pct,
-      stale_threshold_days: LOOP_BAND_THRESHOLDS.stale_threshold_days
-    },
-    next_action: computeLoopNextAction({
-      fullLoopCount,
-      fullLoopRatePct,
-      verdictIssued,
-      withObservations,
-      isStale
-    })
-  });
+    return res.json(await computeWorkspaceLoopReadiness(req.params.workspaceId));
   } catch (e) {
     next(e);
   }
