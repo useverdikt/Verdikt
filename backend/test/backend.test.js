@@ -692,6 +692,36 @@ describe("API integration", () => {
     assert.ok(full.body.signals.length >= 1);
   });
 
+  it("duplicate signal idempotency key replays read-only without new audit events", async () => {
+    const email = `dup_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Dup" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Idempotency replay test", release_type: "model_update", environment: "pre-prod" })
+      .expect(201);
+    const relId = created.body.id;
+    const idempotencyKey = `dup-key-${crypto.randomBytes(4).toString("hex")}`;
+    const payload = {
+      source: "test",
+      idempotency_key: idempotencyKey,
+      signals: { accuracy: 90, safety: 95, tone: 90, hallucination: 95, relevance: 85 }
+    };
+
+    await agent.post(`/api/releases/${relId}/signals`).send(payload).expect(200);
+    const auditBefore = await queryOne("SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ?", [relId]);
+
+    const replay = await agent.post(`/api/releases/${relId}/signals`).send(payload).expect(200);
+    assert.equal(replay.body.duplicate, true);
+    assert.equal(replay.body.release_id, relId);
+
+    const auditAfter = await queryOne("SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ?", [relId]);
+    assert.equal(Number(auditAfter.c), Number(auditBefore.c));
+  });
+
   it("GitHub merge promotes to prod after verdict is issued", async () => {
     const email = `ghp_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
