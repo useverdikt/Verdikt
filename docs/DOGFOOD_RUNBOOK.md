@@ -133,3 +133,21 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 
 Agent-owned: branch → PR → `verdikt:rc` → poll `check_gate_by_sha` → report `missing_required_signals`.  
 Human-owned: Signal Simulator ingest only when agent requests it.
+
+---
+
+## Continuous dogfood enforcement
+
+Treat Verdikt-on-Verdikt as **always on**, not a one-off demo:
+
+| Rule | Why |
+|------|-----|
+| Every merge-bound PR gets **`verdikt:rc`** before review | Opens the cert window for the PR head SHA |
+| **Branch protection** requires `Verdikt gate / verdikt-gate` | Merge blocked until evidence passes |
+| Gate failure → read **`blockers`** + **`next_step`** in GHA logs | Structured reason instead of guessing why COLLECTING |
+| Keep repo secrets current (`VERDIKT_API_KEY`, `VERDIKT_WORKSPACE_ID`) | Gate job must resolve the same workspace as the app |
+| Screenshot audit trail + cert record after each dogfood PR | Sales/demo proof that we eat our own cooking |
+
+PR template (`.github/pull_request_template.md`) reminds contributors to label PRs for certification.
+
+When demoing to partners, say: **“Our own repo runs through Verdikt before merge.”**

@@ -6,6 +6,7 @@ const { getMissingRequiredSignals, getLatestSignalMap } = require("./verdictEngi
 const { computeGateAction } = require("./releaseIdentity");
 const { getWorkspacePolicy, getThresholdMap } = require("./workspaceConfig");
 const { getReleaseIntelligence } = require("./domain");
+const { buildGateBlockers } = require("./gateBlockers");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -65,6 +66,16 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     missingRequiredSignals
   });
 
+  const { blockers, next_step: nextStep } = buildGateBlockers({
+    status: release.status,
+    mode,
+    gateAllowed,
+    gateReason,
+    blockingSignals,
+    missingRequiredSignals,
+    failedSignals
+  });
+
   await writeAudit({
     workspaceId: release.workspace_id,
     releaseId,
@@ -94,6 +105,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     action,
     blocking_signals: blockingSignals,
     missing_required_signals: missingRequiredSignals,
+    blockers,
+    next_step: nextStep,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,
