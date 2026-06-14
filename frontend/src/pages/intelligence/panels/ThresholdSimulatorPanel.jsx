@@ -21,7 +21,7 @@ function resultBanner(summary) {
     return {
       tone: "amber",
       title: "No releases to simulate",
-      body: "Need at least one release in CERTIFIED or UNCERTIFIED status with ingested signals. Finish a certification window or ingest via signal-sim first."
+      body: "Need at least one release in CERTIFIED or UNCERTIFIED status with ingested signals. Finish a certification window or ingest via connected sources first."
     };
   }
   if (would_flip === 0) {

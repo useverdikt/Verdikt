@@ -45,12 +45,6 @@ function NavIcon({ id }) {
           stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
       </svg>
     ),
-    signalSim: (
-      <svg viewBox="0 0 14 14" fill="none" width="14" height="14">
-        <path d="M1 7h2M11 7h2M4 4v6M7 2v10M10 5v4"
-          stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    ),
   };
   return map[id] ?? null;
 }
@@ -449,8 +443,6 @@ export default function Sidebar({
           onClick={() => onNavigate("thresholds")} />
         <NavBtn id="trend" label="Trends" active={nav === "trend"}
           onClick={() => onNavigate("trend")} />
-        <NavBtn id="signalSim" label="Signal Simulator" active={false}
-          onClick={() => onNavigate("signal-sim")} />
 
         <SectionLabel>Settings</SectionLabel>
         <NavBtn id="settings" label="Settings" active={nav === "settings"}
