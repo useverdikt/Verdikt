@@ -357,6 +357,25 @@ async function listWorkspacesForUser(userId) {
   return Array.from(byId.values());
 }
 
+async function listActiveWorkspacesForInternalViewer() {
+  const rows = await queryAll(
+    `SELECT workspace_id, MIN(role) AS role
+     FROM (
+       SELECT workspace_id, role FROM users WHERE workspace_id IS NOT NULL
+       UNION ALL
+       SELECT workspace_id, role FROM workspace_members WHERE workspace_id IS NOT NULL
+       UNION ALL
+       SELECT workspace_id, 'internal_viewer' AS role FROM workspace_policies WHERE workspace_id IS NOT NULL
+     ) active_workspaces
+     GROUP BY workspace_id
+     ORDER BY workspace_id ASC`
+  );
+  return rows.map((row) => ({
+    workspace_id: row.workspace_id,
+    role: row.role || "internal_viewer"
+  }));
+}
+
 module.exports = {
   VALID_ROLES,
   userHasWorkspaceAccess,
@@ -365,6 +384,7 @@ module.exports = {
   ensureMemberRow,
   listWorkspaceMembersAndInvites,
   listWorkspacesForUser,
+  listActiveWorkspacesForInternalViewer,
   getInviteByToken,
   createWorkspaceInvite,
   acceptWorkspaceInvite,
