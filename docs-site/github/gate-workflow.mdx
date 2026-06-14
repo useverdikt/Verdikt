@@ -1,9 +1,110 @@
 ---
 title: Gate workflow
-description: Poll Verdikt gate status from GitHub Actions.
+description: Block PR merge until Verdikt certifies the commit.
 ---
 
-After signals are posted, poll the gate by commit SHA:
+After signals land, GitHub Actions polls Verdikt by **commit SHA** and fails the check if the gate does not pass. Pair this with branch protection so nothing merges without Verdikt's permission.
+
+## Prerequisites
+
+1. **Release trigger** — GitHub App connected; PRs labeled `verdikt:rc` open a cert window.
+2. **Signals** — integrations auto-pull and/or your pipeline [POSTs signals](/connecting-signals/api-push) for that commit.
+3. **Secrets** in the repo:
+   - `VERDIKT_API_URL` — e.g. `https://api.useverdikt.com`
+   - `VERDIKT_API_KEY` — `vdk_live_…` from **Settings → Agent access**
+   - `VERDIKT_WORKSPACE_ID` — **Settings → General**
+4. **Branch protection** — require the `Verdikt gate` check (or your job name) before merge.
+
+## Copy to `.github/workflows/verdikt-gate.yml`
+
+Polls up to **12 × 10s** (2 minutes) so signals can arrive before the job fails.
+
+```yaml
+name: Verdikt gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  verdikt-gate:
+    if: contains(github.event.pull_request.labels.*.name, 'verdikt:rc')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Wait for Verdikt gate
+        env:
+          VERDIKT_API_URL: ${{ secrets.VERDIKT_API_URL }}
+          VERDIKT_API_KEY: ${{ secrets.VERDIKT_API_KEY }}
+          VERDIKT_WORKSPACE_ID: ${{ secrets.VERDIKT_WORKSPACE_ID }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          POLL_ATTEMPTS: "12"
+          POLL_INTERVAL_SEC: "10"
+        run: |
+          set -euo pipefail
+          URL="${VERDIKT_API_URL%/}/api/workspaces/${VERDIKT_WORKSPACE_ID}/gate"
+          QUERY="commit_sha=${COMMIT_SHA}&pr_number=${PR_NUMBER}&github_owner=${REPO_OWNER}&github_repo=${REPO_NAME}&mode=default"
+          echo "Polling ${URL}?${QUERY}"
+
+          LAST_RESP=""
+          for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
+            echo "--- Gate poll ${attempt}/${POLL_ATTEMPTS} ---"
+            LAST_RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
+            ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
+            STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
+            REASON=$(echo "$LAST_RESP" | jq -r '.gate.reason // ""')
+            echo "Verdikt: action=${ACTION} status=${STATUS} — ${REASON}"
+
+            if [ "$ACTION" = "merge" ]; then
+              echo "$LAST_RESP" | jq .
+              echo "Verdikt gate passed."
+              exit 0
+            fi
+
+            if [ "$ACTION" = "escalate" ]; then
+              echo "$LAST_RESP" | jq .
+              echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
+              NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
+              [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+              echo "::error::Verdikt gate escalated — human override required."
+              exit 1
+            fi
+
+            if [ "$attempt" -lt "${POLL_ATTEMPTS}" ] && { [ "$ACTION" = "collecting" ] || [ "$ACTION" = "self_heal" ]; }; then
+              echo "Waiting for signals (action=${ACTION}) — sleeping ${POLL_INTERVAL_SEC}s..."
+              sleep "${POLL_INTERVAL_SEC}"
+              continue
+            fi
+
+            break
+          done
+
+          echo "$LAST_RESP" | jq .
+          echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
+          NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
+          [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+          ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
+          STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
+          if [ "$STATUS" = "COLLECTING" ]; then
+            echo "::error::Verdikt gate timed out waiting for signals. Check integration wiring and SHA tagging on your eval runs."
+          elif [ "$STATUS" = "UNCERTIFIED" ]; then
+            echo "::error::Verdikt gate timed out — signals arrived but did not pass thresholds. Review blocking signals above."
+          else
+            echo "::error::Verdikt gate did not pass within timeout (last action=${ACTION}, status=${STATUS})."
+          fi
+          exit 1
+```
+
+<Note>
+  Agent-driven flows can use MCP `check_gate` instead of polling — see [MCP setup](/agent/mcp-setup). GHA + branch protection still enforces merge at the button.
+</Note>
+
+## Manual curl (debug)
 
 ```bash
 curl -sS "https://api.useverdikt.com/api/workspaces/$VERDIKT_WORKSPACE_ID/gate\
@@ -14,7 +115,7 @@ curl -sS "https://api.useverdikt.com/api/workspaces/$VERDIKT_WORKSPACE_ID/gate\
   -H "Authorization: Bearer $VERDIKT_API_KEY"
 ```
 
-Exit non-zero when `gate.allowed` is false. Copy-paste workflow: [verdikt-gate-gha.yml](https://github.com/useverdikt/Verdikt/blob/main/docs/examples/verdikt-gate-gha.yml).
+Exit non-zero when `gate.allowed` is false.
 
 ## Gate actions
 

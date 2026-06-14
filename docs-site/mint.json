@@ -41,7 +41,7 @@
     },
     {
       "group": "Agent setup",
-      "pages": ["agent/api-keys"]
+      "pages": ["agent/api-keys", "agent/mcp-setup"]
     }
   ],
   "footerSocials": {
