@@ -385,14 +385,6 @@ async function ensureWorkspaceSignalDefinitions(workspaceId) {
     [workspaceId]
   );
   if (Number(afterBackfill?.c || 0) > 0) return;
-
-  for (const signalId of sharedPkg.defaultRequiredSignalIds || []) {
-    try {
-      await adoptLibrarySignal(workspaceId, signalId, { required_for_certification: true });
-    } catch (_) {
-      /* ignore duplicate */
-    }
-  }
 }
 
 async function getWorkspaceSignalCatalog(workspaceId) {

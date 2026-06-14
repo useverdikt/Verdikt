@@ -89,7 +89,8 @@ export default function ThresholdsView({
       : "No active suggestions in the current analysis window.");
 
   const catalogPending = !wsReady || signalsCatalogLoading;
-  const showLegacyCategories = !catalogPending && signalDefinitions.length === 0;
+  const showLegacyCategories =
+    !catalogPending && signalDefinitions.length === 0 && signalLibrary.length === 0 && !signalsCatalogError;
   const panelLoading = catalogPending && signalDefinitions.length === 0;
 
   const val = (sigOrId) => {

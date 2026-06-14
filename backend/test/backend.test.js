@@ -41,8 +41,23 @@ const {
 } = require("../src/services/domain");
 const { getMissingRequiredSignals } = require("../src/services/verdictEngine");
 const { analyzeReleaseDeltas } = require("../src/services/delta");
+const sharedPkg = require("../src/lib/sharedPkg");
 const { nowIso } = require("../src/lib/time");
 const { maybeEnrichVerdictIntelligence } = require("../src/services/llmAssist");
+
+/** Seed full default threshold rows for unit tests that exercise verdict/delta logic. */
+async function seedDefaultThresholdsForTest(workspaceId) {
+  await ensureWorkspaceSeeded(workspaceId);
+  const countRow = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = ?", [workspaceId]);
+  if (Number(countRow?.c || 0) > 0) return;
+  const defaults = sharedPkg.getDefaultThresholdSeedRows();
+  const defaultRequired = new Set(sharedPkg.defaultRequiredSignalIds || []);
+  const insertSql =
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
+  for (const row of defaults) {
+    await run(insertSql, [workspaceId, row[0], row[1], row[2], defaultRequired.has(row[0]) ? 1 : 0]);
+  }
+}
 const { callIntelligenceModel } = require("../src/services/aiClient");
 const { upsertReleaseIntelligence, getReleaseIntelligence } = require("../src/services/intelligenceBuilder");
 const { computeAndPersistRecommendation, getRecommendation } = require("../src/services/recommendationEngine");
@@ -1124,7 +1139,7 @@ describe("API integration", () => {
 describe("computeVerdict (unit)", () => {
   const ws = "ws_verdict_unit";
   it("CERTIFIED when AI signals meet default floors", async () => {
-    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
     const v = await computeVerdict(
       ws,
       "rel_unused",
@@ -1144,7 +1159,7 @@ describe("computeVerdict (unit)", () => {
   });
 
   it("UNCERTIFIED on absolute threshold miss", async () => {
-    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
     const v = await computeVerdict(ws, "rel_unused", { accuracy: 70 }, null);
     assert.equal(v.status, "UNCERTIFIED");
     const acc = v.failed_signals.find((f) => f.signal_id === "accuracy");
@@ -1237,7 +1252,7 @@ describe("analyzeReleaseDeltas regression (unit)", () => {
   const ws = "ws_delta_unit";
 
   it("flags regression when drop exceeds allowed delta", async () => {
-    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
     const oldIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const newIso = nowIso();
     const suffix = crypto.randomBytes(4).toString("hex");
@@ -1996,8 +2011,9 @@ describe("Workspace signal definitions", () => {
 
     const catalog = await agent.get(`/api/workspaces/${ws}/signal-definitions`).expect(200);
     assert.ok(Array.isArray(catalog.body.definitions));
-    assert.ok(catalog.body.definitions.length >= 5);
+    assert.equal(catalog.body.definitions.length, 0);
     assert.ok(Array.isArray(catalog.body.library));
+    assert.ok(catalog.body.library.length >= 5);
     assert.ok(Array.isArray(catalog.body.connectors));
     assert.ok(catalog.body.connectors.some((c) => c.source_id === "zizkadb"));
 

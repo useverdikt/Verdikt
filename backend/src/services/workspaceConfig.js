@@ -43,16 +43,7 @@ async function seedThresholds(workspaceId) {
   const row = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = ?", [workspaceId]);
   const c = Number(row?.c ?? 0);
   if (c > 0) return;
-  const defaults = sharedPkg.getDefaultThresholdSeedRows();
-  const insertSql =
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
-
-  await transaction(async (tx) => {
-    for (const row of defaults) {
-      const required = isDefaultRequiredSignal(row[0]) ? 1 : 0;
-      await tx.run(insertSql, [workspaceId, row[0], row[1], row[2], required]);
-    }
-  });
+  // New workspaces start with no threshold rows — signals are added when adopted from the library or created custom.
 }
 
 async function ensureMissingThresholdRows(workspaceId) {
@@ -74,7 +65,7 @@ async function ensureMissingThresholdRows(workspaceId) {
   const seedRows =
     definitionRows.length > 0
       ? defaults.filter(([signalId]) => definitionRows.some((d) => d.signal_id === signalId))
-      : defaults;
+      : [];
 
   await transaction(async (tx) => {
     for (const row of seedRows) {
