@@ -7,7 +7,7 @@ description: Post signal values from your eval pipeline after each run.
 
 After your eval runs, send the results to Verdikt with one or two API calls. Verdikt matches them to the open cert window for that commit and updates the verdict.
 
-This is the recommended path for custom eval stacks and push integrations (e.g. ZizkaDB, in-house metrics).
+This is the recommended path for custom eval stacks and in-house metrics pipelines.
 
 ---
 
@@ -43,10 +43,10 @@ curl -X POST "https://api.useverdikt.com/api/releases/RELEASE_ID/signals" \
   -H "Authorization: Bearer vdk_live_xxxx" \
   -H "Content-Type: application/json" \
   -d '{
-    "source": "zizkadb",
+    "source": "custom",
     "signals": {
-      "behavioural_drift": 0.12,
-      "session_anomaly_rate": 0.03
+      "eval_score": 0.92,
+      "quality_index": 0.88
     }
   }'
 ```
@@ -56,7 +56,7 @@ Replace:
 - `YOUR_WORKSPACE_ID` — **Settings → General**
 - `vdk_live_xxxx` — your Agent access key
 - `RELEASE_ID` — from step 1
-- `source` — your signal source id (e.g. `zizkadb`, `custom`)
+- `source` — your signal source id (e.g. `custom`, or a name you define in Settings)
 - `signals` — keys must match signal definitions in **Settings → Signals & thresholds**
 
 <Note>
@@ -86,8 +86,8 @@ jobs:
         id: eval
         run: |
           # Replace with your actual eval command
-          DRIFT=$(python run_eval.py --sha ${{ github.event.pull_request.head.sha }})
-          echo "drift=$DRIFT" >> $GITHUB_OUTPUT
+          SCORE=$(python run_eval.py --sha ${{ github.event.pull_request.head.sha }})
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
 
       - name: Resolve Verdikt cert window
         id: gate
@@ -111,10 +111,9 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.VERDIKT_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d "{
-              \"source\": \"zizkadb\",
+              \"source\": \"custom\",
               \"signals\": {
-                \"behavioural_drift\": ${{ steps.eval.outputs.drift }},
-                \"session_anomaly_rate\": 0.03
+                \"eval_score\": ${{ steps.eval.outputs.score }}
               }
             }"
 ```
@@ -173,8 +172,8 @@ release_id = await resolve_release_id(
 )
 await push_signals(
     release_id,
-    source="zizkadb",
-    signals={"behavioural_drift": 0.12, "session_anomaly_rate": 0.03},
+    source="custom",
+    signals={"eval_score": 0.92, "quality_index": 0.88},
 )
 ```
 

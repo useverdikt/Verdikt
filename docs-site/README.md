@@ -26,8 +26,6 @@ connecting-signals/
   api-push.mdx                Partner push setup (primary)
   integration-pull.mdx        Braintrust, LangSmith, …
   csv-upload.mdx
-guides/
-  wiring-zizkadb.mdx          Example push integration
 github/
   gate-workflow.mdx           GHA polling
 agent/

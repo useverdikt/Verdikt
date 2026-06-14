@@ -31,10 +31,6 @@
       ]
     },
     {
-      "group": "Guides",
-      "pages": ["guides/wiring-zizkadb"]
-    },
-    {
       "group": "GitHub integration",
       "pages": ["github/gate-workflow"]
     },
