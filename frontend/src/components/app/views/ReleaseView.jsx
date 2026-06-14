@@ -13,6 +13,7 @@ export default function ReleaseView({
   thresholds,
   releaseTypes,
   signalCategories,
+  signalDefinitions = [],
   calcCategoryStatus,
   setDetailCat: _setDetailCat,
   setShowStartCert,
@@ -51,6 +52,7 @@ export default function ReleaseView({
       wsId={wsId}
       prodObservationEnabled={prodObservationEnabled}
       signalCategories={signalCategories}
+      signalDefinitions={signalDefinitions}
       calcCategoryStatus={calcCategoryStatus}
       thresholds={thresholds}
       releaseTypes={releaseTypes}
