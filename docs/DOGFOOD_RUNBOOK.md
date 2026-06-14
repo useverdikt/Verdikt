@@ -17,6 +17,7 @@ Prod API check (2026-06): `GET https://api.useverdikt.com/health/ready` → `{"o
 | API key | Settings → Agent access | Generate key → use in GitHub secrets |
 | Thresholds | Settings → Thresholds | Ensure required AI signals have floors (defaults OK for smoke) |
 | Integrations | Settings → Signal sources | Optional for v1 dogfood — use **Signal Simulator** if none connected |
+| Signal sim workspaces | API env `INTERNAL_WORKSPACE_VIEWER_EMAILS` | Comma-separated operator emails (e.g. `joseph@useverdikt.com,founder@zizka.ai`) so `/signal-sim` lists all active workspaces for internal testing |
 
 ### 2. GitHub repo secrets (useverdikt/Verdikt)
 
