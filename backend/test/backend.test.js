@@ -2065,6 +2065,34 @@ describe("Workspace signal definitions", () => {
     assert.ok(catalog.body.library.some((e) => e.signal_id === "accuracy"));
     assert.ok(!catalog.body.thresholds.accuracy);
   });
+
+  it("re-adopting a library signal restores prior threshold tuning", async () => {
+    const email = `sigreadopt_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "SigRe" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .post(`/api/workspaces/${ws}/signal-definitions/adopt`)
+      .send({ signal_id: "accuracy", required_for_certification: true })
+      .expect(200);
+
+    await agent
+      .post(`/api/workspaces/${ws}/thresholds`)
+      .send({ thresholds: { accuracy: { min: 90, max: null, required_for_certification: true } } })
+      .expect(200);
+
+    await agent.delete(`/api/workspaces/${ws}/signal-definitions/accuracy`).expect(200);
+
+    const readopt = await agent
+      .post(`/api/workspaces/${ws}/signal-definitions/adopt`)
+      .send({ signal_id: "accuracy" })
+      .expect(200);
+    assert.equal(readopt.body.thresholds.accuracy.min, 90);
+    assert.equal(readopt.body.thresholds.accuracy.required_for_certification, true);
+  });
 });
 
 const skipLiveGemini = process.env.GEMINI_LIVE_TEST !== "1" || !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === GEMINI_STUB;

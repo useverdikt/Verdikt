@@ -271,7 +271,7 @@ export default function WorkspaceSignalsPanel({
                       onClick={() => {
                         const detail = isCustom
                           ? `Remove "${def.display_name}" from this workspace? This custom signal will no longer gate certification.`
-                          : `Remove "${def.display_name}" from workspace signals? It will return to the signal library and you can adopt it again later.`;
+                          : `Remove "${def.display_name}" from workspace signals? It returns to the library — your threshold settings are saved if you adopt it again.`;
                         if (!window.confirm(detail)) return;
                         onRemove?.(def.signal_id);
                       }}
@@ -290,7 +290,7 @@ export default function WorkspaceSignalsPanel({
           <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, background: C.raise, position: "sticky", top: 0, zIndex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Signal library</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-              Verdikt suggestions — adopt what fits your stack. Removed workspace signals reappear here.
+              Verdikt suggestions — adopt what fits your stack. Removed signals reappear here; your threshold tuning is kept when you adopt again.
             </div>
           </div>
           {loading ? (
