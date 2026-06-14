@@ -29,6 +29,7 @@ const {
   getInviteByToken,
   acceptWorkspaceInvite,
   listWorkspacesForUser,
+  listActiveWorkspacesForInternalViewer,
   registerUserWithInvite,
   getEffectiveRoleForWorkspace
 } = require("../services/workspaceMembers");
@@ -467,7 +468,9 @@ module.exports = function registerAuthRoutes(app) {
   });
 
   app.get("/api/auth/workspaces", authMiddleware, async (req, res) => {
-    const workspaces = await listWorkspacesForUser(req.auth.sub);
+    const workspaces = config.isInternalWorkspaceViewerEmail(req.auth.email)
+      ? await listActiveWorkspacesForInternalViewer()
+      : await listWorkspacesForUser(req.auth.sub);
     return res.json({ workspaces });
   });
 };

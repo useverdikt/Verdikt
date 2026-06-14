@@ -2,7 +2,14 @@
 
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { JWT_SECRET, IS_PROD_LIKE, AUTH_COOKIE_NAME, CSRF_COOKIE_NAME, COOKIE_MAX_AGE_MS } = require("../config");
+const {
+  JWT_SECRET,
+  IS_PROD_LIKE,
+  AUTH_COOKIE_NAME,
+  CSRF_COOKIE_NAME,
+  COOKIE_MAX_AGE_MS,
+  isInternalWorkspaceViewerEmail
+} = require("../config");
 const { queryOne } = require("../database");
 const { getUserRowForAuthById } = require("../services/authUserLookup");
 const { authenticateApiKey, KEY_PREFIX } = require("../services/apiKeys");
@@ -157,6 +164,9 @@ async function requireWorkspaceMatch(req, res, next) {
       return next();
     }
     const allowed = await userHasWorkspaceAccess(req.auth.sub, req.params.workspaceId);
+    if (!allowed && isInternalWorkspaceViewerEmail(req.auth.email)) {
+      return next();
+    }
     if (!allowed) {
       return res.status(403).json({ error: "Workspace access denied" });
     }
@@ -180,6 +190,10 @@ async function requireReleaseAccess(req, res, next) {
       return next();
     }
     const allowed = await userHasWorkspaceAccess(req.auth.sub, release.workspace_id);
+    if (!allowed && isInternalWorkspaceViewerEmail(req.auth.email)) {
+      req.releaseRow = release;
+      return next();
+    }
     if (!allowed) {
       return res.status(403).json({ error: "Release access denied" });
     }
