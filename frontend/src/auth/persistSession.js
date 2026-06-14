@@ -11,7 +11,6 @@ export function persistAuthSession({ user }) {
     localStorage.removeItem("vdk3_releases");
     localStorage.removeItem("vdk3_audit");
     localStorage.removeItem("vdk3_infra");
-    localStorage.removeItem("vdk3_project");
   }
   try {
     localStorage.removeItem("vdk3_auth_token");

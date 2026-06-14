@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { normalizeStoredProject } from "../../../lib/projectEnv.js";
+import { readWorkspaceProdObservation } from "../../../lib/workspacePrefs.js";
 import { apiPost } from "../../../lib/apiClient.js";
 
-export function readProdObservationEnabled() {
-  try {
-    const raw = localStorage.getItem("vdk3_project");
-    if (!raw) return false;
-    return normalizeStoredProject(JSON.parse(raw)).prodObservation === true;
-  } catch {
-    return false;
-  }
+export function readProdObservationEnabled(wsId) {
+  return readWorkspaceProdObservation(wsId);
 }
 
 /**
@@ -18,17 +12,18 @@ export function readProdObservationEnabled() {
 export function useIntelligencePageData(wsId) {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
-  const [prodObsEnabled, setProdObsEnabled] = useState(readProdObservationEnabled);
+  const [prodObsEnabled, setProdObsEnabled] = useState(() => readProdObservationEnabled(wsId));
 
   useEffect(() => {
-    const sync = () => setProdObsEnabled(readProdObservationEnabled());
+    const sync = () => setProdObsEnabled(readProdObservationEnabled(wsId));
+    sync();
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
     return () => {
       window.removeEventListener("focus", sync);
       document.removeEventListener("visibilitychange", sync);
     };
-  }, []);
+  }, [wsId]);
 
   const runBackfill = useCallback(async () => {
     setBackfilling(true);
