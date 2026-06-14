@@ -1,0 +1,56 @@
+/* Verdikt docs — aligned with useverdikt.com / app tokens (#060810, #3b82f6, Cormorant + DM Sans) */
+
+:root {
+  --verdikt-bg: #060810;
+  --verdikt-surface: #090d14;
+  --verdikt-border: #18243a;
+  --verdikt-fg: #c4d4e8;
+  --verdikt-muted: #6e87a2;
+  --verdikt-dim: #384d60;
+  --verdikt-accent: #3b82f6;
+  --verdikt-accent-bright: #60a5fa;
+  --verdikt-mono: "JetBrains Mono", "Courier New", monospace;
+}
+
+html.dark,
+html {
+  color-scheme: dark;
+}
+
+#navbar {
+  background: rgba(6, 8, 16, 0.92) !important;
+  border-bottom: 1px solid var(--verdikt-border) !important;
+  backdrop-filter: blur(16px);
+}
+
+#sidebar {
+  background: var(--verdikt-bg) !important;
+  border-color: var(--verdikt-border) !important;
+}
+
+#sidebar-content a {
+  color: var(--verdikt-muted);
+}
+
+#sidebar-content a[data-active="true"],
+#sidebar-content a:hover {
+  color: var(--verdikt-fg) !important;
+}
+
+footer {
+  border-top: 1px solid var(--verdikt-border) !important;
+  background: var(--verdikt-bg) !important;
+}
+
+/* Code blocks — match app mono + dark raise surface */
+pre,
+code {
+  font-family: var(--verdikt-mono) !important;
+}
+
+/* Primary nav CTA — landing uses light pill on dark, not blue fill */
+#navbar a[href="https://useverdikt.com"],
+#navbar button {
+  font-family: var(--verdikt-mono) !important;
+  letter-spacing: 0.02em;
+}
