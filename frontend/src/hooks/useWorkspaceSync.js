@@ -88,6 +88,7 @@ export function useWorkspaceSync(navigate, nav) {
     signalLibrary: thresholdsApi.signalLibrary,
     signalConnectors: thresholdsApi.signalConnectors,
     signalsCatalogLoading: thresholdsApi.signalsCatalogLoading,
+    signalsCatalogError: thresholdsApi.signalsCatalogError,
     loadSignalCatalog: thresholdsApi.loadSignalCatalog,
     adoptLibrarySignal: thresholdsApi.adoptLibrarySignal,
     createCustomSignal: thresholdsApi.createCustomSignal,

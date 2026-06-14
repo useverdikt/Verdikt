@@ -87,6 +87,8 @@ export default function App() {
     signalLibrary,
     signalConnectors,
     signalsCatalogLoading,
+    signalsCatalogError,
+    loadSignalCatalog,
     adoptLibrarySignal,
     createCustomSignal,
     deleteSignalDefinition,
@@ -345,7 +347,10 @@ export default function App() {
               signalDefinitions={signalDefinitions}
               signalLibrary={signalLibrary}
               signalConnectors={signalConnectors}
+              wsReady={wsReady}
               signalsCatalogLoading={signalsCatalogLoading}
+              signalsCatalogError={signalsCatalogError}
+              onReloadSignalCatalog={loadSignalCatalog}
               isMobile={isMobile}
               currentUser={currentUser}
               canAct={canAct}
