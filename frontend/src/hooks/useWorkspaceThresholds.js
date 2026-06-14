@@ -84,6 +84,18 @@ export function useWorkspaceThresholds(navigate, nav) {
         { navigate }
       );
       applySignalCatalogFromApi(data);
+      setThresholds((prev) => {
+        const next = { ...prev };
+        delete next[signalId];
+        delete next[`${signalId}_delta`];
+        return next;
+      });
+      setThresholdRequired((prev) => {
+        const next = { ...prev };
+        delete next[signalId];
+        delete next[`${signalId}_delta`];
+        return next;
+      });
       return data;
     },
     [navigate, applySignalCatalogFromApi]

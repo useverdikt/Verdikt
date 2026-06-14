@@ -343,6 +343,10 @@ async function deleteWorkspaceDefinition(workspaceId, signalId) {
     signalId
   ]);
   await run("DELETE FROM thresholds WHERE workspace_id = ? AND signal_id = ?", [workspaceId, signalId]);
+  await run("DELETE FROM thresholds WHERE workspace_id = ? AND signal_id = ?", [
+    workspaceId,
+    `${signalId}_delta`
+  ]);
 }
 
 async function backfillDefinitionsFromThresholds(workspaceId) {

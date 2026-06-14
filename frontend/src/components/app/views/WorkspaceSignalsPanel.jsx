@@ -263,9 +263,19 @@ export default function WorkspaceSignalsPanel({
                       />
                     </label>
                   ) : null}
-                  {canAct(currentUser) && isCustom ? (
-                    <Btn variant="ghost" onClick={() => onDelete?.(def.signal_id)} style={{ fontSize: 10, padding: "4px 8px", color: C.red }}>
-                      Delete
+                  {canAct(currentUser) ? (
+                    <Btn
+                      variant="ghost"
+                      onClick={() => {
+                        const detail = isCustom
+                          ? `Delete custom signal "${def.display_name}"? This cannot be undone.`
+                          : `Remove "${def.display_name}" from this workspace? It will return to the signal library.`;
+                        if (!window.confirm(detail)) return;
+                        onDelete?.(def.signal_id);
+                      }}
+                      style={{ fontSize: 10, padding: "4px 8px", color: C.red }}
+                    >
+                      {isCustom ? "Delete" : "Remove"}
                     </Btn>
                   ) : null}
                 </div>
