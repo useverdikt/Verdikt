@@ -183,3 +183,35 @@ export const LIBRARY_CATEGORY_LABELS = {
   manual_qa: "Manual QA",
   other: "Other"
 };
+
+/** Source dropdown options for custom signal creation (all integrations + push partners). */
+export function buildCustomSignalSourceOptions(connectors = [], catalog = []) {
+  const byId = new Map();
+  const nameFor = (id) => {
+    const hit = catalog.find((s) => s.id === id);
+    if (hit?.name) return hit.name;
+    return String(id || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  byId.set("custom", { id: "custom", label: "Custom (API push)" });
+
+  for (const c of connectors) {
+    const id = c?.source_id;
+    if (!id || id === "*" || byId.has(id)) continue;
+    const mode = c.ingest_mode === "push" ? "API push" : "integration pull";
+    byId.set(id, { id, label: `${nameFor(id)} (${mode})` });
+  }
+
+  for (const src of catalog) {
+    if (!src?.id || byId.has(src.id)) continue;
+    byId.set(src.id, { id: src.id, label: `${src.name} (integration pull)` });
+  }
+
+  return [...byId.values()].sort((a, b) => {
+    if (a.id === "custom") return -1;
+    if (b.id === "custom") return 1;
+    return a.label.localeCompare(b.label);
+  });
+}

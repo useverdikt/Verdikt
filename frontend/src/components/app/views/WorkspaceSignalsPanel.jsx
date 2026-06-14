@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
-import { definitionToSignalMeta, groupLibraryByCategory, LIBRARY_CATEGORY_LABELS } from "../../../lib/workspaceSignalUi.js";
+import { definitionToSignalMeta, groupLibraryByCategory, LIBRARY_CATEGORY_LABELS, buildCustomSignalSourceOptions } from "../../../lib/workspaceSignalUi.js";
+import { RELEASE_SOURCE_CATALOG } from "../../../lib/releaseSourceLanes.js";
 
 function CustomSignalModal({ open, onClose, onCreate, connectors }) {
   const [signalId, setSignalId] = useState("");
@@ -13,13 +14,10 @@ function CustomSignalModal({ open, onClose, onCreate, connectors }) {
   const [required, setRequired] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const pushSources = useMemo(() => {
-    const ids = new Set(["custom"]);
-    for (const c of connectors || []) {
-      if (c.ingest_mode === "push") ids.add(c.source_id);
-    }
-    return [...ids];
-  }, [connectors]);
+  const sourceOptions = useMemo(
+    () => buildCustomSignalSourceOptions(connectors, RELEASE_SOURCE_CATALOG),
+    [connectors]
+  );
 
   if (!open) return null;
 
@@ -135,9 +133,9 @@ function CustomSignalModal({ open, onClose, onCreate, connectors }) {
             onChange={(e) => setSourceId(e.target.value)}
             style={{ width: "100%", padding: "8px 10px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text }}
           >
-            {pushSources.map((id) => (
-              <option key={id} value={id}>
-                {id}
+            {sourceOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
               </option>
             ))}
           </select>
