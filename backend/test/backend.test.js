@@ -159,6 +159,18 @@ describe("API integration", () => {
     assert.ok(th.body.thresholds && typeof th.body.thresholds === "object");
   });
 
+  it("lists workspaces for signed-in user", async () => {
+    const email = `wslist_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Ws List" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const list = await agent.get("/api/auth/workspaces").expect(200);
+    assert.ok(Array.isArray(list.body.workspaces));
+    assert.ok(list.body.workspaces.some((row) => row.workspace_id === ws));
+  });
+
   it("viewer role cannot mutate thresholds (RBAC)", async () => {
     const email = `view_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
+import { apiGet, apiPost, getWorkspaceId, setWorkspaceId } from "../lib/apiClient.js";
 import { refreshReleaseDetail } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { filterSimulatorSourcesForMandatory, buildSimulatorThresholdMap, getSimulatorEmptyHint, getSimulatorReadiness } from "../lib/simulatorMandatorySignals.js";
@@ -316,6 +316,51 @@ function Spinner({ size = 14, color = "#22c55e" }) {
   );
 }
 
+function WorkspaceSelector({ workspaces, selectedId, onSelect, loading }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "10px 14px",
+      background: "#080d16",
+      border: "1px solid #18243a",
+      borderRadius: 10,
+      minWidth: 280
+    }}>
+      {loading ? (
+        <><Spinner /><span style={{ color: "#384d60", fontSize: 13 }}>Loading workspaces…</span></>
+      ) : workspaces.length === 0 ? (
+        <span style={{ color: "#384d60", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>
+          {selectedId || "No workspace"}
+        </span>
+      ) : (
+        <select
+          id="sim-workspace-select"
+          value={selectedId || ""}
+          onChange={(e) => onSelect(e.target.value)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#c4d4e8",
+            fontSize: 13,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontWeight: 500,
+            outline: "none",
+            cursor: "pointer",
+            flex: 1,
+            appearance: "none",
+          }}
+        >
+          {workspaces.map((ws) => (
+            <option key={ws.workspace_id} value={ws.workspace_id} style={{ background: "#080d16" }}>
+              {ws.workspace_id}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function ReleaseSelector({ releases, selectedId, onSelect, loading }) {
   const selected = releases.find(r => r.id === selectedId);
   const meta = selected ? getStatusMeta(selected.status) : null;
@@ -385,7 +430,7 @@ function ReleaseSelector({ releases, selectedId, onSelect, loading }) {
   );
 }
 
-function ReadinessPanel({ readiness, backendOk, userRole, workspaceId }) {
+function ReadinessPanel({ readiness, backendOk, userRole, workspaceId, loading }) {
   if (!backendOk) return null;
 
   const roleBlocksIngest = userRole === "engineer";
@@ -408,9 +453,11 @@ function ReadinessPanel({ readiness, backendOk, userRole, workspaceId }) {
             Workspace readiness
           </div>
           <div style={{ color: "#c4d4e8", fontWeight: 500 }}>
-            {readiness.ready
-              ? `${readiness.panelCount} simulator panel${readiness.panelCount !== 1 ? "s" : ""} · ${readiness.requiredCount} required signal${readiness.requiredCount !== 1 ? "s" : ""}`
-              : "Not ready — configure required signals first"}
+            {loading
+              ? "Loading workspace thresholds…"
+              : readiness.ready
+                ? `${readiness.panelCount} simulator panel${readiness.panelCount !== 1 ? "s" : ""} · ${readiness.requiredCount} required signal${readiness.requiredCount !== 1 ? "s" : ""}`
+                : "Not ready — configure required signals first"}
           </div>
           <div style={{ marginTop: 6, fontSize: 12, color: "#6e87a2" }}>
             Workspace <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{workspaceId}</span>
@@ -447,6 +494,10 @@ export default function SignalSimulatorPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const releaseFromQuery = searchParams.get("release");
+  const workspaceFromQuery = searchParams.get("workspace");
+  const [workspaceId, setWorkspaceIdState] = useState(() => workspaceFromQuery || getWorkspaceId());
+  const [workspaces, setWorkspaces] = useState([]);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
   const [releases, setReleases] = useState([]);
   const [loadingReleases, setLoadingReleases] = useState(true);
   const [selectedReleaseId, setSelectedReleaseId] = useState(null);
@@ -465,6 +516,12 @@ export default function SignalSimulatorPage() {
   const [thresholdMap, setThresholdMap] = useState(null);
   const [connectedSources, setConnectedSources] = useState(() => new Set());
   const [userRole, setUserRole] = useState(null);
+  const [loadingWorkspaceConfig, setLoadingWorkspaceConfig] = useState(true);
+
+  const workspaceRole = useMemo(
+    () => workspaces.find((ws) => ws.workspace_id === workspaceId)?.role || userRole,
+    [workspaces, workspaceId, userRole]
+  );
 
   const readiness = useMemo(() => {
     if (!thresholdMap) return { requiredCount: 0, requiredIds: [], panelCount: 0, connectedIntegrationCount: 0, ready: false };
@@ -492,9 +549,53 @@ export default function SignalSimulatorPage() {
     toastTimer.current = setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // Load releases from backend
+  // Load workspaces the signed-in user can access
   useEffect(() => {
     if (!hasBackend()) {
+      setLoadingWorkspaces(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingWorkspaces(true);
+    (async () => {
+      try {
+        const data = await apiGet("/api/auth/workspaces", { navigate });
+        if (cancelled) return;
+        const rows = data?.workspaces || [];
+        setWorkspaces(rows);
+        const preferred =
+          (workspaceFromQuery && rows.some((w) => w.workspace_id === workspaceFromQuery) && workspaceFromQuery) ||
+          (rows.some((w) => w.workspace_id === workspaceId) && workspaceId) ||
+          rows[0]?.workspace_id ||
+          workspaceId;
+        if (preferred && preferred !== workspaceId) {
+          setWorkspaceIdState(preferred);
+          setWorkspaceId(preferred);
+        }
+      } catch (e) {
+        if (!cancelled) showToast(`Failed to load workspaces: ${e.message}`, "#f87171");
+      } finally {
+        if (!cancelled) setLoadingWorkspaces(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [navigate, showToast, workspaceFromQuery]);
+
+  const handleWorkspaceChange = useCallback((nextId) => {
+    if (!nextId || nextId === workspaceId) return;
+    setWorkspaceId(nextId);
+    setWorkspaceIdState(nextId);
+    setSelectedReleaseId(null);
+    setReleases([]);
+    setThresholdMap(null);
+    setConnectedSources(new Set());
+    setResults(() => Object.fromEntries(SIMULATOR_SOURCES.map((s) => [s.id, null])));
+    setValues(() => buildDefaultSimulatorValues());
+  }, [workspaceId]);
+
+  // Load releases from backend
+  useEffect(() => {
+    if (!hasBackend() || !workspaceId) {
       setLoadingReleases(false);
       return;
     }
@@ -502,7 +603,7 @@ export default function SignalSimulatorPage() {
     setLoadingReleases(true);
     (async () => {
       try {
-        const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/releases?limit=50`, { navigate });
+        const data = await apiGet(`/api/workspaces/${workspaceId}/releases?limit=50`, { navigate });
         if (cancelled) return;
         const rows = (data?.releases || []).filter(r =>
           r.status === "COLLECTING" || r.status === "UNCERTIFIED" || r.status === "CERTIFIED"
@@ -526,7 +627,7 @@ export default function SignalSimulatorPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [navigate, showToast, releaseFromQuery]);
+  }, [navigate, showToast, releaseFromQuery, workspaceId]);
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -543,14 +644,17 @@ export default function SignalSimulatorPage() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!hasBackend()) return;
+    if (!hasBackend() || !workspaceId) {
+      setLoadingWorkspaceConfig(false);
+      return;
+    }
     let cancelled = false;
+    setLoadingWorkspaceConfig(true);
     (async () => {
       try {
-        const ws = getWorkspaceId();
         const [thrData, intData] = await Promise.all([
-          apiGet(`/api/workspaces/${ws}/thresholds`, { navigate }),
-          apiGet(`/api/workspaces/${ws}/signal-integrations`, { navigate })
+          apiGet(`/api/workspaces/${workspaceId}/thresholds`, { navigate }),
+          apiGet(`/api/workspaces/${workspaceId}/signal-integrations`, { navigate })
         ]);
         if (cancelled) return;
         setThresholdMap(buildSimulatorThresholdMap(thrData?.thresholds || {}));
@@ -563,10 +667,12 @@ export default function SignalSimulatorPage() {
         setConnectedSources(connected);
       } catch (_) {
         /* fall back to all sources when config unavailable */
+      } finally {
+        if (!cancelled) setLoadingWorkspaceConfig(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [navigate]);
+  }, [navigate, workspaceId]);
 
   const handleValueChange = useCallback((sourceId, signalId, value) => {
     setValues(prev => ({
@@ -701,28 +807,41 @@ export default function SignalSimulatorPage() {
           </p>
         </div>
 
-        {/* Release selector */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <span style={{ fontSize: 11, color: "#384d60", fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            Target release
-          </span>
-          <ReleaseSelector
-            releases={releases}
-            selectedId={selectedReleaseId}
-            onSelect={setSelectedReleaseId}
-            loading={loadingReleases}
-          />
-          {selectedRelease && (
-            <div style={{ fontSize: 11, color: "#384d60", textAlign: "right" }}>
-              env: <span style={{ color: "#6e87a2" }}>{selectedRelease.environment || "pre-prod"}</span>
-              {" · "}deadline:{" "}
-              <span style={{ color: "#6e87a2" }}>
-                {selectedRelease.collection_deadline
-                  ? new Date(selectedRelease.collection_deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                  : "open"}
-              </span>
-            </div>
-          )}
+        {/* Workspace + release selectors */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <span style={{ fontSize: 11, color: "#384d60", fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Workspace
+            </span>
+            <WorkspaceSelector
+              workspaces={workspaces}
+              selectedId={workspaceId}
+              onSelect={handleWorkspaceChange}
+              loading={loadingWorkspaces}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <span style={{ fontSize: 11, color: "#384d60", fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Target release
+            </span>
+            <ReleaseSelector
+              releases={releases}
+              selectedId={selectedReleaseId}
+              onSelect={setSelectedReleaseId}
+              loading={loadingReleases}
+            />
+            {selectedRelease && (
+              <div style={{ fontSize: 11, color: "#384d60", textAlign: "right" }}>
+                env: <span style={{ color: "#6e87a2" }}>{selectedRelease.environment || "pre-prod"}</span>
+                {" · "}deadline:{" "}
+                <span style={{ color: "#6e87a2" }}>
+                  {selectedRelease.collection_deadline
+                    ? new Date(selectedRelease.collection_deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    : "open"}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -744,8 +863,9 @@ export default function SignalSimulatorPage() {
       <ReadinessPanel
         readiness={readiness}
         backendOk={hasBackend()}
-        userRole={userRole}
-        workspaceId={getWorkspaceId()}
+        userRole={workspaceRole}
+        workspaceId={workspaceId}
+        loading={loadingWorkspaceConfig}
       />
 
       {hasBackend() && emptyHint && (
