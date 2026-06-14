@@ -24,10 +24,25 @@ function isSimulatorSignalRequired(signalId, thresholdMap) {
 }
 
 /**
- * Build threshold map for signal sim: API rows + saved required flags + localStorage overlay.
- * @param {Record<string, object>} apiRaw — GET /thresholds map
+ * Build threshold map for signal sim.
+ * @param {Record<string, object>} apiRaw — workspace threshold map from API
+ * @param {{ workspaceScoped?: boolean }} [opts]
+ *   When workspaceScoped is true, trust API only (no localStorage / global defaults).
  */
-export function buildSimulatorThresholdMap(apiRaw) {
+export function buildSimulatorThresholdMap(apiRaw, opts = {}) {
+  if (opts.workspaceScoped) {
+    const map = {};
+    for (const [id, cfg] of Object.entries(apiRaw || {})) {
+      if (!cfg || typeof cfg !== "object") continue;
+      map[id] = {
+        min: cfg.min ?? null,
+        max: cfg.max ?? null,
+        required_for_certification: !!cfg.required_for_certification
+      };
+    }
+    return map;
+  }
+
   const parsed = applyThresholdApiMap(apiRaw);
   let localRequired = {};
   try {
