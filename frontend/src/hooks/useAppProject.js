@@ -1,4 +1,6 @@
 import { normalizeStoredProject } from "../lib/projectEnv.js";
+import { readWorkspaceProdObservation } from "../lib/workspacePrefs.js";
+import { getWorkspaceId } from "../lib/apiClient.js";
 import { S } from "../app/main/appMainLogic.js";
 
 /** Workspace project metadata from localStorage (settings + sidebar). */
@@ -21,6 +23,6 @@ export function useAppProject() {
     feature: (p.feature && String(p.feature).trim()) || "",
     env: (n.env && String(n.env).trim()) || "UAT",
     certEnvs: n.certEnvs,
-    prodObservation: n.prodObservation
+    prodObservation: readWorkspaceProdObservation(getWorkspaceId())
   };
 }

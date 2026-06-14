@@ -41,7 +41,6 @@ export function setWorkspaceId(workspaceId) {
     localStorage.removeItem("vdk3_releases");
     localStorage.removeItem("vdk3_audit");
     localStorage.removeItem("vdk3_infra");
-    localStorage.removeItem("vdk3_project");
   }
   localStorage.setItem("vdk3_workspace_id", next);
 }

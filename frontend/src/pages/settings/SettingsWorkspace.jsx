@@ -20,6 +20,10 @@ import ConnectSignalSourceModal from "./ConnectSignalSourceModal.jsx";
 import { getSafeApiBase } from "../../lib/apiBase.js";
 import { normalizeStoredProject, primaryCertEnvFromTiers } from "../../lib/projectEnv.js";
 import {
+  readWorkspaceProdObservation,
+  writeWorkspaceProdObservation
+} from "../../lib/workspacePrefs.js";
+import {
   cloneSourcesBase,
   mergeSourcesFromApi,
   loadRolePolicy,
@@ -96,25 +100,15 @@ export default function SettingsWorkspace() {
     }
   });
 
-  const [prodObservation, setProdObservation] = useState(() => {
-    try {
-      const raw = localStorage.getItem("vdk3_project");
-      if (!raw) return false;
-      return normalizeStoredProject(JSON.parse(raw)).prodObservation === true;
-    } catch (_) {
-      return false;
-    }
-  });
+  const [prodObservation, setProdObservation] = useState(() => readWorkspaceProdObservation(wsId));
+
+  useEffect(() => {
+    setProdObservation(readWorkspaceProdObservation(wsId));
+  }, [wsId]);
 
   const persistProdObservation = (next) => {
     setProdObservation(next);
-    try {
-      const raw = localStorage.getItem("vdk3_project");
-      const parsed = raw ? JSON.parse(raw) : {};
-      localStorage.setItem("vdk3_project", JSON.stringify({ ...parsed, prodObservation: next }));
-    } catch (_) {
-      /* ignore */
-    }
+    writeWorkspaceProdObservation(wsId, next);
     toast(next ? "Production observation on — post-deploy intelligence enabled" : "Production observation off");
   };
 
