@@ -1524,6 +1524,10 @@ describe("Release identity + SHA correlation", () => {
     const gate = await human.get(`/api/releases/${created.body.id}/gate`).expect(200);
     assert.ok(["merge", "self_heal", "escalate"].includes(gate.body.action));
     assert.equal(gate.body.action, "self_heal");
+    assert.ok(Array.isArray(gate.body.blockers));
+    assert.ok(gate.body.blockers.length >= 1);
+    assert.equal(typeof gate.body.next_step, "string");
+    assert.ok(gate.body.next_step.length > 0);
   });
 
   it("gate by commit_sha resolves release without release_id (CI path)", async () => {

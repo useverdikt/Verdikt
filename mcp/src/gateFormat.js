@@ -12,11 +12,13 @@ export function formatGateForAgent(out) {
     agent_guidance: {
       read_field: "action",
       action,
+      blockers: out?.blockers || [],
+      next_step: out?.next_step || guidance[action] || "Call check_gate again after signals update.",
       do_not_use_exit_code_alone:
         "exit_code can be 0 while action is self_heal or escalate (e.g. CERTIFIED_WITH_OVERRIDE in strict mode).",
-      next_step: guidance[action] || "Call check_gate again after signals update.",
+      next_step_legacy: guidance[action] || "Call check_gate again after signals update.",
       gha_note: "GitHub Actions should use gate.exit_code only; agents must use action."
     },
-    recommended_next: guidance[action] || null
+    recommended_next: out?.next_step || guidance[action] || null
   };
 }

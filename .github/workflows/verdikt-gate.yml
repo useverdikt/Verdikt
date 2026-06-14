@@ -53,5 +53,13 @@ jobs:
           EXIT=$(echo "$RESP" | jq -r '.gate.exit_code // 1')
           REASON=$(echo "$RESP" | jq -r '.gate.reason // "gate failed"')
           ACTION=$(echo "$RESP" | jq -r '.action // "unknown"')
+          NEXT_STEP=$(echo "$RESP" | jq -r '.next_step // empty')
           echo "Verdikt: action=${ACTION} — ${REASON}"
+          if [ "$EXIT" != "0" ]; then
+            echo "$RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
+            if [ -n "$NEXT_STEP" ]; then
+              echo "Next step: ${NEXT_STEP}"
+            fi
+            echo "::error::Verdikt gate blocked (action=${ACTION}). See blockers above."
+          fi
           exit "$EXIT"
