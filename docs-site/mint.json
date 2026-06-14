@@ -3,11 +3,15 @@
   "name": "Verdikt",
   "favicon": "/favicon.svg",
   "colors": {
-    "primary": "#7C3AED",
-    "light": "#A78BFA",
-    "dark": "#5B21B6"
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#2563EB"
   },
   "topbarLinks": [
+    {
+      "name": "Marketing",
+      "url": "https://useverdikt.com"
+    },
     {
       "name": "App",
       "url": "https://app.useverdikt.com"
@@ -15,7 +19,7 @@
   ],
   "topbarCtaButton": {
     "name": "Request access",
-    "url": "https://useverdikt.com"
+    "url": "mailto:hello@useverdikt.com"
   },
   "navigation": [
     {
