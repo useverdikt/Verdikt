@@ -117,8 +117,8 @@ export default function SettingsWorkspace() {
   const [rolePolicy, _setRolePolicy] = useState(loadRolePolicy);
 
   const [sources, setSources] = useState(() => cloneSourcesBase());
+  const [signalPanel, setSignalPanel] = useState(null);
   const [workspaceThresholds, setWorkspaceThresholds] = useState(null);
-  const [expandedSource, setExpandedSource] = useState(null);
   const [connectModal, setConnectModal] = useState(null);
   const csvInputRef = useRef(null);
 
@@ -171,6 +171,13 @@ export default function SettingsWorkspace() {
     try {
       const data = await apiGet(`/api/workspaces/${wsId}/signal-integrations`, { navigate });
       setSources(mergeSourcesFromApi(cloneSourcesBase(), data));
+      setSignalPanel({
+        pull_connectors: data.pull_connectors || [],
+        push_sources: data.push_sources || [],
+        integration_requests: data.integration_requests || [],
+        api_push: data.api_push || {},
+        csv_import: data.csv_import || null
+      });
     } catch {
       /* keep local seed when logged out or API unavailable */
     }
@@ -548,13 +555,11 @@ export default function SettingsWorkspace() {
           wsId={wsId}
           navigate={navigate}
           toast={toast}
-          sources={sources}
-          setSources={setSources}
-          expandedSource={expandedSource}
-          setExpandedSource={setExpandedSource}
+          signalPanel={signalPanel}
           setConnectModal={setConnectModal}
           csvInputRef={csvInputRef}
           loadSignalSources={loadSignalSources}
+          setSection={setSection}
         />
         <AgentAccessSection section={section} wsId={wsId} navigate={navigate} toast={toast} />
         <TriggerSettingsSection

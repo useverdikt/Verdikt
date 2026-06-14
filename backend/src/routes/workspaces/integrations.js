@@ -33,17 +33,44 @@ app.post("/api/workspaces/:workspaceId/signal-schema/validate", authMiddleware, 
   const result = validateSignalPayload(signals);
   return res.json(result);
 });
+const { buildSignalSourcesPanel } = require("../../services/signalSourcesPanel");
+const { createIntegrationRequest } = require("../../services/integrationRequests");
+
 app.get("/api/workspaces/:workspaceId/signal-integrations", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
-    const integrations = await listIntegrations(req.params.workspaceId);
-    const csv_import = await getLatestCsvImport(req.params.workspaceId);
-  return res.json({
-    workspace_id: req.params.workspaceId,
-    integrations,
-    csv_import
-  });
+    const workspaceId = req.params.workspaceId;
+    const [integrations, csv_import, panel] = await Promise.all([
+      listIntegrations(workspaceId),
+      getLatestCsvImport(workspaceId),
+      buildSignalSourcesPanel(workspaceId)
+    ]);
+    return res.json({
+      workspace_id: workspaceId,
+      integrations,
+      csv_import,
+      pull_connectors: panel.pull_connectors,
+      push_sources: panel.push_sources,
+      integration_requests: panel.integration_requests,
+      api_push: panel.api_push
+    });
   } catch (e) {
     next(e);
+  }
+});
+
+app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
+  try {
+    const out = await createIntegrationRequest(req.params.workspaceId, req.body || {}, req.auth?.email);
+    await writeAudit({
+      workspaceId: req.params.workspaceId,
+      eventType: "INTEGRATION_REQUESTED",
+      actorType: "USER",
+      actorName: req.auth?.email || "user",
+      details: { request_id: out.id, source_name: out.source_name }
+    });
+    return res.status(201).json(out);
+  } catch (err) {
+    return res.status(400).json({ error: err.message || String(err) });
   }
 });
 

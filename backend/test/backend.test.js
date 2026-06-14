@@ -365,6 +365,31 @@ describe("API integration", () => {
     assert.equal(empty.body.integrations.length, 0);
   });
 
+  it("signal-integrations panel includes pull_connectors and integration-requests POST", async () => {
+    const email = `panel_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Panel" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const list = await agent.get(`/api/workspaces/${ws}/signal-integrations`).expect(200);
+    assert.ok(Array.isArray(list.body.pull_connectors));
+    assert.ok(list.body.pull_connectors.some((c) => c.source_id === "langsmith"));
+    assert.ok(list.body.api_push?.ingest_path);
+
+    const req = await agent
+      .post(`/api/workspaces/${ws}/integration-requests`)
+      .send({ source_name: "W&B", notes: "Eval metrics" })
+      .expect(201);
+    assert.equal(req.body.source_name, "W&B");
+    assert.equal(req.body.status, "pending");
+
+    const after = await agent.get(`/api/workspaces/${ws}/signal-integrations`).expect(200);
+    assert.equal(after.body.integration_requests.length, 1);
+    assert.equal(after.body.integration_requests[0].source_name, "W&B");
+  });
+
   it("datadog integration rejects unsupported site (SSRF guard)", async () => {
     const email = `dd_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
