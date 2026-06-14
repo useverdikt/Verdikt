@@ -7,10 +7,12 @@ Verdikt gates pull requests on **evidence**, not code diffs. When you label a PR
 
 ## Quick start
 
-1. Connect a signal source — [integration pull](/connecting-signals/integration-pull), [API push](/connecting-signals/api-push), or [CSV upload](/connecting-signals/csv-upload).
-2. Define signals and thresholds in **Settings → Signals & thresholds**.
-3. Install the GitHub App and add the [gate workflow](/github/gate-workflow).
-4. Label a PR `verdikt:rc` → post signals → poll gate → merge when `action` is `merge`.
+1. **Connect signals (start with API push).** Most teams POST eval results after each run — see [API push](/connecting-signals/api-push). Alternatives: [integration pull](/connecting-signals/integration-pull) (Braintrust, LangSmith, etc.) or [CSV upload](/connecting-signals/csv-upload). Not sure which path? Read the [signal sources overview](/connecting-signals/overview) first.
+2. **Define signals and thresholds** in **Settings → Signals & thresholds** — mark required metrics before you wire CI.
+3. **Install the GitHub App** and add the [gate workflow](/github/gate-workflow) so merge is blocked until Verdikt certifies.
+4. **Run a cert:** label a PR `verdikt:rc` → post signals → poll gate → merge when `action` is `merge`.
+
+Steps 1–2 are about **what** gets measured. Step 3 is **enforcement**. You can configure signals before GitHub is wired — both docs follow that order.
 
 ## How it works
 
