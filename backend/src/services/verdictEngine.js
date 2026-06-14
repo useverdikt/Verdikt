@@ -17,6 +17,7 @@ const { getThresholdMap } = require("./workspaceConfig");
 const {
   isSignalRequiredForRelease
 } = require("./signalScope");
+const { listWorkspaceDefinitions, filterThresholdMapForAdopted } = require("./signalDefinitions");
 
 // ─── Signal value guard ───────────────────────────────────────────────────────
 
@@ -49,10 +50,14 @@ async function getMissingRequiredSignals(
   releaseRow = null,
   preloadedThresholdMap = null
 ) {
-  const thresholds =
+  const [definitions, thresholdsRaw] = await Promise.all([
+    listWorkspaceDefinitions(workspaceId),
     preloadedThresholdMap && typeof preloadedThresholdMap === "object"
-      ? preloadedThresholdMap
-      : await getThresholdMap(workspaceId);
+      ? Promise.resolve(preloadedThresholdMap)
+      : getThresholdMap(workspaceId)
+  ]);
+  const adopted = new Set(definitions.map((d) => d.signal_id));
+  const thresholds = filterThresholdMapForAdopted(thresholdsRaw, adopted);
   const latest =
     preloadedLatest && typeof preloadedLatest === "object" ? preloadedLatest : await getLatestSignalMap(releaseId);
   return Object.keys(thresholds).filter((signalId) => {
@@ -74,10 +79,14 @@ async function computeVerdict(
   releaseRow = null,
   preloadedThresholdMap = null
 ) {
-  const thresholds =
+  const [definitions, thresholdsRaw] = await Promise.all([
+    listWorkspaceDefinitions(workspaceId),
     preloadedThresholdMap && typeof preloadedThresholdMap === "object"
-      ? preloadedThresholdMap
-      : await getThresholdMap(workspaceId);
+      ? Promise.resolve(preloadedThresholdMap)
+      : getThresholdMap(workspaceId)
+  ]);
+  const adopted = new Set(definitions.map((d) => d.signal_id));
+  const thresholds = filterThresholdMapForAdopted(thresholdsRaw, adopted);
   const latest =
     preloadedLatest && typeof preloadedLatest === "object"
       ? preloadedLatest

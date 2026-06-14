@@ -77,13 +77,25 @@ export function useWorkspaceThresholds(navigate, nav) {
     [navigate, applySignalCatalogFromApi]
   );
 
-  const deleteSignalDefinition = useCallback(
+  const removeSignalDefinition = useCallback(
     async (signalId) => {
       const data = await apiDelete(
         `/api/workspaces/${getWorkspaceId()}/signal-definitions/${encodeURIComponent(signalId)}`,
         { navigate }
       );
       applySignalCatalogFromApi(data);
+      setThresholds((prev) => {
+        const next = { ...prev };
+        delete next[signalId];
+        delete next[`${signalId}_delta`];
+        return next;
+      });
+      setThresholdRequired((prev) => {
+        const next = { ...prev };
+        delete next[signalId];
+        delete next[`${signalId}_delta`];
+        return next;
+      });
       return data;
     },
     [navigate, applySignalCatalogFromApi]
@@ -136,6 +148,7 @@ export function useWorkspaceThresholds(navigate, nav) {
     loadSignalCatalog,
     adoptLibrarySignal,
     createCustomSignal,
-    deleteSignalDefinition
+    deleteSignalDefinition: removeSignalDefinition,
+    removeSignalDefinition
   };
 }
