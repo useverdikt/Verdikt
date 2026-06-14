@@ -347,11 +347,36 @@ function extractIdentityFromRow(row) {
   return { commit_sha, pr_number, version };
 }
 
-function computeGateAction({ status, gateAllowed, blockingSignals, missingRequiredSignals }) {
+const COLLECTION_GRACE_MS = 60_000;
+
+function computeCollectionAgeMs(release, nowMs = Date.now()) {
+  const createdAt = release?.created_at;
+  if (!createdAt) return null;
+  const t = Date.parse(String(createdAt));
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, nowMs - t);
+}
+
+function computeGateAction({
+  status,
+  gateAllowed,
+  blockingSignals,
+  missingRequiredSignals,
+  collectionAgeMs = null,
+  gracePeriodMs = COLLECTION_GRACE_MS
+}) {
   if (gateAllowed && (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")) {
     return "merge";
   }
-  if (status === "COLLECTING" || (Array.isArray(missingRequiredSignals) && missingRequiredSignals.length > 0)) {
+  if (status === "COLLECTING") {
+    const inGrace =
+      collectionAgeMs != null && collectionAgeMs >= 0 && collectionAgeMs < gracePeriodMs;
+    if (inGrace) {
+      return "collecting";
+    }
+    return "self_heal";
+  }
+  if (Array.isArray(missingRequiredSignals) && missingRequiredSignals.length > 0) {
     return "self_heal";
   }
   if (status === "UNCERTIFIED") {
@@ -375,5 +400,7 @@ module.exports = {
   openReleaseSession,
   claimReleaseIdempotency,
   extractIdentityFromRow,
+  COLLECTION_GRACE_MS,
+  computeCollectionAgeMs,
   computeGateAction
 };
