@@ -107,6 +107,7 @@
     "browserstack": ["smoke", "e2e_regression"],
     "sentry": ["crashrate", "anrrate", "errorrate", "oomrate"],
     "datadog": ["startup", "screenload", "fps", "jserrors", "p95latency", "p99latency", "errorunderload", "recovery"],
+    "langsmith": ["accuracy", "safety", "tone", "hallucination", "relevance"],
     "manual_qa": ["manual_qa_pct", "manual_qa_worst_severity"]
   },
   "releaseTypes": [

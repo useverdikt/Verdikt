@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildDetailSignalRows, buildCertRecordFailing, buildCertRecordSignalEntries, definitionToSignalMeta, resolveSignalMeta } from "./workspaceSignalUi.js";
+import {
+  buildCertRecordFailing,
+  buildCertRecordSignalEntries,
+  buildCustomSignalSourceOptions,
+  buildDetailSignalRows,
+  definitionToSignalMeta,
+  resolveSignalMeta
+} from "./workspaceSignalUi.js";
 
 describe("workspaceSignalUi", () => {
   it("maps definition to signal meta with below direction for max thresholds", () => {
@@ -84,5 +91,25 @@ describe("workspaceSignalUi", () => {
     });
     expect(failing).toHaveLength(1);
     expect(failing[0].sigLabel).toBe("Behavioural Drift");
+  });
+
+  it("lists pull and push sources for custom signal dropdown", () => {
+    const catalog = [
+      { id: "braintrust", name: "Braintrust" },
+      { id: "langsmith", name: "LangSmith" }
+    ];
+    const connectors = [
+      { source_id: "braintrust", ingest_mode: "pull" },
+      { source_id: "zizkadb", ingest_mode: "push" },
+      { source_id: "manual_qa", ingest_mode: "push" }
+    ];
+    const options = buildCustomSignalSourceOptions(connectors, catalog);
+    const ids = options.map((o) => o.id);
+    expect(ids).toContain("custom");
+    expect(ids).toContain("braintrust");
+    expect(ids).toContain("zizkadb");
+    expect(ids).toContain("langsmith");
+    expect(options.find((o) => o.id === "braintrust")?.label).toMatch(/integration pull/i);
+    expect(options.find((o) => o.id === "zizkadb")?.label).toMatch(/API push/i);
   });
 });
