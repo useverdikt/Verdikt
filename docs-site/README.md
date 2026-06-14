@@ -4,13 +4,15 @@ Public developer docs for [docs.useverdikt.com](https://docs.useverdikt.com).
 
 ## Local preview
 
-Mintlify requires **Node 20.17+**.
+Mintlify requires **Node 20.17+**. Brand tokens match [useverdikt.com](https://useverdikt.com) — see `docs.json`, `style.css`, and `logo/`.
 
 ```bash
 cd docs-site
-nvm use          # uses .nvmrc (Node 20) — run `nvm install` if missing
+nvm use
 npx mintlify dev
 ```
+
+Configuration: **`docs.json`** (primary). `style.css` overrides navbar/sidebar to match the app dark navy palette.
 
 ## Deploy
 
@@ -34,7 +36,7 @@ agent/
   api-keys.mdx                vdk_live_ keys
 ```
 
-Add logo assets under `docs-site/logo/` when ready (referenced in `mint.json`).
+Add logo assets under `docs-site/logo/` (referenced in `docs.json`).
 
 ## Source of truth
 

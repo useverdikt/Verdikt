@@ -1,0 +1,88 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "Verdikt",
+  "description": "Ship AI agents with evidence, not hope — Verdikt documentation.",
+  "colors": {
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#2563EB"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://useverdikt.com"
+  },
+  "appearance": {
+    "default": "dark",
+    "strict": true
+  },
+  "background": {
+    "color": {
+      "dark": "#060810",
+      "light": "#F8FAFC"
+    }
+  },
+  "fonts": {
+    "body": {
+      "family": "DM Sans",
+      "weight": 400
+    },
+    "heading": {
+      "family": "Cormorant Garamond",
+      "weight": 600
+    }
+  },
+  "styling": {
+    "codeblocks": "dark",
+    "eyebrows": "section"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting started",
+        "pages": ["introduction"]
+      },
+      {
+        "group": "Connecting signals",
+        "pages": [
+          "connecting-signals/overview",
+          "connecting-signals/api-push",
+          "connecting-signals/integration-pull",
+          "connecting-signals/csv-upload"
+        ]
+      },
+      {
+        "group": "GitHub integration",
+        "pages": ["github/gate-workflow"]
+      },
+      {
+        "group": "Agent setup",
+        "pages": ["agent/api-keys"]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Marketing",
+        "href": "https://useverdikt.com"
+      },
+      {
+        "label": "App",
+        "href": "https://app.useverdikt.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Request access",
+      "href": "mailto:hello@useverdikt.com"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/useverdikt"
+    }
+  }
+}
