@@ -91,7 +91,7 @@ export default function App() {
     loadSignalCatalog,
     adoptLibrarySignal,
     createCustomSignal,
-    deleteSignalDefinition,
+    removeSignalDefinition,
     addAudit,
     refreshReleaseFromBackend,
     ensureReleaseDetail,
@@ -361,7 +361,7 @@ export default function App() {
               onSave={actions.handleThresholdSave}
               onAdoptLibrarySignal={adoptLibrarySignal}
               onCreateCustomSignal={createCustomSignal}
-              onDeleteSignalDefinition={deleteSignalDefinition}
+              onRemoveSignalDefinition={removeSignalDefinition}
             />
           }
           auditContent={

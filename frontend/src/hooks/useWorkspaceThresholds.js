@@ -77,7 +77,7 @@ export function useWorkspaceThresholds(navigate, nav) {
     [navigate, applySignalCatalogFromApi]
   );
 
-  const deleteSignalDefinition = useCallback(
+  const removeSignalDefinition = useCallback(
     async (signalId) => {
       const data = await apiDelete(
         `/api/workspaces/${getWorkspaceId()}/signal-definitions/${encodeURIComponent(signalId)}`,
@@ -148,6 +148,7 @@ export function useWorkspaceThresholds(navigate, nav) {
     loadSignalCatalog,
     adoptLibrarySignal,
     createCustomSignal,
-    deleteSignalDefinition
+    deleteSignalDefinition: removeSignalDefinition,
+    removeSignalDefinition
   };
 }
