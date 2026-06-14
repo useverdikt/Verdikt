@@ -187,6 +187,7 @@ export default memo(function LandingPage() {
           <a href="#diagnostic">The question</a>
           <a href="#how">How it works</a>
           <a href="#record">The record</a>
+          <a href="https://docs.useverdikt.com">Docs</a>
         </div>
         <SignInLink />
         <Link to="/request-access" className="nav-cta">Get early access →</Link>
@@ -431,6 +432,7 @@ export default memo(function LandingPage() {
             <a href="#diagnostic" aria-label="Jump to the question section">The question</a>
             <a href="#how" aria-label="Jump to how it works">How it works</a>
             <a href="#record" aria-label="Jump to the record section">The record</a>
+            <a href="https://docs.useverdikt.com" aria-label="Verdikt documentation">Docs</a>
             <a href={`mailto:${CONTACT_EMAIL}`} aria-label="Email Verdikt">{CONTACT_EMAIL}</a>
           </div>
           <div className="footer-copy">© 2026 Verdikt · Evidence, not hope</div>
