@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildCertRecordFailing,
   buildCertRecordSignalEntries,
+  buildCustomSignalSourceGroups,
   buildCustomSignalSourceOptions,
   buildDetailSignalRows,
   definitionToSignalMeta,
   resolveSignalMeta
 } from "./workspaceSignalUi.js";
+import { SIGNAL_SOURCE_SECTIONS } from "./releaseSourceLanes.js";
 
 describe("workspaceSignalUi", () => {
   it("maps definition to signal meta with below direction for max thresholds", () => {
@@ -103,7 +105,8 @@ describe("workspaceSignalUi", () => {
       { source_id: "zizkadb", ingest_mode: "push" },
       { source_id: "manual_qa", ingest_mode: "push" }
     ];
-    const options = buildCustomSignalSourceOptions(connectors, catalog);
+    const groups = buildCustomSignalSourceGroups(connectors, catalog, SIGNAL_SOURCE_SECTIONS);
+    const options = buildCustomSignalSourceOptions(connectors, catalog, SIGNAL_SOURCE_SECTIONS);
     const ids = options.map((o) => o.id);
     expect(ids).toContain("custom");
     expect(ids).toContain("braintrust");
@@ -111,5 +114,7 @@ describe("workspaceSignalUi", () => {
     expect(ids).toContain("langsmith");
     expect(options.find((o) => o.id === "braintrust")?.label).toMatch(/integration pull/i);
     expect(options.find((o) => o.id === "zizkadb")?.label).toMatch(/API push/i);
+    expect(groups.find((g) => g.id === "ai_eval")?.options.some((o) => o.id === "braintrust")).toBe(true);
+    expect(groups.find((g) => g.id === "partner")?.options.some((o) => o.id === "zizkadb")).toBe(true);
   });
 });

@@ -184,8 +184,11 @@ export const LIBRARY_CATEGORY_LABELS = {
   other: "Other"
 };
 
-/** Source dropdown options for custom signal creation (all integrations + push partners). */
-export function buildCustomSignalSourceOptions(connectors = [], catalog = []) {
+/**
+ * Grouped source options for custom signal creation (all integrations + push partners).
+ * @returns {Array<{ id: string, label: string, options: Array<{ id: string, label: string }> }>}
+ */
+export function buildCustomSignalSourceGroups(connectors = [], catalog = [], sections = []) {
   const byId = new Map();
   const nameFor = (id) => {
     const hit = catalog.find((s) => s.id === id);
@@ -195,23 +198,57 @@ export function buildCustomSignalSourceOptions(connectors = [], catalog = []) {
       .replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  byId.set("custom", { id: "custom", label: "Custom (API push)" });
+  const addOption = (id, ingestMode) => {
+    if (!id || id === "*" || byId.has(id)) return;
+    const mode = ingestMode === "push" ? "API push" : "integration pull";
+    byId.set(id, { id, label: `${nameFor(id)} (${mode})` });
+  };
+
+  addOption("custom", "push");
 
   for (const c of connectors) {
-    const id = c?.source_id;
-    if (!id || id === "*" || byId.has(id)) continue;
-    const mode = c.ingest_mode === "push" ? "API push" : "integration pull";
-    byId.set(id, { id, label: `${nameFor(id)} (${mode})` });
+    addOption(c?.source_id, c?.ingest_mode);
   }
 
   for (const src of catalog) {
     if (!src?.id || byId.has(src.id)) continue;
-    byId.set(src.id, { id: src.id, label: `${src.name} (integration pull)` });
+    addOption(src.id, "pull");
   }
 
-  return [...byId.values()].sort((a, b) => {
-    if (a.id === "custom") return -1;
-    if (b.id === "custom") return 1;
-    return a.label.localeCompare(b.label);
-  });
+  const sectionForId = (id) => {
+    const hit = sections.find((s) => s.sourceIds.includes(id));
+    if (hit) return hit.id;
+    const connector = connectors.find((c) => c.source_id === id);
+    if (connector?.ingest_mode === "push") return "partner";
+    return "other";
+  };
+
+  const sectionBuckets = new Map();
+  for (const section of sections) {
+    sectionBuckets.set(section.id, { id: section.id, label: section.label, options: [] });
+  }
+  sectionBuckets.set("other", { id: "other", label: "Other", options: [] });
+
+  for (const opt of byId.values()) {
+    const bucket = sectionBuckets.get(sectionForId(opt.id)) || sectionBuckets.get("other");
+    bucket.options.push(opt);
+  }
+
+  const orderedSectionIds = [...sections.map((s) => s.id), "other"];
+  return orderedSectionIds
+    .map((id) => sectionBuckets.get(id))
+    .filter((group) => group && group.options.length > 0)
+    .map((group) => ({
+      ...group,
+      options: [...group.options].sort((a, b) => {
+        if (a.id === "custom") return -1;
+        if (b.id === "custom") return 1;
+        return a.label.localeCompare(b.label);
+      })
+    }));
+}
+
+/** Flat list of source options (for tests and simple consumers). */
+export function buildCustomSignalSourceOptions(connectors = [], catalog = [], sections = []) {
+  return buildCustomSignalSourceGroups(connectors, catalog, sections).flatMap((g) => g.options);
 }

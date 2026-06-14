@@ -117,6 +117,16 @@ export const SIMULATOR_SOURCES = [
     signals: signalsFromIds(shared.signalSourceMap.braintrust || [])
   },
   {
+    id: "langsmith",
+    name: "LangSmith",
+    icon: "◇",
+    color: "#a78bfa",
+    glow: "rgba(167,139,250,0.18)",
+    description: "AI eval scores from LangSmith experiments",
+    tag: "AI Eval Quality",
+    signals: signalsFromIds(shared.signalSourceMap.langsmith || [])
+  },
+  {
     id: "browserstack",
     name: "BrowserStack",
     icon: "◎",

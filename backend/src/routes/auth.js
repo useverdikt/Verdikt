@@ -28,6 +28,7 @@ const {
   ensureMemberRow,
   getInviteByToken,
   acceptWorkspaceInvite,
+  listWorkspacesForUser,
   registerUserWithInvite,
   getEffectiveRoleForWorkspace
 } = require("../services/workspaceMembers");
@@ -463,5 +464,10 @@ module.exports = function registerAuthRoutes(app) {
         workspace_id: req.auth.ws || userRow.workspace_id
       })
     });
+  });
+
+  app.get("/api/auth/workspaces", authMiddleware, async (req, res) => {
+    const workspaces = await listWorkspacesForUser(req.auth.sub);
+    return res.json({ workspaces });
   });
 };
