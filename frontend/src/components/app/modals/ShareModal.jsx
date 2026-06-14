@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Logo } from "../CommonControls.jsx";
+import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
+import { buildCertRecordFailing } from "../../../lib/workspaceSignalUi.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -37,14 +39,50 @@ export default function ShareModal({
   calcCategoryStatus,
   releaseTypes,
   signalCategories,
+  signalDefinitions = [],
   catStatusColor,
   fmtVal,
-  genCertSummary
+  genCertSummary,
+  evaluateSignal,
+  getRegressionRequired
 }) {
   const titleId = React.useId();
   useModalLayer(onClose);
   const isMobile = window.innerWidth <= 900;
-  const { recommendation, failing, isHardBlock } = calcVerdict(release.signals, thresholds, release.releaseType);
+  const { recommendation, failing: legacyFailing, isHardBlock } = calcVerdict(
+    release.signals,
+    thresholds,
+    release.releaseType
+  );
+  const legacyOrdered = useMemo(() => getOrderedDetailSignals(signalCategories), [signalCategories]);
+  const useWorkspaceSignals = signalDefinitions.length > 0;
+  const failing = useMemo(
+    () =>
+      useWorkspaceSignals
+        ? buildCertRecordFailing({
+            definitions: signalDefinitions,
+            legacyOrdered,
+            releaseSignals: release.signals,
+            thresholds,
+            evaluateSignal,
+            fmtVal,
+            getRegressionRequired,
+            releaseType: release.releaseType
+          })
+        : legacyFailing,
+    [
+      useWorkspaceSignals,
+      signalDefinitions,
+      legacyOrdered,
+      release.signals,
+      release.releaseType,
+      thresholds,
+      evaluateSignal,
+      fmtVal,
+      getRegressionRequired,
+      legacyFailing
+    ]
+  );
   const isShip = recommendation === "SHIP";
   const color = isShip ? C.green : C.red;
   const [copied, setCopied] = useState(false);

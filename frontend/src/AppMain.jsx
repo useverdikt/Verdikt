@@ -449,6 +449,7 @@ export default function App() {
             calcVerdict={calcVerdict}
             releaseTypes={RELEASE_TYPES}
             signalCategories={SIGNAL_CATEGORIES}
+            signalDefinitions={signalDefinitions}
             calcCategoryStatus={calcCategoryStatus}
             catStatusColor={catStatusColor}
             getRegressionRequired={getRegressionRequired}
@@ -470,9 +471,12 @@ export default function App() {
             calcCategoryStatus={calcCategoryStatus}
             releaseTypes={RELEASE_TYPES}
             signalCategories={SIGNAL_CATEGORIES}
+            signalDefinitions={signalDefinitions}
             catStatusColor={catStatusColor}
             fmtVal={fmtVal}
             genCertSummary={genCertSummary}
+            evaluateSignal={evaluateSignal}
+            getRegressionRequired={getRegressionRequired}
           />
         )}
         {liveStreamRelease && (

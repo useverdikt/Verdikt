@@ -13,6 +13,14 @@ function CustomSignalModal({ open, onClose, onCreate, connectors }) {
   const [required, setRequired] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const pushSources = useMemo(() => {
+    const ids = new Set(["custom"]);
+    for (const c of connectors || []) {
+      if (c.ingest_mode === "push") ids.add(c.source_id);
+    }
+    return [...ids];
+  }, [connectors]);
+
   if (!open) return null;
 
   const handleSubmit = async (e) => {
@@ -40,14 +48,6 @@ function CustomSignalModal({ open, onClose, onCreate, connectors }) {
       setSaving(false);
     }
   };
-
-  const pushSources = useMemo(() => {
-    const ids = new Set(["custom"]);
-    for (const c of connectors || []) {
-      if (c.ingest_mode === "push") ids.add(c.source_id);
-    }
-    return [...ids];
-  }, [connectors]);
 
   return (
     <div

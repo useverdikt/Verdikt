@@ -206,7 +206,7 @@ export default function ThresholdsView({
           )}
         </div>
         <p style={{ margin: "14px 0 0", color: C.muted, fontSize: 13, lineHeight: 1.65, maxWidth: 640 }}>
-          Define which signals matter for your workspace, set thresholds, and mark signals as <strong style={{ color: C.text, fontWeight: 600 }}>required for certification</strong>. Only required signals gate release status — adopt from the library or add custom metrics (e.g. ZizkaDB drift).
+          Define which signals matter for your workspace, set thresholds, and mark signals as <strong style={{ color: C.text, fontWeight: 600 }}>required for certification</strong>. Only required signals gate release status — adopt from the library or add custom metrics.
         </p>
       </div>
 
