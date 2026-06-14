@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
@@ -7,6 +7,8 @@ import {
   SignalSourceBadge,
   provenanceSourceForSignal
 } from "../../release/SignalEvidenceProvenance.jsx";
+import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
+import { buildCertRecordFailing, buildCertRecordSignalEntries } from "../../../lib/workspaceSignalUi.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -46,6 +48,7 @@ export default function CertificationRecordModal({
   calcVerdict,
   releaseTypes,
   signalCategories,
+  signalDefinitions = [],
   calcCategoryStatus,
   catStatusColor,
   getRegressionRequired,
@@ -62,7 +65,62 @@ export default function CertificationRecordModal({
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
-  const { failing } = calcVerdict(release.signals, thresholds, release.releaseType);
+  const { failing: legacyFailing } = calcVerdict(release.signals, thresholds, release.releaseType);
+  const legacyOrdered = useMemo(() => getOrderedDetailSignals(signalCategories), [signalCategories]);
+  const useWorkspaceSignals = signalDefinitions.length > 0;
+  const certSignalEntries = useMemo(
+    () =>
+      useWorkspaceSignals
+        ? buildCertRecordSignalEntries({
+            definitions: signalDefinitions,
+            legacyOrdered,
+            releaseSignals: release.signals,
+            thresholds,
+            evaluateSignal,
+            fmtVal,
+            getRegressionRequired,
+            releaseType: release.releaseType
+          })
+        : [],
+    [
+      useWorkspaceSignals,
+      signalDefinitions,
+      legacyOrdered,
+      release.signals,
+      release.releaseType,
+      thresholds,
+      evaluateSignal,
+      fmtVal,
+      getRegressionRequired
+    ]
+  );
+  const failing = useMemo(
+    () =>
+      useWorkspaceSignals
+        ? buildCertRecordFailing({
+            definitions: signalDefinitions,
+            legacyOrdered,
+            releaseSignals: release.signals,
+            thresholds,
+            evaluateSignal,
+            fmtVal,
+            getRegressionRequired,
+            releaseType: release.releaseType
+          })
+        : legacyFailing,
+    [
+      useWorkspaceSignals,
+      signalDefinitions,
+      legacyOrdered,
+      release.signals,
+      release.releaseType,
+      thresholds,
+      evaluateSignal,
+      fmtVal,
+      getRegressionRequired,
+      legacyFailing
+    ]
+  );
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
   const rs = normalizeReleaseStatus(release.status);
   const statusColor = {
@@ -158,7 +216,50 @@ export default function CertificationRecordModal({
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: failing.length > 0 ? 16 : 0 }}>
-            {signalCategories.map((cat) => {
+            {useWorkspaceSignals ? (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: "12px 14px"
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 8 }}>Certification signals</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {certSignalEntries.length === 0 ? (
+                    <span style={{ fontSize: 10, color: C.muted }}>No signal values recorded.</span>
+                  ) : (
+                    certSignalEntries.map((s) => {
+                      const color = s.waived ? C.amber : s.pass ? C.green : C.red;
+                      const provSource = provenanceSourceForSignal(release, s.id);
+                      return (
+                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: C.muted,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              maxWidth: "55%"
+                            }}
+                          >
+                            {s.label}
+                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            {provSource != null ? <SignalSourceBadge source={provSource} compact /> : null}
+                            <span style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 700, color }}>{s.display}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ) : (
+              signalCategories.map((cat) => {
               const status = calcCategoryStatus(cat.id, release.signals, thresholds, release.releaseType);
               const sc = catStatusColor(status);
               const catSignals = cat.signals
@@ -198,7 +299,8 @@ export default function CertificationRecordModal({
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
 
           {failing.length > 0 && (

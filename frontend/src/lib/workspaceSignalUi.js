@@ -68,7 +68,90 @@ export function buildDetailSignalRows(definitions, legacyOrdered, releaseSignals
   return rows;
 }
 
-/** Scalar threshold for UI from API threshold row + definition direction. */
+/** Flat signal lines for certification record / share (definitions-first labels). */
+export function buildCertRecordSignalEntries({
+  definitions = [],
+  legacyOrdered = [],
+  releaseSignals = {},
+  thresholds = {},
+  evaluateSignal,
+  fmtVal,
+  getRegressionRequired,
+  releaseType
+}) {
+  const rows = buildDetailSignalRows(definitions, legacyOrdered, releaseSignals);
+  const reqd = getRegressionRequired?.(releaseType);
+  const out = [];
+
+  for (const { sig } of rows) {
+    const val = releaseSignals[sig.id];
+    const isWaived = sig.conditional && (val === null || val === undefined || reqd === false);
+    if (isWaived) {
+      out.push({
+        id: sig.id,
+        label: sig.label,
+        display: "WAIVED",
+        pass: true,
+        waived: true,
+        rawValue: val,
+        threshold: thresholds[sig.id],
+        direction: sig.direction,
+        unit: sig.unit
+      });
+      continue;
+    }
+    if (val === undefined || val === null) continue;
+
+    const { pass } = evaluateSignal(sig, val, thresholds[sig.id]);
+    out.push({
+      id: sig.id,
+      label: sig.label,
+      display: fmtVal(sig, val),
+      pass,
+      waived: false,
+      rawValue: val,
+      threshold: thresholds[sig.id],
+      direction: sig.direction,
+      unit: sig.unit
+    });
+  }
+
+  return out;
+}
+
+/** Failing signals for cert UI — uses workspace definition labels when present. */
+export function buildCertRecordFailing({
+  definitions = [],
+  legacyOrdered = [],
+  releaseSignals = {},
+  thresholds = {},
+  evaluateSignal,
+  fmtVal,
+  getRegressionRequired,
+  releaseType
+}) {
+  return buildCertRecordSignalEntries({
+    definitions,
+    legacyOrdered,
+    releaseSignals,
+    thresholds,
+    evaluateSignal,
+    fmtVal,
+    getRegressionRequired,
+    releaseType
+  })
+    .filter((e) => !e.pass && !e.waived)
+    .map((e) => ({
+      catLabel: "Signal",
+      sigLabel: e.label,
+      sigId: e.id,
+      value: e.rawValue,
+      threshold: e.threshold,
+      direction: e.direction,
+      unit: e.unit
+    }));
+}
+
 export function scalarThresholdForDefinition(def, thresholdRow) {
   if (!thresholdRow) return undefined;
   return thresholdBoundsToScalar(def?.signal_id || "", thresholdRow);
