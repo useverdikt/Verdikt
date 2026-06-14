@@ -307,6 +307,7 @@ export default function App() {
               hasMoreReleases={Boolean(releasesNextBefore)}
               loadingMoreReleases={releasesLoadingMore}
               onLoadMoreReleases={loadMoreReleases}
+              navigate={navigate}
             />
           }
           trendContent={
