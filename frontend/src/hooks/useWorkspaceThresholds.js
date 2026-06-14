@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { applyThresholdApiMap, defaultRequiredFlags } from "./thresholdBounds.js";
+import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
 import { S, DEFAULT_THRESHOLDS } from "../app/main/appMainLogic.js";
 
 /** Threshold + workspace signal definition state. */
