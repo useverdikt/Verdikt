@@ -47,6 +47,21 @@ describe("simulatorMandatorySignals", () => {
     localStorage.removeItem("vdk3_thresholdRequired");
   });
 
+  it("workspaceScoped map trusts API only", () => {
+    localStorage.setItem("vdk3_thresholdRequired", JSON.stringify({ smoke: true, accuracy: true }));
+    const map = buildSimulatorThresholdMap(
+      {
+        accuracy: { min: 85, max: null, required_for_certification: false },
+        smoke: { min: 100, max: null, required_for_certification: true }
+      },
+      { workspaceScoped: true }
+    );
+    expect(map.accuracy.required_for_certification).toBe(false);
+    expect(map.smoke.required_for_certification).toBe(true);
+    expect(map.hallucination).toBeUndefined();
+    localStorage.removeItem("vdk3_thresholdRequired");
+  });
+
   it("empty hint when nothing required", () => {
     const hint = getSimulatorEmptyHint({}, new Set(), SOURCES);
     expect(hint.title).toMatch(/No mandatory signals/);

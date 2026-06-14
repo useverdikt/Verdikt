@@ -530,7 +530,7 @@ export default function SignalSimulatorPage() {
 
   const configuredSources = useMemo(() => {
     if (!thresholdMap) return applySimulatorThresholds(SIMULATOR_SOURCES);
-    return applySimulatorThresholds(SIMULATOR_SOURCES, thresholdMap);
+    return applySimulatorThresholds(SIMULATOR_SOURCES, thresholdMap, {});
   }, [thresholdMap]);
 
   const activeSources = useMemo(() => {
@@ -652,12 +652,14 @@ export default function SignalSimulatorPage() {
     setLoadingWorkspaceConfig(true);
     (async () => {
       try {
-        const [thrData, intData] = await Promise.all([
-          apiGet(`/api/workspaces/${workspaceId}/thresholds`, { navigate }),
+        const [catalogData, intData] = await Promise.all([
+          apiGet(`/api/workspaces/${workspaceId}/signal-definitions`, { navigate }),
           apiGet(`/api/workspaces/${workspaceId}/signal-integrations`, { navigate })
         ]);
         if (cancelled) return;
-        setThresholdMap(buildSimulatorThresholdMap(thrData?.thresholds || {}));
+        setThresholdMap(
+          buildSimulatorThresholdMap(catalogData?.thresholds || {}, { workspaceScoped: true })
+        );
         const connected = new Set(
           (intData?.integrations || [])
             .filter((row) => row.connected === true)
