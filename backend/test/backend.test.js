@@ -1996,8 +1996,9 @@ describe("Workspace signal definitions", () => {
 
     const catalog = await agent.get(`/api/workspaces/${ws}/signal-definitions`).expect(200);
     assert.ok(Array.isArray(catalog.body.definitions));
-    assert.ok(catalog.body.definitions.length >= 5);
+    assert.equal(catalog.body.definitions.length, 0);
     assert.ok(Array.isArray(catalog.body.library));
+    assert.ok(catalog.body.library.length >= 5);
     assert.ok(Array.isArray(catalog.body.connectors));
     assert.ok(catalog.body.connectors.some((c) => c.source_id === "zizkadb"));
 
