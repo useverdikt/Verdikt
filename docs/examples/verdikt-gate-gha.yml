@@ -83,5 +83,12 @@ jobs:
           NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
           [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
           ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
-          echo "::error::Verdikt gate did not pass within timeout (last action=${ACTION})."
+          STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
+          if [ "$STATUS" = "COLLECTING" ]; then
+            echo "::error::Verdikt gate timed out waiting for signals. Check integration wiring and SHA tagging on your eval runs."
+          elif [ "$STATUS" = "UNCERTIFIED" ]; then
+            echo "::error::Verdikt gate timed out — signals arrived but did not pass thresholds. Review blocking signals above."
+          else
+            echo "::error::Verdikt gate did not pass within timeout (last action=${ACTION}, status=${STATUS})."
+          fi
           exit 1
