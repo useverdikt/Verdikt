@@ -24,6 +24,17 @@ export function isEvalSourceConnected(sources) {
   );
 }
 
+/** True when GET /signal-integrations panel shows any connected pull, active push, or CSV. */
+export function hasConnectedSignalSource(integrationsApiData) {
+  const data = integrationsApiData;
+  if (!data) return false;
+  if ((data.pull_connectors || []).some((c) => c.connected)) return true;
+  if ((data.push_sources || []).some((s) => s.active)) return true;
+  if (Number(data.csv_import?.row_count || 0) > 0) return true;
+  if (Array.isArray(data.integrations) && data.integrations.length > 0) return true;
+  return false;
+}
+
 /** True when workspace has persisted threshold rows from the API. */
 export function isThresholdsConfiguredFromApi(thresholdMap) {
   if (!thresholdMap || typeof thresholdMap !== "object") return false;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCsvRowCountLabel,
+  hasConnectedSignalSource,
   isEvalSourceConnected,
   isReleaseTriggerReady,
   isThresholdsConfiguredFromApi
@@ -34,6 +35,35 @@ describe("isEvalSourceConnected", () => {
         { sourceType: "upload", status: "not connected" },
         { sourceId: "sentry", status: "not connected" }
       ])
+    ).toBe(false);
+  });
+});
+
+describe("hasConnectedSignalSource", () => {
+  it("is true for connected pull connector", () => {
+    expect(hasConnectedSignalSource({ pull_connectors: [{ source_id: "sentry", connected: true }] })).toBe(true);
+  });
+
+  it("is true for active push source", () => {
+    expect(hasConnectedSignalSource({ push_sources: [{ source_id: "custom", active: true, signal_count: 2 }] })).toBe(
+      true
+    );
+  });
+
+  it("is true for CSV import rows", () => {
+    expect(hasConnectedSignalSource({ csv_import: { row_count: 3 } })).toBe(true);
+  });
+
+  it("falls back to legacy integrations array", () => {
+    expect(hasConnectedSignalSource({ integrations: [{ source_id: "braintrust" }] })).toBe(true);
+  });
+
+  it("is false when nothing is connected", () => {
+    expect(
+      hasConnectedSignalSource({
+        pull_connectors: [{ source_id: "sentry", connected: false }],
+        push_sources: [{ source_id: "custom", active: false }]
+      })
     ).toBe(false);
   });
 });

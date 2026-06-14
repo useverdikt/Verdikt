@@ -27,6 +27,7 @@ import {
   cloneSourcesBase,
   mergeSourcesFromApi,
   loadRolePolicy,
+  hasConnectedSignalSource,
   isEvalSourceConnected,
   isThresholdsConfiguredFromApi,
   isReleaseTriggerReady
@@ -118,6 +119,8 @@ export default function SettingsWorkspace() {
 
   const [sources, setSources] = useState(() => cloneSourcesBase());
   const [signalPanel, setSignalPanel] = useState(null);
+  const [signalPanelLoading, setSignalPanelLoading] = useState(true);
+  const [signalPanelError, setSignalPanelError] = useState(null);
   const [workspaceThresholds, setWorkspaceThresholds] = useState(null);
   const [connectModal, setConnectModal] = useState(null);
   const csvInputRef = useRef(null);
@@ -168,6 +171,8 @@ export default function SettingsWorkspace() {
   const roleLabels = useMemo(() => Object.fromEntries(Object.entries(rolePolicy).map(([id, cfg]) => [id, cfg.label])), [rolePolicy]);
 
   const loadSignalSources = useCallback(async () => {
+    setSignalPanelLoading(true);
+    setSignalPanelError(null);
     try {
       const data = await apiGet(`/api/workspaces/${wsId}/signal-integrations`, { navigate });
       setSources(mergeSourcesFromApi(cloneSourcesBase(), data));
@@ -178,8 +183,10 @@ export default function SettingsWorkspace() {
         api_push: data.api_push || {},
         csv_import: data.csv_import || null
       });
-    } catch {
-      /* keep local seed when logged out or API unavailable */
+    } catch (e) {
+      setSignalPanelError(e?.message || "Failed to load signal sources");
+    } finally {
+      setSignalPanelLoading(false);
     }
   }, [navigate, wsId]);
 
@@ -276,11 +283,11 @@ export default function SettingsWorkspace() {
 
   const governanceReadiness = useMemo(
     () => ({
-      eval: isEvalSourceConnected(sources),
+      eval: isEvalSourceConnected(sources) || hasConnectedSignalSource(signalPanel),
       thresholds: isThresholdsConfiguredFromApi(workspaceThresholds),
       trigger: isReleaseTriggerReady(triggerConfig, githubAppStatus)
     }),
-    [sources, workspaceThresholds, triggerConfig, githubAppStatus]
+    [sources, signalPanel, workspaceThresholds, triggerConfig, githubAppStatus]
   );
 
   const loadGithubAppStatus = useCallback(async () => {
@@ -556,6 +563,8 @@ export default function SettingsWorkspace() {
           navigate={navigate}
           toast={toast}
           signalPanel={signalPanel}
+          signalPanelLoading={signalPanelLoading}
+          signalPanelError={signalPanelError}
           setConnectModal={setConnectModal}
           csvInputRef={csvInputRef}
           loadSignalSources={loadSignalSources}
