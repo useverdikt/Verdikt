@@ -4,11 +4,13 @@ Public developer docs for [docs.useverdikt.com](https://docs.useverdikt.com).
 
 ## Local preview
 
+Mintlify requires **Node 20.17+**.
+
 ```bash
+cd docs-site
+nvm use          # uses .nvmrc (Node 20) — run `nvm install` if missing
 npx mintlify dev
 ```
-
-Run from this directory (`docs-site/`). Requires [Mintlify CLI](https://www.mintlify.com/docs/installation).
 
 ## Deploy
 
