@@ -97,7 +97,7 @@ function CsvImportRow({ csvImport, csvInputRef, wsId, navigate, toast, loadSigna
           {st.label}
         </div>
       </div>
-      <div className="source-actions">
+      <div className="source-actions" style={{ display: "flex", gap: 8 }}>
         <input
           ref={csvInputRef}
           type="file"
@@ -126,8 +126,25 @@ function CsvImportRow({ csvImport, csvInputRef, wsId, navigate, toast, loadSigna
             }
           }}
         />
+        {connected ? (
+          <button
+            type="button"
+            className="api-key-revoke"
+            onClick={async () => {
+              try {
+                await apiDelete(`/api/workspaces/${wsId}/signal-csv-imports`, { navigate });
+                await loadSignalSources();
+                toast("CSV import cleared");
+              } catch (err) {
+                toast(err?.message || "Clear failed");
+              }
+            }}
+          >
+            Clear
+          </button>
+        ) : null}
         <button type="button" className="btn-ghost accent" onClick={() => csvInputRef.current?.click()}>
-          Import CSV
+          {connected ? "Replace CSV" : "Import CSV"}
         </button>
       </div>
     </div>
@@ -140,6 +157,8 @@ export default function ApiSignalSection({
   navigate,
   toast,
   signalPanel,
+  signalPanelLoading = false,
+  signalPanelError = null,
   setConnectModal,
   csvInputRef,
   loadSignalSources,
@@ -197,6 +216,33 @@ export default function ApiSignalSection({
         </p>
       </div>
       <IntegrationReadinessPanel wsId={wsId} navigate={navigate} toast={toast} />
+
+      {signalPanelError ? (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "12px 16px",
+            borderRadius: 8,
+            background: "rgba(239,68,68,0.1)",
+            border: "1px solid rgba(239,68,68,0.35)",
+            color: "#fca5a5",
+            fontSize: 13,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12
+          }}
+        >
+          <span>{signalPanelError}</span>
+          <button type="button" className="btn-ghost accent" onClick={() => void loadSignalSources()}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {signalPanelLoading && !signalPanel ? (
+        <div style={{ padding: "24px 18px", color: "var(--fg3)", fontSize: 13 }}>Loading signal sources…</div>
+      ) : null}
 
       <div className="sblock">
         <div className="sblock-head">
