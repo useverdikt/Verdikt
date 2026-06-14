@@ -10,6 +10,7 @@ const { queryOne, queryAll, run, transaction } = require("../database");
 const sharedPkg = require("../lib/sharedPkg");
 const { nowIso } = require("../lib/time");
 const { ensureInboundWebhookSecret } = require("./inboundWebhookSecrets");
+const { ensureWorkspaceSignalDefinitions } = require("./signalDefinitions");
 
 const workspaceSeedDone = new Set();
 const defaultRequiredIds = new Set(sharedPkg.defaultRequiredSignalIds || []);
@@ -34,6 +35,7 @@ async function ensureWorkspaceSeeded(workspaceId) {
   await seedThresholds(workspaceId);
   await seedWorkspacePolicy(workspaceId);
   await ensureInboundWebhookSecret(workspaceId);
+  await ensureWorkspaceSignalDefinitions(workspaceId);
   workspaceSeedDone.add(workspaceId);
 }
 
@@ -54,6 +56,10 @@ async function seedThresholds(workspaceId) {
 }
 
 async function ensureMissingThresholdRows(workspaceId) {
+  const definitionRows = await queryAll(
+    "SELECT signal_id FROM workspace_signal_definitions WHERE workspace_id = ?",
+    [workspaceId]
+  ).catch(() => []);
   const defaults = sharedPkg.getDefaultThresholdSeedRows();
   const existingRows = await queryAll(
     "SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?",
@@ -65,8 +71,13 @@ async function ensureMissingThresholdRows(workspaceId) {
   const updateSql =
     "UPDATE thresholds SET min_value = ?, max_value = ? WHERE workspace_id = ? AND signal_id = ?";
 
+  const seedRows =
+    definitionRows.length > 0
+      ? defaults.filter(([signalId]) => definitionRows.some((d) => d.signal_id === signalId))
+      : defaults;
+
   await transaction(async (tx) => {
-    for (const row of defaults) {
+    for (const row of seedRows) {
       const [signalId, min, max] = row;
       const cur = existing.get(signalId);
       const required = isDefaultRequiredSignal(signalId) ? 1 : 0;
@@ -97,14 +108,32 @@ async function seedWorkspacePolicy(workspaceId) {
 async function getThresholdMap(workspaceId) {
   await ensureWorkspaceSeeded(workspaceId);
   await ensureMissingThresholdRows(workspaceId);
-  const rows = await queryAll(
-    "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ?",
-    [workspaceId]
+  const [rows, defRows] = await Promise.all([
+    queryAll(
+      "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ?",
+      [workspaceId]
+    ),
+    queryAll(
+      "SELECT signal_id, direction FROM workspace_signal_definitions WHERE workspace_id = ?",
+      [workspaceId]
+    ).catch(() => [])
+  ]);
+  const directionBySignal = Object.fromEntries(
+    (defRows || []).map((r) => [r.signal_id, r.direction || "min"])
   );
   const map = {};
   for (const r of rows) {
+    const direction =
+      directionBySignal[r.signal_id] || sharedPkg.getSignalThresholdDirection(r.signal_id);
+    const normalized =
+      direction === "max"
+        ? {
+            min: null,
+            max: r.max_value != null ? r.max_value : r.min_value
+          }
+        : sharedPkg.normalizeThresholdBounds(r.signal_id, r.min_value, r.max_value);
     map[r.signal_id] = {
-      ...sharedPkg.normalizeThresholdBounds(r.signal_id, r.min_value, r.max_value),
+      ...normalized,
       required_for_certification: !!r.required_for_certification
     };
   }

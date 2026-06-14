@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
+import { apiDelete, apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
 import { S, DEFAULT_THRESHOLDS } from "../app/main/appMainLogic.js";
 
-/** Threshold state, suggestions, and server sync helpers. */
+/** Threshold + workspace signal definition state. */
 export function useWorkspaceThresholds(navigate, nav) {
   const [thresholds, setThresholds] = useState(() => ({
     ...DEFAULT_THRESHOLDS,
@@ -15,15 +15,10 @@ export function useWorkspaceThresholds(navigate, nav) {
   );
   const [thresholdSuggestions, setThresholdSuggestions] = useState([]);
   const [thresholdSuggestNote, setThresholdSuggestNote] = useState("");
-
-  useEffect(() => {
-    if (hasBackend()) return;
-    S.set("thresholds", thresholds);
-  }, [thresholds]);
-
-  useEffect(() => {
-    S.set("thresholdRequired", thresholdRequired);
-  }, [thresholdRequired]);
+  const [signalDefinitions, setSignalDefinitions] = useState([]);
+  const [signalLibrary, setSignalLibrary] = useState([]);
+  const [signalConnectors, setSignalConnectors] = useState([]);
+  const [signalsCatalogLoading, setSignalsCatalogLoading] = useState(false);
 
   const applyThresholdsFromApi = useCallback((thData) => {
     const map = thData?.thresholds || {};
@@ -31,6 +26,63 @@ export function useWorkspaceThresholds(navigate, nav) {
     setThresholds((prev) => ({ ...DEFAULT_THRESHOLDS, ...prev, ...parsed.thresholds }));
     setThresholdRequired((prev) => ({ ...defaultRequiredFlags(), ...prev, ...parsed.required }));
   }, []);
+
+  const applySignalCatalogFromApi = useCallback((data) => {
+    if (!data) return;
+    setSignalDefinitions(Array.isArray(data.definitions) ? data.definitions : []);
+    setSignalLibrary(Array.isArray(data.library) ? data.library : []);
+    setSignalConnectors(Array.isArray(data.connectors) ? data.connectors : []);
+    if (data.thresholds) applyThresholdsFromApi({ thresholds: data.thresholds });
+  }, [applyThresholdsFromApi]);
+
+  const loadSignalCatalog = useCallback(async () => {
+    if (!hasBackend()) return;
+    setSignalsCatalogLoading(true);
+    try {
+      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/signal-definitions`, { navigate });
+      applySignalCatalogFromApi(data);
+    } finally {
+      setSignalsCatalogLoading(false);
+    }
+  }, [navigate, applySignalCatalogFromApi]);
+
+  const adoptLibrarySignal = useCallback(
+    async (signalId) => {
+      const data = await apiPost(
+        `/api/workspaces/${getWorkspaceId()}/signal-definitions/adopt`,
+        { signal_id: signalId },
+        { navigate }
+      );
+      applySignalCatalogFromApi(data);
+      return data;
+    },
+    [navigate, applySignalCatalogFromApi]
+  );
+
+  const createCustomSignal = useCallback(
+    async (payload) => {
+      const data = await apiPost(
+        `/api/workspaces/${getWorkspaceId()}/signal-definitions`,
+        payload,
+        { navigate }
+      );
+      applySignalCatalogFromApi(data);
+      return data;
+    },
+    [navigate, applySignalCatalogFromApi]
+  );
+
+  const deleteSignalDefinition = useCallback(
+    async (signalId) => {
+      const data = await apiDelete(
+        `/api/workspaces/${getWorkspaceId()}/signal-definitions/${encodeURIComponent(signalId)}`,
+        { navigate }
+      );
+      applySignalCatalogFromApi(data);
+      return data;
+    },
+    [navigate, applySignalCatalogFromApi]
+  );
 
   const loadThresholdSuggestions = useCallback(async () => {
     if (!hasBackend()) {
@@ -56,8 +108,11 @@ export function useWorkspaceThresholds(navigate, nav) {
   }, [navigate]);
 
   useEffect(() => {
-    if (nav === "thresholds") void loadThresholdSuggestions();
-  }, [nav, loadThresholdSuggestions]);
+    if (nav === "thresholds") {
+      void loadSignalCatalog();
+      void loadThresholdSuggestions();
+    }
+  }, [nav, loadSignalCatalog, loadThresholdSuggestions]);
 
   return {
     thresholds,
@@ -67,6 +122,15 @@ export function useWorkspaceThresholds(navigate, nav) {
     thresholdSuggestions,
     thresholdSuggestNote,
     loadThresholdSuggestions,
-    applyThresholdsFromApi
+    applyThresholdsFromApi,
+    applySignalCatalogFromApi,
+    signalDefinitions,
+    signalLibrary,
+    signalConnectors,
+    signalsCatalogLoading,
+    loadSignalCatalog,
+    adoptLibrarySignal,
+    createCustomSignal,
+    deleteSignalDefinition
   };
 }

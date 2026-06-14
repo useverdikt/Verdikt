@@ -12,6 +12,7 @@ export default function ReleaseDashboardTable({
   toggleRow,
   releaseCatStatuses,
   signalCategories,
+  signalDefinitions = [],
   thresholds,
   releaseTypes,
   formatReleaseAge,
@@ -126,6 +127,7 @@ export default function ReleaseDashboardTable({
                   <ReleaseDetail
                     release={r}
                     signalCategories={signalCategories}
+                    signalDefinitions={signalDefinitions}
                     catStatuses={catStatuses}
                     thresholds={thresholds}
                     releaseTypes={releaseTypes}

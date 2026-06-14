@@ -1971,6 +1971,53 @@ describe("Integration readiness (SHA tagging)", () => {
   });
 });
 
+describe("Workspace signal definitions", () => {
+  const app = createApp();
+
+  it("lists catalog, adopts library signal, creates custom signal, deletes", async () => {
+    const email = `sigdef_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "SigDef" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const catalog = await agent.get(`/api/workspaces/${ws}/signal-definitions`).expect(200);
+    assert.ok(Array.isArray(catalog.body.definitions));
+    assert.ok(catalog.body.definitions.length >= 5);
+    assert.ok(Array.isArray(catalog.body.library));
+    assert.ok(Array.isArray(catalog.body.connectors));
+    assert.ok(catalog.body.connectors.some((c) => c.source_id === "zizkadb"));
+
+    const adopt = await agent
+      .post(`/api/workspaces/${ws}/signal-definitions/adopt`)
+      .send({ signal_id: "smoke", required_for_certification: false })
+      .expect(200);
+    assert.ok(adopt.body.definitions.some((d) => d.signal_id === "smoke"));
+
+    const custom = await agent
+      .post(`/api/workspaces/${ws}/signal-definitions`)
+      .send({
+        signal_id: "behavioural_drift",
+        display_name: "Behavioural Drift",
+        direction: "max",
+        unit: "score",
+        source_id: "zizkadb",
+        threshold: { max: 0.15 },
+        required_for_certification: true
+      })
+      .expect(201);
+    assert.equal(custom.body.definition.signal_id, "behavioural_drift");
+    assert.equal(custom.body.thresholds.behavioural_drift.max, 0.15);
+    assert.equal(custom.body.thresholds.behavioural_drift.required_for_certification, true);
+
+    await agent.delete(`/api/workspaces/${ws}/signal-definitions/smoke`).expect(200);
+    const afterDelete = await agent.get(`/api/workspaces/${ws}/signal-definitions`).expect(200);
+    assert.ok(!afterDelete.body.definitions.some((d) => d.signal_id === "smoke"));
+    assert.ok(!afterDelete.body.thresholds.smoke);
+  });
+});
+
 const skipLiveGemini = process.env.GEMINI_LIVE_TEST !== "1" || !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === GEMINI_STUB;
 
 (skipLiveGemini ? describe.skip : describe)("Gemini live API (set GEMINI_API_KEY to a real key to run)", () => {

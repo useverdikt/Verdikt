@@ -15,6 +15,7 @@ export function ReleaseDashboard({
   wsId,
   prodObservationEnabled = false,
   signalCategories = [],
+  signalDefinitions = [],
   calcCategoryStatus,
   thresholds = {},
   releaseTypes = [],
@@ -72,6 +73,7 @@ export function ReleaseDashboard({
             toggleRow={filters.toggleRow}
             releaseCatStatuses={releaseCatStatuses}
             signalCategories={signalCategories}
+            signalDefinitions={signalDefinitions}
             thresholds={thresholds}
             releaseTypes={releaseTypes}
             formatReleaseAge={formatReleaseAge}

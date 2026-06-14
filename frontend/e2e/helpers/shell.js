@@ -8,6 +8,12 @@ export async function waitForSessionGate(page) {
   await expect(page.getByText(/Verifying session/i)).toBeHidden({ timeout: 25_000 });
 }
 
+/** Wait until the releases table has at least one row (post workspace sync). */
+export async function waitForReleaseRows(page, { timeout = 25_000 } = {}) {
+  await waitForSessionGate(page);
+  await expect(page.locator(".release-row").first()).toBeVisible({ timeout });
+}
+
 /** Primary dashboard CTA (avoids strict-mode clash with sidebar duplicate). */
 export function newReleaseButton(page) {
   return page.locator(".btn-new");

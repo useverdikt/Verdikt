@@ -2,6 +2,7 @@
 
 module.exports = function registerWorkspaceRoutes(app) {
   require("./thresholds")(app);
+  require("./signalDefinitions")(app);
   require("./policies")(app);
   require("./workspaceReleases")(app);
   require("./integrations")(app);

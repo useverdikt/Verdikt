@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
+import WorkspaceSignalsPanel from "./WorkspaceSignalsPanel.jsx";
 
 /** Stable JSON for dirty-checking threshold maps (sorted keys, numeric + string values). */
 function serializeThresholds(t) {
@@ -28,10 +29,17 @@ export default function ThresholdsView({
   thresholdRequired,
   defaultThresholds = {},
   signalCategories,
+  signalDefinitions = [],
+  signalLibrary = [],
+  signalConnectors = [],
+  signalsCatalogLoading = false,
   isMobile,
   currentUser,
   canAct,
   onSave,
+  onAdoptLibrarySignal,
+  onCreateCustomSignal,
+  onDeleteSignalDefinition,
   suggestions = [],
   suggestNote = "",
   onApplySuggestion,
@@ -181,7 +189,7 @@ export default function ThresholdsView({
       <div style={{ paddingBottom: 18, marginBottom: 4, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ fontFamily: C.mono, fontSize: 10, letterSpacing: "0.11em", textTransform: "uppercase", color: C.dim, marginBottom: 6 }}>Policy</div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <h2 style={{ margin: 0, fontFamily: C.serif, fontSize: 28, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.1, flex: "1 1 auto", minWidth: 0 }}>Thresholds</h2>
+          <h2 style={{ margin: 0, fontFamily: C.serif, fontSize: 28, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.1, flex: "1 1 auto", minWidth: 0 }}>Signals &amp; thresholds</h2>
           {canAct(currentUser) ? (
             <Btn
               variant={saved ? "green" : "primary"}
@@ -198,11 +206,30 @@ export default function ThresholdsView({
           )}
         </div>
         <p style={{ margin: "14px 0 0", color: C.muted, fontSize: 13, lineHeight: 1.65, maxWidth: 640 }}>
-          Set threshold values and mark signals as <strong style={{ color: C.text, fontWeight: 600 }}>required for certification</strong>. Only required signals from connected sources gate release status. Optional signals can stay configured without blocking collection.
+          Define which signals matter for your workspace, set thresholds, and mark signals as <strong style={{ color: C.text, fontWeight: 600 }}>required for certification</strong>. Only required signals gate release status — adopt from the library or add custom metrics (e.g. ZizkaDB drift).
         </p>
       </div>
 
-      {signalCategories.map((cat) => (
+      <WorkspaceSignalsPanel
+        definitions={signalDefinitions}
+        library={signalLibrary}
+        connectors={signalConnectors}
+        loading={signalsCatalogLoading}
+        local={local}
+        setLocal={setLocal}
+        localRequired={localRequired}
+        setLocalRequired={setLocalRequired}
+        canAct={canAct}
+        currentUser={currentUser}
+        isMobile={isMobile}
+        onAdopt={onAdoptLibrarySignal}
+        onCreate={onCreateCustomSignal}
+        onDelete={onDeleteSignalDefinition}
+        renderValueControl={renderValueControl}
+      />
+
+      {signalDefinitions.length === 0
+        ? signalCategories.map((cat) => (
         <div key={cat.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
           <button
             type="button"
@@ -265,7 +292,27 @@ export default function ThresholdsView({
             ))}
           </div>
         </div>
-      ))}
+      )) : null}
+
+      {signalDefinitions.length === 0 ? null : (
+        <details style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 14px" }}>
+          <summary style={{ cursor: "pointer", fontSize: 12, color: C.muted, padding: "6px 0" }}>
+            Advanced: legacy category reference
+          </summary>
+          <div style={{ marginTop: 8 }}>
+            {signalCategories.map((cat) => (
+              <div key={cat.id} style={{ marginBottom: 12, opacity: 0.85 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 8 }}>{cat.label}</div>
+                {cat.signals.map((sig) => (
+                  <div key={sig.id} style={{ fontSize: 11, color: C.dim, fontFamily: C.mono }}>
+                    {sig.id}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
         <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.raise }}>

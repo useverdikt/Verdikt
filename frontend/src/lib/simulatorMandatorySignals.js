@@ -76,7 +76,8 @@ export function buildSimulatorThresholdMap(apiRaw) {
  */
 export function filterSimulatorSourcesForMandatory(sources, thresholdMap, connectedSourceIds) {
   const connected = connectedSourceIds instanceof Set ? connectedSourceIds : new Set(connectedSourceIds || []);
-  return sources
+  const simSignalIds = new Set(Object.values(SOURCE_MAP).flat());
+  const panels = sources
     .map((src) => {
       const allowed = new Set(SOURCE_MAP[src.id] || []);
       const signals = (src.signals || []).filter((sig) => {
@@ -91,6 +92,20 @@ export function filterSimulatorSourcesForMandatory(sources, thresholdMap, connec
       };
     })
     .filter(Boolean);
+
+  const customRequired = listRequiredSimulatorSignalIds(thresholdMap).filter((id) => !simSignalIds.has(id));
+  if (customRequired.length) {
+    panels.push({
+      id: "custom",
+      name: "Custom signals",
+      icon: "◇",
+      color: "#a78bfa",
+      signals: customRequired.map((id) => ({ id, label: id.replace(/_/g, " ") })),
+      sourceConnected: true,
+      demoValues: Object.fromEntries(customRequired.map((id) => [id, id.includes("drift") ? 0.08 : 0.02]))
+    });
+  }
+  return panels;
 }
 
 /** Count signals marked required in threshold map that appear in signalSourceMap. */
@@ -103,6 +118,10 @@ export function listRequiredSimulatorSignalIds(thresholdMap) {
   const simSignalIds = new Set(Object.values(SOURCE_MAP).flat());
   const out = [];
   for (const id of simSignalIds) {
+    if (isSimulatorSignalRequired(id, thresholdMap)) out.push(id);
+  }
+  for (const id of Object.keys(thresholdMap || {})) {
+    if (out.includes(id)) continue;
     if (isSimulatorSignalRequired(id, thresholdMap)) out.push(id);
   }
   return out;
