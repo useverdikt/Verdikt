@@ -4,7 +4,7 @@
  * Run: npm run test:e2e (from frontend/)
  */
 import { test, expect } from "@playwright/test";
-import { newReleaseButton, waitForSessionGate } from "./helpers/shell.js";
+import { newReleaseButton, waitForReleaseRows, waitForSessionGate } from "./helpers/shell.js";
 
 const API = "http://127.0.0.1:8787";
 
@@ -23,8 +23,8 @@ test.describe("releases dashboard (authenticated)", () => {
   });
 
   test("expand row → View full record opens certification record modal", async ({ page }) => {
+    await waitForReleaseRows(page);
     const firstRow = page.locator(".release-row").first();
-    await expect(firstRow).toBeVisible({ timeout: 15_000 });
     await firstRow.click();
     await page.getByRole("button", { name: /View full record/i }).click({ force: true });
     await expect(page.getByText("CERTIFICATION RECORD").first()).toBeVisible();
@@ -33,8 +33,8 @@ test.describe("releases dashboard (authenticated)", () => {
   });
 
   test("certification record → Share snapshot opens share dialog", async ({ page }) => {
+    await waitForReleaseRows(page);
     const firstRow = page.locator(".release-row").first();
-    await expect(firstRow).toBeVisible({ timeout: 15_000 });
     await firstRow.click();
     await page.getByRole("button", { name: /View full record/i }).click({ force: true });
     await page.getByRole("button", { name: /Share snapshot/i }).click();
@@ -48,7 +48,7 @@ test.describe("releases dashboard (authenticated)", () => {
 test.describe("collecting row actions", () => {
   test("View live stream opens SSE modal; Extend deadline updates server window", async ({ page }) => {
     await page.goto("/releases");
-    await waitForSessionGate(page);
+    await waitForReleaseRows(page);
 
     const collectingDetail = () =>
       page.locator(".release-detail").filter({ hasText: /View live stream|Extend deadline/i });

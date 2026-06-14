@@ -123,6 +123,7 @@ export function useWorkspaceThresholds(navigate, nav) {
     thresholdSuggestNote,
     loadThresholdSuggestions,
     applyThresholdsFromApi,
+    applySignalCatalogFromApi,
     signalDefinitions,
     signalLibrary,
     signalConnectors,
