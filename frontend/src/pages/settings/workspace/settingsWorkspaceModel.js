@@ -52,6 +52,15 @@ export const SOURCES_INITIAL = [
     mapping: null
   },
   {
+    sourceId: "langsmith",
+    icon: "⬡",
+    name: "LangSmith",
+    detail: "API pull — AI eval traces (commit metadata on runs)",
+    status: "not connected",
+    statusColor: "var(--dim)",
+    mapping: null
+  },
+  {
     sourceId: "browserstack",
     icon: "◎",
     name: "BrowserStack",

@@ -1,0 +1,73 @@
+/** Display metadata for pull connectors and push partners (Signal Sources UI). */
+
+export function humanizeSourceId(id) {
+  return String(id || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export const PULL_CONNECTOR_META = {
+  braintrust: {
+    icon: "✦",
+    name: "Braintrust",
+    detail: "API pull — AI eval scores (tag runs with PR commit SHA)"
+  },
+  langsmith: {
+    icon: "⬡",
+    name: "LangSmith",
+    detail: "API pull — AI eval traces (commit metadata on runs)"
+  },
+  browserstack: {
+    icon: "◎",
+    name: "BrowserStack",
+    detail: "API pull — smoke/E2E pass rates (build_tag or SDK git SHA)"
+  },
+  sentry: {
+    icon: "⚡",
+    name: "Sentry",
+    detail: "API pull — crash/error rates (Sentry release = commit SHA)"
+  },
+  datadog: {
+    icon: "◈",
+    name: "Datadog",
+    detail: "API pull — latency/health (git.commit.sha or DD_GIT_COMMIT_SHA)"
+  }
+};
+
+export const PUSH_SOURCE_META = {
+  zizkadb: {
+    icon: "◇",
+    name: "ZizkaDB",
+    detail: "Partner push — behavioural drift & session anomalies"
+  },
+  custom: {
+    icon: "↗",
+    name: "Custom API push",
+    detail: "Signals POSTed from your pipeline with arbitrary signal_id keys"
+  },
+  manual_qa: {
+    icon: "✓",
+    name: "Manual QA",
+    detail: "QA scores pushed via API or signal-sim"
+  }
+};
+
+export function pullConnectorUi(sourceId) {
+  const meta = PULL_CONNECTOR_META[sourceId] || {};
+  return {
+    sourceId,
+    icon: meta.icon || "◆",
+    name: meta.name || humanizeSourceId(sourceId),
+    detail: meta.detail || "API pull — metrics keyed by commit SHA"
+  };
+}
+
+export function pushSourceUi(sourceId) {
+  const meta = PUSH_SOURCE_META[sourceId] || {};
+  return {
+    sourceId,
+    icon: meta.icon || "↗",
+    name: meta.name || humanizeSourceId(sourceId),
+    detail: meta.detail || "API push — POST signal values per release"
+  };
+}
