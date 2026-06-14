@@ -32,6 +32,20 @@ export function getWorkspaceId() {
   return localStorage.getItem("vdk3_workspace_id") || "ws_demo";
 }
 
+/** Switch active workspace for API calls (clears stale cached workspace data). */
+export function setWorkspaceId(workspaceId) {
+  const next = String(workspaceId || "").trim();
+  if (!next) return;
+  const prev = localStorage.getItem("vdk3_workspace_id");
+  if (prev && prev !== next) {
+    localStorage.removeItem("vdk3_releases");
+    localStorage.removeItem("vdk3_audit");
+    localStorage.removeItem("vdk3_infra");
+    localStorage.removeItem("vdk3_project");
+  }
+  localStorage.setItem("vdk3_workspace_id", next);
+}
+
 export function authHeaders() {
   /** Session JWT is HttpOnly (`vdk_auth` cookie); never send Bearer from localStorage. */
   return { ...getCsrfHeader() };

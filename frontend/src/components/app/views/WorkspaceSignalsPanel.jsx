@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
-import { definitionToSignalMeta, groupLibraryByCategory, LIBRARY_CATEGORY_LABELS, buildCustomSignalSourceOptions } from "../../../lib/workspaceSignalUi.js";
-import { RELEASE_SOURCE_CATALOG } from "../../../lib/releaseSourceLanes.js";
+import { definitionToSignalMeta, groupLibraryByCategory, LIBRARY_CATEGORY_LABELS, buildCustomSignalSourceGroups } from "../../../lib/workspaceSignalUi.js";
+import { RELEASE_SOURCE_CATALOG, SIGNAL_SOURCE_SECTIONS } from "../../../lib/releaseSourceLanes.js";
 
 function CustomSignalModal({ open, onClose, onCreate, connectors }) {
   const [signalId, setSignalId] = useState("");
@@ -14,8 +14,8 @@ function CustomSignalModal({ open, onClose, onCreate, connectors }) {
   const [required, setRequired] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const sourceOptions = useMemo(
-    () => buildCustomSignalSourceOptions(connectors, RELEASE_SOURCE_CATALOG),
+  const sourceGroups = useMemo(
+    () => buildCustomSignalSourceGroups(connectors, RELEASE_SOURCE_CATALOG, SIGNAL_SOURCE_SECTIONS),
     [connectors]
   );
 
@@ -133,10 +133,14 @@ function CustomSignalModal({ open, onClose, onCreate, connectors }) {
             onChange={(e) => setSourceId(e.target.value)}
             style={{ width: "100%", padding: "8px 10px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text }}
           >
-            {sourceOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label}
-              </option>
+            {sourceGroups.map((group) => (
+              <optgroup key={group.id} label={group.label}>
+                {group.options.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>

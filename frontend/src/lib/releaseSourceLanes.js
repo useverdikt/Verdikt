@@ -10,6 +10,16 @@ export const RELEASE_SOURCE_CATALOG = [
   { id: "manual_qa", name: "Manual QA", icon: "✦", color: "#94a3b8", signals: shared.signalSourceMap?.manual_qa || [] }
 ];
 
+/** Groupings for source pickers (thresholds custom signal, settings, etc.). */
+export const SIGNAL_SOURCE_SECTIONS = [
+  { id: "ai_eval", label: "AI Eval Quality", sourceIds: ["braintrust", "langsmith"] },
+  { id: "delivery", label: "Delivery Reliability", sourceIds: ["browserstack"] },
+  { id: "reliability", label: "Runtime Reliability", sourceIds: ["sentry"] },
+  { id: "performance", label: "Runtime Performance", sourceIds: ["datadog"] },
+  { id: "manual_qa", label: "Risk Scenario Review", sourceIds: ["manual_qa"] },
+  { id: "partner", label: "Partner / API push", sourceIds: ["zizkadb", "custom"] }
+];
+
 const STATUS_META = {
   not_configured: { label: "Not configured", tone: "muted" },
   connected_waiting: { label: "Connected — awaiting SHA match", tone: "amber" },

@@ -332,6 +332,27 @@ async function revokeInvite({ workspaceId, inviteId, actorEmail }) {
   return { ok: true };
 }
 
+async function listWorkspacesForUser(userId) {
+  const members = await queryAll(
+    `SELECT wm.workspace_id, wm.role, wm.created_at
+     FROM workspace_members wm
+     WHERE wm.user_id = ?
+     ORDER BY wm.created_at ASC`,
+    [userId]
+  );
+  if (members.length) {
+    return members.map((m) => ({
+      workspace_id: m.workspace_id,
+      role: m.role
+    }));
+  }
+  const user = await queryOne("SELECT workspace_id, role FROM users WHERE id = ?", [userId]);
+  if (user?.workspace_id) {
+    return [{ workspace_id: user.workspace_id, role: user.role }];
+  }
+  return [];
+}
+
 module.exports = {
   VALID_ROLES,
   userHasWorkspaceAccess,
@@ -339,6 +360,7 @@ module.exports = {
   syncHomeWorkspaceRoleCache,
   ensureMemberRow,
   listWorkspaceMembersAndInvites,
+  listWorkspacesForUser,
   getInviteByToken,
   createWorkspaceInvite,
   acceptWorkspaceInvite,
