@@ -186,6 +186,51 @@ describe("API integration", () => {
     assert.ok(list.body.workspaces.some((row) => row.workspace_id === ws));
   });
 
+  it("lists every workspace membership for signal-sim workspace picker", async () => {
+    const email = `wsmulti_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Multi Ws" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const homeWs = me.body.user.workspace_id;
+    const userId = me.body.user.id;
+    const partnerWs = `ws_partner_${crypto.randomBytes(4).toString("hex")}`;
+    await ensureWorkspaceSeeded(partnerWs);
+    await run(
+      "INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, ?, ?)",
+      [partnerWs, userId, "viewer", nowIso()]
+    );
+
+    const list = await agent.get("/api/auth/workspaces").expect(200);
+    const ids = list.body.workspaces.map((row) => row.workspace_id);
+    assert.equal(ids.length, 2);
+    assert.ok(ids.includes(homeWs));
+    assert.ok(ids.includes(partnerWs));
+  });
+
+  it("includes home workspace when only invited workspace has a member row", async () => {
+    const email = `wshome_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Home Ws" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const homeWs = me.body.user.workspace_id;
+    const userId = me.body.user.id;
+    const partnerWs = `ws_invite_${crypto.randomBytes(4).toString("hex")}`;
+    await ensureWorkspaceSeeded(partnerWs);
+    await run("DELETE FROM workspace_members WHERE user_id = ?", [userId]);
+    await run(
+      "INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, ?, ?)",
+      [partnerWs, userId, "viewer", nowIso()]
+    );
+
+    const list = await agent.get("/api/auth/workspaces").expect(200);
+    const ids = list.body.workspaces.map((row) => row.workspace_id);
+    assert.equal(ids.length, 2);
+    assert.ok(ids.includes(homeWs));
+    assert.ok(ids.includes(partnerWs));
+  });
+
   it("viewer role cannot mutate thresholds (RBAC)", async () => {
     const email = `view_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);

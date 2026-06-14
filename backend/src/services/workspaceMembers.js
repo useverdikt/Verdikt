@@ -201,6 +201,12 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
   const user = await queryOne("SELECT * FROM users WHERE id = ?", [userId]);
   if (!user) return { ok: false, statusCode: 404, error: "user_not_found" };
 
+  if (user.workspace_id && user.workspace_id !== invite.workspace_id) {
+    const homeRole =
+      (await getEffectiveRoleForWorkspace(userId, user.workspace_id)) || user.role || "viewer";
+    await ensureMemberRow({ workspaceId: user.workspace_id, userId, role: homeRole });
+  }
+
   await ensureMemberRow({ workspaceId: invite.workspace_id, userId, role: invite.role });
   await run("UPDATE users SET workspace_id = ? WHERE id = ?", [invite.workspace_id, userId]);
   await syncHomeWorkspaceRoleCache(userId, invite.workspace_id, invite.role);
@@ -340,17 +346,15 @@ async function listWorkspacesForUser(userId) {
      ORDER BY wm.created_at ASC`,
     [userId]
   );
-  if (members.length) {
-    return members.map((m) => ({
-      workspace_id: m.workspace_id,
-      role: m.role
-    }));
-  }
   const user = await queryOne("SELECT workspace_id, role FROM users WHERE id = ?", [userId]);
-  if (user?.workspace_id) {
-    return [{ workspace_id: user.workspace_id, role: user.role }];
+  const byId = new Map();
+  for (const m of members) {
+    byId.set(m.workspace_id, { workspace_id: m.workspace_id, role: m.role });
   }
-  return [];
+  if (user?.workspace_id && !byId.has(user.workspace_id)) {
+    byId.set(user.workspace_id, { workspace_id: user.workspace_id, role: user.role });
+  }
+  return Array.from(byId.values());
 }
 
 module.exports = {
