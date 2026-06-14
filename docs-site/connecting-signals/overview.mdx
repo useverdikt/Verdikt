@@ -1,0 +1,14 @@
+---
+title: Signal sources overview
+description: How Verdikt ingests eval and observability data.
+---
+
+Verdikt supports three ways to get signal values into a cert window:
+
+| Method | Best for | Auth |
+| --- | --- | --- |
+| [Integration pull](/connecting-signals/integration-pull) | Braintrust, LangSmith, BrowserStack, Sentry, Datadog | API credentials in Settings → Signal Sources |
+| [API push](/connecting-signals/api-push) | Custom eval pipelines, partner databases | Agent access key (`vdk_live_…`) |
+| [CSV upload](/connecting-signals/csv-upload) | Ad-hoc imports, manual QA spreadsheets | Workspace session or Agent key |
+
+All methods attach to the **open cert window** for a commit SHA. Apply the `verdikt:rc` label (or create a release with that SHA) before posting signals.

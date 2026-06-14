@@ -1,0 +1,26 @@
+---
+title: Introduction
+description: Verdikt certifies AI releases before production merge.
+---
+
+Verdikt gates pull requests on **evidence**, not code diffs. When you label a PR `verdikt:rc`, Verdikt opens a certification window, collects signals from your eval stack, evaluates them against your thresholds, and returns a gate verdict your CI can enforce.
+
+## Quick start
+
+1. Connect a signal source — [integration pull](/connecting-signals/integration-pull), [API push](/connecting-signals/api-push), or [CSV upload](/connecting-signals/csv-upload).
+2. Define signals and thresholds in **Settings → Signals & thresholds**.
+3. Install the GitHub App and add the [gate workflow](/github/gate-workflow).
+4. Label a PR `verdikt:rc` → post signals → poll gate → merge when `action` is `merge`.
+
+## How it works
+
+```
+PR labeled verdikt:rc
+  → Cert window opens (matched by commit SHA)
+  → Signals arrive (pull, push, or CSV)
+  → Verdikt evaluates thresholds
+  → Gate: CERTIFIED / UNCERTIFIED / COLLECTING
+  → Branch protection blocks or allows merge
+```
+
+Questions: [hello@useverdikt.com](mailto:hello@useverdikt.com)
