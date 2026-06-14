@@ -74,9 +74,21 @@ const CSRF_COOKIE_NAME = (process.env.CSRF_COOKIE_NAME || "vdk_csrf").trim() || 
 const COOKIE_MAX_AGE_MS = Math.max(60_000, Number(process.env.AUTH_COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000));
 /** Optional `redis://` URL for distributed rate limits (multi-instance). When unset, in-memory maps are used. */
 const REDIS_URL = (process.env.REDIS_URL || "").trim();
+const INTERNAL_WORKSPACE_VIEWER_EMAILS = String(process.env.INTERNAL_WORKSPACE_VIEWER_EMAILS || "")
+  .split(",")
+  .map((entry) => entry.trim().toLowerCase())
+  .filter(Boolean);
 
 /** Supabase Dashboard → Settings → API → JWT Secret (session exchange + optional future use). */
 const SUPABASE_JWT_SECRET = (process.env.SUPABASE_JWT_SECRET || "").trim();
+
+function isInternalWorkspaceViewerEmail(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return INTERNAL_WORKSPACE_VIEWER_EMAILS.some((entry) =>
+    entry.startsWith("@") ? normalized.endsWith(entry) : normalized === entry
+  );
+}
 
 /** When false, POST /api/auth/register returns 403 (design-partner / invite-only phase). */
 const ALLOW_PUBLIC_REGISTRATION = (() => {
@@ -160,6 +172,8 @@ module.exports = {
   CSRF_COOKIE_NAME,
   COOKIE_MAX_AGE_MS,
   REDIS_URL,
+  INTERNAL_WORKSPACE_VIEWER_EMAILS,
+  isInternalWorkspaceViewerEmail,
   SUPABASE_JWT_SECRET,
   ENCRYPTION_MASTER_KEY: ENCRYPTION_MASTER_KEY_RAW
 };

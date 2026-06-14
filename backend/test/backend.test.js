@@ -15,6 +15,7 @@ process.env.WEBHOOK_SECRET = "test-webhook-secret-24-char-min";
 process.env.GITHUB_WEBHOOK_SECRET = "test-github-webhook-secret-32-min";
 process.env.NODE_ENV = "test";
 process.env.LOG_REQUESTS = "0";
+process.env.INTERNAL_WORKSPACE_VIEWER_EMAILS = "@internal.test";
 /** Enable assistive path for llmAssist tests (mocked fetch — no real API calls). */
 process.env.ENABLE_ASSISTIVE_LLM = "1";
 /** Never hit live Gemini in CI/automated runs — repo secrets may set GEMINI_API_KEY. */
@@ -229,6 +230,39 @@ describe("API integration", () => {
     assert.equal(ids.length, 2);
     assert.ok(ids.includes(homeWs));
     assert.ok(ids.includes(partnerWs));
+  });
+
+  it("lets internal workspace viewers list and inspect all active workspaces", async () => {
+    const email = `ops_${crypto.randomBytes(6).toString("hex")}@internal.test`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Ops" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const homeWs = me.body.user.workspace_id;
+    const partnerWs = `ws_active_${crypto.randomBytes(4).toString("hex")}`;
+    await ensureWorkspaceSeeded(partnerWs);
+    await run(
+      "INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        `rel_${crypto.randomUUID()}`,
+        partnerWs,
+        "v-internal-access",
+        "model_update",
+        "pre-prod",
+        "COLLECTING",
+        nowIso(),
+        nowIso()
+      ]
+    );
+
+    const list = await agent.get("/api/auth/workspaces").expect(200);
+    const ids = list.body.workspaces.map((row) => row.workspace_id);
+    assert.ok(ids.includes(homeWs));
+    assert.ok(ids.includes(partnerWs));
+
+    const releases = await agent.get(`/api/workspaces/${partnerWs}/releases?limit=50`).expect(200);
+    assert.equal(releases.body.workspace_id, partnerWs);
+    assert.equal(releases.body.releases.length, 1);
   });
 
   it("viewer role cannot mutate thresholds (RBAC)", async () => {
