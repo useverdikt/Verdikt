@@ -8,7 +8,7 @@
     "postinstall": "node scripts/sync-shared.cjs",
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test-concurrency=1 --test test/*.test.js",
     "test:local-pg": "bash scripts/test-local-pg.sh",
     "lint": "eslint \"src/**/*.js\"",
     "lint:fix": "eslint \"src/**/*.js\" --fix",
