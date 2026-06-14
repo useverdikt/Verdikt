@@ -179,20 +179,17 @@ async function ensureGlobalCatalogSeeded() {
     }
   }
 
-  const connCount = await queryOne("SELECT COUNT(*) AS c FROM connector_signal_map WHERE source_id != 'custom'");
-  if (Number(connCount?.c || 0) === 0) {
-    const insertConn =
-      "INSERT INTO connector_signal_map (source_id, signal_id, display_name, direction, ingest_mode) VALUES (?, ?, ?, ?, ?) ON CONFLICT (source_id, signal_id) DO NOTHING";
-    for (const row of buildConnectorSeedRows()) {
-      if (row.signal_id === "*") continue;
-      await run(insertConn, [
-        row.source_id,
-        row.signal_id,
-        row.display_name,
-        row.direction,
-        row.ingest_mode
-      ]);
-    }
+  const insertConn =
+    "INSERT INTO connector_signal_map (source_id, signal_id, display_name, direction, ingest_mode) VALUES (?, ?, ?, ?, ?) ON CONFLICT (source_id, signal_id) DO NOTHING";
+  for (const row of buildConnectorSeedRows()) {
+    if (row.signal_id === "*") continue;
+    await run(insertConn, [
+      row.source_id,
+      row.signal_id,
+      row.display_name,
+      row.direction,
+      row.ingest_mode
+    ]);
   }
 
   globalCatalogSeeded.done = true;
