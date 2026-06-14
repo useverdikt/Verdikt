@@ -1,0 +1,25 @@
+---
+title: Integration pull
+description: Connect Braintrust, LangSmith, BrowserStack, Sentry, or Datadog.
+---
+
+Verdikt **pulls** metrics by commit SHA when a cert window opens.
+
+## Setup
+
+1. **Settings → Signal Sources → Available to connect**
+2. Save API credentials for your vendor
+3. Tag eval runs / builds with the **PR head commit SHA**
+4. Label the PR `verdikt:rc` — Verdikt pulls connected sources automatically
+
+## Supported connectors
+
+| Source | Signals (examples) |
+| --- | --- |
+| Braintrust | accuracy, safety, tone, hallucination, relevance |
+| LangSmith | accuracy, safety, tone, hallucination, relevance |
+| BrowserStack | smoke, e2e_regression |
+| Sentry | crashrate, anrrate, errorrate, oomrate |
+| Datadog | startup, p95latency, fps, jserrors, … |
+
+Configure which signals gate certification in **Settings → Signals & thresholds**.

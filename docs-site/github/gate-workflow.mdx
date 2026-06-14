@@ -1,0 +1,26 @@
+---
+title: Gate workflow
+description: Poll Verdikt gate status from GitHub Actions.
+---
+
+After signals are posted, poll the gate by commit SHA:
+
+```bash
+curl -sS "https://api.useverdikt.com/api/workspaces/$VERDIKT_WORKSPACE_ID/gate\
+?commit_sha=$PR_HEAD_SHA\
+&github_owner=$OWNER\
+&github_repo=$REPO\
+&pr_number=$PR_NUMBER" \
+  -H "Authorization: Bearer $VERDIKT_API_KEY"
+```
+
+Exit non-zero when `gate.allowed` is false. Copy-paste workflow: [verdikt-gate-gha.yml](https://github.com/useverdikt/Verdikt/blob/main/docs/examples/verdikt-gate-gha.yml).
+
+## Gate actions
+
+| `action` | Meaning |
+| --- | --- |
+| `merge` | Certified — safe to merge |
+| `collecting` | Waiting for required signals |
+| `self_heal` | Threshold failure — fix and re-run |
+| `escalate` | Needs human override |

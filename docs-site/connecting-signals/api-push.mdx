@@ -1,0 +1,234 @@
+---
+title: API push
+description: Post signal values from your eval pipeline after each run.
+---
+
+## What you're doing
+
+After your eval runs, send the results to Verdikt with one or two API calls. Verdikt matches them to the open cert window for that commit and updates the verdict.
+
+This is the recommended path for custom eval stacks and push integrations (e.g. ZizkaDB, in-house metrics).
+
+---
+
+## Prerequisites
+
+- A Verdikt workspace with an **Agent access** key (`vdk_live_…`) — **Settings → Agent access**
+- Your release has a cert window open (`verdikt:rc` label on the PR)
+- Your eval run is tagged with the **PR head commit SHA**
+
+---
+
+## The API call
+
+Verdikt matches signals to a release by `release_id`. Resolve it from the commit SHA via the gate endpoint, then post signals.
+
+### 1. Resolve the cert window
+
+```bash
+curl -sS "https://api.useverdikt.com/api/workspaces/YOUR_WORKSPACE_ID/gate\
+?commit_sha=abc123\
+&github_owner=your-org\
+&github_repo=your-repo\
+&pr_number=42" \
+  -H "Authorization: Bearer vdk_live_xxxx"
+```
+
+The response includes `release_id`. If you get `404`, apply `verdikt:rc` on the PR first.
+
+### 2. Post signals
+
+```bash
+curl -X POST "https://api.useverdikt.com/api/releases/RELEASE_ID/signals" \
+  -H "Authorization: Bearer vdk_live_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "zizkadb",
+    "signals": {
+      "behavioural_drift": 0.12,
+      "session_anomaly_rate": 0.03
+    }
+  }'
+```
+
+Replace:
+
+- `YOUR_WORKSPACE_ID` — **Settings → General**
+- `vdk_live_xxxx` — your Agent access key
+- `RELEASE_ID` — from step 1
+- `source` — your signal source id (e.g. `zizkadb`, `custom`)
+- `signals` — keys must match signal definitions in **Settings → Signals & thresholds**
+
+<Note>
+  Signal names must be defined in your workspace before ingest. Add custom signals in Settings or via `POST /api/workspaces/:id/signal-definitions`.
+</Note>
+
+---
+
+## GitHub Actions — wire it into CI
+
+```yaml
+# .github/workflows/eval.yml
+name: Eval + Verdikt push
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  eval:
+    if: contains(github.event.label.name, 'verdikt:rc')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run your eval
+        id: eval
+        run: |
+          # Replace with your actual eval command
+          DRIFT=$(python run_eval.py --sha ${{ github.event.pull_request.head.sha }})
+          echo "drift=$DRIFT" >> $GITHUB_OUTPUT
+
+      - name: Resolve Verdikt cert window
+        id: gate
+        env:
+          VERDIKT_API: https://api.useverdikt.com
+        run: |
+          RESP=$(curl -sfS \
+            "${VERDIKT_API}/api/workspaces/${{ secrets.VERDIKT_WORKSPACE_ID }}/gate\
+?commit_sha=${{ github.event.pull_request.head.sha }}\
+&github_owner=${{ github.repository_owner }}\
+&github_repo=${{ github.event.repository.name }}\
+&pr_number=${{ github.event.pull_request.number }}" \
+            -H "Authorization: Bearer ${{ secrets.VERDIKT_API_KEY }}")
+          echo "release_id=$(echo "$RESP" | jq -r .release_id)" >> $GITHUB_OUTPUT
+
+      - name: Push signals to Verdikt
+        env:
+          VERDIKT_API: https://api.useverdikt.com
+        run: |
+          curl -sfS -X POST "${VERDIKT_API}/api/releases/${{ steps.gate.outputs.release_id }}/signals" \
+            -H "Authorization: Bearer ${{ secrets.VERDIKT_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"source\": \"zizkadb\",
+              \"signals\": {
+                \"behavioural_drift\": ${{ steps.eval.outputs.drift }},
+                \"session_anomaly_rate\": 0.03
+              }
+            }"
+```
+
+Add to GitHub secrets:
+
+- `VERDIKT_WORKSPACE_ID`
+- `VERDIKT_API_KEY`
+
+Then add the [gate polling workflow](/github/gate-workflow) so merge is blocked until Verdikt certifies.
+
+---
+
+## Python example
+
+```python
+import httpx
+import os
+
+API = "https://api.useverdikt.com"
+WS = os.environ["VERDIKT_WORKSPACE_ID"]
+KEY = os.environ["VERDIKT_API_KEY"]
+HEADERS = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
+
+
+async def resolve_release_id(commit_sha: str, *, owner: str, repo: str, pr_number: int) -> str:
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{API}/api/workspaces/{WS}/gate",
+            headers=HEADERS,
+            params={
+                "commit_sha": commit_sha,
+                "github_owner": owner,
+                "github_repo": repo,
+                "pr_number": pr_number,
+            },
+        )
+        r.raise_for_status()
+        return r.json()["release_id"]
+
+
+async def push_signals(release_id: str, source: str, signals: dict):
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{API}/api/releases/{release_id}/signals",
+            headers=HEADERS,
+            json={"source": source, "signals": signals},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+# After your eval runs
+release_id = await resolve_release_id(
+    "abc123", owner="your-org", repo="your-repo", pr_number=42
+)
+await push_signals(
+    release_id,
+    source="zizkadb",
+    signals={"behavioural_drift": 0.12, "session_anomaly_rate": 0.03},
+)
+```
+
+---
+
+## What happens next
+
+```
+Your eval finishes
+  → Resolve release_id from commit SHA (gate)
+  → POST signal values to /api/releases/{release_id}/signals
+  → Verdikt evaluates against your thresholds
+  → Verdict updates (CERTIFIED / UNCERTIFIED / COLLECTING)
+  → GHA gate reflects result
+  → Merge allowed or blocked
+```
+
+---
+
+## Thresholds
+
+Define signals and thresholds in **Settings → Signals & thresholds**. Mark signals **Required** if the gate should wait for them.
+
+If a required signal is not posted, the cert window stays `COLLECTING` and the gate blocks until it arrives or the window times out.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Gate returns `404` | No cert window for this SHA | Apply `verdikt:rc` on the PR |
+| Gate stuck on `collecting` | Signal not posted or wrong commit SHA | SHA must match PR **head** commit exactly |
+| Signal posted but verdict unchanged | Signal not marked required, or threshold not met | Check **Required** toggle and threshold direction |
+| `401` on signals POST | Wrong or missing API key | **Settings → Agent access** — regenerate key |
+| Signal name not recognised | Custom signal not defined | Add definition in **Settings → Signals** first |
+| `409` on ingest | Release already certified | Cert window is closed; open a new one |
+
+---
+
+## Advanced: single POST by commit SHA (signed CI webhook)
+
+If you prefer one unsigned-body HMAC call instead of Agent access keys, use the signed CI webhook:
+
+`POST /api/workspaces/:workspaceId/integrations/ci`
+
+Requires `x-verdikt-signature: sha256=…` (per-workspace inbound secret). See the [optional CI webhook notes](https://github.com/useverdikt/Verdikt/blob/main/docs/examples/verdikt-ci-webhook.optional.md) in the repo.
+
+For most partners, **Agent access + `/api/releases/{release_id}/signals`** is simpler.
+
+---
+
+## That's it
+
+Two calls after your eval (resolve release, post signals). Everything else is automatic.
+
+Questions: [hello@useverdikt.com](mailto:hello@useverdikt.com)

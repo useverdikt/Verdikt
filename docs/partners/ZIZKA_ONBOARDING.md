@@ -76,8 +76,18 @@ curl -sS -X POST "$BASE/api/workspaces/$WS/thresholds" \
 
 ## Post signals after eval (ZizkaDB → Verdikt)
 
+Public setup guide: **[docs.useverdikt.com — API push](https://docs.useverdikt.com/connecting-signals/api-push)** (or `docs-site/connecting-signals/api-push.mdx` before DNS is live).
+
+Quick reference:
+
 ```bash
-curl -sS -X POST "$BASE/api/releases/rel_…/signals" \
+# 1. Resolve release_id from commit SHA
+GATE=$(curl -sS "$BASE/api/workspaces/$WS/gate?commit_sha=$SHA&github_owner=$OWNER&github_repo=$REPO&pr_number=$PR" \
+  -H "Authorization: Bearer $TOKEN")
+REL=$(echo "$GATE" | jq -r .release_id)
+
+# 2. Post signals
+curl -sS -X POST "$BASE/api/releases/$REL/signals" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

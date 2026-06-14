@@ -1,0 +1,41 @@
+---
+title: Wiring ZizkaDB
+description: Push behavioural drift and session anomalies after each eval run.
+---
+
+[ZizkaDB](https://db.zizka.ai/) pushes behavioural observability signals into Verdikt after each eval run. Verdikt certifies against **your** thresholds — you define what "good" means.
+
+## 1. Define signals
+
+In **Settings → Signals & thresholds**, add:
+
+| Signal | Direction | Example threshold | Required |
+| --- | --- | --- | --- |
+| `behavioural_drift` | max | 0.15 | ✓ |
+| `session_anomaly_rate` | max | 0.05 | ✓ |
+
+Set `source_id` to `zizkadb` when creating custom signals.
+
+Un-require default AI signals you won't post in v1 (accuracy, safety, etc.).
+
+## 2. Push after eval
+
+Follow the [API push guide](/connecting-signals/api-push). Example payload:
+
+```json
+{
+  "source": "zizkadb",
+  "signals": {
+    "behavioural_drift": 0.12,
+    "session_anomaly_rate": 0.03
+  }
+}
+```
+
+## 3. Gate on merge
+
+Install the [GitHub gate workflow](/github/gate-workflow). Label PRs `verdikt:rc` to open the cert window before your eval job pushes signals.
+
+## One-liner
+
+> Connect your data source, define the signals you care about, set thresholds. Verdikt gates on whatever matters to you — we certify evidence, not code diffs.
