@@ -1,8 +1,16 @@
--- Supabase Auth: create public.users row + default workspace seed when auth.users is inserted.
--- password_hash is unused for Supabase Auth accounts (kept for legacy / Express migration).
+-- Backfill home workspace membership for Supabase-auth users and ensure new signups get a member row.
 
-ALTER TABLE public.users
-  ALTER COLUMN password_hash DROP NOT NULL;
+INSERT INTO public.workspace_members (workspace_id, user_id, role, created_at)
+SELECT u.workspace_id, u.id, u.role, u.created_at
+FROM public.users u
+WHERE u.workspace_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.workspace_members wm
+    WHERE wm.workspace_id = u.workspace_id
+      AND wm.user_id = u.id
+  )
+ON CONFLICT (workspace_id, user_id) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.verdikt_handle_new_user ()
   RETURNS trigger
@@ -76,12 +84,3 @@ BEGIN
   RETURN new;
 END;
 $$;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION public.verdikt_handle_new_user ();
-
-COMMENT ON FUNCTION public.verdikt_handle_new_user () IS 'Syncs auth.users → public.users and seeds workspace defaults (matches Express ensureWorkspaceSeeded).';
