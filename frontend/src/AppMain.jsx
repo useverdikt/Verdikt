@@ -263,7 +263,6 @@ export default function App() {
           onNavigate={(id) => {
             if (id === "settings") navigate("/settings");
             else if (id === "intelligence") navigate("/intelligence");
-            else if (id === "signal-sim") navigate("/signal-sim");
             else navigate(NAV_TO_PATH[id] || "/releases");
           }}
           roles={ROLES}

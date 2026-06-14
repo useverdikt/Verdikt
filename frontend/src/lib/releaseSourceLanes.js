@@ -68,7 +68,7 @@ export function buildReleaseSourceLanes({
       configured,
       ingestPath: configured
         ? "API pull / webhook (Settings → Signal sources)"
-        : "Not configured — connect in Settings or ingest via API / Signal Simulator"
+        : "Not configured — connect in Settings or ingest via API"
     };
   }).filter((src) => isCollecting || src.configured || src.status === "arrived");
 }

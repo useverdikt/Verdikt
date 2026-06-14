@@ -113,9 +113,9 @@ export default function CollectingView({ release, onSimulate, onRunVerdict, sign
         <div style={{ padding: "14px 18px", display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
           {hasBackend() && (
             <span style={{ fontSize: 11, color: C.muted, flex: 1 }}>
-              Production ingest: label trigger auto-pull, Settings integrations,{" "}
-              <Link to={backendReleaseId ? `/signal-sim?release=${encodeURIComponent(backendReleaseId)}` : "/signal-sim"} style={{ color: C.green }}>
-                Signal Simulator
+              Production ingest: label trigger auto-pull,{" "}
+              <Link to="/settings?section=api" style={{ color: C.green }}>
+                Settings → Signal sources
               </Link>
               , or POST /signals.
             </span>
