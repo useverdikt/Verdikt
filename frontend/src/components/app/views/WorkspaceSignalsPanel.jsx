@@ -164,6 +164,8 @@ export default function WorkspaceSignalsPanel({
   library = [],
   connectors = [],
   loading = false,
+  catalogError = null,
+  onReloadCatalog,
   local,
   setLocal,
   localRequired,
@@ -206,6 +208,15 @@ export default function WorkspaceSignalsPanel({
           </div>
           {loading ? (
             <div style={{ padding: 18, color: C.muted, fontSize: 12 }}>Loading signal catalog…</div>
+          ) : catalogError ? (
+            <div style={{ padding: 18, fontSize: 12 }}>
+              <div style={{ color: C.red, marginBottom: 8 }}>{catalogError}</div>
+              {onReloadCatalog ? (
+                <Btn variant="ghost" onClick={() => void onReloadCatalog()} style={{ fontSize: 11, padding: "4px 10px" }}>
+                  Retry
+                </Btn>
+              ) : null}
+            </div>
           ) : definitions.length === 0 ? (
             <div style={{ padding: 18, color: C.muted, fontSize: 12 }}>No workspace signals yet. Adopt from the library or add a custom signal.</div>
           ) : (
@@ -266,7 +277,9 @@ export default function WorkspaceSignalsPanel({
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Signal library</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Verdikt suggestions — adopt what fits your stack.</div>
           </div>
-          {library.length === 0 ? (
+          {loading ? (
+            <div style={{ padding: 14, fontSize: 11, color: C.muted }}>Loading library…</div>
+          ) : library.length === 0 ? (
             <div style={{ padding: 14, fontSize: 11, color: C.muted }}>All library signals adopted.</div>
           ) : (
             [...libraryGroups.entries()].map(([cat, entries]) => (

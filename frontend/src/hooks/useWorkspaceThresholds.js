@@ -19,6 +19,7 @@ export function useWorkspaceThresholds(navigate, nav) {
   const [signalLibrary, setSignalLibrary] = useState([]);
   const [signalConnectors, setSignalConnectors] = useState([]);
   const [signalsCatalogLoading, setSignalsCatalogLoading] = useState(false);
+  const [signalsCatalogError, setSignalsCatalogError] = useState(null);
 
   const applyThresholdsFromApi = useCallback((thData) => {
     const map = thData?.thresholds || {};
@@ -32,15 +33,19 @@ export function useWorkspaceThresholds(navigate, nav) {
     setSignalDefinitions(Array.isArray(data.definitions) ? data.definitions : []);
     setSignalLibrary(Array.isArray(data.library) ? data.library : []);
     setSignalConnectors(Array.isArray(data.connectors) ? data.connectors : []);
+    setSignalsCatalogError(null);
     if (data.thresholds) applyThresholdsFromApi({ thresholds: data.thresholds });
   }, [applyThresholdsFromApi]);
 
   const loadSignalCatalog = useCallback(async () => {
     if (!hasBackend()) return;
     setSignalsCatalogLoading(true);
+    setSignalsCatalogError(null);
     try {
       const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/signal-definitions`, { navigate });
       applySignalCatalogFromApi(data);
+    } catch (e) {
+      setSignalsCatalogError(e?.message || "Failed to load signal catalog");
     } finally {
       setSignalsCatalogLoading(false);
     }
@@ -109,10 +114,9 @@ export function useWorkspaceThresholds(navigate, nav) {
 
   useEffect(() => {
     if (nav === "thresholds") {
-      void loadSignalCatalog();
       void loadThresholdSuggestions();
     }
-  }, [nav, loadSignalCatalog, loadThresholdSuggestions]);
+  }, [nav, loadThresholdSuggestions]);
 
   return {
     thresholds,
@@ -128,6 +132,7 @@ export function useWorkspaceThresholds(navigate, nav) {
     signalLibrary,
     signalConnectors,
     signalsCatalogLoading,
+    signalsCatalogError,
     loadSignalCatalog,
     adoptLibrarySignal,
     createCustomSignal,

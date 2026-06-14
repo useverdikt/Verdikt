@@ -32,7 +32,10 @@ export default function ThresholdsView({
   signalDefinitions = [],
   signalLibrary = [],
   signalConnectors = [],
+  wsReady = true,
   signalsCatalogLoading = false,
+  signalsCatalogError = null,
+  onReloadSignalCatalog,
   isMobile,
   currentUser,
   canAct,
@@ -84,6 +87,10 @@ export default function ThresholdsView({
     (suggestions.length
       ? `${suggestions.length} suggestion${suggestions.length > 1 ? "s" : ""} available`
       : "No active suggestions in the current analysis window.");
+
+  const catalogPending = !wsReady || signalsCatalogLoading;
+  const showLegacyCategories = !catalogPending && signalDefinitions.length === 0;
+  const panelLoading = catalogPending && signalDefinitions.length === 0;
 
   const val = (sigOrId) => {
     const id = typeof sigOrId === "string" ? sigOrId : sigOrId.id;
@@ -214,7 +221,9 @@ export default function ThresholdsView({
         definitions={signalDefinitions}
         library={signalLibrary}
         connectors={signalConnectors}
-        loading={signalsCatalogLoading}
+        loading={panelLoading}
+        catalogError={signalsCatalogError}
+        onReloadCatalog={onReloadSignalCatalog}
         local={local}
         setLocal={setLocal}
         localRequired={localRequired}
@@ -228,7 +237,7 @@ export default function ThresholdsView({
         renderValueControl={renderValueControl}
       />
 
-      {signalDefinitions.length === 0
+      {showLegacyCategories
         ? signalCategories.map((cat) => (
         <div key={cat.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
           <button
