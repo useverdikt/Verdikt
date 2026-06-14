@@ -1,4 +1,4 @@
-/** Display metadata for pull connectors and push partners (Signal Sources UI). */
+/** Display metadata for pull connectors and push sources (Signal Sources UI). */
 
 export function humanizeSourceId(id) {
   return String(id || "")
@@ -38,7 +38,7 @@ export const PUSH_SOURCE_META = {
   zizkadb: {
     icon: "◇",
     name: "ZizkaDB",
-    detail: "Partner push — behavioural drift & session anomalies"
+    detail: "Behavioural drift and session anomalies pushed after each eval run"
   },
   custom: {
     icon: "↗",
@@ -48,7 +48,7 @@ export const PUSH_SOURCE_META = {
   manual_qa: {
     icon: "✓",
     name: "Manual QA",
-    detail: "QA scores pushed via API or signal-sim"
+    detail: "QA scores pushed via API or CSV upload"
   }
 };
 
