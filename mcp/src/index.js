@@ -13,7 +13,7 @@ const server = new McpServer(
   },
   {
     instructions:
-      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | self_heal | escalate. Escalate when blocked and self-heal is not possible."
+      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | escalate. Poll while collecting; escalate when blocked and self-heal is not possible."
   }
 );
 
@@ -98,7 +98,7 @@ server.registerTool(
   "check_gate",
   {
     description:
-      "CI gate decision. IMPORTANT: read top-level action (merge | self_heal | escalate), not gate.exit_code alone.",
+      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | escalate). Poll on collecting/self_heal; do not fail on the first check while signals are in flight.",
     inputSchema: {
       release_id: z.string(),
       mode: z.enum(["default", "strict"]).optional().describe("strict requires CERTIFIED without override")

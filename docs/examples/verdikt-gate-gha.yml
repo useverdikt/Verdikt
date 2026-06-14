@@ -7,9 +7,11 @@
 #
 # Prerequisites:
 #   1. GitHub label trigger configured in Verdikt (verdikt:rc on PR)
-#   2. Branch protection requires this check to pass before merge
+#   2. Signal integrations connected with PR head SHA tagging
+#   3. Branch protection requires this check to pass before merge
 #
-# Flow: label opens cert window → signals collect → this job asks gate by commit SHA.
+# Flow: label opens cert window → integrations auto-pull → this job polls gate by commit SHA.
+# Polls up to 12 × 10s (2 min) so signals can land before failing the check.
 # Agent push alternative: callback_url on create_release → docs/examples/verdikt-verdict-callback.md
 
 name: Verdikt gate
@@ -26,7 +28,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - name: Check Verdikt gate
+      - name: Wait for Verdikt gate
         env:
           VERDIKT_API_URL: ${{ secrets.VERDIKT_API_URL }}
           VERDIKT_API_KEY: ${{ secrets.VERDIKT_API_KEY }}
@@ -35,14 +37,51 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
+          POLL_ATTEMPTS: "12"
+          POLL_INTERVAL_SEC: "10"
         run: |
           set -euo pipefail
           URL="${VERDIKT_API_URL%/}/api/workspaces/${VERDIKT_WORKSPACE_ID}/gate"
           QUERY="commit_sha=${COMMIT_SHA}&pr_number=${PR_NUMBER}&github_owner=${REPO_OWNER}&github_repo=${REPO_NAME}&mode=default"
-          RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
-          echo "$RESP" | jq .
-          EXIT=$(echo "$RESP" | jq -r '.gate.exit_code // 1')
-          REASON=$(echo "$RESP" | jq -r '.gate.reason // "gate failed"')
-          ACTION=$(echo "$RESP" | jq -r '.action // "unknown"')
-          echo "Verdikt: action=${ACTION} — ${REASON}"
-          exit "$EXIT"
+          echo "Polling ${URL}?${QUERY}"
+
+          LAST_RESP=""
+          for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
+            echo "--- Gate poll ${attempt}/${POLL_ATTEMPTS} ---"
+            LAST_RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
+            ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
+            STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
+            REASON=$(echo "$LAST_RESP" | jq -r '.gate.reason // ""')
+            echo "Verdikt: action=${ACTION} status=${STATUS} — ${REASON}"
+
+            if [ "$ACTION" = "merge" ]; then
+              echo "$LAST_RESP" | jq .
+              echo "Verdikt gate passed."
+              exit 0
+            fi
+
+            if [ "$ACTION" = "escalate" ]; then
+              echo "$LAST_RESP" | jq .
+              echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
+              NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
+              [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+              echo "::error::Verdikt gate escalated — human override required."
+              exit 1
+            fi
+
+            if [ "$attempt" -lt "${POLL_ATTEMPTS}" ] && { [ "$ACTION" = "collecting" ] || [ "$ACTION" = "self_heal" ]; }; then
+              echo "Waiting for signals (action=${ACTION}) — sleeping ${POLL_INTERVAL_SEC}s..."
+              sleep "${POLL_INTERVAL_SEC}"
+              continue
+            fi
+
+            break
+          done
+
+          echo "$LAST_RESP" | jq .
+          echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
+          NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
+          [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+          ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
+          echo "::error::Verdikt gate did not pass within timeout (last action=${ACTION})."
+          exit 1

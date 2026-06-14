@@ -39,6 +39,14 @@ Settings → Branches → rule for `main`:
 
 Workflow file: `.github/workflows/verdikt-gate.yml` (runs only when PR has label `verdikt:rc`).
 
+The gate job **polls** the API (12 × 10s) — it does not fail on the first check while signals are still arriving. Expect **30–60 seconds** after labeling for integration auto-pull to populate the cert window.
+
+**Before enabling branch protection (partners too):**
+
+1. Confirm SHA tagging on at least one signal integration (Settings → Signal sources → Probe SHA match).
+2. Use the polling workflow from `docs/examples/verdikt-gate-gha.yml` — not a single-check curl.
+3. Set expectation: first `verdikt:rc` on a PR opens COLLECTING; gate returns `action: collecting` for ~60s, then `self_heal` if evidence never lands.
+
 ---
 
 ## Smoke PR (~20 mins)
@@ -145,6 +153,7 @@ Treat Verdikt-on-Verdikt as **always on**, not a one-off demo:
 | Every merge-bound PR gets **`verdikt:rc`** before review | Opens the cert window for the PR head SHA |
 | **Branch protection** requires `Verdikt gate / verdikt-gate` | Merge blocked until evidence passes |
 | Gate failure → read **`blockers`** + **`next_step`** in GHA logs | Structured reason instead of guessing why COLLECTING |
+| Gate job **polls** (12 × 10s) — waits on `action: collecting` | Avoids racing integration auto-pull on label |
 | Keep repo secrets current (`VERDIKT_API_KEY`, `VERDIKT_WORKSPACE_ID`) | Gate job must resolve the same workspace as the app |
 | Screenshot audit trail + cert record after each dogfood PR | Sales/demo proof that we eat our own cooking |
 

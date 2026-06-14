@@ -1522,8 +1522,8 @@ describe("Release identity + SHA correlation", () => {
       .expect(201);
 
     const gate = await human.get(`/api/releases/${created.body.id}/gate`).expect(200);
-    assert.ok(["merge", "self_heal", "escalate"].includes(gate.body.action));
-    assert.equal(gate.body.action, "self_heal");
+    assert.ok(["merge", "collecting", "self_heal", "escalate"].includes(gate.body.action));
+    assert.equal(gate.body.action, "collecting");
     assert.ok(Array.isArray(gate.body.blockers));
     assert.ok(gate.body.blockers.length >= 1);
     assert.equal(typeof gate.body.next_step, "string");
@@ -1563,7 +1563,7 @@ describe("Release identity + SHA correlation", () => {
 
     assert.equal(gate.body.release_id, created.body.id);
     assert.equal(gate.body.commit_sha, sha);
-    assert.equal(gate.body.action, "self_heal");
+    assert.equal(gate.body.action, "collecting");
     assert.equal(gate.body.gate.exit_code, 1);
 
     await agent
@@ -1921,7 +1921,7 @@ describe("Agentic layer", () => {
     assert.ok(gate.body.gate);
     assert.ok(["IMPROVING", "STABLE", "DEGRADING", "UNKNOWN"].includes(gate.body.gate.trajectory));
     assert.equal(typeof gate.body.gate.exit_code, "number");
-    assert.ok(["merge", "self_heal", "escalate"].includes(gate.body.action));
+    assert.ok(["merge", "collecting", "self_heal", "escalate"].includes(gate.body.action));
 
     const esc =
       ingest.body.status === "CERTIFIED" || ingest.body.status === "CERTIFIED_WITH_OVERRIDE"

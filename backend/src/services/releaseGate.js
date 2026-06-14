@@ -3,7 +3,7 @@
 const { writeAudit } = require("./audit");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { getMissingRequiredSignals, getLatestSignalMap } = require("./verdictEngine");
-const { computeGateAction } = require("./releaseIdentity");
+const { computeGateAction, computeCollectionAgeMs } = require("./releaseIdentity");
 const { getWorkspacePolicy, getThresholdMap } = require("./workspaceConfig");
 const { getReleaseIntelligence } = require("./domain");
 const { buildGateBlockers } = require("./gateBlockers");
@@ -59,11 +59,13 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     release,
     thresholdMap
   );
+  const collectionAgeMs = computeCollectionAgeMs(release);
   const action = computeGateAction({
     status: release.status,
     gateAllowed,
     blockingSignals,
-    missingRequiredSignals
+    missingRequiredSignals,
+    collectionAgeMs
   });
 
   const { blockers, next_step: nextStep } = buildGateBlockers({
