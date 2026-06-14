@@ -13,7 +13,6 @@ export default function IntegrationPullBanner({ integrationPull, releaseId, comp
   if (!messages.length) return null;
 
   const tone = messages.some((m) => /rejected|missing|invalid/i.test(m)) ? TONE.red : TONE.amber;
-  const simHref = releaseId ? `/signal-sim?release=${encodeURIComponent(releaseId)}` : "/signal-sim";
 
   return (
     <div
@@ -35,10 +34,7 @@ export default function IntegrationPullBanner({ integrationPull, releaseId, comp
       ))}
       {!compact && (
         <div style={{ marginTop: 10, fontSize: 12 }}>
-          <Link to={simHref} style={{ color: C.green, marginRight: 12 }}>
-            Open Signal Simulator →
-          </Link>
-          <Link to="/settings?section=api" style={{ color: C.muted }}>
+          <Link to="/settings?section=api" style={{ color: C.green }}>
             Settings → Signal sources
           </Link>
         </div>

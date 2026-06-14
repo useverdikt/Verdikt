@@ -33,10 +33,9 @@ export default function ReleaseDetail({
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
   const isCollecting = normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
-  const simReleaseId =
+  const releaseId =
     release.backendReleaseId ||
     (typeof release.id === "string" && release.id.startsWith("rel_") ? release.id : null);
-  const simHref = simReleaseId ? `/signal-sim?release=${encodeURIComponent(simReleaseId)}` : "/signal-sim";
   const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
   const detailPending = isReleaseDetailPending(release);
 
@@ -60,7 +59,7 @@ export default function ReleaseDetail({
     ordered.some(({ sig }) => signals[sig.id] == null)
   ) {
     reasoningPoints = [
-      "No signal values were recorded for this release. Ingest required signals via Signal Simulator or connected sources, then re-evaluate."
+      "No signal values were recorded for this release. Connect signal sources in Settings or ingest via API, then re-evaluate."
     ];
   }
 
@@ -214,7 +213,7 @@ export default function ReleaseDetail({
               {release.integration_pull && (
                 <IntegrationPullBanner
                   integrationPull={release.integration_pull}
-                  releaseId={simReleaseId}
+                  releaseId={releaseId}
                   compact
                 />
               )}
@@ -254,12 +253,12 @@ export default function ReleaseDetail({
                   Pull from connected sources
                 </button>
                 <Link
-                  to={simHref}
+                  to="/settings?section=api"
                   className="dab"
                   style={{ textAlign: "center", textDecoration: "none" }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Open Signal Simulator
+                  Settings → Signal sources
                 </Link>
               </div>
             </>
