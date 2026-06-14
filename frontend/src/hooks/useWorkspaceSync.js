@@ -28,13 +28,17 @@ export function useWorkspaceSync(navigate, nav) {
       if (manual) setWorkspaceSyncing(true);
       try {
         if (!isCancelled()) setApiBanner(null);
-        const [thData, relData, auditData] = await Promise.all([
+        const [thData, relData, auditData, sigCatalog] = await Promise.all([
           apiGet(`/api/workspaces/${getWorkspaceId()}/thresholds`, { navigate }),
           apiGet(`/api/workspaces/${getWorkspaceId()}/releases?limit=50`, { navigate }),
-          apiGet(`/api/workspaces/${getWorkspaceId()}/audit?limit=50`, { navigate }).catch((e) => ({ _error: e }))
+          apiGet(`/api/workspaces/${getWorkspaceId()}/audit?limit=50`, { navigate }).catch((e) => ({ _error: e })),
+          apiGet(`/api/workspaces/${getWorkspaceId()}/signal-definitions`, { navigate }).catch(() => null)
         ]);
         if (isCancelled()) return;
         applyThresholdsFromApi(thData);
+        if (sigCatalog && !sigCatalog._error) {
+          thresholdsApi.applySignalCatalogFromApi(sigCatalog);
+        }
         applyReleaseListFromServer(relData, {
           priorityChartWindow: releasesNavRef.current === "trend"
         });
@@ -46,7 +50,7 @@ export function useWorkspaceSync(navigate, nav) {
         if (!isCancelled()) setWsReady(true);
       }
     },
-    [navigate, applyReleaseListFromServer, applyThresholdsFromApi, applyAuditFromApi, releasesNavRef]
+    [navigate, applyReleaseListFromServer, applyThresholdsFromApi, applyAuditFromApi, releasesNavRef, thresholdsApi.applySignalCatalogFromApi]
   );
 
   useEffect(() => {
@@ -80,6 +84,14 @@ export function useWorkspaceSync(navigate, nav) {
     refreshWorkspaceFromServer,
     refreshAuditFromServer: auditApi.refreshAuditFromServer,
     loadThresholdSuggestions: thresholdsApi.loadThresholdSuggestions,
+    signalDefinitions: thresholdsApi.signalDefinitions,
+    signalLibrary: thresholdsApi.signalLibrary,
+    signalConnectors: thresholdsApi.signalConnectors,
+    signalsCatalogLoading: thresholdsApi.signalsCatalogLoading,
+    loadSignalCatalog: thresholdsApi.loadSignalCatalog,
+    adoptLibrarySignal: thresholdsApi.adoptLibrarySignal,
+    createCustomSignal: thresholdsApi.createCustomSignal,
+    deleteSignalDefinition: thresholdsApi.deleteSignalDefinition,
     ensureReleaseDetail: releasesApi.ensureReleaseDetail,
     hydrateVisibleSummaries: releasesApi.hydrateVisibleSummaries,
     refreshReleaseFromBackend: releasesApi.refreshReleaseFromBackend,

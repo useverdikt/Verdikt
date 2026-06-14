@@ -13,12 +13,14 @@ import {
   getOrderedDetailSignals,
   regressionRequiredLocal
 } from "./releaseDashboardUtils.js";
+import { buildDetailSignalRows } from "../../../lib/workspaceSignalUi.js";
 import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import ReleaseDetailLoadingSkeleton from "./ReleaseDetailLoadingSkeleton.jsx";
 
 export default function ReleaseDetail({
   release,
   signalCategories,
+  signalDefinitions = [],
   catStatuses,
   thresholds,
   releaseTypes,
@@ -39,7 +41,11 @@ export default function ReleaseDetail({
   const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
   const detailPending = isReleaseDetailPending(release);
 
-  const ordered = getOrderedDetailSignals(signalCategories);
+  const legacyOrdered = getOrderedDetailSignals(signalCategories);
+  const ordered =
+    signalDefinitions.length > 0
+      ? buildDetailSignalRows(signalDefinitions, legacyOrdered, signals)
+      : legacyOrdered;
 
   let reasoningPoints =
     Array.isArray(recommendationIntel.reasoning) && recommendationIntel.reasoning.length

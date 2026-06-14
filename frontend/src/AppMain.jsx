@@ -44,6 +44,7 @@ import {
   sidebarStatusLabel,
   formatSidebarReleaseAge
 } from "./app/main/appMainLogic.js";
+import { resolveSignalMeta } from "./lib/workspaceSignalUi.js";
 import { SignalDetailPanel } from "./components/app/main/AppMainPanels.jsx";
 import { hasBackend } from "./lib/hasBackend.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "./lib/releaseStatus.js";
@@ -82,6 +83,13 @@ export default function App() {
     thresholdSuggestNote,
     refreshWorkspaceFromServer,
     loadThresholdSuggestions,
+    signalDefinitions,
+    signalLibrary,
+    signalConnectors,
+    signalsCatalogLoading,
+    adoptLibrarySignal,
+    createCustomSignal,
+    deleteSignalDefinition,
     addAudit,
     refreshReleaseFromBackend,
     ensureReleaseDetail,
@@ -119,6 +127,8 @@ export default function App() {
   const headerActionsRef = useRef(null);
 
   const current = releases.find((r) => r.id === selectedId) || releases[0];
+  const resolveSignalMetaForWorkspace = (signalId) =>
+    resolveSignalMeta(signalId, signalDefinitions, findSignalMetaById);
 
   const actions = useReleaseActions({
     navigate,
@@ -289,6 +299,7 @@ export default function App() {
               thresholds={thresholds}
               releaseTypes={RELEASE_TYPES}
               signalCategories={SIGNAL_CATEGORIES}
+              signalDefinitions={signalDefinitions}
               calcCategoryStatus={calcCategoryStatus}
               setDetailCat={setDetailCat}
               setShowStartCert={setShowStartCert}
@@ -331,6 +342,10 @@ export default function App() {
               thresholdRequired={thresholdRequired}
               defaultThresholds={DEFAULT_THRESHOLDS}
               signalCategories={SIGNAL_CATEGORIES}
+              signalDefinitions={signalDefinitions}
+              signalLibrary={signalLibrary}
+              signalConnectors={signalConnectors}
+              signalsCatalogLoading={signalsCatalogLoading}
               isMobile={isMobile}
               currentUser={currentUser}
               canAct={canAct}
@@ -339,6 +354,9 @@ export default function App() {
               onApplySuggestion={actions.handleApplySuggestion}
               onDismissSuggestion={actions.handleDismissSuggestion}
               onSave={actions.handleThresholdSave}
+              onAdoptLibrarySignal={adoptLibrarySignal}
+              onCreateCustomSignal={createCustomSignal}
+              onDeleteSignalDefinition={deleteSignalDefinition}
             />
           }
           auditContent={
@@ -405,7 +423,7 @@ export default function App() {
             calcVerdict={calcVerdict}
             fmtVal={fmtVal}
             buildRegressionOverrideContext={buildRegressionOverrideContext}
-            findSignalMetaById={findSignalMetaById}
+            findSignalMetaById={resolveSignalMetaForWorkspace}
             formatAiPct={formatAiPct}
             scoreJustification={scoreJustification}
           />
