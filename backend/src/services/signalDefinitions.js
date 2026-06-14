@@ -23,6 +23,40 @@ function inferUnit(signalId, direction) {
   return "";
 }
 
+/** Whether a threshold row should gate certification (adopted signal or its delta). */
+function isSignalAdoptedForGating(signalId, adoptedSignalIds) {
+  const id = String(signalId || "");
+  if (!id) return false;
+  if (adoptedSignalIds.has(id)) return true;
+  if (id.endsWith("_delta")) {
+    return adoptedSignalIds.has(id.slice(0, -"_delta".length));
+  }
+  return false;
+}
+
+function filterThresholdMapForAdopted(thresholdMap, adoptedSignalIds) {
+  const out = {};
+  for (const [signalId, cfg] of Object.entries(thresholdMap || {})) {
+    if (isSignalAdoptedForGating(signalId, adoptedSignalIds)) {
+      out[signalId] = cfg;
+    }
+  }
+  return out;
+}
+
+async function getStoredThresholdRow(workspaceId, signalId) {
+  const row = await queryOne(
+    "SELECT min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ? AND signal_id = ?",
+    [workspaceId, signalId]
+  );
+  if (!row) return null;
+  return {
+    min: row.min_value,
+    max: row.max_value,
+    required_for_certification: !!row.required_for_certification
+  };
+}
+
 function buildLibrarySeedRows() {
   const rows = [];
   const defs = sharedPkg.aiSignalDefinitions || {};
@@ -236,7 +270,7 @@ async function listConnectorSignals() {
 async function listWorkspaceDefinitions(workspaceId) {
   await ensureWorkspaceSignalDefinitions(workspaceId);
   const rows = await queryAll(
-    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = ? ORDER BY signal_id",
+    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL ORDER BY signal_id",
     [workspaceId]
   );
   return rows.map(mapDefinitionRow);
@@ -244,7 +278,7 @@ async function listWorkspaceDefinitions(workspaceId) {
 
 async function getWorkspaceDefinition(workspaceId, signalId) {
   const row = await queryOne(
-    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = ? AND signal_id = ?",
+    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NULL",
     [workspaceId, signalId]
   );
   return mapDefinitionRow(row);
@@ -329,20 +363,72 @@ async function createWorkspaceDefinition(workspaceId, input, opts = {}) {
 async function adoptLibrarySignal(workspaceId, signalId, opts = {}) {
   const library = await getLibraryEntry(signalId);
   if (!library) throw new Error("library signal not found");
+
+  const detached = await queryOne(
+    `SELECT * FROM workspace_signal_definitions
+     WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NOT NULL`,
+    [workspaceId, signalId]
+  );
+  if (detached) {
+    await run(
+      `UPDATE workspace_signal_definitions SET detached_at = NULL WHERE workspace_id = ? AND signal_id = ?`,
+      [workspaceId, signalId]
+    );
+    const stored = await getStoredThresholdRow(workspaceId, signalId);
+    const threshold = opts.threshold || (stored ? { min: stored.min, max: stored.max } : null);
+    if (threshold || opts.required_for_certification !== undefined) {
+      await upsertThresholdForDefinition(workspaceId, signalId, {
+        min: threshold?.min ?? stored?.min ?? null,
+        max: threshold?.max ?? stored?.max ?? null,
+        required_for_certification:
+          opts.required_for_certification !== undefined
+            ? opts.required_for_certification
+            : stored?.required_for_certification
+      });
+    }
+    return getWorkspaceDefinition(workspaceId, signalId);
+  }
+
+  const stored = await getStoredThresholdRow(workspaceId, signalId);
+  const threshold =
+    opts.threshold ||
+    (stored ? { min: stored.min, max: stored.max } : null) ||
+    library.suggested_threshold;
+  const required =
+    opts.required_for_certification !== undefined
+      ? opts.required_for_certification
+      : stored?.required_for_certification;
   return createWorkspaceDefinition(workspaceId, {
     signal_id: signalId,
     from_library: true,
-    threshold: opts.threshold || library.suggested_threshold,
-    required_for_certification: opts.required_for_certification
+    threshold,
+    required_for_certification: required
   });
 }
 
+/** Detach signal from workspace gating. Library signals keep threshold rows for re-adopt. */
 async function deleteWorkspaceDefinition(workspaceId, signalId) {
+  const existing = await getWorkspaceDefinition(workspaceId, signalId);
+  if (!existing) return;
+  const keepThreshold =
+    existing.from_library && existing.source_id !== "custom" && existing.source_id !== "zizkadb";
+  if (keepThreshold) {
+    await run(
+      `UPDATE workspace_signal_definitions SET detached_at = ?::timestamptz
+       WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NULL`,
+      [nowIso(), workspaceId, signalId]
+    );
+    return;
+  }
   await run("DELETE FROM workspace_signal_definitions WHERE workspace_id = ? AND signal_id = ?", [
     workspaceId,
     signalId
   ]);
   await run("DELETE FROM thresholds WHERE workspace_id = ? AND signal_id = ?", [workspaceId, signalId]);
+  await run("DELETE FROM thresholds WHERE workspace_id = ? AND signal_id = ?", [
+    workspaceId,
+    `${signalId}_delta`
+  ]);
 }
 
 async function backfillDefinitionsFromThresholds(workspaceId) {
@@ -351,6 +437,12 @@ async function backfillDefinitionsFromThresholds(workspaceId) {
     [workspaceId]
   );
   for (const row of thresholdRows) {
+    const detached = await queryOne(
+      `SELECT 1 AS ok FROM workspace_signal_definitions
+       WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NOT NULL`,
+      [workspaceId, row.signal_id]
+    );
+    if (detached) continue;
     const existing = await getWorkspaceDefinition(workspaceId, row.signal_id);
     if (existing) continue;
     const library = await getLibraryEntry(row.signal_id);
@@ -373,7 +465,7 @@ async function backfillDefinitionsFromThresholds(workspaceId) {
 async function ensureWorkspaceSignalDefinitions(workspaceId) {
   await ensureGlobalCatalogSeeded();
   const countRow = await queryOne(
-    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = ?",
+    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
     [workspaceId]
   );
   if (Number(countRow?.c || 0) > 0) return;
@@ -381,7 +473,7 @@ async function ensureWorkspaceSignalDefinitions(workspaceId) {
   await backfillDefinitionsFromThresholds(workspaceId);
 
   const afterBackfill = await queryOne(
-    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = ?",
+    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
     [workspaceId]
   );
   if (Number(afterBackfill?.c || 0) > 0) return;
@@ -403,7 +495,7 @@ async function getWorkspaceSignalCatalog(workspaceId) {
     definitions,
     library: librarySuggestions,
     connectors,
-    thresholds
+    thresholds: filterThresholdMapForAdopted(thresholds, adopted)
   };
 }
 
@@ -418,5 +510,7 @@ module.exports = {
   adoptLibrarySignal,
   deleteWorkspaceDefinition,
   getWorkspaceDefinition,
-  humanizeSignalId
+  humanizeSignalId,
+  isSignalAdoptedForGating,
+  filterThresholdMapForAdopted
 };

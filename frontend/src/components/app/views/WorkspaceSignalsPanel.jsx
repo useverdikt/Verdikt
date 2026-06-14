@@ -177,7 +177,7 @@ export default function WorkspaceSignalsPanel({
   isMobile,
   onAdopt,
   onCreate,
-  onDelete,
+  onRemove,
   renderValueControl
 }) {
   const [showModal, setShowModal] = useState(false);
@@ -200,7 +200,9 @@ export default function WorkspaceSignalsPanel({
           <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.raise, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Workspace signals</div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Signals this workspace gates on. Required signals must arrive before certification.</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                Signals you gate on for certification. Remove any you are not using — library signals return to the catalog on the right.
+              </div>
             </div>
             {canAct(currentUser) ? (
               <Btn variant="primary" onClick={() => setShowModal(true)} style={{ fontSize: 11, padding: "6px 12px" }}>
@@ -263,9 +265,19 @@ export default function WorkspaceSignalsPanel({
                       />
                     </label>
                   ) : null}
-                  {canAct(currentUser) && isCustom ? (
-                    <Btn variant="ghost" onClick={() => onDelete?.(def.signal_id)} style={{ fontSize: 10, padding: "4px 8px", color: C.red }}>
-                      Delete
+                  {canAct(currentUser) ? (
+                    <Btn
+                      variant="ghost"
+                      onClick={() => {
+                        const detail = isCustom
+                          ? `Remove "${def.display_name}" from this workspace? This custom signal will no longer gate certification.`
+                          : `Remove "${def.display_name}" from workspace signals? It returns to the library — your threshold settings are saved if you adopt it again.`;
+                        if (!window.confirm(detail)) return;
+                        onRemove?.(def.signal_id);
+                      }}
+                      style={{ fontSize: 10, padding: "4px 8px", color: C.muted }}
+                    >
+                      Remove
                     </Btn>
                   ) : null}
                 </div>
@@ -277,7 +289,9 @@ export default function WorkspaceSignalsPanel({
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", maxHeight: 520, overflowY: "auto" }}>
           <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, background: C.raise, position: "sticky", top: 0, zIndex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Signal library</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Verdikt suggestions — adopt what fits your stack.</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+              Verdikt suggestions — adopt what fits your stack. Removed signals reappear here; your threshold tuning is kept when you adopt again.
+            </div>
           </div>
           {loading ? (
             <div style={{ padding: 14, fontSize: 11, color: C.muted }}>Loading library…</div>
