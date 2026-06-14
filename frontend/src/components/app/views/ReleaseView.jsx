@@ -31,7 +31,7 @@ export default function ReleaseView({
   onLoadMoreReleases,
   navigate
 }) {
-  const setupChecklist = useWorkspaceSetupStatus(navigate, wsId, { thresholds });
+  const setupChecklist = useWorkspaceSetupStatus(navigate, wsId, { thresholds, signalDefinitions });
 
   if (current && current.status === "collecting" && releases.length <= 1) {
     return (
