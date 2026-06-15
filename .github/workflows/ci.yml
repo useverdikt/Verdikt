@@ -65,6 +65,23 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  mcp-package:
+    name: MCP package (@useverdikt/mcp)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm pack --dry-run
+
   frontend-e2e:
     name: Frontend (Playwright)
     runs-on: ubuntu-latest
