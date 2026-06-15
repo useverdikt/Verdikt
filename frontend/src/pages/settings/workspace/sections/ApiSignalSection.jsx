@@ -1,8 +1,11 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { apiDelete, apiPost, apiPostFormData, resolveApiOrigin } from "../../settingsClient.js";
 import { sourceStatusDisplay, formatCsvRowCountLabel, CSV_IMPORT_DETAIL } from "../settingsWorkspaceModel.js";
-import { pullConnectorUi, pushSourceUi } from "../../../../lib/signalSourceCatalog.js";
+import { pullConnectorUi } from "../../../../lib/signalSourceCatalog.js";
 import IntegrationReadinessPanel from "./IntegrationReadinessPanel.jsx";
+
+const API_PUSH_DOCS_URL = "https://docs.useverdikt.com/connecting-signals/api-push";
 
 function PullConnectorRow({ connector, wsId, navigate, toast, loadSignalSources, onConnect }) {
   const ui = pullConnectorUi(connector.source_id);
@@ -49,24 +52,24 @@ function PullConnectorRow({ connector, wsId, navigate, toast, loadSignalSources,
   );
 }
 
-function PushSourceRow({ source }) {
-  const ui = pushSourceUi(source.source_id);
-  const active = source.active && source.signal_count > 0;
+function ActiveApiPushSummary({ signalCount }) {
+  if (!signalCount) return null;
   return (
     <div className="source-row">
-      <div className="source-icon-wrap">{ui.icon}</div>
+      <div className="source-icon-wrap">↗</div>
       <div className="source-info">
-        <div className="source-name">{ui.name}</div>
+        <div className="source-name">API push</div>
         <div className="source-detail">
-          {active
-            ? `${source.signal_count} signal${source.signal_count === 1 ? "" : "s"} in Thresholds — ${ui.detail}`
-            : ui.detail}
+          {signalCount} signal{signalCount === 1 ? "" : "s"} active in{" "}
+          <Link to="/thresholds" style={{ color: "var(--accentL)" }}>
+            Thresholds
+          </Link>
         </div>
       </div>
-      <div className="source-status" style={{ color: active ? "var(--certified)" : "var(--fg3)" }}>
+      <div className="source-status" style={{ color: "var(--certified)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div className="status-dot" style={{ background: active ? "var(--certified)" : "var(--fg3)" }} />
-          {active ? "Active" : "Configure in Thresholds"}
+          <div className="status-dot" style={{ background: "var(--certified)" }} />
+          Active
         </div>
       </div>
       <div className="source-actions">
@@ -176,7 +179,8 @@ export default function ApiSignalSection({
 
   const connectedPull = pullConnectors.filter((c) => c.connected);
   const availablePull = pullConnectors.filter((c) => !c.connected);
-  const activePush = pushSources.filter((s) => s.active);
+  const activePushSignalCount = pushSources.reduce((n, s) => n + (s.active ? Number(s.signal_count) || 0 : 0), 0);
+  const hasActivePush = activePushSignalCount > 0;
   const apiOrigin = resolveApiOrigin();
   const ingestExample = `${apiOrigin || ""}${apiPush.ingest_path || "/api/releases/{release_id}/signals"}`;
 
@@ -248,12 +252,14 @@ export default function ApiSignalSection({
         <div className="sblock-head">
           <div>
             <div className="sblock-title">Connected</div>
-            <div className="sblock-desc">Pull integrations with saved credentials and push sources active in Thresholds.</div>
+            <div className="sblock-desc">Pull integrations with saved credentials, active API push signals, or CSV import in use.</div>
           </div>
         </div>
         <div className="sblock-body">
-          {connectedPull.length === 0 && activePush.length === 0 && !csvImport ? (
-            <div style={{ padding: "16px 18px", color: "var(--fg3)", fontSize: 13 }}>Nothing connected yet — connect a pull integration below or adopt push signals in Thresholds.</div>
+          {connectedPull.length === 0 && !hasActivePush && !csvImport ? (
+            <div style={{ padding: "16px 18px", color: "var(--fg3)", fontSize: 13 }}>
+              Nothing connected yet — connect a pull integration below, set up API push, or import CSV.
+            </div>
           ) : null}
           {connectedPull.map((c) => (
             <PullConnectorRow
@@ -266,9 +272,7 @@ export default function ApiSignalSection({
               onConnect={setConnectModal}
             />
           ))}
-          {activePush.map((s) => (
-            <PushSourceRow key={s.source_id} source={s} />
-          ))}
+          <ActiveApiPushSummary signalCount={activePushSignalCount} />
           <CsvImportRow csvImport={csvImport} csvInputRef={csvInputRef} wsId={wsId} navigate={navigate} toast={toast} loadSignalSources={loadSignalSources} />
         </div>
       </div>
@@ -308,20 +312,20 @@ export default function ApiSignalSection({
           </button>
         </div>
         <div className="sblock-body">
-          <div style={{ padding: "16px 18px", borderBottom: "1px solid #1a1f2e" }}>
+          <div style={{ padding: "16px 18px" }}>
             <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--accentL)", letterSpacing: "0.1em", marginBottom: 8 }}>INGEST ENDPOINT</div>
             <div className="inp mono" style={{ fontSize: 12, padding: "10px 12px", color: "var(--green)", wordBreak: "break-all" }}>
               POST {ingestExample}
             </div>
             <div style={{ fontSize: 12, color: "var(--mid)", marginTop: 10, lineHeight: 1.6 }}>
-              {apiPush.auth_hint || "Bearer API key from Agent access"}. {apiPush.docs_hint || "POST JSON with signal values keyed by signal_id."}
+              Bearer API key from Settings → Agent access. POST JSON with signal values keyed by signal_id.
+            </div>
+            <div style={{ marginTop: 12, fontSize: 12 }}>
+              <a href={API_PUSH_DOCS_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accentL)" }}>
+                Full setup guide → docs.useverdikt.com/connecting-signals/api-push
+              </a>
             </div>
           </div>
-          {pushSources
-            .filter((s) => !s.active)
-            .map((s) => (
-              <PushSourceRow key={`avail-${s.source_id}`} source={s} />
-            ))}
         </div>
       </div>
 
