@@ -59,7 +59,7 @@
       },
       {
         "group": "Agent setup",
-        "pages": ["agent/api-keys", "agent/mcp-setup"]
+        "pages": ["agent/api-keys", "agent/mcp-setup", "agent/cursor-rule"]
       }
     ]
   },

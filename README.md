@@ -51,7 +51,7 @@ Verdikt exposes MCP tools for Cursor, Claude Code, and any MCP-compatible agent 
 
 `create_release` · `post_signals` · `get_verdict` · `check_gate` · `check_gate_by_sha` · `escalate` · `record_outcome`
 
-Full guide: [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) · details in [mcp/README.md](mcp/README.md)
+Full guide: [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) · MCP reference: [@useverdikt/mcp on npm](https://www.npmjs.com/package/@useverdikt/mcp)
 
 ## GitHub gate (branch protection)
 
@@ -108,7 +108,7 @@ npm run test:e2e          # Playwright e2e (run npx playwright install once)
 - [docs.useverdikt.com](https://docs.useverdikt.com) — partner and developer docs
 - [backend/README.md](backend/README.md) — API reference, auth, webhooks, env vars
 - [supabase/README.md](supabase/README.md) — RLS, auth linkage, local stack
-- [mcp/README.md](mcp/README.md) — MCP tools reference and agent playbook
+- [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) — partner MCP setup · [mcp/README.md](mcp/README.md) — maintainer reference (in repo)
 
 ## Contributing
 

@@ -1,4 +1,12 @@
 ---
+title: Cursor agent rule
+description: Copy this rule into your project so coding agents know when to certify through Verdikt.
+---
+
+Save the block below as **`.cursor/rules/verdikt.mdc`** in your repo (create the `.cursor/rules` folder if needed). Cursor will apply it when certifying PRs through Verdikt.
+
+```md
+---
 description: Certify GitHub PRs through Verdikt before merge — label trigger, signals, check_gate.action, escalate
 alwaysApply: false
 ---
@@ -32,7 +40,7 @@ Repeat with same SHA returns `reused: true` — same cert window.
 ## Do not
 
 - Open releases with bare version strings in production (demo only).
-- POST signals from GHA unless you have metrics with no integration source (`docs/examples/verdikt-ci-webhook.optional.md`).
+- POST signals from GHA unless you have metrics with no integration source.
 - Merge when `action` is not `merge`.
 - Use API keys for human control-plane actions (thresholds, overrides) — escalate instead.
 
@@ -40,4 +48,7 @@ Repeat with same SHA returns `reused: true` — same cert window.
 
 `create_release` → `post_signals` → `get_verdict` → `check_gate` → `escalate` | merge
 
-Config: [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) and **Settings → Agent access**.
+Config: [MCP setup](/agent/mcp-setup) and **Settings → Agent access** in the Verdikt app.
+```
+
+See also [MCP setup](/agent/mcp-setup) and the [@useverdikt/mcp](https://www.npmjs.com/package/@useverdikt/mcp) package on npm for tool reference.
