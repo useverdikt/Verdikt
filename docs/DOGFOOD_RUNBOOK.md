@@ -4,18 +4,33 @@ Prove the full loop on your own repo: **label → cert → GHA gate → commit s
 
 Prod API check (2026-06): `GET https://api.useverdikt.com/health/ready` → `{"ok":true,"checks":{"database":true}}`
 
+**App URL:** [https://useverdikt.com](https://useverdikt.com) (log in → `/releases`, `/thresholds`, `/settings`). Legacy **`app.useverdikt.com`** redirects to the same host (`vercel.json` + add **`app.useverdikt.com`** as a domain on the Vercel project if it still 404s). Do not share the old subdomain with partners.
+
+### Pre-call prod verify (Signal Sources panel)
+
+Confirm migrations **019–020** are live before a partner demo (panel API returns structured data, not 500):
+
+```bash
+curl -sS -o /tmp/si.json -w "HTTP %{http_code}\n" \
+  -H "Authorization: Bearer $VERDIKT_API_KEY" \
+  "https://api.useverdikt.com/api/workspaces/$VERDIKT_WORKSPACE_ID/signal-integrations"
+jq '.pull_connectors | length, .push_sources | length' /tmp/si.json
+```
+
+Expect **HTTP 200** and JSON with `pull_connectors`, `push_sources`, `api_push`. A **500** usually means Railway needs the latest API deploy + migrations applied.
+
 ---
 
 ## One-time setup (~30 min)
 
-### 1. Verdikt workspace (app.useverdikt.com)
+### 1. Verdikt workspace ([useverdikt.com](https://useverdikt.com))
 
 | Step | Where | Action |
 |------|--------|--------|
 | GitHub App | Settings → Release Trigger | Connect app, select **useverdikt/Verdikt**, save label **`verdikt:rc`** |
 | VCS writeback | Settings → Release Trigger → VCS write-back | GitHub PAT (`repo` scope), owner **`useverdikt`**, repo **`Verdikt`** |
 | API key | Settings → Agent access | Generate key → use in GitHub secrets |
-| Thresholds | Settings → Thresholds | Ensure required AI signals have floors (defaults OK for smoke) |
+| Thresholds | App → **Thresholds** (`/thresholds`) | Adopt signals from the library or add custom; set floors and required toggles |
 | Integrations | Settings → Signal sources | Optional for v1 dogfood — use **Signal Simulator** if none connected |
 | Signal sim workspaces | API env `INTERNAL_WORKSPACE_VIEWER_EMAILS` | Comma-separated operator emails (e.g. `joseph@useverdikt.com,founder@zizka.ai`) so `/signal-sim` lists all active workspaces for internal testing |
 
@@ -31,18 +46,20 @@ Settings → Secrets and variables → Actions:
 
 Optional (prod smoke workflow): `PROD_SMOKE_API_KEY`, `PROD_SMOKE_WORKSPACE_ID` — same values.
 
-### 3. Branch protection (main)
+### 3. Branch protection (main) — **enabled**
 
-Settings → Branches → rule for `main`:
+`main` on **useverdikt/Verdikt** requires:
 
-- Require status check **`Verdikt gate`** (job name `verdikt-gate`)
-- Require PR before merging
+- Status check **`verdikt-gate`** (GitHub App check from workflow job `verdikt-gate`)
+- PR before merge (recommended)
+
+Verify anytime: `gh api repos/useverdikt/Verdikt/branches/main/protection`
 
 Workflow file: `.github/workflows/verdikt-gate.yml` (runs only when PR has label `verdikt:rc`).
 
 The gate job **polls** the API (12 × 10s) — it does not fail on the first check while signals are still arriving. Expect **30–60 seconds** after labeling for integration auto-pull to populate the cert window.
 
-**Before enabling branch protection (partners too):**
+**Before relying on branch protection (partners too):**
 
 1. Confirm SHA tagging on at least one signal integration (Settings → Signal sources → Probe SHA match).
 2. Use the polling workflow from `docs/examples/verdikt-gate-gha.yml` — not a single-check curl.
@@ -87,7 +104,7 @@ Release status → **CERTIFIED** (or override path for negative test).
 
 | Check | Expected |
 |-------|----------|
-| GHA **Verdikt gate** | Green (`gate.exit_code === 0`) |
+| **Verdikt gate** / `verdikt-gate` | Green (`gate.exit_code === 0`) |
 | GitHub commit status | **verdikt/certification** success on head SHA (VCS writeback) |
 | PR comment | Verdikt certification comment on PR (if writeback configured) |
 | Merge button | Enabled only if branch protection + gate green |
@@ -130,6 +147,7 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 
 ## Done criteria (demo-ready)
 
+- [x] Branch protection on `main` requires `verdikt-gate`
 - [ ] One PR certified via `verdikt:rc` + Signal Simulator
 - [ ] GHA **Verdikt gate** blocked then passed
 - [ ] GitHub commit status visible on PR
@@ -152,7 +170,7 @@ Treat Verdikt-on-Verdikt as **always on**, not a one-off demo:
 | Rule | Why |
 |------|-----|
 | Every merge-bound PR gets **`verdikt:rc`** before review | Opens the cert window for the PR head SHA |
-| **Branch protection** requires `Verdikt gate / verdikt-gate` | Merge blocked until evidence passes |
+| **Branch protection** requires `verdikt-gate` | Merge blocked until evidence passes — **live on useverdikt/Verdikt** |
 | Gate failure → read **`blockers`** + **`next_step`** in GHA logs | Structured reason instead of guessing why COLLECTING |
 | Gate job **polls** (12 × 10s) — waits on `action: collecting` | Avoids racing integration auto-pull on label |
 | Keep repo secrets current (`VERDIKT_API_KEY`, `VERDIKT_WORKSPACE_ID`) | Gate job must resolve the same workspace as the app |
