@@ -15,8 +15,8 @@ Model Context Protocol (MCP) tools so AI coding agents can certify releases thro
 {
   "mcpServers": {
     "verdikt": {
-      "command": "node",
-      "args": ["/absolute/path/to/Verdikt MVP v1/mcp/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "@useverdikt/mcp"],
       "env": {
         "VERDIKT_API_URL": "https://api.useverdikt.com",
         "VERDIKT_API_KEY": "vdk_live_…",
@@ -27,10 +27,11 @@ Model Context Protocol (MCP) tools so AI coding agents can certify releases thro
 }
 ```
 
-3. Install deps once: `cd mcp && npm install`
-4. Restart Cursor after saving the config.
+3. Restart Cursor after saving the config. First run downloads `@useverdikt/mcp` from npm — no local clone or path required.
 
-Local API: use `http://127.0.0.1:8787` for `VERDIKT_API_URL`.
+**Local API dev:** set `VERDIKT_API_URL` to `http://127.0.0.1:8787`.
+
+**Monorepo contributors:** from `mcp/`, `npm install && npm start` still works; point `args` at `src/index.js` if you prefer a git checkout over npx.
 
 In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule: `.cursor/rules/verdikt.mdc`.
 
@@ -254,3 +255,14 @@ escalate(
 ```
 
 Humans resolve in **Escalations** inbox via **Acknowledge & Override** (one step); SLA reminders use **Settings → Governance** escalation email.
+
+---
+
+## Publishing (`@useverdikt/mcp`)
+
+Maintainers: bump `version` in `mcp/package.json`, then either:
+
+- **GitHub Actions:** run workflow **Publish MCP** (requires `NPM_TOKEN` secret with publish access to `@useverdikt` on npm), or
+- **Local:** `cd mcp && npm publish --access public` (after `npm login`).
+
+Partners install via `npx -y @useverdikt/mcp` — no git checkout required.

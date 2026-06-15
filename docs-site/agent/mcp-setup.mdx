@@ -11,19 +11,7 @@ The Verdikt MCP server lets coding agents open cert windows, post signals, and r
 - Workspace ID from **Settings → General**
 - Node.js 18+
 
-## 1. Get the MCP server
-
-Clone the Verdikt repo (or use your existing checkout) and install MCP deps once:
-
-```bash
-git clone https://github.com/useverdikt/Verdikt.git
-cd Verdikt/mcp
-npm install
-```
-
-Note the absolute path to `mcp/src/index.js` — you will reference it in config.
-
-## 2. Cursor config
+## 1. Cursor config
 
 Add to **`~/.cursor/mcp.json`** (global) or **`.cursor/mcp.json`** (project):
 
@@ -31,8 +19,8 @@ Add to **`~/.cursor/mcp.json`** (global) or **`.cursor/mcp.json`** (project):
 {
   "mcpServers": {
     "verdikt": {
-      "command": "node",
-      "args": ["/absolute/path/to/Verdikt/mcp/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "@useverdikt/mcp"],
       "env": {
         "VERDIKT_API_URL": "https://api.useverdikt.com",
         "VERDIKT_API_KEY": "vdk_live_…",
@@ -43,11 +31,15 @@ Add to **`~/.cursor/mcp.json`** (global) or **`.cursor/mcp.json`** (project):
 }
 ```
 
-Replace the path and secrets with your values. For local API dev, set `VERDIKT_API_URL` to `http://127.0.0.1:8787`.
+Replace secrets with your values. For local API dev, set `VERDIKT_API_URL` to `http://127.0.0.1:8787`.
 
-Restart Cursor after saving.
+Restart Cursor after saving. First run downloads `@useverdikt/mcp` from npm — no clone or local path required.
 
-## 3. Optional Cursor rule
+<Note>
+  **Settings → Agent access** includes a pre-filled copy of this config with your workspace ID.
+</Note>
+
+## 2. Optional Cursor rule
 
 Copy the Verdikt agent rule from the repo (`.cursor/rules/verdikt.mdc`) into your project so the agent knows when to call `check_gate` and `post_signals`.
 
@@ -84,3 +76,14 @@ Use **`mode: strict`** when only pure `CERTIFIED` (no override) should pass.
 ## Session tracking
 
 MCP sends `X-Verdikt-Agent-Session` on every request. Audit events for one agent run share the same session ID in the Verdikt audit trail.
+
+## Monorepo contributors
+
+To run from a git checkout instead of npm:
+
+```bash
+git clone https://github.com/useverdikt/Verdikt.git
+cd Verdikt/mcp && npm install
+```
+
+Use `"command": "node"` and `"args": ["/absolute/path/to/Verdikt/mcp/src/index.js"]` in MCP config.
