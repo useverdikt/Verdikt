@@ -15,6 +15,14 @@ export function formatCsvRowCountLabel(count) {
   return `${n} ${noun}`;
 }
 
+/** @param {number} count — connector catalog signal types */
+export function formatSignalTypeCount(count) {
+  const n = Number(count) || 0;
+  if (n === 0) return "";
+  const noun = n === 1 ? "signal type" : "signal types";
+  return `${n} ${noun}`;
+}
+
 /** Any API connector connected or CSV import in use. */
 export function isEvalSourceConnected(sources) {
   return (sources || []).some(

@@ -1,5 +1,7 @@
 /** Display metadata for pull connectors and push sources (Signal Sources UI). */
 
+import shared from "../../../shared/config.json";
+
 export function humanizeSourceId(id) {
   return String(id || "")
     .replace(/_/g, " ")
@@ -52,13 +54,26 @@ export const PUSH_SOURCE_META = {
   }
 };
 
+/** Canonical signal ids for a pull connector (from shared config). */
+export function connectorSignalIds(sourceId) {
+  const ids = shared.signalSourceMap?.[sourceId];
+  return Array.isArray(ids) ? ids : [];
+}
+
+export function formatConnectorSignalNames(sourceId) {
+  return connectorSignalIds(sourceId).join(", ");
+}
+
 export function pullConnectorUi(sourceId) {
   const meta = PULL_CONNECTOR_META[sourceId] || {};
+  const signalIds = connectorSignalIds(sourceId);
   return {
     sourceId,
     icon: meta.icon || "◆",
     name: meta.name || humanizeSourceId(sourceId),
-    detail: meta.detail || "API pull — metrics keyed by commit SHA"
+    detail: meta.detail || "API pull — metrics keyed by commit SHA",
+    signalIds,
+    signalNamesLabel: signalIds.length ? signalIds.join(", ") : ""
   };
 }
 

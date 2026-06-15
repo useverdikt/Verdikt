@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { apiDelete, apiPost, apiPostFormData, resolveApiOrigin } from "../../settingsClient.js";
-import { sourceStatusDisplay, formatCsvRowCountLabel, CSV_IMPORT_DETAIL } from "../settingsWorkspaceModel.js";
+import { sourceStatusDisplay, formatCsvRowCountLabel, formatSignalTypeCount, CSV_IMPORT_DETAIL } from "../settingsWorkspaceModel.js";
 import { pullConnectorUi } from "../../../../lib/signalSourceCatalog.js";
 import IntegrationReadinessPanel from "./IntegrationReadinessPanel.jsx";
 
@@ -15,10 +15,10 @@ function PullConnectorRow({ connector, wsId, navigate, toast, loadSignalSources,
       <div className="source-icon-wrap">{ui.icon}</div>
       <div className="source-info">
         <div className="source-name">{ui.name}</div>
-        <div className="source-detail">
+        <div className="source-detail" title={ui.signalNamesLabel ? `Signals: ${ui.signalNamesLabel}` : undefined}>
           {connected && connector.masked_key
             ? `${ui.detail} · key ${connector.masked_key}`
-            : `${ui.detail}${connector.signal_count ? ` · ${connector.signal_count} signal(s)` : ""}`}
+            : `${ui.detail}${connector.signal_count ? ` · ${formatSignalTypeCount(connector.signal_count)}` : ""}`}
         </div>
       </div>
       <div className="source-status" style={{ color: connected ? "var(--green)" : "var(--fg3)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -282,7 +282,7 @@ export default function ApiSignalSection({
           <div className="sblock-head">
             <div>
               <div className="sblock-title">Available to connect</div>
-              <div className="sblock-desc">Built-in pull connectors — save API credentials; Verdikt fetches metrics by commit SHA on cert.</div>
+              <div className="sblock-desc">Save API credentials — Verdikt pulls metrics by commit SHA when a cert window opens.</div>
             </div>
           </div>
           <div className="sblock-body">
