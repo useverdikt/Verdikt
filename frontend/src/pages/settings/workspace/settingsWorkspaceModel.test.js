@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCsvRowCountLabel,
-  formatSignalTypeCount,
+  formatSignalCount,
   hasConnectedSignalSource,
   isEvalSourceConnected,
   isReleaseTriggerReady,
@@ -19,14 +19,14 @@ describe("formatCsvRowCountLabel", () => {
   });
 });
 
-describe("formatSignalTypeCount", () => {
-  it("uses singular signal type for 1", () => {
-    expect(formatSignalTypeCount(1)).toBe("1 signal type");
+describe("formatSignalCount", () => {
+  it("uses singular signal for 1", () => {
+    expect(formatSignalCount(1)).toBe("1 signal");
   });
 
-  it("uses plural signal types otherwise", () => {
-    expect(formatSignalTypeCount(5)).toBe("5 signal types");
-    expect(formatSignalTypeCount(0)).toBe("");
+  it("uses plural signals otherwise", () => {
+    expect(formatSignalCount(5)).toBe("5 signals");
+    expect(formatSignalCount(0)).toBe("");
   });
 });
 
