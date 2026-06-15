@@ -41,7 +41,7 @@ Restart Cursor after saving. First run downloads `@useverdikt/mcp` from npm — 
 
 ## 2. Optional Cursor rule
 
-Copy the Verdikt agent rule from the repo (`.cursor/rules/verdikt.mdc`) into your project so the agent knows when to call `check_gate` and `post_signals`.
+Copy the [Cursor agent rule](/agent/cursor-rule) into your project as `.cursor/rules/verdikt.mdc` so the agent knows when to call `check_gate` and `post_signals`.
 
 ## Tools available
 
@@ -77,13 +77,6 @@ Use **`mode: strict`** when only pure `CERTIFIED` (no override) should pass.
 
 MCP sends `X-Verdikt-Agent-Session` on every request. Audit events for one agent run share the same session ID in the Verdikt audit trail.
 
-## Monorepo contributors
+## Full MCP reference
 
-To run from a git checkout instead of npm:
-
-```bash
-git clone https://github.com/useverdikt/Verdikt.git
-cd Verdikt/mcp && npm install
-```
-
-Use `"command": "node"` and `"args": ["/absolute/path/to/Verdikt/mcp/src/index.js"]` in MCP config.
+Tool details, agent loop, and SHA tagging checklist: [@useverdikt/mcp on npm](https://www.npmjs.com/package/@useverdikt/mcp) (package README).

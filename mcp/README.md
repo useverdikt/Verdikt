@@ -33,7 +33,7 @@ Model Context Protocol (MCP) tools so AI coding agents can certify releases thro
 
 **Monorepo contributors:** from `mcp/`, `npm install && npm start` still works; point `args` at `src/index.js` if you prefer a git checkout over npx.
 
-In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule: `.cursor/rules/verdikt.mdc`.
+In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule: [docs.useverdikt.com/agent/cursor-rule](https://docs.useverdikt.com/agent/cursor-rule).
 
 **Agent session ID:** MCP sends `X-Verdikt-Agent-Session` on every request (stable per process). Audit events for that run share the same session — retrieve the chain via `GET /api/workspaces/:id/agent-sessions/:sessionId/audit`. Optional header `X-Verdikt-Agent-Label` (e.g. `cursor-pr-42`).
 

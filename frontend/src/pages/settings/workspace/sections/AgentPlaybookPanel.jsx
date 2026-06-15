@@ -1,5 +1,8 @@
 import React, { useMemo } from "react";
 
+const DOCS_CURSOR_RULE_URL = "https://docs.useverdikt.com/agent/cursor-rule";
+const NPM_MCP_REFERENCE_URL = "https://www.npmjs.com/package/@useverdikt/mcp";
+
 const STEPS = [
   {
     title: "Open cert window",
@@ -79,7 +82,13 @@ export default function AgentPlaybookPanel({ wsId, toast }) {
           {promptTemplate}
         </pre>
         <p className="muted" style={{ marginTop: 12 }}>
-          Cursor rule: <code>.cursor/rules/verdikt.mdc</code> · Full reference: <code>mcp/README.md</code>
+          <a href={DOCS_CURSOR_RULE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accentL)" }}>
+            Cursor rule (copy into your project) →
+          </a>
+          {" · "}
+          <a href={NPM_MCP_REFERENCE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accentL)" }}>
+            MCP reference (@useverdikt/mcp) →
+          </a>
           {wsId ? (
             <>
               {" "}
