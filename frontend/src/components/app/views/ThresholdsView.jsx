@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
 import WorkspaceSignalsPanel from "./WorkspaceSignalsPanel.jsx";
+import { hasBackend } from "../../../lib/hasBackend.js";
 
 /** Stable JSON for dirty-checking threshold maps (sorted keys, numeric + string values). */
 function serializeThresholds(t) {
@@ -89,8 +90,13 @@ export default function ThresholdsView({
       : "No active suggestions in the current analysis window.");
 
   const catalogPending = !wsReady || signalsCatalogLoading;
+  /** Legacy category UI only when running without API (local demo). Production uses library + workspace definitions. */
   const showLegacyCategories =
-    !catalogPending && signalDefinitions.length === 0 && signalLibrary.length === 0 && !signalsCatalogError;
+    !hasBackend() &&
+    !catalogPending &&
+    signalDefinitions.length === 0 &&
+    signalLibrary.length === 0 &&
+    !signalsCatalogError;
   const panelLoading = catalogPending && signalDefinitions.length === 0;
 
   const val = (sigOrId) => {
@@ -304,7 +310,7 @@ export default function ThresholdsView({
         </div>
       )) : null}
 
-      {signalDefinitions.length === 0 ? null : (
+      {!hasBackend() ? (
         <details style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 14px" }}>
           <summary style={{ cursor: "pointer", fontSize: 12, color: C.muted, padding: "6px 0" }}>
             Advanced: legacy category reference
@@ -322,7 +328,7 @@ export default function ThresholdsView({
             ))}
           </div>
         </details>
-      )}
+      ) : null}
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
         <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.raise }}>
