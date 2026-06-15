@@ -1,5 +1,5 @@
-# Publish @verdikt/mcp to npm (manual or on version tag).
-# Requires repository secret NPM_TOKEN (npm access token with publish rights for @verdikt).
+# Publish @useverdikt/mcp to npm (manual or on version tag).
+# Requires repository secret NPM_TOKEN (npm access token with publish rights for @useverdikt).
 
 name: Publish MCP
 
@@ -11,7 +11,7 @@ on:
 
 jobs:
   publish:
-    name: Publish @verdikt/mcp
+    name: Publish @useverdikt/mcp
     runs-on: ubuntu-latest
     defaults:
       run:

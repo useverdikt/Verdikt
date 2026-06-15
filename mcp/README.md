@@ -16,7 +16,7 @@ Model Context Protocol (MCP) tools so AI coding agents can certify releases thro
   "mcpServers": {
     "verdikt": {
       "command": "npx",
-      "args": ["-y", "@verdikt/mcp"],
+      "args": ["-y", "@useverdikt/mcp"],
       "env": {
         "VERDIKT_API_URL": "https://api.useverdikt.com",
         "VERDIKT_API_KEY": "vdk_live_…",
@@ -27,7 +27,7 @@ Model Context Protocol (MCP) tools so AI coding agents can certify releases thro
 }
 ```
 
-3. Restart Cursor after saving the config. First run downloads `@verdikt/mcp` from npm — no local clone or path required.
+3. Restart Cursor after saving the config. First run downloads `@useverdikt/mcp` from npm — no local clone or path required.
 
 **Local API dev:** set `VERDIKT_API_URL` to `http://127.0.0.1:8787`.
 
@@ -258,11 +258,11 @@ Humans resolve in **Escalations** inbox via **Acknowledge & Override** (one step
 
 ---
 
-## Publishing (`@verdikt/mcp`)
+## Publishing (`@useverdikt/mcp`)
 
 Maintainers: bump `version` in `mcp/package.json`, then either:
 
-- **GitHub Actions:** run workflow **Publish MCP** (requires `NPM_TOKEN` secret with publish access to `@verdikt` on npm), or
+- **GitHub Actions:** run workflow **Publish MCP** (requires `NPM_TOKEN` secret with publish access to `@useverdikt` on npm), or
 - **Local:** `cd mcp && npm publish --access public` (after `npm login`).
 
-Partners install via `npx -y @verdikt/mcp` — no git checkout required.
+Partners install via `npx -y @useverdikt/mcp` — no git checkout required.

@@ -1,5 +1,5 @@
 {
-  "name": "@verdikt/mcp",
+  "name": "@useverdikt/mcp",
   "version": "0.1.0",
   "description": "Verdikt MCP server — trust layer tools for AI coding agents",
   "type": "module",

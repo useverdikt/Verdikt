@@ -47,7 +47,7 @@ Full setup: [docs.useverdikt.com/connecting-signals/overview](https://docs.useve
 
 ## Agent setup (MCP)
 
-Verdikt exposes MCP tools for Cursor, Claude Code, and any MCP-compatible agent runtime. Install via `npx -y @verdikt/mcp` — no local repo path required.
+Verdikt exposes MCP tools for Cursor, Claude Code, and any MCP-compatible agent runtime. Install via `npx -y @useverdikt/mcp` — no local repo path required.
 
 `create_release` · `post_signals` · `get_verdict` · `check_gate` · `check_gate_by_sha` · `escalate` · `record_outcome`
 

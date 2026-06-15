@@ -1,5 +1,5 @@
 /** Published MCP package — keep in sync with mcp/package.json name field. */
-export const VERDIKT_MCP_PACKAGE = "@verdikt/mcp";
+export const VERDIKT_MCP_PACKAGE = "@useverdikt/mcp";
 
 /** Cursor / Claude Code MCP config snippet (env values are placeholders). */
 export function buildVerdiktMcpSnippet({ workspaceId, apiUrl }) {
