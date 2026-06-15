@@ -72,8 +72,11 @@ export function useWorkspaceSetupStatus(navigate, wsId, { thresholds = {}, signa
         id: "sha",
         label: "Tag eval/build runs with the PR head commit SHA",
         done: signalsReady && githubReady,
-        to: "/settings?section=api",
-        hint: "Use Probe SHA match in Settings → Signal sources before your first cert window."
+        hint: "Set the PR head SHA on each eval/build run in your CI — otherwise the cert window stays in COLLECTING.",
+        link: {
+          label: "SHA tagging guide",
+          url: "https://docs.useverdikt.com/connecting-signals/api-push"
+        }
       },
       {
         id: "thresholds",
