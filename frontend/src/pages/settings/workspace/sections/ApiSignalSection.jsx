@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { apiDelete, apiPost, apiPostFormData, resolveApiOrigin } from "../../settingsClient.js";
 import { sourceStatusDisplay, formatCsvRowCountLabel, formatSignalCount, CSV_IMPORT_DETAIL } from "../settingsWorkspaceModel.js";
 import { pullConnectorUi } from "../../../../lib/signalSourceCatalog.js";
-import IntegrationReadinessPanel from "./IntegrationReadinessPanel.jsx";
 
 const API_PUSH_DOCS_URL = "https://docs.useverdikt.com/connecting-signals/api-push";
 
@@ -227,7 +226,6 @@ export default function ApiSignalSection({
           Connect vendor APIs for pull-by-commit, push custom signals over HTTP, or request a new integration.
         </p>
       </div>
-      <IntegrationReadinessPanel wsId={wsId} navigate={navigate} toast={toast} />
 
       {signalPanelError ? (
         <div

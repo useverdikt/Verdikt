@@ -57,9 +57,11 @@ export default function SetupBanner({ setupChecklist }) {
               </div>
             ) : null}
           </div>
-          {!item.done ? (
+          {!item.done && (item.link?.url || item.to) ? (
             <a
-              href={item.to}
+              href={item.link?.url || item.to}
+              target={item.link?.url ? "_blank" : undefined}
+              rel={item.link?.url ? "noopener noreferrer" : undefined}
               style={{
                 fontSize: 11,
                 color: "#3b82f6",
@@ -68,7 +70,7 @@ export default function SetupBanner({ setupChecklist }) {
                 whiteSpace: "nowrap"
               }}
             >
-              Open →
+              {item.link?.label ? `${item.link.label} →` : "Open →"}
             </a>
           ) : null}
         </div>
