@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "../../settingsClient.js";
+import { buildVerdiktMcpSnippet, VERDIKT_MCP_PACKAGE } from "../../../../lib/verdiktMcp.js";
 import AgentPlaybookPanel from "./AgentPlaybookPanel.jsx";
 import EnableGateWizard from "./EnableGateWizard.jsx";
 
@@ -63,19 +64,11 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
     toast("Copied to clipboard");
   }
 
-  const mcpSnippet = `{
-  "mcpServers": {
-    "verdikt": {
-      "command": "node",
-      "args": ["…/mcp/src/index.js"],
-      "env": {
-        "VERDIKT_API_URL": "${window.location.origin.includes("localhost") ? "http://127.0.0.1:8787" : "https://api.useverdikt.com"}",
-        "VERDIKT_API_KEY": "vdk_live_…",
-        "VERDIKT_WORKSPACE_ID": "${wsId || "ws_…"}"
-      }
-    }
-  }
-}`;
+  const apiUrl = window.location.origin.includes("localhost") ? "http://127.0.0.1:8787" : "https://api.useverdikt.com";
+  const mcpSnippet = useMemo(
+    () => buildVerdiktMcpSnippet({ workspaceId: wsId, apiUrl }),
+    [wsId, apiUrl]
+  );
 
   return (
     <div className={`section${section === "agent" ? " active" : ""}`} id="panel-agent">
@@ -159,7 +152,9 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
         <div className="sblock-head">
           <div>
             <div className="sblock-title">MCP server</div>
-            <div className="sblock-desc">Add Verdikt to Cursor or Claude Code via Model Context Protocol.</div>
+            <div className="sblock-desc">
+              Add Verdikt to Cursor or Claude Code — installs via <code>npx {VERDIKT_MCP_PACKAGE}</code>, no local repo path.
+            </div>
           </div>
           <button type="button" className="btn-ghost accent" onClick={() => copyText(mcpSnippet)}>
             Copy config
@@ -170,8 +165,8 @@ export default function AgentAccessSection({ section, wsId, navigate, toast }) {
             {mcpSnippet}
           </pre>
           <p className="muted" style={{ marginTop: 12 }}>
-            Production flow: <code>verdikt:rc</code> label → auto integration pull →{" "}
-            <code>check_gate</code> reads <code>action</code> (<code>merge</code> | <code>self_heal</code> |{" "}
+            First run downloads <code>{VERDIKT_MCP_PACKAGE}</code> from npm. Production flow: <code>verdikt:rc</code> label → auto
+            integration pull → <code>check_gate</code> reads <code>action</code> (<code>merge</code> | <code>self_heal</code> |{" "}
             <code>escalate</code>). See playbook below.
           </p>
         </div>

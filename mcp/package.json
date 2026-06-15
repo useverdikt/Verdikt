@@ -8,6 +8,9 @@
     "verdikt-mcp": "src/index.js"
   },
   "files": ["src", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -17,9 +20,11 @@
     "directory": "mcp"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --check src/index.js && node --check src/client.js && node --check src/gateFormat.js",
+    "prepublishOnly": "npm test"
   },
-  "keywords": ["verdikt", "mcp", "ai-agents", "release-certification"],
+  "keywords": ["verdikt", "mcp", "ai-agents", "release-certification", "model-context-protocol"],
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
