@@ -1,24 +1,32 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { apiDelete, apiPost, apiPostFormData, resolveApiOrigin } from "../../settingsClient.js";
-import { sourceStatusDisplay, formatCsvRowCountLabel, CSV_IMPORT_DETAIL } from "../settingsWorkspaceModel.js";
+import { sourceStatusDisplay, formatCsvRowCountLabel, formatSignalCount, CSV_IMPORT_DETAIL } from "../settingsWorkspaceModel.js";
 import { pullConnectorUi } from "../../../../lib/signalSourceCatalog.js";
 import IntegrationReadinessPanel from "./IntegrationReadinessPanel.jsx";
 
 const API_PUSH_DOCS_URL = "https://docs.useverdikt.com/connecting-signals/api-push";
+
+function ConnectorIcon({ logo, icon }) {
+  return (
+    <div className={`source-icon-wrap${logo ? " source-icon-wrap--logo" : ""}`}>
+      {logo ? <img src={logo} alt="" className="source-logo" /> : icon}
+    </div>
+  );
+}
 
 function PullConnectorRow({ connector, wsId, navigate, toast, loadSignalSources, onConnect }) {
   const ui = pullConnectorUi(connector.source_id);
   const connected = !!connector.connected;
   return (
     <div className="source-row">
-      <div className="source-icon-wrap">{ui.icon}</div>
+      <ConnectorIcon logo={ui.logo} icon={ui.icon} />
       <div className="source-info">
         <div className="source-name">{ui.name}</div>
         <div className="source-detail">
           {connected && connector.masked_key
             ? `${ui.detail} · key ${connector.masked_key}`
-            : `${ui.detail}${connector.signal_count ? ` · ${connector.signal_count} signal(s)` : ""}`}
+            : `${ui.detail}${connector.signal_count ? ` · ${formatSignalCount(connector.signal_count)}` : ""}`}
         </div>
       </div>
       <div className="source-status" style={{ color: connected ? "var(--green)" : "var(--fg3)", display: "flex", alignItems: "center", gap: 6 }}>

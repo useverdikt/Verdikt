@@ -1327,6 +1327,15 @@
   font-size: 15px;
   flex-shrink: 0;
 }
+.source-icon-wrap--logo {
+  padding: 6px;
+}
+.source-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 .source-name {
   font-size: 13px;
   font-weight: 500;
