@@ -37,6 +37,9 @@ const { deliverReleaseCallback } = require("./releaseCallback");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { broadcastVerdictAndClose } = require("./sseManager");
 const { computeSignalReliability } = require("./signalReliability");
+const { getThresholdMap } = require("./workspaceConfig");
+const { getLatestSignalMap, getMissingRequiredSignals } = require("./verdictEngine");
+const { buildGateCertification } = require("./gateCertification");
 
 async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
   try {
@@ -149,7 +152,28 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
 
   // 7. Outbound verdict webhook (async — does not block)
   try {
-    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals).catch((err) =>
+    // Build certified decision context for cert-like statuses to include in webhooks/callbacks
+    let certificationContext = null;
+    if (certLike.has(nextStatus)) {
+      try {
+        const [thresholdMap, latest] = await Promise.all([
+          getThresholdMap(freshRelease.workspace_id),
+          getLatestSignalMap(releaseId)
+        ]);
+        const missingRequired = await getMissingRequiredSignals(
+          freshRelease.workspace_id, releaseId, latest, freshRelease, thresholdMap
+        );
+        certificationContext = await buildGateCertification({
+          release: freshRelease,
+          intelligence: deterministicIntelligence ? { verdict: deterministicIntelligence } : null,
+          thresholdMap,
+          latest,
+          missingRequiredSignals: missingRequired
+        });
+      } catch (_) {}
+    }
+
+    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals, certificationContext).catch((err) =>
       console.error("[outbound_webhook] async delivery error:", releaseId, err?.message)
     );
     const trajectory = await computeReleaseTrajectory({
@@ -161,7 +185,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       trajectory: trajectory?.trajectory ?? "UNKNOWN",
       degrading_signals: trajectory?.degrading_signals ?? [],
       trend_note: trajectory?.trend_note ?? null
-    }, failedSignals).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
+    }, failedSignals, certificationContext).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
   } catch (_) {}
 
   // 8. Signal reliability recompute (async — does not block)

@@ -461,6 +461,7 @@ export default function App() {
             evaluateSignal={evaluateSignal}
             fmtVal={fmtVal}
             backendReleaseId={auditDetail.backendReleaseId || auditDetail.id}
+            certification={auditDetail.certification || null}
           />
         )}
         {showShare && shareRelease && (

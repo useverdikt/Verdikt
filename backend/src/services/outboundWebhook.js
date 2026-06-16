@@ -55,7 +55,7 @@ async function deleteOutboundWebhook(workspaceId) {
   await run("UPDATE outbound_webhooks SET enabled = 0, updated_at = ? WHERE workspace_id = ?", [nowIso(), workspaceId]);
 }
 
-function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow, failedSignals = []) {
+function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow, failedSignals = [], certification = null) {
   const signals = failedSignals.length ? failedSignals : (verdictIntelligence?.failed_signals ?? []);
   return {
     event: eventType,
@@ -67,6 +67,7 @@ function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow, fa
     status: release.status,
     verdict_issued_at: release.verdict_issued_at,
     failed_signals: signals,
+    certification: certification || null,
     cert_signature: sigRow
       ? { payload_hash: sigRow.payload_hash, signature: sigRow.signature, signed_at: sigRow.signed_at, algorithm: sigRow.algorithm }
       : null,
@@ -78,7 +79,7 @@ function signOutboundPayload(body, secret) {
   return crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
-async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, failedSignals = []) {
+async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, failedSignals = [], certification = null) {
   const webhook = await getOutboundWebhook(release.workspace_id);
   if (!webhook) return;
 
@@ -86,7 +87,7 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
   const subscribedEvents = (webhook.events || "").split(",").map((e) => e.trim());
   if (!subscribedEvents.includes(eventType)) return;
 
-  const payload = buildVerdictPayload(release, eventType, verdictIntelligence, certSigRow, failedSignals);
+  const payload = buildVerdictPayload(release, eventType, verdictIntelligence, certSigRow, failedSignals, certification);
   const bodyStr = JSON.stringify(payload);
   const headers = {
     "Content-Type": "application/json",
@@ -148,4 +149,4 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
   );
 }
 
-module.exports = { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook, deliverVerdictWebhook };
+module.exports = { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook, deliverVerdictWebhook, buildVerdictPayload };

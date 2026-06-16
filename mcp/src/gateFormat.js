@@ -13,10 +13,12 @@ export function formatGateForAgent(out) {
   return {
     ...out,
     remediation: out?.remediation || null,
+    certification: out?.certification || null,
     agent_guidance: {
       read_field: "action",
       action,
       remediation: out?.remediation || null,
+      certification: out?.certification || null,
       blockers: out?.blockers || [],
       next_step: out?.next_step || guidance[action] || "Call check_gate again after signals update.",
       do_not_use_exit_code_alone:

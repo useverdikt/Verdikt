@@ -1705,6 +1705,50 @@ describe("Release identity + SHA correlation", () => {
     assert.ok(gate.body.blocking_signals.includes("accuracy"));
   });
 
+  it("gate includes certification intelligence when certified (CERTIFIED)", async () => {
+    const email = `gate_cert_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Gate Cert" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+
+    const created = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "gate-cert-v1", release_type: "model_update" })
+      .expect(201);
+
+    const ingest = await human
+      .post(`/api/releases/${created.body.id}/signals`)
+      .send({
+        source: "test",
+        signals: {
+          accuracy: 95,
+          safety: 95,
+          tone: 90,
+          hallucination: 95,
+          relevance: 90,
+          smoke: 100,
+          e2e_regression: 100,
+          manual_qa_pct: 100
+        }
+      })
+      .expect(200);
+    assert.equal(ingest.body.status, "CERTIFIED");
+
+    const gate = await human.get(`/api/releases/${created.body.id}/gate`).expect(200);
+    assert.equal(gate.body.action, "merge");
+    assert.ok(gate.body.certification, "certification context should be present on CERTIFIED gate");
+    assert.ok(typeof gate.body.certification.summary === "string" && gate.body.certification.summary.length > 0);
+    assert.ok(Array.isArray(gate.body.certification.passed_signals), "passed_signals should be an array");
+    assert.ok(typeof gate.body.certification.confidence === "number", "confidence should be a number");
+    assert.ok(typeof gate.body.certification.risk_level === "string", "risk_level should be a string");
+    assert.strictEqual(gate.body.remediation, null, "remediation should be null on a CERTIFIED gate");
+  });
+
   it("gate by commit_sha resolves release without release_id (CI path)", async () => {
     const email = `gate_sha_${crypto.randomBytes(4).toString("hex")}@test.local`;
     const human = request.agent(app);

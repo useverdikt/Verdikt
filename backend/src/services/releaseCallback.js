@@ -3,7 +3,7 @@
 const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
 const { nowIso } = require("../lib/time");
 
-function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = {}, failedSignals = []) {
+function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = {}, failedSignals = [], certification = null) {
   const signals = failedSignals.length ? failedSignals : (verdictIntelligence?.failed_signals ?? []);
   return {
     event: "verdikt.verdict",
@@ -13,6 +13,7 @@ function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = 
     status: release.status,
     verdict_issued_at: release.verdict_issued_at,
     failed_signals: signals,
+    certification: certification || null,
     gate: {
       certified: ["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(release.status),
       can_merge: release.status === "CERTIFIED",
@@ -23,7 +24,7 @@ function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = 
   };
 }
 
-async function deliverReleaseCallback(release, verdictIntelligence, gateExtras = {}, failedSignals = []) {
+async function deliverReleaseCallback(release, verdictIntelligence, gateExtras = {}, failedSignals = [], certification = null) {
   const callbackUrl = String(release.callback_url || "").trim();
   if (!callbackUrl) return { delivered: false, reason: "no_callback_url" };
 
@@ -35,7 +36,7 @@ async function deliverReleaseCallback(release, verdictIntelligence, gateExtras =
     return { delivered: false, reason: e?.message || "invalid_url" };
   }
 
-  const body = JSON.stringify(buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras, failedSignals));
+  const body = JSON.stringify(buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras, failedSignals, certification));
 
   try {
     const res = await fetch(safeUrl, {
