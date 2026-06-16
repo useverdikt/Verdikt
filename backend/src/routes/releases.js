@@ -55,7 +55,7 @@ const {
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
 
 module.exports = function registerReleaseRoutes(app) {
-app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
+app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
   const { source = "manual", signals } = req.body || {};
   if (!signals || typeof signals !== "object") {
     return res.status(400).json({ error: "signals object is required" });
@@ -132,7 +132,7 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireNonViewer, r
   return res.json(out);
 });
 
-app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
+app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
   const { provider = "generic", payload = {}, source } = req.body || {};
   const mapped = mapIntegrationSignals(provider, payload);
   if (!Object.keys(mapped.signals).length) {
@@ -182,7 +182,7 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
 });
 
 /** Pull metrics from workspace-connected sources (Braintrust experiment match by release.version; others may be skipped). */
-app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
+app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
   try {
     const out = await pullConnectedSourcesForRelease(req.releaseRow);
     const summary = summarizePullResult(out, req.releaseRow);
@@ -301,7 +301,7 @@ app.get("/api/releases/:releaseId/intelligence", authMiddleware, requireReleaseA
   }
 });
 
-app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { decision, notes = "", actor = "user" } = req.body || {};
   const allowed = new Set(["applied", "dismissed", "overridden", "shipped"]);
@@ -329,7 +329,7 @@ app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requi
   }
 });
 
-app.post("/api/releases/:releaseId/intelligence/outcome", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/intelligence/outcome", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { label, notes = "", observed_at } = req.body || {};
   const allowed = new Set(["incident", "no_incident", "followup_met"]);
@@ -358,7 +358,7 @@ app.post("/api/releases/:releaseId/intelligence/outcome", authMiddleware, requir
   }
 });
 
-app.post("/api/releases/:releaseId/escalate", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/escalate", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
     const release = req.releaseRow;
     const { reason, blocking_signals = [], attempted_fixes = [] } = req.body || {};
@@ -504,7 +504,7 @@ app.post(
 // ─── SSE Real-time Stream ─────────────────────────────────────────────────────
 
 /** Issue a short-lived token to open an SSE stream. */
-app.post("/api/releases/:releaseId/sse-token", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/sse-token", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
     const { token, expires_at } = await issueStreamToken(req.params.releaseId, req.auth.ws);
     return res.json({ token, expires_at, stream_url: `/api/releases/${req.params.releaseId}/stream` });
@@ -521,7 +521,7 @@ app.get("/api/releases/:releaseId/stream", async (req, res) => {
   attachStream(req.params.releaseId, res);
 });
 /** Allow setting commit_sha and pr_number on a release (for VCS write-back). */
-app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { commit_sha, pr_number } = req.body || {};
   if (!commit_sha && !pr_number) return res.status(400).json({ error: "commit_sha or pr_number is required" });
@@ -548,7 +548,7 @@ app.get("/api/releases/:releaseId/recommendation", authMiddleware, requireReleas
 });
 
 /** Force-recompute a recommendation for a release (e.g. after reliability scores are updated). */
-app.post("/api/releases/:releaseId/recommendation/compute", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/recommendation/compute", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
     const rec = await computeAndPersistRecommendation(req.releaseRow);
     return res.json({ release_id: req.params.releaseId, ...rec });
@@ -564,7 +564,7 @@ app.post("/api/releases/:releaseId/recommendation/compute", authMiddleware, requ
  * Body: { signals: { signal_name: value }, source?, idempotency_key?, metadata? }
  * Header: X-Idempotency-Key (alternative to body field)
  */
-app.post("/api/releases/:releaseId/production-signals", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/production-signals", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { signals, source, idempotency_key: bodyKey, metadata } = req.body || {};
   const releaseId = req.params.releaseId;
@@ -620,7 +620,7 @@ app.get("/api/releases/:releaseId/production-signals", authMiddleware, requireRe
  * POST /api/releases/:releaseId/production-signals/align
  * Manually trigger outcome alignment computation for a release.
  */
-app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const result = await computeOutcomeAlignment(req.params.releaseId, req.releaseRow.workspace_id);
   if (!result) return res.status(422).json({ error: "No production observations found for this release yet." });
@@ -635,7 +635,7 @@ app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, re
  * Link a post-mortem incident reference to a release's outcome alignment.
  * Body: { incident_ref: string }  — any string (Jira, PagerDuty, URL, etc.)
  */
-app.put("/api/releases/:releaseId/production-signals/incident", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res, next) => {
+app.put("/api/releases/:releaseId/production-signals/incident", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { incident_ref } = req.body || {};
   if (!incident_ref || typeof incident_ref !== "string" || !incident_ref.trim()) {
@@ -667,7 +667,7 @@ app.get("/api/releases/:releaseId/vcs-monitor", authMiddleware, requireReleaseAc
  * POST /api/releases/:releaseId/vcs-monitor/scan
  * Manually trigger an immediate VCS scan for a release (useful for testing).
  */
-app.post("/api/releases/:releaseId/vcs-monitor/scan", authMiddleware, requireNonViewer, requireReleaseAccess, async (req, res) => {
+app.post("/api/releases/:releaseId/vcs-monitor/scan", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
   let window = await getMonitoringWindow(req.params.releaseId);
 
   // If no window exists yet, open one from the release's current state

@@ -23,9 +23,12 @@ export function useWorkspaceThresholds(navigate, nav) {
 
   const applyThresholdsFromApi = useCallback((thData) => {
     const map = thData?.thresholds || {};
+    if (!map || Object.keys(map).length === 0) return;
     const parsed = applyThresholdApiMap(map);
-    setThresholds((prev) => ({ ...DEFAULT_THRESHOLDS, ...prev, ...parsed.thresholds }));
-    setThresholdRequired((prev) => ({ ...defaultRequiredFlags(), ...prev, ...parsed.required }));
+    // API is the source of truth — replace local state entirely rather than merging
+    // over the previous value, which could re-apply stale user edits from an earlier render.
+    setThresholds({ ...DEFAULT_THRESHOLDS, ...parsed.thresholds });
+    setThresholdRequired({ ...defaultRequiredFlags(), ...parsed.required });
   }, []);
 
   const applySignalCatalogFromApi = useCallback((data) => {

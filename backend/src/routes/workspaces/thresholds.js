@@ -4,6 +4,7 @@ const { run, transaction } = require("../../database");
 const {
   writeAudit,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireWorkspaceMatch,
   getThresholdMap,
@@ -23,7 +24,7 @@ app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorksp
   }
 });
 
-app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { thresholds } = req.body || {};
     if (!thresholds || typeof thresholds !== "object") {
@@ -94,7 +95,7 @@ app.get("/api/workspaces/:workspaceId/threshold-suggestions", authMiddleware, re
   });
 });
 
-app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     if (!ENABLE_THRESHOLD_SUGGESTIONS) {
       return res.status(404).json({ error: "threshold suggestions disabled" });
@@ -140,7 +141,7 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply
   }
 });
 
-app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/dismiss", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/dismiss", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     if (!ENABLE_THRESHOLD_SUGGESTIONS) {
       return res.status(404).json({ error: "threshold suggestions disabled" });
@@ -170,7 +171,7 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/dismi
     next(e);
   }
 });
-app.post("/api/workspaces/:workspaceId/thresholds/simulate", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/thresholds/simulate", authMiddleware, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { proposed_thresholds, release_ids, limit } = req.body || {};
 

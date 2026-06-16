@@ -17,7 +17,9 @@ export default function GeneralSettingsSection({
   prodObservation,
   persistProdObservation,
   setGeneralDirty,
-  setGeneralNote
+  setGeneralNote,
+  certVisibility = { public_cert_records: true, show_signal_detail: true, show_override_justification: true },
+  updateCertVisibility = () => {}
 }) {
   return (
     <div className={`section${section === "general" ? " active" : ""}`} id="panel-general">
@@ -179,7 +181,11 @@ export default function GeneralSettingsSection({
               <div className="toggle-desc">Anyone with the URL can view the certification record. Disable to require login.</div>
             </div>
             <label className="toggle">
-              <input type="checkbox" defaultChecked onChange={() => toast("Record visibility updated")} />
+              <input
+                type="checkbox"
+                checked={certVisibility.public_cert_records}
+                onChange={(e) => updateCertVisibility("public_cert_records", e.target.checked)}
+              />
               <div className="toggle-track" />
             </label>
           </div>
@@ -189,7 +195,11 @@ export default function GeneralSettingsSection({
               <div className="toggle-desc">Include per-signal pass/fail detail. Disable to show only the certification state and override record.</div>
             </div>
             <label className="toggle">
-              <input type="checkbox" defaultChecked onChange={() => toast("Signal visibility updated")} />
+              <input
+                type="checkbox"
+                checked={certVisibility.show_signal_detail}
+                onChange={(e) => updateCertVisibility("show_signal_detail", e.target.checked)}
+              />
               <div className="toggle-track" />
             </label>
           </div>
@@ -199,7 +209,11 @@ export default function GeneralSettingsSection({
               <div className="toggle-desc">Include the written justification on the public record. Always on for internal view.</div>
             </div>
             <label className="toggle">
-              <input type="checkbox" defaultChecked onChange={() => toast("Override visibility updated")} />
+              <input
+                type="checkbox"
+                checked={certVisibility.show_override_justification}
+                onChange={(e) => updateCertVisibility("show_override_justification", e.target.checked)}
+              />
               <div className="toggle-track" />
             </label>
           </div>

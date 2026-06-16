@@ -48,7 +48,7 @@ async function seedThresholds(workspaceId) {
 
 async function ensureMissingThresholdRows(workspaceId) {
   const definitionRows = await queryAll(
-    "SELECT signal_id FROM workspace_signal_definitions WHERE workspace_id = ?",
+    "SELECT signal_id FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
     [workspaceId]
   ).catch(() => []);
   const defaults = sharedPkg.getDefaultThresholdSeedRows();
@@ -105,7 +105,7 @@ async function getThresholdMap(workspaceId) {
       [workspaceId]
     ),
     queryAll(
-      "SELECT signal_id, direction FROM workspace_signal_definitions WHERE workspace_id = ?",
+      "SELECT signal_id, direction FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
       [workspaceId]
     ).catch(() => [])
   ]);

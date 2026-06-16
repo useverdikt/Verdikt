@@ -62,6 +62,9 @@ module.exports = function registerAuthRoutes(app) {
     if (typeof password !== "string" || password.length < 8) {
       return res.status(400).json({ error: "Password must be at least 8 characters" });
     }
+    if (!(await checkRegisterRateLimit(req.ip))) {
+      return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
+    }
     const existing = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
     if (existing) {
       try {
@@ -73,9 +76,6 @@ module.exports = function registerAuthRoutes(app) {
         console.warn(`[${req.requestId}] already-registered email notify`, e);
       }
       return res.status(200).json({ ok: true, message: REGISTER_RESPONSE_MESSAGE });
-    }
-    if (!(await checkRegisterRateLimit(req.ip))) {
-      return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
     }
     const id = crypto.randomUUID();
     const password_hash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
