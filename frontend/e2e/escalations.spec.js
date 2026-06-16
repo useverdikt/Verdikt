@@ -45,9 +45,9 @@ test.describe("escalations inbox", () => {
   });
 
   test("sidebar escalations nav item is active", async ({ page }) => {
-    // The sidebar should highlight the Escalations tab when on /escalations
-    const sidebarEsc = page.locator(".sidebar-item, .nav-item, [data-nav]").filter({ hasText: /escalations/i });
-    await expect(sidebarEsc.first()).toBeVisible({ timeout: 10_000 });
+    const sidebarEsc = page.getByRole("button", { name: "Escalations" });
+    await expect(sidebarEsc).toBeVisible({ timeout: 10_000 });
+    await expect(sidebarEsc).toHaveAttribute("aria-current", "page");
   });
 });
 
