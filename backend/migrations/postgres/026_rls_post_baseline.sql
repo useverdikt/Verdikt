@@ -15,7 +15,7 @@ DROP POLICY IF EXISTS workspace_members_tenant ON workspace_members;
 CREATE POLICY workspace_members_tenant ON workspace_members FOR ALL TO authenticated
   USING (
     workspace_id = app_workspace_id()
-    OR user_id IN (SELECT id FROM users WHERE auth_user_id = auth.uid()::text)
+    OR user_id IN (SELECT id FROM users WHERE auth_user_id = verdikt_jwt_uid())
   )
   WITH CHECK (workspace_id = app_workspace_id());
 
