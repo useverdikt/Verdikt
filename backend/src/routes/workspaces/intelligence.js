@@ -4,6 +4,7 @@ const { queryOne, queryAll } = require("../../database");
 const {
   writeAudit,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireWorkspaceMatch,
   computeAndPersistCorrelations,
@@ -21,7 +22,7 @@ const {
 const { getWorkspaceLoopReadinessCached } = require("../../services/loopReadinessCache");
 
 module.exports = function registerRoutes(app) {
-app.post("/api/workspaces/:workspaceId/correlations/compute", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/correlations/compute", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { window_n = 20 } = req.body || {};
     const result = await computeAndPersistCorrelations(req.params.workspaceId, Math.min(50, Math.max(5, Number(window_n))));
@@ -60,7 +61,7 @@ app.get("/api/workspaces/:workspaceId/override-analytics", authMiddleware, requi
 
 // ─── Signal Reliability ───────────────────────────────────────────────────────
 
-app.post("/api/workspaces/:workspaceId/signal-reliability/compute", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/signal-reliability/compute", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { window_n = 20 } = req.body || {};
     const results = await computeSignalReliability(req.params.workspaceId, Math.min(50, Math.max(3, Number(window_n))));
@@ -83,7 +84,7 @@ app.get("/api/workspaces/:workspaceId/signal-reliability", authMiddleware, requi
  * Backfill recommendations for all completed releases in a workspace that
  * don't have one yet. Safe to run multiple times (idempotent).
  */
-app.post("/api/workspaces/:workspaceId/recommendations/backfill", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/recommendations/backfill", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const VERDICTED = ["CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE"];
     const releases = await queryAll(

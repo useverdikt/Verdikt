@@ -113,6 +113,14 @@ export default function SettingsWorkspace() {
     toast(next ? "Production observation on — post-deploy intelligence enabled" : "Production observation off");
   };
 
+  const [certVisibility, setCertVisibility] = useState({
+    public_cert_records: true,
+    show_signal_detail: true,
+    show_override_justification: true
+  });
+  const [slackWebhookInput, setSlackWebhookInput] = useState("");
+  const [slackSaving, setSlackSaving] = useState(false);
+
   const [members, setMembers] = useState(() => []);
   const [membersLoading, setMembersLoading] = useState(false);
   const [rolePolicy, _setRolePolicy] = useState(loadRolePolicy);
@@ -206,6 +214,69 @@ export default function SettingsWorkspace() {
   useEffect(() => {
     loadWorkspaceThresholds();
   }, [loadWorkspaceThresholds]);
+
+  useEffect(() => {
+    if (!wsId) return;
+    let active = true;
+    apiGet(`/api/workspaces/${wsId}/policies`, { navigate })
+      .then((data) => {
+        if (!active) return;
+        const p = data?.policies;
+        if (!p) return;
+        setCertVisibility({
+          public_cert_records: p.public_cert_records !== false,
+          show_signal_detail: p.show_signal_detail !== false,
+          show_override_justification: p.show_override_justification !== false
+        });
+        setSlackWebhookInput(p.slack_webhook_url || "");
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [wsId, navigate]);
+
+  const updateCertVisibility = useCallback(
+    async (key, value) => {
+      const next = { ...certVisibility, [key]: value };
+      setCertVisibility(next);
+      try {
+        await apiPost(`/api/workspaces/${wsId}/policies`, next, { navigate });
+      } catch (err) {
+        setCertVisibility(certVisibility);
+        toast(err?.message || "Failed to save visibility setting");
+      }
+    },
+    [certVisibility, navigate, toast, wsId]
+  );
+
+  const saveSlackWebhook = useCallback(async () => {
+    setSlackSaving(true);
+    try {
+      await apiPost(
+        `/api/workspaces/${wsId}/policies`,
+        { slack_webhook_url: slackWebhookInput.trim() || null },
+        { navigate }
+      );
+      toast(slackWebhookInput.trim() ? "Slack webhook saved" : "Slack webhook removed");
+    } catch (err) {
+      toast(err?.message || "Failed to save Slack webhook");
+    } finally {
+      setSlackSaving(false);
+    }
+  }, [navigate, slackWebhookInput, toast, wsId]);
+
+  const resetThresholdsToDefaults = useCallback(async () => {
+    try {
+      const { THRESH_DEFAULTS } = await import("./settingsData.js");
+      const thresholds = Object.fromEntries(
+        Object.entries(THRESH_DEFAULTS).map(([k, v]) => [k, { min: v, max: null }])
+      );
+      await apiPost(`/api/workspaces/${wsId}/thresholds`, { thresholds }, { navigate });
+      await loadWorkspaceThresholds();
+      toast("Thresholds reset to defaults");
+    } catch (err) {
+      toast(err?.message || "Failed to reset thresholds");
+    }
+  }, [loadWorkspaceThresholds, navigate, toast, wsId]);
 
   const mapMemberRow = useCallback((m) => {
     const email = String(m.email || "");
@@ -539,6 +610,8 @@ export default function SettingsWorkspace() {
           persistProdObservation={persistProdObservation}
           setGeneralDirty={setGeneralDirty}
           setGeneralNote={setGeneralNote}
+          certVisibility={certVisibility}
+          updateCertVisibility={updateCertVisibility}
         />
         <TeamSettingsSection
           section={section}
@@ -592,10 +665,21 @@ export default function SettingsWorkspace() {
           removeVcsIntegration={removeVcsIntegration}
           vcsSaving={vcsSaving}
         />
-        <NotificationsSettingsSection section={section} toast={toast} />
+        <NotificationsSettingsSection
+          section={section}
+          toast={toast}
+          slackWebhookInput={slackWebhookInput}
+          setSlackWebhookInput={setSlackWebhookInput}
+          saveSlackWebhook={saveSlackWebhook}
+          slackSaving={slackSaving}
+        />
         <GovernancePanel section={section} wsId={wsId} toast={toast} />
         <BillingSettingsSection section={section} />
-        <DangerZoneSection section={section} toast={toast} />
+        <DangerZoneSection
+          section={section}
+          toast={toast}
+          resetThresholds={resetThresholdsToDefaults}
+        />
         <EmailPreviewsSection section={section} />
       </SettingsWorkspaceShell>
 

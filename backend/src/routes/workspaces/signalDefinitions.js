@@ -3,6 +3,7 @@
 const {
   writeAudit,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireWorkspaceMatch
 } = require("../deps");
@@ -32,8 +33,9 @@ module.exports = function registerRoutes(app) {
   app.post(
     "/api/workspaces/:workspaceId/signal-definitions",
     authMiddleware,
-    requireNonViewer,
+    requireHumanSession,
     requireWorkspaceMatch,
+    requireNonViewer,
     async (req, res, next) => {
       try {
         const body = req.body || {};
@@ -59,8 +61,9 @@ module.exports = function registerRoutes(app) {
   app.post(
     "/api/workspaces/:workspaceId/signal-definitions/adopt",
     authMiddleware,
-    requireNonViewer,
+    requireHumanSession,
     requireWorkspaceMatch,
+    requireNonViewer,
     async (req, res, next) => {
       try {
         const { signal_id: signalId, threshold, required_for_certification } = req.body || {};
@@ -90,8 +93,9 @@ module.exports = function registerRoutes(app) {
   app.delete(
     "/api/workspaces/:workspaceId/signal-definitions/:signalId",
     authMiddleware,
-    requireNonViewer,
+    requireHumanSession,
     requireWorkspaceMatch,
+    requireNonViewer,
     async (req, res, next) => {
       try {
         const existing = await getWorkspaceDefinition(req.params.workspaceId, req.params.signalId);

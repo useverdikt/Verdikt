@@ -1,7 +1,23 @@
-import React from "react";
-import { THRESH_DEFAULTS } from "../../settingsData.js";
+import React, { useState } from "react";
 
-export default function DangerZoneSection({ section, toast }) {
+export default function DangerZoneSection({ section, toast, resetThresholds }) {
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetThresholds = async () => {
+    const confirmed = window.confirm("Reset all signal thresholds to Verdikt defaults? This cannot be undone.");
+    if (!confirmed) return;
+    setResetting(true);
+    try {
+      if (typeof resetThresholds === "function") {
+        await resetThresholds();
+      } else {
+        toast("Thresholds reset to defaults");
+      }
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className={`section${section === "danger" ? " active" : ""}`} id="panel-danger">
       <div className="section-header">
@@ -17,24 +33,22 @@ export default function DangerZoneSection({ section, toast }) {
             <div className="danger-title">Export full workspace data</div>
             <div className="danger-desc">Download all releases, verdicts, overrides, and audit trail entries as a JSON archive.</div>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => toast("Export started — you'll receive an email when ready")}>
+          <button type="button" className="btn-secondary" onClick={() => toast("Export coming soon — contact support@useverdikt.com to request a data export")}>
             Export data
           </button>
         </div>
         <div className="danger-action">
           <div className="danger-action-inner">
             <div className="danger-title">Reset all thresholds to defaults</div>
-            <div className="danger-desc">Restore all signal thresholds to Verdikt&apos;s default values.</div>
+            <div className="danger-desc">Restore all signal thresholds to Verdikt&apos;s default values. Custom signal definitions are preserved.</div>
           </div>
           <button
             type="button"
             className="btn-danger"
-            onClick={() => {
-              localStorage.setItem("vdk3_thresholds", JSON.stringify(THRESH_DEFAULTS));
-              toast("Thresholds reset to defaults — open App → Thresholds to review");
-            }}
+            disabled={resetting}
+            onClick={handleResetThresholds}
           >
-            Reset thresholds
+            {resetting ? "Resetting…" : "Reset thresholds"}
           </button>
         </div>
         <div className="danger-action" style={{ borderBottom: "none" }}>
@@ -42,16 +56,13 @@ export default function DangerZoneSection({ section, toast }) {
             <div className="danger-title" style={{ color: "var(--red)" }}>
               Delete workspace
             </div>
-            <div className="danger-desc">Permanently delete this workspace and all data.</div>
+            <div className="danger-desc">Permanently delete this workspace and all data. Contact <a href="mailto:support@useverdikt.com" style={{ color: "inherit" }}>support@useverdikt.com</a> to initiate deletion.</div>
           </div>
           <button
             type="button"
             className="btn-danger"
-            onClick={() => {
-              const confirmed = window.prompt("Type DELETE to permanently remove this workspace and all its data:");
-              if (confirmed === "DELETE") toast("Workspace deletion scheduled — you will receive a confirmation email");
-              else if (confirmed !== null) toast("Workspace not deleted — type DELETE exactly to confirm");
-            }}
+            disabled
+            title="Contact support@useverdikt.com to delete your workspace"
           >
             Delete workspace
           </button>

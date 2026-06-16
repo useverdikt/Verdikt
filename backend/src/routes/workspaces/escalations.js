@@ -32,8 +32,8 @@ module.exports = function registerEscalationRoutes(app) {
   app.post(
     "/api/workspaces/:workspaceId/escalations/:escalationId/acknowledge",
     authMiddleware,
-    requireOverrideApproverRole,
     requireWorkspaceMatch,
+    requireOverrideApproverRole,
     async (req, res, next) => {
       try {
         const { note = "" } = req.body || {};
@@ -57,8 +57,8 @@ module.exports = function registerEscalationRoutes(app) {
   app.post(
     "/api/workspaces/:workspaceId/escalations/:escalationId/acknowledge-and-override",
     authMiddleware,
-    requireOverrideApproverRole,
     requireWorkspaceMatch,
+    requireOverrideApproverRole,
     async (req, res, next) => {
       try {
         const { note = "", justification, metadata = {} } = req.body || {};
