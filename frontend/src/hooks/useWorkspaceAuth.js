@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { apiGet } from "../lib/apiClient.js";
 import { persistAuthSession } from "../auth/persistSession.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { S } from "../app/main/appMainLogic.js";
+import { S } from "../lib/workspaceStorage.js";
 
 /** Current user session and /api/auth/me bootstrap. */
 export function useWorkspaceAuth(navigate) {

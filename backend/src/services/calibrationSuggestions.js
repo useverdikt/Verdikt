@@ -12,6 +12,10 @@
 const { queryAll } = require("../database");
 const { safeJsonParse } = require("../lib/safeJson");
 const { getThresholdMap } = require("./workspaceConfig");
+const {
+  loadDismissedSuggestionKeys,
+  isSuggestionDismissed
+} = require("./thresholdSuggestionDismissals");
 
 function calibrationSuggestionId(workspaceId, releaseId, signalId, direction) {
   return `cal:${workspaceId}:${releaseId}:${signalId}:${direction}`;
@@ -122,22 +126,7 @@ function missSuggestionsFromAlignment(workspaceId, alignment, threshMap) {
 }
 
 async function loadDismissedCalibrationIds(workspaceId) {
-  const rows = await queryAll(
-    `SELECT details_json FROM audit_events
-     WHERE workspace_id = ? AND event_type IN ('THRESHOLD_SUGGESTION_DISMISSED', 'THRESHOLD_SUGGESTION_APPLIED')
-     ORDER BY id DESC LIMIT 500`,
-    [workspaceId]
-  );
-  const ids = new Set();
-  for (const row of rows) {
-    try {
-      const d = JSON.parse(row.details_json || "{}");
-      if (d.suggestion_id && String(d.suggestion_id).startsWith("cal:")) ids.add(d.suggestion_id);
-    } catch {
-      /* ignore */
-    }
-  }
-  return ids;
+  return loadDismissedSuggestionKeys(workspaceId);
 }
 
 /**
@@ -165,13 +154,13 @@ async function buildCalibrationThresholdSuggestions(workspaceId) {
       const rawList = safeJsonParse(alignment.over_block_suggestions_json, []);
       for (const raw of rawList) {
         const sug = mapOverBlockRawToSuggestion(workspaceId, alignment, raw);
-        if (!sug || dismissedIds.has(sug.id)) continue;
+        if (!sug || isSuggestionDismissed(dismissedIds, sug)) continue;
         const key = `${sug.signal_id}:${sug.direction}`;
         if (!byKey.has(key)) byKey.set(key, sug);
       }
     } else if (alignment.alignment === "MISS") {
       for (const sug of missSuggestionsFromAlignment(workspaceId, alignment, threshMap)) {
-        if (dismissedIds.has(sug.id)) continue;
+        if (isSuggestionDismissed(dismissedIds, sug)) continue;
         const key = `${sug.signal_id}:${sug.direction}`;
         if (!byKey.has(key)) byKey.set(key, sug);
       }

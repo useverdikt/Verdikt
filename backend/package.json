@@ -7,6 +7,7 @@
     "sync-shared": "node scripts/sync-shared.cjs",
     "postinstall": "node scripts/sync-shared.cjs",
     "start": "node src/server.js",
+    "worker": "node src/worker.js",
     "dev": "node src/server.js",
     "test": "node --test-concurrency=1 --test test/*.test.js",
     "test:local-pg": "bash scripts/test-local-pg.sh",

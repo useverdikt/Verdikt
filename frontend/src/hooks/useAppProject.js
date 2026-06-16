@@ -1,7 +1,7 @@
 import { normalizeStoredProject } from "../lib/projectEnv.js";
 import { readWorkspaceProdObservation } from "../lib/workspacePrefs.js";
 import { getWorkspaceId } from "../lib/apiClient.js";
-import { S } from "../app/main/appMainLogic.js";
+import { S } from "../lib/workspaceStorage.js";
 
 /** Workspace project metadata from localStorage (settings + sidebar). */
 export function useAppProject() {
