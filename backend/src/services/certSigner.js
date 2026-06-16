@@ -16,7 +16,11 @@ function buildCanonicalPayload(release, verdict, signedAt) {
     environment: release.environment || "",
     status: release.status,
     verdict_issued_at: release.verdict_issued_at || signedAt,
-    failed_signal_count: Array.isArray(verdict?.failed_signals) ? verdict.failed_signals.length : 0,
+    failed_signal_count: Array.isArray(verdict?.failed_signals)
+      ? verdict.failed_signals.length
+      : Array.isArray(verdict?.likely_failure_modes)
+        ? verdict.likely_failure_modes.length
+        : 0,
     signed_at: signedAt
   };
   return JSON.stringify(fields, Object.keys(fields).sort());
