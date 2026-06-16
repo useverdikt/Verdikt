@@ -17,22 +17,22 @@
     "supabase:local": "bash ../scripts/supabase-local-bootstrap.sh"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.78.0",
+    "@supabase/supabase-js": "^2.108.2",
     "@vitejs/plugin-react": "^4.3.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0",
+    "react-router-dom": "^6.30.4",
     "vite": "^5.4.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.61.0",
     "concurrently": "^9.1.2",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.5.0",
+    "globals": "^17.6.0",
     "jsdom": "^26.1.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   }
 }
