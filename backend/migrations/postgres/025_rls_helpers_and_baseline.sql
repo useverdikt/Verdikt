@@ -1,13 +1,30 @@
--- Supabase-compatible RLS helpers + tenant policies for baseline tables.
--- Backend connects as table owner (bypasses RLS); policies protect direct authenticated client access.
+-- RLS helpers + tenant policies. Backend connects as table owner (bypasses RLS).
+-- Does NOT create auth.uid() — Supabase/Railway reserve the auth schema.
 
-CREATE SCHEMA IF NOT EXISTS auth;
-
-CREATE OR REPLACE FUNCTION auth.uid()
-  RETURNS uuid
-  LANGUAGE sql
-  STABLE
-  AS $$ SELECT NULL::uuid $$;
+CREATE OR REPLACE FUNCTION verdikt_jwt_uid()
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  uid text;
+BEGIN
+  IF to_regnamespace('auth') IS NOT NULL THEN
+    BEGIN
+      EXECUTE 'SELECT auth.uid()::text' INTO uid;
+      IF uid IS NOT NULL AND uid <> '' THEN
+        RETURN uid;
+      END IF;
+    EXCEPTION
+      WHEN insufficient_privilege OR undefined_function THEN
+        NULL;
+    END;
+  END IF;
+  RETURN NULLIF(current_setting('request.jwt.claim.sub', true), '');
+END;
+$$;
 
 DO $$
 BEGIN
@@ -20,6 +37,9 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
     CREATE ROLE service_role;
   END IF;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'verdikt: skipping RLS role creation (insufficient privileges)';
 END $$;
 
 CREATE OR REPLACE FUNCTION app_workspace_id()
@@ -31,7 +51,7 @@ CREATE OR REPLACE FUNCTION app_workspace_id()
   AS $$
   SELECT workspace_id
   FROM users
-  WHERE auth_user_id = auth.uid()::text
+  WHERE auth_user_id = verdikt_jwt_uid()
   LIMIT 1;
 $$;
 
@@ -78,10 +98,10 @@ $$;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS users_select_own ON users;
 CREATE POLICY users_select_own ON users FOR SELECT TO authenticated
-  USING (auth_user_id = auth.uid()::text);
+  USING (auth_user_id = verdikt_jwt_uid());
 DROP POLICY IF EXISTS users_update_own ON users;
 CREATE POLICY users_update_own ON users FOR UPDATE TO authenticated
-  USING (auth_user_id = auth.uid()::text) WITH CHECK (auth_user_id = auth.uid()::text);
+  USING (auth_user_id = verdikt_jwt_uid()) WITH CHECK (auth_user_id = verdikt_jwt_uid());
 
 -- workspace-scoped tables
 ALTER TABLE thresholds ENABLE ROW LEVEL SECURITY;
@@ -145,5 +165,11 @@ CREATE POLICY waitlist_insert_anon ON waitlist_requests FOR INSERT TO anon WITH 
 DROP POLICY IF EXISTS waitlist_insert_authenticated ON waitlist_requests;
 CREATE POLICY waitlist_insert_authenticated ON waitlist_requests FOR INSERT TO authenticated WITH CHECK (true);
 
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+DO $$
+BEGIN
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'verdikt: skipping authenticated grants (insufficient privileges)';
+END $$;
