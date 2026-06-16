@@ -406,6 +406,12 @@ async function getWorkspaceProductionHealth(workspaceId) {
 
   const adjustment = await getProductionAdjustment(workspaceId);
 
+  let pending_calibration_suggestions = 0;
+  try {
+    const { buildCalibrationThresholdSuggestions } = require("./calibrationSuggestions");
+    pending_calibration_suggestions = (await buildCalibrationThresholdSuggestions(workspaceId)).length;
+  } catch (_) {}
+
   return {
     total_releases_with_feedback: total,
     prediction_accuracy_pct: predictionAccuracy,
@@ -416,6 +422,7 @@ async function getWorkspaceProductionHealth(workspaceId) {
     avg_signal_drifts: avgSignalDrifts,
     total_observations: obsCount,
     production_confidence_modifier: adjustment?.confidence_modifier ?? null,
+    pending_calibration_suggestions,
     over_block_threshold_suggestions: deduped,
     outcome_classification_criteria: OUTCOME_CRITERIA,
     alignments: alignments.map((a) => ({
