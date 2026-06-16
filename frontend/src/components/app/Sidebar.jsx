@@ -32,6 +32,12 @@ function NavIcon({ id }) {
         <path d="M2 10h10M2 7h7M2 4h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
       </svg>
     ),
+    escalations: (
+      <svg viewBox="0 0 14 14" fill="none" width="14" height="14">
+        <path d="M7 2v5M7 10v1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2"/>
+      </svg>
+    ),
     intelligence: (
       <svg viewBox="0 0 14 14" fill="none" width="14" height="14">
         <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2"/>
@@ -439,6 +445,8 @@ export default function Sidebar({
           onClick={() => onNavigate("intelligence")} />
         <NavBtn id="audit" label="Audit Trail" active={nav === "audit"}
           onClick={() => onNavigate("audit")} />
+        <NavBtn id="escalations" label="Escalations" active={nav === "escalations"}
+          onClick={() => onNavigate("escalations")} />
         <NavBtn id="thresholds" label="Thresholds" active={nav === "thresholds"}
           onClick={() => onNavigate("thresholds")} />
         <NavBtn id="trend" label="Trends" active={nav === "trend"}

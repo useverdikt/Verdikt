@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import IntegrationPullBanner from "../../IntegrationPullBanner.jsx";
@@ -16,6 +17,74 @@ import {
 import { buildDetailSignalRows } from "../../../lib/workspaceSignalUi.js";
 import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import ReleaseDetailLoadingSkeleton from "./ReleaseDetailLoadingSkeleton.jsx";
+import { apiPost } from "../../../lib/apiClient.js";
+
+function OutcomeRecorder({ releaseId }) {
+  const [recorded, setRecorded] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  if (!releaseId) return null;
+
+  const record = async (label) => {
+    setSaving(true);
+    setErr(null);
+    try {
+      await apiPost(`/api/releases/${releaseId}/intelligence/outcome`, { label });
+      setRecorded(label);
+    } catch (e) {
+      setErr(e?.message || "Failed to record outcome");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (recorded) {
+    const msg = recorded === "no_incident" ? "✓ Clean ship recorded" : recorded === "incident" ? "⚠ Incident logged" : "✓ Follow-up recorded";
+    const color = recorded === "no_incident" ? "#059669" : recorded === "incident" ? "#dc2626" : "#d97706";
+    return (
+      <div style={{ fontSize: 11, color, fontFamily: "var(--mono)", marginBottom: 8, padding: "6px 10px", background: color + "12", borderRadius: 6 }}>
+        {msg} — outcome feeds threshold calibration
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: 9, color: "var(--dim, #475569)", fontFamily: "var(--mono)", letterSpacing: "0.08em", marginBottom: 5, textTransform: "uppercase" }}>
+        Post-deploy outcome
+      </div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {[
+          { label: "no_incident", text: "Clean ship", color: "#059669" },
+          { label: "incident", text: "Incident", color: "#dc2626" },
+          { label: "followup_met", text: "Follow-up met", color: "#d97706" }
+        ].map(({ label, text, color }) => (
+          <button
+            key={label}
+            type="button"
+            disabled={saving}
+            onClick={() => record(label)}
+            style={{
+              fontSize: 10,
+              fontFamily: "var(--mono)",
+              padding: "4px 10px",
+              borderRadius: 5,
+              border: `1px solid ${color}40`,
+              background: color + "0e",
+              color,
+              cursor: "pointer",
+              opacity: saving ? 0.6 : 1
+            }}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+      {err && <div style={{ fontSize: 10, color: "#f87171", marginTop: 4 }}>{err}</div>}
+    </div>
+  );
+}
 
 export default function ReleaseDetail({
   release,
@@ -322,6 +391,9 @@ export default function ReleaseDetail({
               </>
             );
           })()}
+          {!isCollecting && releaseId && (
+            <OutcomeRecorder releaseId={releaseId} />
+          )}
           <div className="da">
             {normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED && (
               <button type="button" className="dab pr" onClick={() => onBeginOverride?.(release)}>

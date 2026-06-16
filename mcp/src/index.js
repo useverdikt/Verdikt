@@ -157,6 +157,55 @@ server.registerTool(
 );
 
 server.registerTool(
+  "get_regression_history",
+  {
+    description:
+      "Agent playbook v2. Returns the regression history for a release — consecutive regression streak, prior-window failure count, and per-signal trend for each failing signal. Use this before deciding to escalate or self-heal: a 3+ streak signals a systemic issue that warrants escalation rather than a quick fix.",
+    inputSchema: {
+      release_id: z.string().describe("Release ID to inspect for regression patterns")
+    }
+  },
+  async ({ release_id }) => {
+    const out = await apiRequest("GET", `/api/releases/${release_id}/regression-history`);
+    const history = out.regression_history;
+
+    if (!history || !history.signals?.length) {
+      return jsonResult({
+        release_id,
+        status: out.status,
+        has_regression: false,
+        message: "No regression history found. Either no prior certified baseline exists, or no regression-type failures were detected.",
+        regression_history: null
+      });
+    }
+
+    const signals = history.signals.map((s) => ({
+      signal_id: s.signal_id,
+      consecutive_regression_releases: s.consecutive_regression_releases,
+      prior_window_failures: `${s.prior_regression_failures_in_window} / ${s.prior_releases_in_window} prior releases`,
+      streak_severity: s.consecutive_regression_releases >= 3 ? "HIGH — escalate" : s.consecutive_regression_releases >= 2 ? "MEDIUM — investigate" : "LOW — monitor"
+    }));
+
+    const maxStreak = Math.max(...signals.map((s) => s.consecutive_regression_releases));
+    const recommendation =
+      maxStreak >= 3
+        ? "ESCALATE — 3+ consecutive regression releases indicate a systemic issue."
+        : maxStreak >= 2
+        ? "INVESTIGATE — consecutive regressions detected; review model/prompt changes between releases."
+        : "MONITOR — single regression; self-heal attempt is reasonable.";
+
+    return jsonResult({
+      release_id,
+      status: out.status,
+      has_regression: true,
+      recommendation,
+      signals,
+      prior_window_size: history.prior_window_size
+    });
+  }
+);
+
+server.registerTool(
   "record_outcome",
   {
     description: "Record post-production outcome for calibration (incident, clean, follow-up).",
