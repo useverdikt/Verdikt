@@ -78,6 +78,17 @@ test("null input does not throw", () => {
   assert.equal(out.agent_guidance.action, "unknown");
 });
 
+test("calibration passed through to agent_guidance when present", () => {
+  const cal = {
+    summary: "1 pending prod calibration suggestion on Thresholds.",
+    pending_suggestions_count: 1,
+    mode: "suggest_only"
+  };
+  const out = formatGateForAgent({ action: "merge", calibration: cal, gate: { exit_code: 0 } });
+  assert.deepEqual(out.calibration, cal);
+  assert.deepEqual(out.agent_guidance.calibration, cal);
+});
+
 test("original fields from gate response are preserved", () => {
   const input = { action: "merge", release_id: "rel_abc", workspace_id: "ws_1", can_merge: true, gate: { exit_code: 0 } };
   const out = formatGateForAgent(input);

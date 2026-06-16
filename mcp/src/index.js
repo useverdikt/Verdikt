@@ -157,6 +157,41 @@ server.registerTool(
 );
 
 server.registerTool(
+  "get_calibration_suggestions",
+  {
+    description:
+      "List pending prod calibration threshold suggestions (MISS tighten / OVER_BLOCK loosen). Suggest-only — thresholds change only after a human applies on Thresholds. Use with check_gate calibration context before certifying borderline releases.",
+    inputSchema: {}
+  },
+  async () => {
+    const out = await apiRequest("GET", `/api/workspaces/${WORKSPACE_ID}/calibration-suggestions`);
+    const suggestions = out.suggestions || [];
+    return jsonResult({
+      workspace_id: WORKSPACE_ID,
+      mode: out.mode || "suggest_only",
+      apply_on: out.apply_on || "/thresholds",
+      pending_count: suggestions.length,
+      suggestions: suggestions.map((s) => ({
+        id: s.id,
+        signal_id: s.signal_id,
+        direction: s.direction,
+        current: s.current,
+        suggested: s.suggested,
+        alignment: s.alignment,
+        release_version: s.release_version,
+        reason: s.reason,
+        apply_note: "Humans apply via Thresholds UI or threshold-suggestions apply API (human session)."
+      })),
+      context: out.context || null,
+      agent_note:
+        suggestions.length > 0
+          ? `${suggestions.length} prod-derived suggestion(s) pending. Review before shipping similar releases.`
+          : "No pending prod calibration suggestions."
+    });
+  }
+);
+
+server.registerTool(
   "get_regression_history",
   {
     description:
