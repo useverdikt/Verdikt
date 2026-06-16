@@ -2481,6 +2481,77 @@ describe("calibration threshold suggestions", () => {
     const policies = await agent.get(`/api/workspaces/${ws}/policies`).expect(200);
     assert.equal(policies.body.policies.calibration_mode, "suggest_only");
   });
+
+  it("dismissed prod calibration suggestion stays suppressed on new alignment", async () => {
+    const email = `cal_dismiss_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Dismiss" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+    await run("UPDATE thresholds SET min_value = ? WHERE workspace_id = ? AND signal_id = ?", [90, ws, "accuracy"]);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "cal-dismiss-v1", release_type: "model_update" })
+      .expect(201);
+    const releaseId = created.body.id;
+    const ts = nowIso();
+
+    const insertAlignment = async (version) => {
+      const rel = version === "cal-dismiss-v1"
+        ? releaseId
+        : (
+            await agent
+              .post(`/api/workspaces/${ws}/releases`)
+              .send({ version, release_type: "model_update" })
+              .expect(201)
+          ).body.id;
+      await run(
+        `INSERT INTO outcome_alignments
+          (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
+           signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(release_id) DO UPDATE SET alignment = excluded.alignment, over_block_suggestions_json = excluded.over_block_suggestions_json`,
+        [
+          rel,
+          ws,
+          "UNCERTIFIED",
+          "HEALTHY",
+          "OVER_BLOCK",
+          "{}",
+          "[]",
+          JSON.stringify([
+            {
+              signal_id: "accuracy",
+              direction: "lower_min",
+              current_threshold: 90,
+              suggested_threshold: 85.5,
+              rationale: "Prod healthy after block."
+            }
+          ]),
+          ts,
+          ts
+        ]
+      );
+      return rel;
+    };
+
+    await insertAlignment("cal-dismiss-v1");
+    const first = await agent.get(`/api/workspaces/${ws}/threshold-suggestions`).expect(200);
+    const sug = (first.body.suggestions || []).find((s) => s.signal_id === "accuracy" && s.source === "prod_alignment");
+    assert.ok(sug, "initial prod suggestion should exist");
+    await agent.post(`/api/workspaces/${ws}/threshold-suggestions/${encodeURIComponent(sug.id)}/dismiss`).expect(200);
+
+    await insertAlignment("cal-dismiss-v2");
+    const second = await agent.get(`/api/workspaces/${ws}/threshold-suggestions`).expect(200);
+    const again = (second.body.suggestions || []).find(
+      (s) => s.signal_id === "accuracy" && s.source === "prod_alignment"
+    );
+    assert.equal(again, undefined, "dismissed accuracy prod suggestion should not reappear on new alignment");
+  });
 });
 
 // ─── postVerdictEffects + webhook delivery ───────────────────────────────────

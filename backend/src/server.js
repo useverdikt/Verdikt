@@ -5,15 +5,7 @@ const { isPasswordResetEmailConfigured } = require("./services/email");
 const { createApp } = require("./app");
 const { initDatabase, closePool } = require("./database");
 const { seedDemoUser } = require("./bootstrap/seed");
-const {
-  runCollectionDeadlineSweep,
-  startCollectionDeadlineSweepJob
-} = require("./jobs/collectionSweep");
-const { runVcsMonitorSweep, startVcsMonitorSweepJob } = require("./jobs/vcsMonitorSweep");
-const {
-  runEscalationSlaSweepJobOnce,
-  startEscalationSlaSweepJob
-} = require("./jobs/escalationSlaSweep");
+const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
 
 const SHUTDOWN_MS = Math.max(1000, Number(process.env.SHUTDOWN_GRACE_MS || 10_000));
 
@@ -40,18 +32,15 @@ async function startServer() {
     );
   }
   const app = createApp();
-  await runCollectionDeadlineSweep();
-  const sweepInterval = startCollectionDeadlineSweepJob();
-  const vcsMonitorInterval = startVcsMonitorSweepJob();
-  const escalationSlaInterval = startEscalationSlaSweepJob();
-  await runEscalationSlaSweepJobOnce();
-  // Run an initial VCS sweep shortly after startup to pick up any windows
-  // that were pending before the last restart
-  setTimeout(() => void runVcsMonitorSweep().catch(() => {}), 8_000);
+  let jobHandles = null;
+  if (process.env.RUN_BACKGROUND_JOBS !== "0") {
+    jobHandles = startBackgroundJobs();
+  } else {
+    console.info("INFO: Background jobs disabled (RUN_BACKGROUND_JOBS=0). Use worker.js for sweeps.");
+  }
 
   const server = app.listen(PORT, () => {
     console.log(`Verdikt backend listening on http://localhost:${PORT}`);
-    void runCollectionDeadlineSweep();
   });
 
   let shuttingDown = false;
@@ -59,9 +48,7 @@ async function startServer() {
     if (shuttingDown) return;
     shuttingDown = true;
     console.warn(`Received ${signal}, closing HTTP server and database…`);
-    if (sweepInterval) clearInterval(sweepInterval);
-    if (vcsMonitorInterval) clearInterval(vcsMonitorInterval);
-    if (escalationSlaInterval) clearInterval(escalationSlaInterval);
+    if (jobHandles) stopBackgroundJobs(jobHandles);
     server.close(async (err) => {
       // start-server-and-test (and some hosts) may close the socket before our handler runs
       if (err && err.code !== "ERR_SERVER_NOT_RUNNING") {

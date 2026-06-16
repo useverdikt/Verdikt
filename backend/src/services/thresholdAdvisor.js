@@ -13,6 +13,10 @@
 const { queryAll } = require("../database");
 const { getThresholdMap } = require("./workspaceConfig");
 const { buildCalibrationThresholdSuggestions } = require("./calibrationSuggestions");
+const {
+  loadDismissedSuggestionKeys,
+  isSuggestionDismissed
+} = require("./thresholdSuggestionDismissals");
 
 // ─── Numeric helpers ──────────────────────────────────────────────────────────
 
@@ -187,8 +191,11 @@ async function buildThresholdSuggestions(workspaceId) {
   });
 
   const calibration = await buildCalibrationThresholdSuggestions(workspaceId);
+  const dismissedKeys = await loadDismissedSuggestionKeys(workspaceId);
   const calKeys = new Set(calibration.map((s) => `${s.signal_id}:${s.direction}`));
-  const statistical = suggestions.filter((s) => !calKeys.has(`${s.signal_id}:${s.direction}`));
+  const statistical = suggestions.filter(
+    (s) => !calKeys.has(`${s.signal_id}:${s.direction}`) && !isSuggestionDismissed(dismissedKeys, s)
+  );
   const merged = [...calibration, ...statistical];
 
   return {

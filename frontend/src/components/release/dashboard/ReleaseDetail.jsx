@@ -280,18 +280,6 @@ export default function ReleaseDetail({
             <>
               <div className="dl">Post-deploy alignment</div>
               <div className="ri">{intel.alignment.summary}</div>
-              {Array.isArray(intel.alignment.teaches) && intel.alignment.teaches.length > 0 && (
-                <>
-                  <div className="dl" style={{ marginTop: 12 }}>
-                    What this teaches the system
-                  </div>
-                  {intel.alignment.teaches.map((t, i) => (
-                    <div className="ri" key={i}>
-                      {t}
-                    </div>
-                  ))}
-                </>
-              )}
               <div style={{ height: 14 }} />
             </>
           )}

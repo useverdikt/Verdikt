@@ -16,6 +16,7 @@ const {
 const { buildCalibrationThresholdSuggestions } = require("../../services/calibrationSuggestions");
 const { buildGateCalibrationContext } = require("../../services/gateCalibrationContext");
 const { applyThresholdSuggestion } = require("../../services/thresholdSuggestionApply");
+const { recordSuggestionDismissal } = require("../../services/thresholdSuggestionDismissals");
 
 module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -149,6 +150,8 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/dismi
     const out = await buildThresholdSuggestions(req.params.workspaceId);
     const sug = out.suggestions.find((s) => s.id === suggestionId);
     if (!sug) return res.status(404).json({ error: "suggestion not found" });
+
+    await recordSuggestionDismissal(req.params.workspaceId, sug, reason);
 
     await writeAudit({
       workspaceId: req.params.workspaceId,

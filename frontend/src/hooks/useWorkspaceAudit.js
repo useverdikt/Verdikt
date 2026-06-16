@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { S, DEFAULT_AUDIT, mapWorkspaceAuditEventsToLog } from "../app/main/appMainLogic.js";
+import { S } from "../lib/workspaceStorage.js";
+import { DEFAULT_AUDIT } from "../lib/workspaceDefaults.js";
+import { mapWorkspaceAuditEventsToLog } from "../lib/auditLogUtils.js";
 
 const AUDIT_PAGE_SIZE = 50;
 
