@@ -9,9 +9,7 @@ const {
   resolveEvidenceForRelease,
   persistReleaseEvidenceQuality
 } = require("./evidenceQuality");
-const { getThresholdMap } = require("./workspaceConfig");
-const { getLatestSignalMap, getMissingRequiredSignals } = require("./verdictEngine");
-const { buildGateCertification } = require("./gateCertification");
+const { buildGateContext } = require("./gateContext");
 
 const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
@@ -146,29 +144,7 @@ async function buildReleaseDetail(release) {
     signalRows
   );
 
-  // Build certified decision context for CERTIFIED/CERTIFIED_WITH_OVERRIDE releases
-  let certification = null;
-  const certLike = ["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"];
-  if (certLike.includes(String(release.status || "").toUpperCase())) {
-    try {
-      const [thresholdMap, latest, missingRequired] = await Promise.all([
-        getThresholdMap(release.workspace_id),
-        getLatestSignalMap(releaseId),
-        getMissingRequiredSignals(release.workspace_id, releaseId, {}, release, {})
-      ]);
-      // Use the actual latest signal map for the missing signals check
-      const missingRequiredFinal = await getMissingRequiredSignals(
-        release.workspace_id, releaseId, latest, release, thresholdMap
-      );
-      certification = await buildGateCertification({
-        release,
-        intelligence,
-        thresholdMap,
-        latest,
-        missingRequiredSignals: missingRequiredFinal
-      });
-    } catch (_) {}
-  }
+  const { certification } = await buildGateContext(release, intelligence);
 
   return {
     release: {
