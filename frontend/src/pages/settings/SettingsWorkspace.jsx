@@ -229,6 +229,10 @@ export default function SettingsWorkspace() {
           show_override_justification: p.show_override_justification !== false
         });
         setSlackWebhookInput(p.slack_webhook_url || "");
+        if (p.public_slug) {
+          setGeneralSlug(p.public_slug);
+          localStorage.setItem("vdk3_workspace_slug", p.public_slug);
+        }
       })
       .catch(() => {});
     return () => { active = false; };
@@ -474,7 +478,7 @@ export default function SettingsWorkspace() {
     localStorage.setItem("vdk3_role_policy", JSON.stringify(rolePolicy));
   }, [rolePolicy]);
 
-  const saveGeneral = () => {
+  const saveGeneral = async () => {
     const cleanedSlug = slugifyWorkspaceSlug(generalSlug) || "workspace";
     localStorage.setItem("vdk3_workspace_slug", cleanedSlug);
     setGeneralSlug(cleanedSlug);
@@ -487,6 +491,19 @@ export default function SettingsWorkspace() {
         localStorage.removeItem("vdk3_api_base");
         setApiBaseInput("");
       }
+    }
+    try {
+      await apiPost(
+        `/api/workspaces/${wsId}/policies`,
+        {
+          public_slug: cleanedSlug,
+          public_display_name: orgName.trim().slice(0, 120) || null
+        },
+        { navigate }
+      );
+    } catch (err) {
+      toast(err?.message || "Failed to save public certification URL");
+      return;
     }
     setGeneralNote("Saved");
     setGeneralDirty(false);

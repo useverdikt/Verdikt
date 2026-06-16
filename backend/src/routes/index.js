@@ -2,6 +2,7 @@
 
 module.exports = function registerRoutes(app) {
   require("./health")(app);
+  require("./publicCert")(app);
   require("./webhooks")(app);
   require("./auth")(app);
   require("./workspaces")(app);
