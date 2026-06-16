@@ -166,8 +166,8 @@ export default function ReleaseDetail({
         Reasoning
         {Number.isFinite(recommendationIntel.confidence_score)
           ? ` · ${recommendationIntel.confidence_score}%`
-          : verdictIntel.confidence_pct != null
-            ? ` · ${verdictIntel.confidence_pct}%`
+          : Number.isFinite(verdictIntel.confidence)
+            ? ` · ${Math.round(verdictIntel.confidence * 100)}%`
             : ""}
         {catStatuses?.ai === "fail" || catStatuses?.tests === "fail" ? " · review" : ""}
       </div>
@@ -296,19 +296,32 @@ export default function ReleaseDetail({
             </>
           )}
           <div className="dl">Suggested actions</div>
-          {hasFailed ? (
-            <>
-              <div className="ri">Address failing signals before promoting to production.</div>
-              <div className="ri">Review thresholds in App → Thresholds.</div>
-            </>
-          ) : (
-            <>
-              <div className="ri">Continue monitoring post-deploy alignment.</div>
-              {release.alignmentVerdict === "miss" && (
-                <div className="ri">A revert was detected post-deploy — review the threshold suggestion.</div>
-              )}
-            </>
-          )}
+          {(() => {
+            const actions =
+              Array.isArray(verdictIntel.recommended_actions) && verdictIntel.recommended_actions.length
+                ? verdictIntel.recommended_actions
+                : Array.isArray(recommendationIntel.suggested_actions) && recommendationIntel.suggested_actions.length
+                  ? recommendationIntel.suggested_actions
+                  : null;
+            if (actions) {
+              return actions.slice(0, 4).map((a, i) => (
+                <div className="ri" key={i}>{a}</div>
+              ));
+            }
+            return hasFailed ? (
+              <>
+                <div className="ri">Address failing signals before promoting to production.</div>
+                <div className="ri">Review thresholds in App → Thresholds.</div>
+              </>
+            ) : (
+              <>
+                <div className="ri">Continue monitoring post-deploy alignment.</div>
+                {release.alignmentVerdict === "miss" && (
+                  <div className="ri">A revert was detected post-deploy — review the threshold suggestion.</div>
+                )}
+              </>
+            );
+          })()}
           <div className="da">
             {normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED && (
               <button type="button" className="dab pr" onClick={() => onBeginOverride?.(release)}>
