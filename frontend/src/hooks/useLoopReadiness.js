@@ -12,17 +12,18 @@ export function useLoopReadiness(wsId, { enabled = true } = {}) {
     async ({ force = false } = {}) => {
       if (!enabled || !wsId) return null;
       if (force) resetLoopReadinessCache(wsId);
+      const currentWsId = wsId;
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchLoopReadiness(wsId, apiGet);
-        setData(result);
+        const result = await fetchLoopReadiness(currentWsId, apiGet);
+        if (currentWsId === wsId) setData(result);
         return result;
       } catch (err) {
-        setError(err);
+        if (currentWsId === wsId) setError(err);
         return null;
       } finally {
-        setLoading(false);
+        if (currentWsId === wsId) setLoading(false);
       }
     },
     [wsId, enabled]

@@ -13,14 +13,16 @@ export function OverrideAnalyticsPanel({ wsId }) {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let active = true;
     try {
-      setData(await apiGet(`/api/workspaces/${wsId}/override-analytics`));
+      const result = await apiGet(`/api/workspaces/${wsId}/override-analytics`);
+      if (active) setData(result);
     } catch (err) {
-      setData(null);
-      setError(panelErrorMessage(err, "Could not load override analytics."));
+      if (active) { setData(null); setError(panelErrorMessage(err, "Could not load override analytics.")); }
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
+    return () => { active = false; };
   }, [wsId]);
 
   useEffect(() => { load(); }, [load]);

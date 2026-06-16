@@ -42,7 +42,7 @@ async function setOutboundWebhook(workspaceId, { url, secret, events }) {
     VALUES (?, ?, ?, ?, ?, 1, ?, ?)
     ON CONFLICT(workspace_id) DO UPDATE SET
       url        = excluded.url,
-      secret     = excluded.secret,
+      secret     = COALESCE(excluded.secret, outbound_webhooks.secret),
       events     = excluded.events,
       enabled    = 1,
       updated_at = excluded.updated_at
@@ -55,7 +55,8 @@ async function deleteOutboundWebhook(workspaceId) {
   await run("UPDATE outbound_webhooks SET enabled = 0, updated_at = ? WHERE workspace_id = ?", [nowIso(), workspaceId]);
 }
 
-function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow) {
+function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow, failedSignals = []) {
+  const signals = failedSignals.length ? failedSignals : (verdictIntelligence?.failed_signals ?? []);
   return {
     event: eventType,
     release_id: release.id,
@@ -65,7 +66,7 @@ function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow) {
     environment: release.environment || null,
     status: release.status,
     verdict_issued_at: release.verdict_issued_at,
-    failed_signals: verdictIntelligence?.failed_signals ?? [],
+    failed_signals: signals,
     cert_signature: sigRow
       ? { payload_hash: sigRow.payload_hash, signature: sigRow.signature, signed_at: sigRow.signed_at, algorithm: sigRow.algorithm }
       : null,
@@ -77,7 +78,7 @@ function signOutboundPayload(body, secret) {
   return crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
-async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow) {
+async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, failedSignals = []) {
   const webhook = await getOutboundWebhook(release.workspace_id);
   if (!webhook) return;
 
@@ -85,7 +86,7 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow) {
   const subscribedEvents = (webhook.events || "").split(",").map((e) => e.trim());
   if (!subscribedEvents.includes(eventType)) return;
 
-  const payload = buildVerdictPayload(release, eventType, verdictIntelligence, certSigRow);
+  const payload = buildVerdictPayload(release, eventType, verdictIntelligence, certSigRow, failedSignals);
   const bodyStr = JSON.stringify(payload);
   const headers = {
     "Content-Type": "application/json",

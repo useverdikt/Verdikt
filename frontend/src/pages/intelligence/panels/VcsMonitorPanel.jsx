@@ -28,14 +28,16 @@ export function VcsMonitorPanel({ wsId }) {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let active = true;
     try {
-      setData(await apiGet(`/api/workspaces/${wsId}/vcs-monitor`));
+      const result = await apiGet(`/api/workspaces/${wsId}/vcs-monitor`);
+      if (active) setData(result);
     } catch (err) {
-      setData(null);
-      setError(panelErrorMessage(err, "Could not load VCS monitor data."));
+      if (active) { setData(null); setError(panelErrorMessage(err, "Could not load VCS monitor data.")); }
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
+    return () => { active = false; };
   }, [wsId]);
 
   useEffect(() => { load(); }, [load]);
@@ -111,7 +113,7 @@ export function VcsMonitorPanel({ wsId }) {
                   return (
                     <tr key={w.release_id}>
                       <td style={tdStyle}>
-                        <code style={{ fontSize: 11, fontFamily: C.mono }}>{w.version || w.release_id.slice(0,8)}</code>
+                        <code style={{ fontSize: 11, fontFamily: C.mono }}>{w.version || w.release_id?.slice(0, 8) || "—"}</code>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ color: sm.color, fontSize: 12, fontFamily: C.mono }}>
@@ -129,7 +131,7 @@ export function VcsMonitorPanel({ wsId }) {
                       </td>
                       <td style={tdStyle}>
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                          {Object.entries(sigs).filter(([, v]) => typeof v === "number" && v > 0 && !["vcs_healthy"].includes("vcs_healthy")).map(([k, v]) => {
+                          {Object.entries(sigs).filter(([k, v]) => typeof v === "number" && v > 0 && k !== "vcs_healthy").map(([k, v]) => {
                             const signalColor = k === "vcs_reverts" || k === "vcs_incident_prs" ? C.red : C.amber;
                             return (
                               <span key={k} style={{ fontSize: 10, fontFamily: C.mono, color: signalColor, background: signalColor + "15", border: `1px solid ${signalColor}30`, borderRadius: 4, padding: "1px 6px" }}>

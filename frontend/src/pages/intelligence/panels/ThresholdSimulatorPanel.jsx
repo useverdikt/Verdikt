@@ -297,7 +297,7 @@ export function ThresholdSimulatorPanel({ wsId }) {
                 {flips.map((r) => (
                   <tr key={r.release_id}>
                     <td style={tdStyle}>
-                      <code style={{ fontFamily: C.mono, fontSize: 11 }}>{r.version || r.release_id.slice(0, 8)}</code>
+                      <code style={{ fontFamily: C.mono, fontSize: 11 }}>{r.version || r.release_id?.slice(0, 8) || "—"}</code>
                     </td>
                     <td style={tdStyle}>
                       <Badge color={r.original_verdict === "CERTIFIED" ? C.green : C.red}>{r.original_verdict}</Badge>
