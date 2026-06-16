@@ -19,7 +19,8 @@ export default function GeneralSettingsSection({
   setGeneralDirty,
   setGeneralNote,
   certVisibility = { public_cert_records: true, show_signal_detail: true, show_override_justification: true },
-  updateCertVisibility = () => {}
+  updateCertVisibility = () => {},
+  publicSlugSaved = false
 }) {
   return (
     <div className={`section${section === "general" ? " active" : ""}`} id="panel-general">
@@ -175,6 +176,23 @@ export default function GeneralSettingsSection({
           </div>
         </div>
         <div className="sblock-body">
+          {certVisibility.public_cert_records && !publicSlugSaved ? (
+            <div
+              style={{
+                marginBottom: 14,
+                padding: "12px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(245,158,11,0.35)",
+                background: "rgba(245,158,11,0.08)",
+                fontSize: 12,
+                lineHeight: 1.6,
+                color: "var(--amber, #f59e0b)"
+              }}
+            >
+              Public URLs are not active until the workspace slug is saved on the server. Set the slug above and click{" "}
+              <strong>Save changes</strong>, or toggle any visibility option below to sync automatically.
+            </div>
+          ) : null}
           <div className="toggle-row">
             <div className="toggle-info">
               <div className="toggle-label">Public certification records</div>
@@ -217,6 +235,12 @@ export default function GeneralSettingsSection({
               <div className="toggle-track" />
             </label>
           </div>
+          {certVisibility.public_cert_records && publicSlugSaved ? (
+            <div className="field-hint" style={{ marginTop: 12 }}>
+              Example: <code>useverdikt.com/cert/{generalSlug || "workspace"}/{"{release-version}"}</code> — open from a
+              certified release via <strong>View public record →</strong> on the certification modal.
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

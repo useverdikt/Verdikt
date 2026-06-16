@@ -572,11 +572,21 @@ function LivePublicCertPage({ wsSlug, certVersion }) {
 
   if (error || !record) {
     return (
-      <div className="badge-public-shell" style={{ padding: 48, maxWidth: 520, margin: "0 auto" }}>
+      <div className="badge-public-shell" style={{ padding: 48, maxWidth: 560, margin: "0 auto" }}>
         <h1 style={{ fontSize: 18, color: "#e2e8f0", marginBottom: 12 }}>Certification record not found</h1>
-        <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6 }}>
-          This record may not exist, may not have a verdict yet, or the workspace owner has disabled public certification
-          records.
+        <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6, marginBottom: 16 }}>
+          This URL did not match a public record. Common causes:
+        </p>
+        <ul style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.7, marginBottom: 20, paddingLeft: 20 }}>
+          <li>
+            Workspace slug not saved — go to <strong>Settings → General</strong>, set <em>Workspace slug</em>, and click{" "}
+            <strong>Save changes</strong>
+          </li>
+          <li>Release version in the URL does not exactly match a certified release (case-sensitive)</li>
+          <li>Release is still collecting signals or public records are disabled in settings</li>
+        </ul>
+        <p style={{ fontSize: 12, fontFamily: "var(--mono)", color: "#64748b", marginBottom: 16 }}>
+          Tried: /cert/{wsSlug}/{encodeURIComponent(certVersion)}
         </p>
         <Link to="/" style={{ color: "#a78bfa", fontSize: 13 }}>
           ← useverdikt.com
