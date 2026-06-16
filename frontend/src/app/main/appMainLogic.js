@@ -1,9 +1,6 @@
 import shared from "../../../../shared/config.json";
 import { C } from "../../theme/tokens.js";
 import { mapBackendStatusToUi, normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
-import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
-import { buildReleaseSourceLanes } from "../../lib/releaseSourceLanes.js";
-import { latestSignalRowMap } from "../../lib/signalProvenance.js";
 
 // Re-exported from dedicated modules so all existing callers keep working unchanged.
 export {
@@ -21,6 +18,12 @@ import {
   formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, formatDeltaBaselineVersionPill,
   verdictIntelligenceSourceLine, scoreJustification
 } from "../../lib/releaseDisplayUtils.js";
+import { S } from "../../lib/workspaceStorage.js";
+import { DEFAULT_THRESHOLDS, DEFAULT_AUDIT } from "../../lib/workspaceDefaults.js";
+import { TREND_CHART_MAX_POINTS, trendChartXLabel } from "../../lib/trendChart.js";
+import {
+  mapBackendDetailToUi, mapBackendSummaryToUi, mapBackendListRowToUi
+} from "../../lib/releaseMappers.js";
 
 /** App tab id → pathname (also used for legacy ?tab= redirects). */
 const NAV_TO_PATH = {
@@ -30,31 +33,8 @@ const NAV_TO_PATH = {
   audit: "/audit",
   escalations: "/escalations"
 };
-const S = {
-  get: (k, d) => {
-    try {
-      const v = localStorage.getItem("vdk3_" + k);
-      return v ? JSON.parse(v) : d;
-    } catch {
-      return d;
-    }
-  },
-  set: (k, v) => {
-    try {
-      localStorage.setItem("vdk3_" + k, JSON.stringify(v));
-    } catch {
-    }
-  }
-};
 const nowTs = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace("T", " ");
 const isMobileViewport = () => window.innerWidth <= 900;
-const TREND_CHART_MAX_POINTS = 18;
-const trendChartXLabel = (index, totalPoints) => {
-  if (totalPoints <= 1) return "R1";
-  const every = Math.max(1, Math.ceil(totalPoints / 7));
-  if (index % every !== 0 && index !== totalPoints - 1) return "";
-  return `R${index + 1}`;
-};
 const DEFAULT_ROLE_POLICY = {
   ai_product_lead: { label: "AI Product Lead", title: "AI Product Lead", canOverride: false, canAct: true, color: C.cyan },
   ml_engineer: { label: "ML / AI Engineer", title: "ML / AI Engineer", canOverride: false, canAct: true, color: C.green },
@@ -303,60 +283,6 @@ const SIGNAL_CATEGORIES = [{
     description: "Response addresses user intent — evaluated against floor and max regression from last certified release"
   }]
 }];
-const DEFAULT_THRESHOLDS = {
-  ...shared.defaultThresholds,
-  manual_qa_showstopper: "P0"
-};
-const DEFAULT_AUDIT = [{
-  id: 8,
-  ts: "2026-02-28 09:01",
-  event: "Release candidate created",
-  release: "v2.14.0",
-  actor: "UAT Pipeline",
-  detail: "Prompt / UX update. Smoke: PASS. E2E regression required and passed. All signals collected from UAT build tag build/2847."
-}, {
-  id: 7,
-  ts: "2026-02-14 11:32",
-  event: "Release shipped",
-  release: "v2.13.0",
-  actor: "Jordan Blake",
-  detail: "Model patch — regression waived. Isolated handler fix, no flow changes. All other signals passed. PROD deploy unblocked."
-}, {
-  id: 6,
-  ts: "2026-02-14 10:45",
-  event: "Regression waived",
-  release: "v2.13.0",
-  actor: "Jordan Blake, QE Lead",
-  detail: "E2E regression not required for this bug fix. Reason on permanent record."
-}, {
-  id: 5,
-  ts: "2026-01-31 16:55",
-  event: "Override approved",
-  release: "v2.12.0",
-  actor: "Alex Baird, VP Engineering",
-  detail: "AI accuracy 79% below 85% threshold. Model update — regression waived. Override documented and signed."
-}, {
-  id: 4,
-  ts: "2026-01-31 15:22",
-  event: "Verdict: UNCERTIFIED",
-  release: "v2.12.0",
-  actor: "Verdikt",
-  detail: "2 signals below threshold: accuracy 79% (needs ≥85%), relevance 74% (needs ≥82%). Smoke passed."
-}, {
-  id: 3,
-  ts: "2026-01-03 10:15",
-  event: "Verdict: UNCERTIFIED",
-  release: "v2.10.0",
-  actor: "Verdikt",
-  detail: "Hard gate failure: smoke FAIL. Startup 4.2s > 3.0s. Crash rate 0.18% > 0.1%."
-}, {
-  id: 2,
-  ts: "2026-01-03 09:55",
-  event: "Release candidate created",
-  release: "v2.10.0",
-  actor: "UAT Pipeline",
-  detail: "Prompt / UX update. Signals collected from UAT build tag build/2801. E2E regression required."
-}];
 const INFRA_ITEMS = [{
   id: "eval_pipeline_wired",
   label: "AI eval pipeline connected",
@@ -420,103 +346,6 @@ const SIGNAL_SOURCES = [
   { id: "datadog", name: "Datadog", icon: "◈", color: "#60a5fa", signals: ["startup", "screenload", "fps", "jserrors", "p95latency", "p99latency", "errorunderload", "recovery"], demoValues: { startup: 2.3, screenload: 1, fps: 62, jserrors: 0.2, p95latency: 210, p99latency: 430, errorunderload: 0.4, recovery: 17 } },
   { id: "braintrust", name: "Braintrust", icon: "◐", color: "#f472b6", signals: ["accuracy", "safety", "tone", "hallucination", "relevance"], demoValues: { accuracy: 89, safety: 91, tone: 93, hallucination: 96, relevance: 87 } }
 ];
-const mapBackendDetailToUi = (detail) => {
-  const release = detail.release;
-  const bid = release.id;
-  const signalRows = (detail.signals || []).map((s) => ({
-    id: s.id,
-    signal_id: s.signal_id,
-    value: s.value,
-    source: s.source ?? null,
-    created_at: s.created_at ?? null
-  }));
-  const rowMap = latestSignalRowMap(signalRows);
-  const signals = Object.fromEntries(Object.entries(rowMap).map(([k, v]) => [k, v.value]));
-  const sourceLanes =
-    release.status === "COLLECTING"
-      ? buildReleaseSourceLanes({
-          connectedIntegrationIds: detail.connected_integrations || [],
-          signalRows: detail.signals || [],
-          integrationPull: detail.integration_pull || null,
-          releaseStatus: release.status
-        })
-      : [];
-  const out = {
-    id: `rc-${bid.replace(/\W/g, "")}`,
-    backendReleaseId: bid,
-    version: release.version,
-    date: (release.created_at || "").slice(0, 10) || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
-    releaseType: release.release_type || "model_update",
-    environment: release.environment || "",
-    status: mapBackendStatusToUi(release.status),
-    signals,
-    signalRows: Object.values(rowMap),
-    evidenceQuality: release.evidence_quality ?? null,
-    evidence_summary: release.evidence_summary ?? null,
-    sources: sourceLanes
-  };
-  if (release.environment) out.buildRef = release.environment;
-  if (detail.override) {
-    out.overrideBy = detail.override.approver_name;
-    out.overrideReason = detail.override.justification;
-  }
-  if (detail.intelligence) {
-    out.intelligence = detail.intelligence;
-  }
-  if (detail.certification) {
-    out.certification = detail.certification;
-  }
-  if (detail.outcome_alignment?.alignment) {
-    out.alignmentVerdict = mapBackendAlignmentToUi(detail.outcome_alignment.alignment);
-    out.outcomeAlignment = detail.outcome_alignment;
-  } else {
-    out.alignmentVerdict = "uncertified";
-  }
-  if (release.created_at) out.created_at = release.created_at;
-  if (release.updated_at) out.updated_at = release.updated_at;
-  if (release.collection_deadline) out.collection_deadline = release.collection_deadline;
-  if (release.verdict_issued_at) out.verdict_issued_at = release.verdict_issued_at;
-  if (detail.last_signal_evaluation && typeof detail.last_signal_evaluation === "object") {
-    out.last_signal_evaluation = detail.last_signal_evaluation;
-  }
-  if (Array.isArray(detail.deltas) && detail.deltas.length) {
-    out.release_deltas = detail.deltas;
-  }
-  if (detail.integration_pull) out.integration_pull = detail.integration_pull;
-  out.detailLoaded = true;
-  out.summaryLoaded = true;
-  return out;
-};
-
-/** Lightweight row from GET /releases/:id/summary — signals + alignment for trends/list. */
-const mapBackendSummaryToUi = (detail) => {
-  const mapped = mapBackendDetailToUi(detail);
-  mapped.detailLoaded = false;
-  mapped.summaryLoaded = true;
-  return mapped;
-};
-
-/** Lightweight row from GET /workspaces/:id/releases list — no N+1 detail fetch. */
-const mapBackendListRowToUi = (row) => {
-  const bid = row.id;
-  return {
-    id: `rc-${bid.replace(/\W/g, "")}`,
-    backendReleaseId: bid,
-    version: row.version,
-    date: (row.created_at || "").slice(0, 10) || new Date().toISOString().slice(0, 10),
-    releaseType: row.release_type || "model_update",
-    environment: row.environment || "",
-    status: mapBackendStatusToUi(row.status),
-    signals: {},
-    signalRows: [],
-    evidenceQuality: row.evidence_quality ?? null,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    verdict_issued_at: row.verdict_issued_at,
-    collection_deadline: row.collection_deadline,
-    detailLoaded: false
-  };
-};
 const parseSemverish = (v) => {
   const m = String(v || "").match(/(\d+)\.(\d+)\.(\d+)/);
   if (!m) return null;

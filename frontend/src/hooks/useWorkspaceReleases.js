@@ -18,7 +18,9 @@ import {
   setOnEach
 } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { S, TREND_CHART_MAX_POINTS, mapBackendListRowToUi } from "../app/main/appMainLogic.js";
+import { S } from "../lib/workspaceStorage.js";
+import { TREND_CHART_MAX_POINTS } from "../lib/trendChart.js";
+import { mapBackendListRowToUi } from "../lib/releaseMappers.js";
 
 /** Release list, hydration pool, pagination, and detail fetch helpers. */
 export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {

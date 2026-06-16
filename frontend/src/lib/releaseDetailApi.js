@@ -1,5 +1,5 @@
 import { apiGet } from "./apiClient.js";
-import { mapBackendDetailToUi, mapBackendSummaryToUi } from "../app/main/appMainLogic.js";
+import { mapBackendDetailToUi, mapBackendSummaryToUi } from "../lib/releaseMappers.js";
 
 /** Fetch full release detail and map to UI release shape. */
 export async function fetchAndMapReleaseDetail(backendReleaseId, navigate) {
