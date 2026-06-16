@@ -12,6 +12,7 @@
 
 const { queryAll } = require("../database");
 const { getThresholdMap } = require("./workspaceConfig");
+const { buildCalibrationThresholdSuggestions } = require("./calibrationSuggestions");
 
 // ─── Numeric helpers ──────────────────────────────────────────────────────────
 
@@ -149,6 +150,7 @@ async function buildThresholdSuggestions(workspaceId) {
             confidence: clamp01(0.55 + Math.min(0.35, values.length / 80)),
             reason: `Observed p75 is ${Math.round(p75)}. Consider tightening max threshold to ${suggestedMax}.`,
             fail_rate: round1(failRate * 100),
+            source: "signal_history",
             basis_window: { type: windowMeta.type, last_n_releases: selected.length }
           });
         }
@@ -172,6 +174,7 @@ async function buildThresholdSuggestions(workspaceId) {
             confidence: clamp01(0.5 + Math.min(0.35, values.length / 80)),
             reason: `Recent median is ${round1(p50)} with low fail rate. Consider raising floor to ${suggestedMin}.`,
             fail_rate: round1(failRate * 100),
+            source: "signal_history",
             basis_window: { type: windowMeta.type, last_n_releases: selected.length }
           });
         }
@@ -182,7 +185,16 @@ async function buildThresholdSuggestions(workspaceId) {
     if (a.signal_id === b.signal_id) return a.direction.localeCompare(b.direction);
     return a.signal_id.localeCompare(b.signal_id);
   });
-  return { window: { ...windowMeta, last_n_releases: selected.length }, suggestions };
+
+  const calibration = await buildCalibrationThresholdSuggestions(workspaceId);
+  const calKeys = new Set(calibration.map((s) => `${s.signal_id}:${s.direction}`));
+  const statistical = suggestions.filter((s) => !calKeys.has(`${s.signal_id}:${s.direction}`));
+  const merged = [...calibration, ...statistical];
+
+  return {
+    window: { ...windowMeta, last_n_releases: selected.length, prod_calibration_count: calibration.length },
+    suggestions: merged
+  };
 }
 
 module.exports = { buildThresholdSuggestions };

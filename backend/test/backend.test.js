@@ -2287,6 +2287,79 @@ describe("Workspace signal definitions", () => {
   });
 });
 
+// ─── calibration threshold suggestions (prod alignment → Thresholds inbox) ───
+
+describe("calibration threshold suggestions", () => {
+  const app = createApp();
+
+  it("OVER_BLOCK alignment appears in threshold-suggestions and apply updates thresholds", async () => {
+    const email = `cal_apply_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Apply" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+
+    await run(
+      "UPDATE thresholds SET min_value = ? WHERE workspace_id = ? AND signal_id = ?",
+      [90, ws, "accuracy"]
+    );
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "cal-overblock-v1", release_type: "model_update" })
+      .expect(201);
+    const releaseId = created.body.id;
+    const ts = nowIso();
+
+    const overBlockJson = JSON.stringify([
+      {
+        signal_id: "accuracy",
+        direction: "lower_min",
+        current_threshold: 90,
+        suggested_threshold: 85.5,
+        pre_release_value: 88,
+        gap: 2,
+        rationale: "Production was healthy — accuracy was 88, only 2 below min 90."
+      }
+    ]);
+
+    await run(
+      `INSERT INTO outcome_alignments
+        (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
+         signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        releaseId,
+        ws,
+        "UNCERTIFIED",
+        "HEALTHY",
+        "OVER_BLOCK",
+        "{}",
+        "[]",
+        overBlockJson,
+        ts,
+        ts
+      ]
+    );
+
+    const suggestions = await agent.get(`/api/workspaces/${ws}/threshold-suggestions`).expect(200);
+    const cal = (suggestions.body.suggestions || []).find(
+      (s) => s.source === "prod_alignment" && s.signal_id === "accuracy" && s.direction === "min"
+    );
+    assert.ok(cal, "prod alignment suggestion should appear in threshold-suggestions");
+    assert.equal(cal.alignment, "OVER_BLOCK");
+    assert.equal(cal.suggested, 85.5);
+
+    await agent.post(`/api/workspaces/${ws}/threshold-suggestions/${encodeURIComponent(cal.id)}/apply`).expect(200);
+
+    const thresh = await agent.get(`/api/workspaces/${ws}/thresholds`).expect(200);
+    assert.equal(thresh.body.thresholds.accuracy.min, 85.5);
+  });
+});
+
 // ─── postVerdictEffects + webhook delivery ───────────────────────────────────
 
 describe("postVerdictEffects side-effects", () => {

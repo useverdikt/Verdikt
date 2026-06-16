@@ -333,7 +333,9 @@ export default function ThresholdsView({
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
         <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.raise }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Threshold suggestions</div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Data-driven suggestions from recent release outcomes and MISS/OVER_BLOCK patterns.</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+            Unified inbox: prod alignment (MISS / over-block) and signal-history analysis. Apply or dismiss here — next gate uses updated thresholds.
+          </div>
         </div>
         <div style={{ padding: "14px 18px" }}>
           <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, marginBottom: 12 }}>{suggestListNote}</div>
@@ -341,7 +343,44 @@ export default function ThresholdsView({
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {suggestions.map((s) => (
                 <div key={s.id || s.signal_id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontFamily: C.mono, fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 4 }}>{s.signal_id}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontFamily: C.mono, fontSize: 11, color: C.accent, fontWeight: 700 }}>{s.signal_id}</div>
+                    {s.source === "prod_alignment" && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontFamily: C.mono,
+                          fontWeight: 700,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          padding: "2px 7px",
+                          borderRadius: 4,
+                          background: s.alignment === "MISS" ? "rgba(239,68,68,0.12)" : "rgba(245,166,35,0.12)",
+                          color: s.alignment === "MISS" ? C.red : C.amber,
+                          border: `1px solid ${s.alignment === "MISS" ? C.red : C.amber}30`
+                        }}
+                      >
+                        Prod {s.alignment === "MISS" ? "miss" : "over-block"}
+                        {s.release_version ? ` · ${s.release_version}` : ""}
+                      </span>
+                    )}
+                    {s.source === "signal_history" && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontFamily: C.mono,
+                          fontWeight: 600,
+                          padding: "2px 7px",
+                          borderRadius: 4,
+                          background: C.raise,
+                          color: C.dim,
+                          border: `1px solid ${C.border}`
+                        }}
+                      >
+                        Signal history
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, marginBottom: 8 }}>{s.reason || ""}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontFamily: C.mono, fontSize: 11, marginBottom: 10 }}>
                     <span style={{ color: C.dim }}>{s.direction === "max" ? "max" : "min"}: {s.current}</span>
