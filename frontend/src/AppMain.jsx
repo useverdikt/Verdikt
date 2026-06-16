@@ -81,6 +81,9 @@ export default function App() {
     workspaceSyncing,
     thresholdSuggestions,
     thresholdSuggestNote,
+    calibrationMode,
+    calibrationModeSaving,
+    saveCalibrationMode,
     refreshWorkspaceFromServer,
     loadThresholdSuggestions,
     signalDefinitions,
@@ -356,6 +359,21 @@ export default function App() {
               canAct={canAct}
               suggestions={thresholdSuggestions}
               suggestNote={thresholdSuggestNote}
+              calibrationMode={calibrationMode}
+              calibrationModeSaving={calibrationModeSaving}
+              onCalibrationModeChange={async (autoApply) => {
+                try {
+                  await saveCalibrationMode(autoApply);
+                  showToast(
+                    autoApply
+                      ? "Auto-apply enabled — prod calibration suggestions apply without manual review"
+                      : "Suggest-only — review each calibration suggestion before it affects the next gate",
+                    C.accent
+                  );
+                } catch (e) {
+                  showToast(e?.message || "Failed to save calibration policy", C.red);
+                }
+              }}
               onApplySuggestion={actions.handleApplySuggestion}
               onDismissSuggestion={actions.handleDismissSuggestion}
               onSave={actions.handleThresholdSave}

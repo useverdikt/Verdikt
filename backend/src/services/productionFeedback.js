@@ -91,10 +91,14 @@ async function ingestProductionSignals(releaseId, workspaceId, signals, opts = {
   if (inserted.length > 0) {
     try {
       await computeOutcomeAlignment(releaseId, workspaceId);
-    } catch (_) {}
+    } catch (err) {
+      console.error("[production_feedback] alignment compute failed:", releaseId, err?.message);
+    }
     try {
       await computeProductionAdjustment(workspaceId);
-    } catch (_) {}
+    } catch (err) {
+      console.error("[production_feedback] adjustment compute failed:", workspaceId, err?.message);
+    }
   }
 
   return { inserted, duplicates, errors };
@@ -205,7 +209,55 @@ async function computeOutcomeAlignment(releaseId, workspaceId) {
     ]
   );
 
-  return { recommendedVerdict, actualOutcome, alignment, signalDeltas, criteria_triggers, overBlockSuggestions };
+  const result = {
+    recommendedVerdict,
+    actualOutcome,
+    alignment,
+    signalDeltas,
+    criteria_triggers,
+    overBlockSuggestions
+  };
+
+  if (["MISS", "OVER_BLOCK"].includes(alignment)) {
+    try {
+      await runPostAlignmentEffects(releaseId, workspaceId, result);
+    } catch (err) {
+      console.error("[production_feedback] post-alignment effects failed:", releaseId, err?.message);
+    }
+  }
+
+  return result;
+}
+
+async function runPostAlignmentEffects(releaseId, workspaceId, alignmentResult) {
+  const alignment = String(alignmentResult?.alignment || "").toUpperCase();
+  if (!["MISS", "OVER_BLOCK"].includes(alignment)) return;
+
+  const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  if (!release) return;
+
+  let suggestions = [];
+  try {
+    const { buildCalibrationThresholdSuggestions } = require("./calibrationSuggestions");
+    const all = await buildCalibrationThresholdSuggestions(workspaceId);
+    suggestions = all.filter((s) => s.release_id === releaseId && s.alignment === alignment);
+  } catch (err) {
+    console.error("[production_feedback] calibration suggestions load failed:", workspaceId, err?.message);
+  }
+
+  try {
+    const { deliverSlackCalibrationNudge } = require("./slackNotifier");
+    await deliverSlackCalibrationNudge(release, alignmentResult, suggestions);
+  } catch (err) {
+    console.error("[production_feedback] slack calibration nudge failed:", releaseId, err?.message);
+  }
+
+  try {
+    const { maybeAutoApplyCalibrationSuggestions } = require("./calibrationAutoApply");
+    await maybeAutoApplyCalibrationSuggestions(workspaceId, releaseId, alignment);
+  } catch (err) {
+    console.error("[production_feedback] calibration auto-apply failed:", releaseId, err?.message);
+  }
 }
 
 function deriveAlignment(recommendedVerdict, actualOutcome) {
