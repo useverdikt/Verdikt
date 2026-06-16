@@ -13,6 +13,8 @@ const {
   simulateThresholds,
   ENABLE_THRESHOLD_SUGGESTIONS
 } = require("../deps");
+const { buildCalibrationThresholdSuggestions } = require("../../services/calibrationSuggestions");
+const { buildGateCalibrationContext } = require("../../services/gateCalibrationContext");
 
 module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -93,6 +95,26 @@ app.get("/api/workspaces/:workspaceId/threshold-suggestions", authMiddleware, re
     analysis_window: out.window,
     suggestions
   });
+});
+
+/** Prod-alignment calibration suggestions only (MISS / OVER_BLOCK). Same apply/dismiss IDs as threshold-suggestions. */
+app.get("/api/workspaces/:workspaceId/calibration-suggestions", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
+  try {
+    if (!ENABLE_THRESHOLD_SUGGESTIONS) {
+      return res.status(404).json({ error: "threshold suggestions disabled" });
+    }
+    const suggestions = await buildCalibrationThresholdSuggestions(req.params.workspaceId);
+    const context = await buildGateCalibrationContext(req.params.workspaceId);
+    return res.json({
+      workspace_id: req.params.workspaceId,
+      mode: "suggest_only",
+      apply_on: "/thresholds",
+      suggestions,
+      context
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
 app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
