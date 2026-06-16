@@ -101,7 +101,7 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
   const accColor = acc == null ? C.dim : acc >= 80 ? C.green : acc >= 60 ? C.amber : C.red;
   const mod = data?.production_confidence_modifier;
   const modColor = mod == null ? C.dim : mod >= 0 ? C.green : mod >= -8 ? C.amber : C.red;
-  const overBlockSuggestions = data?.over_block_threshold_suggestions ?? [];
+  const pendingCal = data?.pending_calibration_suggestions ?? 0;
 
   return (
     <Card
@@ -208,28 +208,28 @@ Content-Type: application/json
             </div>
           )}
 
-          {/* ── Fix #3: Over-block threshold suggestions ── */}
-          {overBlockSuggestions.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, color: C.amber, fontFamily: C.mono, letterSpacing: "0.1em", marginBottom: 8, fontWeight: 700 }}>
-                ⚠ OVER-BLOCK THRESHOLD SUGGESTIONS ({overBlockSuggestions.length})
+          {/* Prod calibration suggestions live on Thresholds — apply/dismiss there */}
+          {pendingCal > 0 && (
+            <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 10, background: C.amberDim, border: `1px solid ${C.amber}35` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.amber, marginBottom: 6 }}>
+                {pendingCal} threshold suggestion{pendingCal === 1 ? "" : "s"} from production alignment
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {overBlockSuggestions.map((s) => (
-                  <div key={s.signal_id} style={{ background: C.amberDim, border: `1px solid ${C.amber}30`, borderRadius: 8, padding: "10px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <code style={{ fontSize: 12, fontFamily: C.mono, color: C.amber, fontWeight: 700 }}>{s.signal_id}</code>
-                        <span style={{ fontSize: 11, color: C.dim, fontFamily: C.mono }}>
-                          {s.direction === "lower_min" ? `min: ${s.current_threshold} → ${s.suggested_threshold}` : `max: ${s.current_threshold} → ${s.suggested_threshold}`}
-                        </span>
-                      </div>
-                      <Badge color={C.amber}>from {s.version || s.release_id?.slice(0,8)}</Badge>
-                    </div>
-                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{s.rationale}</div>
-                  </div>
-                ))}
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 10 }}>
+                MISS and over-block patterns are converted into actionable threshold changes. Review and apply on the Thresholds page — suggest-only, no automatic changes.
               </div>
+              <Link
+                to="/thresholds"
+                style={{
+                  fontFamily: C.mono,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: C.amber,
+                  textDecoration: "none",
+                  letterSpacing: "0.04em"
+                }}
+              >
+                Open Threshold suggestions →
+              </Link>
             </div>
           )}
 

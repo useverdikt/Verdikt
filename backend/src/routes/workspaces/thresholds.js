@@ -132,7 +132,11 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply
         previous: currentThreshold,
         applied: { min: nextMin, max: nextMax },
         confidence: sug.confidence,
-        basis_window: sug.basis_window || out.window
+        basis_window: sug.basis_window || out.window,
+        source: sug.source || "signal_history",
+        alignment: sug.alignment || null,
+        release_id: sug.release_id || null,
+        release_version: sug.release_version || null
       }
     });
     return res.json({ ok: true, applied: sug });
