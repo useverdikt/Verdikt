@@ -2,17 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { readWorkspaceProdObservation } from "../../../lib/workspacePrefs.js";
 import { apiPost } from "../../../lib/apiClient.js";
 
-export function readProdObservationEnabled(wsId) {
-  return readWorkspaceProdObservation(wsId);
-}
-
 /**
  * Production observation toggle (localStorage) + optional recommendation backfill for the Intelligence hub header.
  */
 export function useIntelligencePageData(wsId) {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
-  const [prodObsEnabled, setProdObsEnabled] = useState(() => readProdObservationEnabled(wsId));
+  const [prodObsEnabled, setProdObsEnabled] = useState(() => readWorkspaceProdObservation(wsId));
 
   useEffect(() => {
     const sync = () => setProdObsEnabled(readProdObservationEnabled(wsId));

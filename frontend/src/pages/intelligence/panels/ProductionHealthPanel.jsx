@@ -60,14 +60,16 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
     if (!prodObservationEnabled) return;
     setLoading(true);
     setError(null);
+    let active = true;
     try {
-      setData(await apiGet(`/api/workspaces/${wsId}/production-health`));
+      const result = await apiGet(`/api/workspaces/${wsId}/production-health`);
+      if (active) setData(result);
     } catch (err) {
-      setData(null);
-      setError(panelErrorMessage(err, "Could not load production health data."));
+      if (active) { setData(null); setError(panelErrorMessage(err, "Could not load production health data.")); }
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
+    return () => { active = false; };
   }, [wsId, prodObservationEnabled]);
 
   useEffect(() => {
@@ -300,7 +302,7 @@ Content-Type: application/json
                           style={{ cursor: hasCriteria ? "pointer" : "default", background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent" }}
                         >
                           <td style={tdStyle}>
-                            <code style={{ fontSize: 11, fontFamily: C.mono }}>{a.version || a.release_id.slice(0,8)}</code>
+                            <code style={{ fontSize: 11, fontFamily: C.mono }}>{a.version || a.release_id?.slice(0, 8) || "—"}</code>
                             {hasCriteria && <span style={{ fontSize: 9, color: C.dim, marginLeft: 5 }}>{isExpanded ? "▲" : "▼"}</span>}
                           </td>
                           <td style={tdStyle}>

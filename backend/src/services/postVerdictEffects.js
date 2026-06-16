@@ -149,7 +149,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
 
   // 7. Outbound verdict webhook (async — does not block)
   try {
-    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow).catch((err) =>
+    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals).catch((err) =>
       console.error("[outbound_webhook] async delivery error:", releaseId, err?.message)
     );
     const trajectory = await computeReleaseTrajectory({
@@ -161,7 +161,7 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       trajectory: trajectory?.trajectory ?? "UNKNOWN",
       degrading_signals: trajectory?.degrading_signals ?? [],
       trend_note: trajectory?.trend_note ?? null
-    }).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
+    }, failedSignals).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
   } catch (_) {}
 
   // 8. Signal reliability recompute (async — does not block)

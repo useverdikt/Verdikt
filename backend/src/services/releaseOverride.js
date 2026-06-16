@@ -11,6 +11,8 @@ const {
   upsertReleaseIntelligence
 } = require("./domain");
 const { signCertificationRecord } = require("./certSigner");
+const { deliverVerdictWebhook } = require("./outboundWebhook");
+const { deliverReleaseCallback } = require("./releaseCallback");
 
 function validateOverridePayload({ justification, metadata = {} }) {
   if (!justification || !String(justification).trim()) {
@@ -140,6 +142,13 @@ async function applyReleaseOverride(
     if (freshRelease) {
       const intel = await getReleaseIntelligence(release.id);
       overrideCertSig = await signCertificationRecord(freshRelease, intel?.verdict);
+
+      void deliverVerdictWebhook(freshRelease, intel?.verdict, overrideCertSig).catch((err) =>
+        console.error("[override] outbound_webhook delivery error:", release.id, err?.message)
+      );
+      void deliverReleaseCallback(freshRelease, intel?.verdict, {}).catch((err) =>
+        console.error("[override] release_callback delivery error:", release.id, err?.message)
+      );
     }
   } catch (_) {
     /* non-fatal */

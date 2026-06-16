@@ -20,11 +20,11 @@ export function useLoopReadinessNudge({ releases, navigate, prodObservationEnabl
     if (loopNudgeDismissed || !hasBackend() || !prodObservationEnabled) return;
     const wsId = getWorkspaceId();
     if (!wsId) return;
-    const hasVerdicts = releases.some(
-      (r) =>
-        r.backendReleaseId &&
-        (r.status === "CERTIFIED" || r.status === "UNCERTIFIED" || r.status === "CERTIFIED_WITH_OVERRIDE")
-    );
+    const hasVerdicts = releases.some((r) => {
+      if (!r.backendReleaseId) return false;
+      const s = (r.status || "").toUpperCase();
+      return s === "CERTIFIED" || s === "UNCERTIFIED" || s === "CERTIFIED_WITH_OVERRIDE";
+    });
     if (!hasVerdicts) return;
     apiGet(`/api/workspaces/${wsId}/loop-readiness`, { navigate })
       .then((data) => {

@@ -15,26 +15,25 @@ export function CorrelationPanel({ wsId }) {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let active = true;
     try {
       const [corrR, ftR] = await Promise.allSettled([
         apiGet(`/api/workspaces/${wsId}/correlations`),
         apiGet(`/api/workspaces/${wsId}/failure-mode-trends`)
       ]);
+      if (!active) return;
       if (corrR.status === "fulfilled") setData(corrR.value);
       else setData(null);
       if (ftR.status === "fulfilled") setTrends(ftR.value);
       else setTrends(null);
-      if (corrR.status === "rejected") {
-        throw corrR.reason;
-      }
-      if (ftR.status === "rejected") {
-        setError(panelErrorMessage(ftR.reason, "Could not load failure mode trends."));
-      }
+      if (corrR.status === "rejected") throw corrR.reason;
+      if (ftR.status === "rejected") setError(panelErrorMessage(ftR.reason, "Could not load failure mode trends."));
     } catch (err) {
-      setError(panelErrorMessage(err, "Could not load correlation data."));
+      if (active) setError(panelErrorMessage(err, "Could not load correlation data."));
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
+    return () => { active = false; };
   }, [wsId]);
 
   const compute = async () => {
