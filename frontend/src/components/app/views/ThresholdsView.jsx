@@ -46,6 +46,9 @@ export default function ThresholdsView({
   onRemoveSignalDefinition,
   suggestions = [],
   suggestNote = "",
+  calibrationMode = "suggest_only",
+  calibrationModeSaving = false,
+  onCalibrationModeChange,
   onApplySuggestion,
   onDismissSuggestion
 }) {
@@ -336,6 +339,42 @@ export default function ThresholdsView({
           <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
             Unified inbox: prod alignment (MISS / over-block) and signal-history analysis. Apply or dismiss here — next gate uses updated thresholds.
           </div>
+          {hasBackend() && canAct(currentUser) ? (
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                marginTop: 14,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: `1px solid ${calibrationMode === "auto_apply" ? `${C.amber}40` : C.border}`,
+                background: calibrationMode === "auto_apply" ? "rgba(245,166,35,0.06)" : C.bg,
+                cursor: calibrationModeSaving ? "wait" : "pointer",
+                userSelect: "none"
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={calibrationMode === "auto_apply"}
+                disabled={calibrationModeSaving}
+                onChange={(e) => onCalibrationModeChange?.(e.target.checked)}
+                style={{ width: 16, height: 16, marginTop: 2, accentColor: C.amber, flexShrink: 0 }}
+              />
+              <span style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
+                  Automatically apply production calibration suggestions
+                </span>
+                <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
+                  Off by default. When enabled, MISS and over-block suggestions from production are applied without manual review — signal-history suggestions still require Apply.
+                </span>
+              </span>
+            </label>
+          ) : hasBackend() ? (
+            <div style={{ marginTop: 12, fontSize: 11, color: C.dim, fontFamily: C.mono }}>
+              Calibration mode: {calibrationMode === "auto_apply" ? "auto-apply" : "suggest-only"}
+            </div>
+          ) : null}
         </div>
         <div style={{ padding: "14px 18px" }}>
           <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, marginBottom: 12 }}>{suggestListNote}</div>
