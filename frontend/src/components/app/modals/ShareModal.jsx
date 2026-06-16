@@ -44,7 +44,8 @@ export default function ShareModal({
   fmtVal,
   genCertSummary,
   evaluateSignal,
-  getRegressionRequired
+  getRegressionRequired,
+  certification = null
 }) {
   const titleId = React.useId();
   useModalLayer(onClose);
@@ -241,6 +242,31 @@ export default function ShareModal({
                   <span style={{ fontFamily: C.mono, color: C.red }}>{fmtVal({ direction: f.direction, unit: f.unit }, f.value)}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {isShip && certification?.summary && (
+            <div style={{ background: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: "#059669", fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.1em", marginBottom: 6 }}>
+                DECISION LOG — WHY THIS RELEASE WAS CERTIFIED
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, marginBottom: certification.required_signals_met?.length ? 8 : 0 }}>
+                {certification.summary}
+              </div>
+              {Array.isArray(certification.required_signals_met) && certification.required_signals_met.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: certification.monitoring_note ? 8 : 0 }}>
+                  {certification.required_signals_met.map((s) => (
+                    <span key={s} style={{ fontSize: 10, fontFamily: C.mono, color: "#059669", background: "rgba(5,150,105,0.12)", border: "1px solid rgba(5,150,105,0.25)", borderRadius: 4, padding: "2px 7px" }}>
+                      {s} ✓
+                    </span>
+                  ))}
+                </div>
+              )}
+              {certification.monitoring_note && (
+                <div style={{ fontSize: 11, color: C.dim, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>
+                  {certification.monitoring_note}
+                </div>
+              )}
             </div>
           )}
 

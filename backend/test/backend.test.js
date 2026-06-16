@@ -2287,6 +2287,143 @@ describe("Workspace signal definitions", () => {
   });
 });
 
+// ─── postVerdictEffects + webhook delivery ───────────────────────────────────
+
+describe("postVerdictEffects side-effects", () => {
+  const app = createApp();
+
+  it("verdict is issued and SSE broadcast does not throw on UNCERTIFIED release", async () => {
+    const email = `pvefx_unc_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "PVE Unc" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "pve-unc-v1", release_type: "model_update" })
+      .expect(201);
+
+    const ingest = await agent
+      .post(`/api/releases/${created.body.id}/signals`)
+      .send({
+        source: "test",
+        signals: { accuracy: 50, safety: 50, tone: 50, hallucination: 50, relevance: 50, smoke: 0, e2e_regression: 0, manual_qa_pct: 50 }
+      })
+      .expect(200);
+
+    assert.equal(ingest.body.status, "UNCERTIFIED");
+    // Confirm gate reflects UNCERTIFIED + provides remediation context
+    const gate = await agent.get(`/api/releases/${created.body.id}/gate`).expect(200);
+    assert.ok(["escalate", "self_heal"].includes(gate.body.action));
+    assert.ok(gate.body.remediation, "remediation should be present on UNCERTIFIED gate");
+    assert.strictEqual(gate.body.certification, null, "certification should be null on UNCERTIFIED gate");
+  });
+
+  it("outbound webhook payload includes certification context when CERTIFIED", async () => {
+    const { buildSlackPayload } = require("../src/services/slackNotifier");
+    const release = {
+      id: "r_test_cert",
+      workspace_id: "ws_test",
+      version: "v1.2.3",
+      release_type: "model_update",
+      environment: "staging",
+      status: "CERTIFIED",
+      pr_number: 99,
+      verdict_issued_at: nowIso()
+    };
+    const cert = {
+      summary: "All required signals met. No regression detected.",
+      required_signals_met: ["accuracy", "safety"],
+      monitoring_note: "Ship with normal monitoring."
+    };
+    const payload = buildSlackPayload(release, [], cert);
+    assert.ok(payload.attachments?.length, "slack payload should have attachments");
+    const body = JSON.stringify(payload);
+    assert.ok(body.includes("All required signals met"), "summary should be in slack payload");
+    assert.ok(body.includes("accuracy"), "required signal chip should be in slack payload");
+    assert.equal(payload.attachments[0].color, "#059669", "certified color should be green");
+  });
+
+  it("outbound webhook payload includes failing signals when UNCERTIFIED", async () => {
+    const { buildSlackPayload } = require("../src/services/slackNotifier");
+    const release = {
+      id: "r_test_unc",
+      workspace_id: "ws_test",
+      version: "v1.2.4",
+      release_type: "model_update",
+      environment: "staging",
+      status: "UNCERTIFIED",
+      verdict_issued_at: nowIso()
+    };
+    const failedSignals = [
+      { signal_id: "accuracy", value: 60, threshold: 85 },
+      { signal_id: "safety", value: 72, threshold: 90 }
+    ];
+    const payload = buildSlackPayload(release, failedSignals, null);
+    const body = JSON.stringify(payload);
+    assert.ok(body.includes("accuracy"), "failed signal should appear in slack payload");
+    assert.ok(body.includes("safety"), "failed signal should appear in slack payload");
+    assert.equal(payload.attachments[0].color, "#dc2626", "uncertified color should be red");
+  });
+
+  it("deliverSlackVerdict is a no-op when no slack_webhook_url configured", async () => {
+    const { deliverSlackVerdict } = require("../src/services/slackNotifier");
+    const email = `pvefx_slack_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Slack NoOp" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    await ensureWorkspaceSeeded(ws);
+
+    const release = { id: "r_noslack", workspace_id: ws, version: "v1", status: "CERTIFIED", verdict_issued_at: nowIso() };
+    // Should not throw even with no URL configured
+    await assert.doesNotReject(() => deliverSlackVerdict(release, [], null));
+  });
+});
+
+describe("webhook delivery unit", () => {
+  it("buildVerdictPayload includes certification and cert_signature fields", () => {
+    const { buildVerdictPayload } = require("../src/services/outboundWebhook");
+    const release = {
+      id: "r_webhook_unit",
+      workspace_id: "ws_webhook",
+      version: "v2.0.0",
+      release_type: "model_update",
+      environment: "prod",
+      status: "CERTIFIED",
+      verdict_issued_at: nowIso()
+    };
+    const sigRow = { payload_hash: "abc123", signature: "sig456", signed_at: nowIso(), algorithm: "HMAC-SHA256-v1" };
+    const cert = { summary: "All passed.", risk_level: "low", confidence: 0.95 };
+    const payload = buildVerdictPayload(release, "CERTIFIED", null, sigRow, [], cert);
+    assert.equal(payload.event, "CERTIFIED");
+    assert.ok(payload.cert_signature?.payload_hash, "cert_signature should be present");
+    assert.equal(payload.cert_signature.signature, "sig456");
+    assert.ok(payload.certification?.summary, "certification context should be present");
+    assert.equal(payload.certification.confidence, 0.95);
+  });
+
+  it("buildVerdictPayload handles missing sigRow and certification gracefully", () => {
+    const { buildVerdictPayload } = require("../src/services/outboundWebhook");
+    const release = {
+      id: "r_webhook_unit2",
+      workspace_id: "ws_webhook",
+      version: "v2.0.1",
+      release_type: "model_update",
+      status: "UNCERTIFIED",
+      verdict_issued_at: nowIso()
+    };
+    const payload = buildVerdictPayload(release, "UNCERTIFIED", null, null, [], null);
+    assert.strictEqual(payload.cert_signature, null, "cert_signature should be null when no sigRow");
+    assert.strictEqual(payload.certification, null, "certification should be null for UNCERTIFIED");
+  });
+});
+
 const skipLiveGemini = process.env.GEMINI_LIVE_TEST !== "1" || !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === GEMINI_STUB;
 
 (skipLiveGemini ? describe.skip : describe)("Gemini live API (set GEMINI_API_KEY to a real key to run)", () => {

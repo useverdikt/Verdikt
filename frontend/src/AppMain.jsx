@@ -483,6 +483,7 @@ export default function App() {
             genCertSummary={genCertSummary}
             evaluateSignal={evaluateSignal}
             getRegressionRequired={getRegressionRequired}
+            certification={shareRelease?.certification || null}
           />
         )}
         {liveStreamRelease && (
