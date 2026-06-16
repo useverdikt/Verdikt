@@ -20,11 +20,7 @@ test.describe("escalations inbox", () => {
   });
 
   test("renders escalations page heading", async ({ page }) => {
-    await expect(
-      page.getByRole("heading", { name: /escalation|escalations/i }).or(
-        page.getByText(/escalation/i).first()
-      )
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Escalation Inbox" })).toBeVisible({ timeout: 10_000 });
   });
 
   test("shows empty state or escalation rows — never a crash", async ({ page }) => {

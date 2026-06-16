@@ -2304,7 +2304,7 @@ describe("postVerdictEffects side-effects", () => {
 
     const created = await agent
       .post(`/api/workspaces/${ws}/releases`)
-      .send({ version: "pve-unc-v1", release_type: "model_update" })
+      .send({ version: `pve-unc-v1-${crypto.randomBytes(3).toString("hex")}`, release_type: "model_update" })
       .expect(201);
 
     const ingest = await agent
@@ -2370,19 +2370,21 @@ describe("postVerdictEffects side-effects", () => {
     assert.equal(payload.attachments[0].color, "#dc2626", "uncertified color should be red");
   });
 
-  it("deliverSlackVerdict is a no-op when no slack_webhook_url configured", async () => {
-    const { deliverSlackVerdict } = require("../src/services/slackNotifier");
-    const email = `pvefx_slack_${crypto.randomBytes(4).toString("hex")}@test.local`;
-    const agent = request.agent(app);
-    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Slack NoOp" }).expect(200);
-    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
-    const me = await agent.get("/api/auth/me").expect(200);
-    const ws = me.body.user.workspace_id;
-    await ensureWorkspaceSeeded(ws);
-
-    const release = { id: "r_noslack", workspace_id: ws, version: "v1", status: "CERTIFIED", verdict_issued_at: nowIso() };
-    // Should not throw even with no URL configured
-    await assert.doesNotReject(() => deliverSlackVerdict(release, [], null));
+  it("buildSlackPayload returns empty-state gracefully when no cert and no failed signals", () => {
+    const { buildSlackPayload } = require("../src/services/slackNotifier");
+    const release = {
+      id: "r_noslack",
+      workspace_id: "ws_noslack",
+      version: "v0.0.1",
+      release_type: "model_update",
+      status: "COLLECTING",
+      verdict_issued_at: nowIso()
+    };
+    const payload = buildSlackPayload(release, [], null);
+    assert.ok(payload.attachments?.length, "should still produce an attachment");
+    const body = JSON.stringify(payload);
+    assert.ok(body.includes("v0.0.1"), "version should appear in payload");
+    assert.equal(payload.attachments[0].color, "#6366f1", "collecting color should be indigo");
   });
 });
 
