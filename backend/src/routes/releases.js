@@ -301,6 +301,52 @@ app.get("/api/releases/:releaseId/intelligence", authMiddleware, requireReleaseA
   }
 });
 
+app.get("/api/releases/:releaseId/regression-history", authMiddleware, requireReleaseAccess, async (req, res, next) => {
+  try {
+    const { computeRegressionHistoryInsights } = require("../services/intelligenceBuilder");
+    const release = req.releaseRow;
+    const intelligence = await getReleaseIntelligence(req.params.releaseId);
+    const verdict = intelligence?.verdict;
+
+    // Extract the signals that failed with a regression kind from stored intelligence
+    const failedSignals = verdict?.failed_signals || [];
+    const regressionSignalIds = failedSignals
+      .filter((s) => s.failure_kind === "regression" || String(s.rule || "").startsWith("regression:"))
+      .map((s) => s.signal_id)
+      .filter(Boolean);
+
+    // If there's already a regression_history in the stored verdict, return it directly
+    if (verdict?.regression_history) {
+      return res.json({
+        release_id: req.params.releaseId,
+        release_type: release.release_type,
+        status: release.status,
+        regression_history: verdict.regression_history,
+        failed_signals: failedSignals.filter((s) => regressionSignalIds.includes(s.signal_id))
+      });
+    }
+
+    // Otherwise compute on demand (useful for agents that call this before a verdict is cached)
+    const candidateIds = regressionSignalIds.length
+      ? regressionSignalIds
+      : failedSignals.map((s) => s.signal_id).filter(Boolean);
+
+    const history = candidateIds.length
+      ? await computeRegressionHistoryInsights(release.workspace_id, req.params.releaseId, release.release_type, candidateIds)
+      : null;
+
+    return res.json({
+      release_id: req.params.releaseId,
+      release_type: release.release_type,
+      status: release.status,
+      regression_history: history,
+      failed_signals: failedSignals.filter((s) => candidateIds.includes(s.signal_id))
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { decision, notes = "", actor = "user" } = req.body || {};

@@ -38,6 +38,7 @@ const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { broadcastVerdictAndClose } = require("./sseManager");
 const { computeSignalReliability } = require("./signalReliability");
 const { buildGateContext } = require("./gateContext");
+const { deliverSlackVerdict } = require("./slackNotifier");
 
 async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
   try {
@@ -85,7 +86,9 @@ async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextSt
         reason: "merged_to_main_while_collecting_promoted_after_verdict"
       }
     });
-  } catch (_) {}
+  } catch (err) {
+    console.error("[env_promotion] post-verdict promote failed:", err?.message);
+  }
 }
 
 /**
@@ -105,7 +108,9 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
   try {
     const failedIds = failedSignals.map((f) => f.signal_id).filter(Boolean);
     if (failedIds.length > 0) await classifyFailureModes(releaseId, release.workspace_id, failedIds);
-  } catch (_) {}
+  } catch (err) {
+    console.error("[failure_modes] classify failed:", releaseId, err?.message);
+  }
 
   // 2. Recommendation engine
   let recommendation = null;
@@ -141,14 +146,18 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     void writeVcsStatus(freshRelease, failedSignals).catch((err) =>
       console.error("[vcs_writeback] async error:", releaseId, err?.message)
     );
-  } catch (_) {}
+  } catch (err) {
+    console.error("[vcs_writeback] sync setup failed:", releaseId, err?.message);
+  }
 
   // 6. VCS monitoring window (automatic post-deploy inference over next 2 hours)
   try {
     await openMonitoringWindow(freshRelease, 120);
-  } catch (_) {}
+  } catch (err) {
+    console.error("[vcs_monitor] open window failed:", releaseId, err?.message);
+  }
 
-  // 7. Outbound verdict webhook (async — does not block)
+  // 7. Outbound verdict webhook + Slack (async — does not block)
   try {
     const { certification: certificationContext } = await buildGateContext(
       freshRelease,
@@ -168,7 +177,13 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       degrading_signals: trajectory?.degrading_signals ?? [],
       trend_note: trajectory?.trend_note ?? null
     }, failedSignals, certificationContext).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
-  } catch (_) {}
+
+    void deliverSlackVerdict(freshRelease, failedSignals, certificationContext).catch((err) =>
+      console.error("[slack_notifier] async error:", releaseId, err?.message)
+    );
+  } catch (err) {
+    console.error("[outbound_effects] webhook/callback setup failed:", releaseId, err?.message);
+  }
 
   // 8. Signal reliability recompute (async — does not block)
   const verdictIssued = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
@@ -188,7 +203,9 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       failed_signals: failedSignals,
       verdict_issued_at: nowIso()
     });
-  } catch (_) {}
+  } catch (err) {
+    console.error("[sse_broadcast] failed:", releaseId, err?.message);
+  }
 
   return { recommendation, certSigRow };
 }

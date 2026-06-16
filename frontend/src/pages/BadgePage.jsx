@@ -236,6 +236,27 @@ function RecordCard({ demoKey, workspaceSlugOverride, versionOverride }) {
         </div>
       ) : null}
 
+      {demoKey === "certified" && (
+        <div style={{ margin: "20px 0 0", background: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 10, padding: "14px 20px" }}>
+          <div style={{ fontSize: 10, fontFamily: "var(--mono)", fontWeight: 700, color: "#059669", letterSpacing: "0.1em", marginBottom: 8 }}>
+            DECISION LOG — WHY THIS RELEASE WAS CERTIFIED
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text, #e2e8f0)", lineHeight: 1.7, marginBottom: 10 }}>
+            All required signals met current thresholds with no blocking regression detected. Accuracy (91%) exceeded the 85% floor by 6 points. No prior regression streak. Verdict issued deterministically — no model involvement.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+            {["accuracy", "safety", "smoke", "e2e_regression"].map((s) => (
+              <span key={s} style={{ fontSize: 10, fontFamily: "var(--mono)", color: "#059669", background: "rgba(5,150,105,0.12)", border: "1px solid rgba(5,150,105,0.25)", borderRadius: 5, padding: "2px 8px" }}>
+                {s} ✓
+              </span>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--mid, #94a3b8)", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 8 }}>
+            Baseline: v2.13.0 (last certified) · Ship with normal monitoring and post-release review.
+          </div>
+        </div>
+      )}
+
       {d.override ? (
         <div className="override-record">
           <div className="override-record-title">CERTIFIED WITH OVERRIDE — PERMANENT RECORD</div>
