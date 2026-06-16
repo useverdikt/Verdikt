@@ -550,6 +550,9 @@ const mapBackendDetailToUi = (detail) => {
   if (detail.intelligence) {
     out.intelligence = detail.intelligence;
   }
+  if (detail.certification) {
+    out.certification = detail.certification;
+  }
   if (detail.outcome_alignment?.alignment) {
     out.alignmentVerdict = mapBackendAlignmentToUi(detail.outcome_alignment.alignment);
     out.outcomeAlignment = detail.outcome_alignment;
