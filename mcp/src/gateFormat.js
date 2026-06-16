@@ -6,14 +6,17 @@ export function formatGateForAgent(out) {
     merge: "Merge/deploy allowed. GHA exit_code 0 is sufficient for branch protection.",
     collecting:
       "Signals still arriving. Poll check_gate again — do not treat as failure during the collection grace window.",
-    self_heal: "Do not merge. Fix code, re-run evals, post missing signals, then check_gate again.",
+    self_heal:
+      "Do not merge. Read remediation (summary, failures, suggested_actions) for workspace-specific context, fix root cause, re-post signals if needed, then check_gate again.",
     escalate: "Do not merge. Call escalate tool; wait for human override in Escalations inbox."
   };
   return {
     ...out,
+    remediation: out?.remediation || null,
     agent_guidance: {
       read_field: "action",
       action,
+      remediation: out?.remediation || null,
       blockers: out?.blockers || [],
       next_step: out?.next_step || guidance[action] || "Call check_gate again after signals update.",
       do_not_use_exit_code_alone:

@@ -1661,6 +1661,50 @@ describe("Release identity + SHA correlation", () => {
     assert.ok(gate.body.next_step.length > 0);
   });
 
+  it("gate includes remediation intelligence when blocked (UNCERTIFIED)", async () => {
+    const email = `gate_remed_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Gate Remed" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+
+    const created = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "gate-remed-v1", release_type: "model_update" })
+      .expect(201);
+
+    const ingest = await human
+      .post(`/api/releases/${created.body.id}/signals`)
+      .send({
+        source: "test",
+        signals: {
+          accuracy: 50,
+          safety: 95,
+          tone: 90,
+          hallucination: 95,
+          relevance: 90,
+          smoke: 100,
+          e2e_regression: 100,
+          manual_qa_pct: 100
+        }
+      })
+      .expect(200);
+    assert.equal(ingest.body.status, "UNCERTIFIED");
+
+    const gate = await human.get(`/api/releases/${created.body.id}/gate`).expect(200);
+    assert.equal(gate.body.action, "escalate");
+    assert.ok(gate.body.remediation);
+    assert.ok(typeof gate.body.remediation.summary === "string" && gate.body.remediation.summary.length > 0);
+    assert.ok(Array.isArray(gate.body.remediation.failures));
+    assert.ok(gate.body.remediation.failures.some((f) => f.signal_id === "accuracy"));
+    assert.ok(Array.isArray(gate.body.remediation.suggested_actions));
+    assert.ok(gate.body.blocking_signals.includes("accuracy"));
+  });
+
   it("gate by commit_sha resolves release without release_id (CI path)", async () => {
     const email = `gate_sha_${crypto.randomBytes(4).toString("hex")}@test.local`;
     const human = request.agent(app);

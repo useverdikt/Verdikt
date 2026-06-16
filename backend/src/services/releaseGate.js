@@ -5,8 +5,9 @@ const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { getMissingRequiredSignals, getLatestSignalMap } = require("./verdictEngine");
 const { computeGateAction, computeCollectionAgeMs } = require("./releaseIdentity");
 const { getWorkspacePolicy, getThresholdMap } = require("./workspaceConfig");
-const { getReleaseIntelligence } = require("./domain");
+const { getReleaseIntelligence, computeVerdict } = require("./domain");
 const { buildGateBlockers } = require("./gateBlockers");
+const { buildGateRemediation } = require("./gateRemediation");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -50,7 +51,12 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
       ? "strict mode requires CERTIFIED without override"
       : reason;
 
-  const failedSignals = intelligence?.verdict?.failed_signals ?? [];
+  const failedSignalsFromIntel = intelligence?.verdict?.failed_signals ?? [];
+  let failedSignals = failedSignalsFromIntel;
+  if (!failedSignals.length && (release.status === "UNCERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE")) {
+    const verdict = await computeVerdict(release.workspace_id, releaseId, latest, release, thresholdMap);
+    failedSignals = verdict.failed_signals ?? [];
+  }
   const blockingSignals = failedSignals.map((f) => f.signal_id).filter(Boolean);
   const missingRequiredSignals = await getMissingRequiredSignals(
     release.workspace_id,
@@ -77,6 +83,18 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     missingRequiredSignals,
     failedSignals
   });
+
+  const remediation =
+    !gateAllowed || release.status === "COLLECTING"
+      ? await buildGateRemediation({
+          release,
+          intelligence,
+          failedSignals,
+          thresholdMap,
+          latest,
+          missingRequiredSignals
+        })
+      : null;
 
   await writeAudit({
     workspaceId: release.workspace_id,
@@ -109,6 +127,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     missing_required_signals: missingRequiredSignals,
     blockers,
     next_step: nextStep,
+    remediation,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,
