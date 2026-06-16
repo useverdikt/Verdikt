@@ -57,6 +57,14 @@ const { runPostVerdictEffects } = require("./postVerdictEffects");
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
 
 async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
+  // Guard against concurrent verdict commits: skip if another worker already
+  // finalised this release while we were waiting.
+  const freshStatus = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
+  if (!freshStatus) return null;
+  if (["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"].includes(freshStatus.status)) {
+    return null;
+  }
+
   const [latest, thresholdMap] = await Promise.all([
     getLatestSignalMap(releaseId),
     getThresholdMap(release.workspace_id)

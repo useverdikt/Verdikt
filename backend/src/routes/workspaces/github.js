@@ -3,6 +3,7 @@
 const {
   writeAudit,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireWorkspaceMatch,
   getVcsIntegration,
@@ -31,7 +32,7 @@ app.get("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireW
   }
 });
 
-app.put("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.put("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
   const { provider, access_token, owner, repo } = req.body || {};
   try {
@@ -47,7 +48,7 @@ app.put("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireN
   }
 });
 
-app.delete("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.delete("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
   await deleteVcsIntegration(req.params.workspaceId);
   await writeAudit({ workspaceId: req.params.workspaceId, eventType: "VCS_INTEGRATION_REMOVED", actorType: "USER", actorName: req.auth?.email || "user", details: {} });
@@ -66,7 +67,7 @@ app.get("/api/workspaces/:workspaceId/github-label-trigger", authMiddleware, req
   }
 });
 
-app.put("/api/workspaces/:workspaceId/github-label-trigger", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.put("/api/workspaces/:workspaceId/github-label-trigger", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { label_name, enabled } = req.body || {};
     const out = await setGithubLabelTrigger(req.params.workspaceId, {
@@ -86,7 +87,7 @@ app.put("/api/workspaces/:workspaceId/github-label-trigger", authMiddleware, req
   }
 });
 
-app.delete("/api/workspaces/:workspaceId/github-label-trigger", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.delete("/api/workspaces/:workspaceId/github-label-trigger", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     await deleteGithubLabelTrigger(req.params.workspaceId);
     await writeAudit({
@@ -124,7 +125,7 @@ app.get("/api/workspaces/:workspaceId/github-app/status", authMiddleware, requir
   }
 });
 
-app.post("/api/workspaces/:workspaceId/github-app/connect", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/github-app/connect", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     if (!hasGithubAppConfig()) {
       return res.status(503).json({ error: "GitHub App is not configured on server" });
@@ -168,7 +169,7 @@ app.get("/api/workspaces/:workspaceId/github-app/repos", authMiddleware, require
   }
 });
 
-app.put("/api/workspaces/:workspaceId/github-app/repos", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.put("/api/workspaces/:workspaceId/github-app/repos", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const repos = Array.isArray(req.body?.repos) ? req.body.repos : [];
     const saved = await replaceWorkspaceConnectedRepos(req.params.workspaceId, repos);

@@ -48,7 +48,7 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
   }
 });
 
-app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const {
       version,

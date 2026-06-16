@@ -30,9 +30,9 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     "/api/workspaces/:workspaceId/members/invite",
     authMiddleware,
     requireHumanSession,
+    requireWorkspaceMatch,
     requireNonViewer,
     requireOrgAdmin,
-    requireWorkspaceMatch,
     async (req, res, next) => {
       try {
         const { email, role = "ai_product_lead" } = req.body || {};
@@ -58,9 +58,9 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     "/api/workspaces/:workspaceId/members/:userId",
     authMiddleware,
     requireHumanSession,
+    requireWorkspaceMatch,
     requireNonViewer,
     requireOrgAdmin,
-    requireWorkspaceMatch,
     async (req, res, next) => {
       try {
         const { role } = req.body || {};
@@ -84,9 +84,9 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     "/api/workspaces/:workspaceId/members/:userId",
     authMiddleware,
     requireHumanSession,
+    requireWorkspaceMatch,
     requireNonViewer,
     requireOrgAdmin,
-    requireWorkspaceMatch,
     async (req, res, next) => {
       try {
         const out = await removeMember({
@@ -109,9 +109,9 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
     "/api/workspaces/:workspaceId/members/invites/:inviteId",
     authMiddleware,
     requireHumanSession,
+    requireWorkspaceMatch,
     requireNonViewer,
     requireOrgAdmin,
-    requireWorkspaceMatch,
     async (req, res, next) => {
       try {
         const out = await revokeInvite({

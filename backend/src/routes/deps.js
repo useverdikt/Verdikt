@@ -13,6 +13,7 @@ const {
   requireWorkspaceMatch,
   requireReleaseAccess,
   requireNonViewer,
+  requireHumanSession,
   requireOverrideApproverRole,
   signToken,
   publicUser
@@ -110,6 +111,7 @@ module.exports = {
   requireWorkspaceMatch,
   requireReleaseAccess,
   requireNonViewer,
+  requireHumanSession,
   requireOverrideApproverRole,
   signToken,
   publicUser,
