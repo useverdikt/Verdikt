@@ -101,6 +101,23 @@ describe("API integration", () => {
     return null;
   }
 
+  async function waitForAuditEventCount(releaseId, eventType, minCount, { timeoutMs = 8000 } = {}) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const row = await queryOne(
+        "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ? AND event_type = ?",
+        [releaseId, eventType]
+      );
+      if (Number(row?.c || 0) >= minCount) return Number(row.c);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const row = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ? AND event_type = ?",
+      [releaseId, eventType]
+    );
+    return Number(row?.c || 0);
+  }
+
   it("GET /health returns ok", async () => {
     const res = await request(app).get("/health").expect(200);
     assert.equal(res.body.ok, true);
@@ -672,13 +689,8 @@ describe("API integration", () => {
       .expect(200);
 
     assert.equal(reused.body.reused, true);
-    const auditReused = await waitForAuditEvent(hook.body.release_id, "SIGNAL_SOURCES_PULL");
-    assert.ok(auditReused);
-    const pullCount = await queryOne(
-      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ? AND event_type = ?",
-      [hook.body.release_id, "SIGNAL_SOURCES_PULL"]
-    );
-    assert.ok(Number(pullCount?.c || 0) >= 2);
+    const pullCount = await waitForAuditEventCount(hook.body.release_id, "SIGNAL_SOURCES_PULL", 2);
+    assert.ok(pullCount >= 2, `expected 2 async pulls on reuse, got ${pullCount}`);
   });
 
   it("GitHub label trigger deduplicates concurrent simultaneous deliveries (race condition)", async () => {
