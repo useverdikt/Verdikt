@@ -1,7 +1,7 @@
 /**
  * Demo certification records for /badge (ported from verdikt-badge.html).
- * Share a state: `/badge?state=certified|uncertified|override`. Live tenant
- * records are not exposed on this public route — see backend README “MVP product surface”.
+ * Share a state: `/badge?state=certified|uncertified|override`.
+ * Live tenant records: `/cert/:workspaceSlug/:version` (slug set in Settings → General).
  */
 
 export const DEMOS = {

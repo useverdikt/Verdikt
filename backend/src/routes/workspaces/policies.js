@@ -1,6 +1,8 @@
 "use strict";
 
 const { run } = require("../../database");
+const { queryOne } = require("../../database");
+const { normalizeWorkspaceSlug, validateWorkspaceSlug } = require("../../lib/workspaceSlug");
 const {
   nowIso,
   writeAudit,
@@ -32,7 +34,9 @@ app.get("/api/workspaces/:workspaceId/policies", authMiddleware, requireWorkspac
         show_signal_detail: policy.show_signal_detail !== false && policy.show_signal_detail !== 0,
         show_override_justification: policy.show_override_justification !== false && policy.show_override_justification !== 0,
         slack_webhook_url: policy.slack_webhook_url || null,
-        calibration_mode: policy.calibration_mode === "auto_apply" ? "auto_apply" : "suggest_only"
+        calibration_mode: policy.calibration_mode === "auto_apply" ? "auto_apply" : "suggest_only",
+        public_slug: policy.public_slug || null,
+        public_display_name: policy.public_display_name || null
       }
     });
   } catch (e) {
@@ -45,7 +49,13 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
     const current = await getWorkspacePolicy(req.params.workspaceId);
     const {
       require_ai_eval, ai_missing_policy, gate_mode, escalation_notify_email, escalation_sla_hours,
-      public_cert_records, show_signal_detail, show_override_justification, slack_webhook_url, calibration_mode
+      public_cert_records,
+      show_signal_detail,
+      show_override_justification,
+      slack_webhook_url,
+      calibration_mode,
+      public_slug,
+      public_display_name
     } = req.body || {};
     const nextRequireAi = typeof require_ai_eval === "boolean" ? (require_ai_eval ? 1 : 0) : current.require_ai_eval;
     const nextMissingPolicy =
@@ -82,11 +92,36 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
           ? "auto_apply"
           : "suggest_only";
 
+    let nextPublicSlug = current.public_slug || null;
+    if (public_slug !== undefined) {
+      if (public_slug === null || public_slug === "") {
+        nextPublicSlug = null;
+      } else {
+        const validated = validateWorkspaceSlug(public_slug);
+        if (!validated.ok) return res.status(400).json({ error: validated.error });
+        const taken = await queryOne(
+          `SELECT workspace_id FROM workspace_policies
+           WHERE LOWER(public_slug) = LOWER(?) AND workspace_id <> ?`,
+          [validated.slug, req.params.workspaceId]
+        );
+        if (taken) return res.status(409).json({ error: "public slug already in use" });
+        nextPublicSlug = validated.slug;
+      }
+    }
+
+    const nextDisplayName =
+      public_display_name === null || public_display_name === ""
+        ? null
+        : typeof public_display_name === "string"
+          ? public_display_name.trim().slice(0, 120) || null
+          : current.public_display_name || null;
+
     await run(
       `UPDATE workspace_policies SET require_ai_eval = ?, ai_missing_policy = ?, gate_mode = ?,
        escalation_notify_email = ?, escalation_sla_hours = ?,
        public_cert_records = ?, show_signal_detail = ?, show_override_justification = ?,
-       slack_webhook_url = ?, calibration_mode = ?, updated_at = ? WHERE workspace_id = ?`,
+       slack_webhook_url = ?, calibration_mode = ?, public_slug = ?, public_display_name = ?,
+       updated_at = ? WHERE workspace_id = ?`,
       [
         nextRequireAi,
         nextMissingPolicy,
@@ -98,6 +133,8 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         nextShowOverrideJust,
         nextSlackUrl,
         nextCalibrationMode,
+        nextPublicSlug,
+        nextDisplayName,
         nowIso(),
         req.params.workspaceId
       ]
@@ -117,7 +154,8 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         show_signal_detail: nextShowSignalDetail,
         show_override_justification: nextShowOverrideJust,
         slack_webhook_url: nextSlackUrl ? "set" : null,
-        calibration_mode: nextCalibrationMode
+        calibration_mode: nextCalibrationMode,
+        public_slug: nextPublicSlug
       }
     });
     return res.json({
@@ -132,7 +170,9 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         show_signal_detail: nextShowSignalDetail,
         show_override_justification: nextShowOverrideJust,
         slack_webhook_url: nextSlackUrl,
-        calibration_mode: nextCalibrationMode
+        calibration_mode: nextCalibrationMode,
+        public_slug: nextPublicSlug,
+        public_display_name: nextDisplayName
       }
     });
   } catch (e) {
