@@ -24,7 +24,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --check src/index.js && node --check src/client.js && node --check src/gateFormat.js",
+    "test": "node --check src/index.js && node --check src/client.js && node --check src/gateFormat.js && node --test src/gateFormat.test.js",
     "prepublishOnly": "npm test"
   },
   "keywords": [

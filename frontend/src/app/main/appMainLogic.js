@@ -5,6 +5,23 @@ import { mapBackendAlignmentToUi } from "../../lib/releaseAlignmentMeta.js";
 import { buildReleaseSourceLanes } from "../../lib/releaseSourceLanes.js";
 import { latestSignalRowMap } from "../../lib/signalProvenance.js";
 
+// Re-exported from dedicated modules so all existing callers keep working unchanged.
+export {
+  formatAuditTsFromIso, humanizeAuditEventType, auditDetailsToDetailString, mapWorkspaceAuditEventsToLog
+} from "../../lib/auditLogUtils.js";
+export {
+  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, formatDeltaBaselineVersionPill,
+  verdictIntelligenceSourceLine, scoreJustification
+} from "../../lib/releaseDisplayUtils.js";
+
+import {
+  formatAuditTsFromIso, humanizeAuditEventType, auditDetailsToDetailString, mapWorkspaceAuditEventsToLog
+} from "../../lib/auditLogUtils.js";
+import {
+  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, formatDeltaBaselineVersionPill,
+  verdictIntelligenceSourceLine, scoreJustification
+} from "../../lib/releaseDisplayUtils.js";
+
 /** App tab id → pathname (also used for legacy ?tab= redirects). */
 const NAV_TO_PATH = {
   release: "/releases",
@@ -30,111 +47,7 @@ const S = {
   }
 };
 const nowTs = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace("T", " ");
-const formatAuditTsFromIso = (iso) => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso || "").slice(0, 16).replace("T", " ");
-  return d.toISOString().slice(0, 16).replace("T", " ");
-};
-const humanizeAuditEventType = (t) => {
-  if (!t) return "";
-  return String(t).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-};
-const auditDetailsToDetailString = (details) => {
-  if (!details || typeof details !== "object") return "";
-  if (typeof details.from_status === "string" && typeof details.to_status === "string" && typeof details.summary === "string") {
-    return details.summary;
-  }
-  if (typeof details.note === "string") return details.note;
-  if (typeof details.message === "string") return details.message;
-  if (typeof details.summary === "string") return details.summary;
-  if (typeof details.justification === "string" && details.justification.length < 400) return details.justification;
-  try {
-    const s = JSON.stringify(details);
-    return s.length > 280 ? s.slice(0, 277) + "…" : s;
-  } catch {
-    return "";
-  }
-};
-const mapWorkspaceAuditEventsToLog = (events) => {
-  if (!Array.isArray(events)) return [];
-  return events.map((e, idx) => {
-    let details = e.details;
-    if ((!details || typeof details !== "object") && typeof e.details_json === "string") {
-      try {
-        details = JSON.parse(e.details_json || "{}");
-      } catch {
-        details = {};
-      }
-    }
-    if (!details || typeof details !== "object") details = {};
-    const releaseRef = typeof details.release_ref === "string" ? details.release_ref : null;
-    const version = typeof details.version === "string" ? details.version : null;
-    const rid = e.release_id || null;
-    return {
-      id: e.id != null ? `srv-${e.id}` : `srv-${idx}-${e.created_at || idx}`,
-      ts: formatAuditTsFromIso(e.created_at),
-      event: humanizeAuditEventType(e.event_type),
-      _rawEventType: e.event_type,
-      release: version || releaseRef || (rid ? `Release …${String(rid).slice(-6)}` : "—"),
-      backendReleaseId: rid,
-      actor: e.actor_name || e.actor_type || "System",
-      detail: auditDetailsToDetailString(details)
-    };
-  });
-};
-const verdictIntelligenceSourceLine = (verdictIntel) => {
-  const src = String(verdictIntel?.source || "");
-  const model = String(verdictIntel?.model || "");
-  const looksGemini = /gemini/i.test(src) || /gemini/i.test(model) || /^assistive_/i.test(src) && !/deterministic/i.test(src);
-  if (looksGemini)
-    return {
-      label: "Source: Gemini-enriched",
-      hint: "Verdict from rules; summary wording refined by the model.",
-      shortLine: "Verdict from rules; summary wording may be model-polished."
-    };
-  return {
-    label: "Source: Deterministic",
-    hint: "Verdict and brief from rules only (no LLM rewrite).",
-    shortLine: "Rules-only verdict and brief (no LLM rewrite)."
-  };
-};
 const isMobileViewport = () => window.innerWidth <= 900;
-const formatReleaseDisplayName = (version) => {
-  const v = String(version || "").trim();
-  if (!v) return "—";
-  const e2e = v.match(/^([\d.]+)-e2e-(\d+)$/);
-  if (e2e) return `${e2e[1]} · ${e2e[2].slice(-6)}`;
-  if (v.includes("·") || v.includes("•")) {
-    const parts = v.split(/[·•]/).map((s) => s.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      const last = parts[parts.length - 1];
-      const sem = last.match(/(\d+\.\d+\.\d+)/);
-      if (sem) return sem[1];
-      if (last.length <= 16) return last;
-      return last.length > 12 ? `${last.slice(0, 5)}…${last.slice(-5)}` : last;
-    }
-  }
-  const semvers = v.match(/\d+\.\d+\.\d+/g);
-  if (semvers && semvers.length) return semvers[semvers.length - 1];
-  const longTail = v.match(/(\d{5,})$/);
-  if (longTail) return `…${longTail[1].slice(-6)}`;
-  if (v.length <= 18) return v;
-  return `${v.slice(0, 6)}…${v.slice(-4)}`;
-};
-function releaseVersionPrimarySecondary(version) {
-  const raw = String(version || "").trim();
-  if (!raw) return { primary: "—", secondary: null, fullTitle: "" };
-  const m = raw.match(/^(v?\d+\.\d+\.\d+)/i);
-  if (m) {
-    let tail = raw.slice(m[0].length).replace(/^[\s·•\-–]+/, "").trim();
-    return {
-      primary: m[0],
-      secondary: tail || null,
-      fullTitle: raw
-    };
-  }
-  return { primary: formatReleaseDisplayName(version), secondary: null, fullTitle: raw };
-}
 const TREND_CHART_MAX_POINTS = 18;
 const trendChartXLabel = (index, totalPoints) => {
   if (totalPoints <= 1) return "R1";
@@ -828,63 +741,27 @@ const findSignalMetaById = (signalId) => {
   }
   return null;
 };
-const formatAiPct = (n) => {
-  if (n == null || !Number.isFinite(Number(n))) return "—";
-  return `${Math.round(Number(n))}%`;
-};
-const formatDeltaBaselineVersionPill = (v) => {
-  if (v == null || v === "") return null;
-  const t = String(v).trim();
-  if (!t) return null;
-  return t.startsWith("v") ? t : `v${t}`;
-};
 const buildRegressionOverrideContext = (deltas) => {
   const rows = Array.isArray(deltas) ? deltas : [];
   const regressionRows = rows.filter((d) => d.passed === false && !d.no_baseline);
-  if (!regressionRows.length) {
-    return {
-      regressionRows: [],
-      justification: "",
-      suggestedImpact: ""
-    };
-  }
+  if (!regressionRows.length) return { regressionRows: [], justification: "", suggestedImpact: "" };
   const headlineLines = regressionRows.map((d) => {
     const meta = findSignalMetaById(d.signal_id);
     const title = meta ? meta.label : d.signal_id;
-    const b = Number(d.baseline_value);
-    const c = Number(d.current_value);
     const pts = d.drop_amount != null && Number.isFinite(Number(d.drop_amount)) ? Number(d.drop_amount).toFixed(1) : "?";
-    return `${title} dropped ${pts} points from the last certified release (${formatAiPct(b)} → ${formatAiPct(c)}).`;
+    return `${title} dropped ${pts} points from the last certified release (${formatAiPct(Number(d.baseline_value))} → ${formatAiPct(Number(d.current_value))}).`;
   });
   const justification = ["Regression detected", ...headlineLines.map((l) => `• ${l}`), "", "Please explain why this regression is acceptable and what mitigation plan you have."].join("\n");
   const labels = regressionRows.map((r) => findSignalMetaById(r.signal_id)?.label || r.signal_id);
-  const suggestedImpact = `Regression affects AI quality (${labels.join(", ")}). Describe user impact and scope.`;
-  return {
-    regressionRows,
-    justification,
-    suggestedImpact
-  };
-};
-const scoreJustification = (text) => {
-  const t = text.toLowerCase().trim();
-  const len = t.length;
-  const hasImpact = /user.?impact|no.?impact|low.?risk|isolated|contained|affect|users|customer|session|critical|urgent/.test(t);
-  const hasMitigation = /monitor|watch|revert|rollback|hotfix|fix|patch|committed|will|plan|next.?release|follow.?up|feature.?flag/.test(t);
-  const hasSpecific = /v\d|\d+\s*%|signal|sentry|datadog|test|e2e|regression|ticket|issue|pr\s*#|\d{3,}|toggle|flag/.test(t);
-  const score = (hasImpact ? 1 : 0) + (hasMitigation ? 1 : 0) + (hasSpecific ? 1 : 0);
-  if (len < 40 || score === 0) return { grade: "WEAK", color: C.red, note: "Too vague — add specific context about user impact, the risk, and any mitigation steps." };
-  if (score <= 1 || len < 100) return { grade: "ACCEPTABLE", color: C.amber, note: "Adequate — a stronger record includes risk acknowledgement and a concrete mitigation commitment." };
-  return { grade: "STRONG", color: C.green, note: "Well documented — this justification will hold up under audit review." };
+  return { regressionRows, justification, suggestedImpact: `Regression affects AI quality (${labels.join(", ")}). Describe user impact and scope.` };
 };
 const releaseRiskScore = (r, thresholds) => {
-  if (normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
-    return { level: "HIGH RISK", color: C.red };
-  }
+  if (normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED) return { level: "HIGH RISK", color: C.red };
   if (r.status === "overridden") return { level: "OVERRIDDEN", color: C.amber };
   let nearMiss = 0;
   SIGNAL_CATEGORIES.flatMap((c) => c.signals).forEach((sig) => {
     const val = r.signals[sig.id];
-    if (val === null || val === void 0) return;
+    if (val == null) return;
     const th = thresholds[sig.id];
     if (!th) return;
     const { pass } = evaluateSignal(sig, val, th);
@@ -901,19 +778,16 @@ const genCertSummary = (release, failing, isShip) => {
   const rtLabel = rt ? rt.label.toLowerCase() : "release";
   const totalSigs = SIGNAL_CATEGORIES.flatMap((c) => c.signals).length;
   const passCount = totalSigs - failing.length;
-  if (isShip && normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED) {
+  if (isShip && normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.CERTIFIED)
     return `${release.version} is a ${rtLabel} that passed all ${totalSigs} quality signals and was certified on ${release.date}. ${passCount} of ${totalSigs} signals met or exceeded threshold. No overrides were required. This release is on permanent record as fully certified.`;
-  }
   if (release.status === "overridden") {
     const weakest = failing[0];
     return `${release.version} shipped as CERTIFIED WITH OVERRIDE on ${release.date}. ${passCount} of ${totalSigs} signals passed, but ${failing.length} signal${failing.length > 1 ? "s" : ""} — including ${weakest ? weakest.catLabel : "one category"} — fell below threshold. An override was recorded with a named owner and written justification permanently on record.`;
   }
-  if (normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED) {
+  if (normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED)
     return `${release.version} is UNCERTIFIED. ${failing.length} signal${failing.length > 1 ? "s" : ""} failed to meet threshold and a hard gate prevented override. This release cannot ship until the failing signals are resolved.`;
-  }
-  if (normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING) {
+  if (normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING)
     return `${release.version} is collecting signals. ${passCount} of ${totalSigs} signals are currently passing. ${failing.length > 0 ? `${failing.length} signal${failing.length > 1 ? "s" : ""} require attention before a verdict can be issued.` : "All received signals are meeting threshold."}`;
-  }
   return `${release.version} certification summary. ${passCount} of ${totalSigs} signals are currently passing.`;
 };
 
@@ -921,14 +795,7 @@ export {
   NAV_TO_PATH,
   S,
   nowTs,
-  formatAuditTsFromIso,
-  humanizeAuditEventType,
-  auditDetailsToDetailString,
-  mapWorkspaceAuditEventsToLog,
-  verdictIntelligenceSourceLine,
   isMobileViewport,
-  formatReleaseDisplayName,
-  releaseVersionPrimarySecondary,
   trendChartXLabel,
   TREND_CHART_MAX_POINTS,
   DEFAULT_ROLE_POLICY,
@@ -961,10 +828,7 @@ export {
   signalColor,
   catStatusColor,
   findSignalMetaById,
-  formatAiPct,
-  formatDeltaBaselineVersionPill,
   buildRegressionOverrideContext,
-  scoreJustification,
   releaseRiskScore,
   genCertSummary
 };
