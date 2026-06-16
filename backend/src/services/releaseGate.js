@@ -8,6 +8,7 @@ const { getWorkspacePolicy, getThresholdMap } = require("./workspaceConfig");
 const { getReleaseIntelligence, computeVerdict } = require("./domain");
 const { buildGateBlockers } = require("./gateBlockers");
 const { buildGateRemediation } = require("./gateRemediation");
+const { buildGateCertification } = require("./gateCertification");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -96,6 +97,16 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
         })
       : null;
 
+  const certification = gateAllowed
+    ? await buildGateCertification({
+        release,
+        intelligence,
+        thresholdMap,
+        latest,
+        missingRequiredSignals
+      })
+    : null;
+
   await writeAudit({
     workspaceId: release.workspace_id,
     releaseId,
@@ -128,6 +139,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     blockers,
     next_step: nextStep,
     remediation,
+    certification,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,

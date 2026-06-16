@@ -55,7 +55,8 @@ export default function CertificationRecordModal({
   evaluateSignal,
   fmtVal,
   certSig,
-  backendReleaseId
+  backendReleaseId,
+  certification
 }) {
   const titleId = React.useId();
   useModalLayer(onClose);
@@ -201,6 +202,37 @@ export default function CertificationRecordModal({
             <div style={{ background: C.amberDim, border: `1px solid ${C.amber}25`, borderRadius: 10, padding: "12px 18px", marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: C.amber, fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.1em", marginBottom: 4 }}>E2E REGRESSION WAIVED — {release.regressionWaiver.waivedBy?.toUpperCase()}</div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{release.regressionWaiver.reason}</div>
+            </div>
+          )}
+
+          {/* Certified decision log — why this release was trusted */}
+          {certification && (rs === UI_RELEASE_STATUS.CERTIFIED || rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) && (
+            <div style={{ background: C.surface, border: `1px solid ${C.green}20`, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 700, color: C.green, letterSpacing: "0.1em", marginBottom: 8 }}>
+                DECISION LOG — WHY THIS RELEASE WAS CERTIFIED
+              </div>
+              <div style={{ fontSize: 12, color: C.text, lineHeight: 1.7, marginBottom: certification.required_signals_met?.length ? 10 : 0 }}>
+                {certification.summary}
+              </div>
+              {certification.baseline_reference && (
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
+                  Compared against baseline: <span style={{ color: C.dim, fontFamily: C.mono }}>{certification.baseline_reference.version}</span>
+                </div>
+              )}
+              {Array.isArray(certification.required_signals_met) && certification.required_signals_met.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {certification.required_signals_met.map((sig) => (
+                    <span key={sig} style={{ fontSize: 10, fontFamily: C.mono, color: C.green, background: C.green + "12", border: `1px solid ${C.green}25`, borderRadius: 5, padding: "2px 8px" }}>
+                      {sig} ✓
+                    </span>
+                  ))}
+                </div>
+              )}
+              {certification.monitoring_note && certification.monitoring_note !== "Ship with normal monitoring and post-release review." && (
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                  {certification.monitoring_note}
+                </div>
+              )}
             </div>
           )}
 
