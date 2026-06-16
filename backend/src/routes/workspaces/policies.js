@@ -31,7 +31,8 @@ app.get("/api/workspaces/:workspaceId/policies", authMiddleware, requireWorkspac
         public_cert_records: policy.public_cert_records !== false && policy.public_cert_records !== 0,
         show_signal_detail: policy.show_signal_detail !== false && policy.show_signal_detail !== 0,
         show_override_justification: policy.show_override_justification !== false && policy.show_override_justification !== 0,
-        slack_webhook_url: policy.slack_webhook_url || null
+        slack_webhook_url: policy.slack_webhook_url || null,
+        calibration_mode: policy.calibration_mode === "auto_apply" ? "auto_apply" : "suggest_only"
       }
     });
   } catch (e) {
@@ -44,7 +45,7 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
     const current = await getWorkspacePolicy(req.params.workspaceId);
     const {
       require_ai_eval, ai_missing_policy, gate_mode, escalation_notify_email, escalation_sla_hours,
-      public_cert_records, show_signal_detail, show_override_justification, slack_webhook_url
+      public_cert_records, show_signal_detail, show_override_justification, slack_webhook_url, calibration_mode
     } = req.body || {};
     const nextRequireAi = typeof require_ai_eval === "boolean" ? (require_ai_eval ? 1 : 0) : current.require_ai_eval;
     const nextMissingPolicy =
@@ -74,12 +75,18 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         : typeof slack_webhook_url === "string"
           ? slack_webhook_url.trim().slice(0, 2000) || null
           : current.slack_webhook_url || null;
+    const nextCalibrationMode =
+      calibration_mode === "auto_apply" || calibration_mode === "suggest_only"
+        ? calibration_mode
+        : current.calibration_mode === "auto_apply"
+          ? "auto_apply"
+          : "suggest_only";
 
     await run(
       `UPDATE workspace_policies SET require_ai_eval = ?, ai_missing_policy = ?, gate_mode = ?,
        escalation_notify_email = ?, escalation_sla_hours = ?,
        public_cert_records = ?, show_signal_detail = ?, show_override_justification = ?,
-       slack_webhook_url = ?, updated_at = ? WHERE workspace_id = ?`,
+       slack_webhook_url = ?, calibration_mode = ?, updated_at = ? WHERE workspace_id = ?`,
       [
         nextRequireAi,
         nextMissingPolicy,
@@ -90,6 +97,7 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         nextShowSignalDetail,
         nextShowOverrideJust,
         nextSlackUrl,
+        nextCalibrationMode,
         nowIso(),
         req.params.workspaceId
       ]
@@ -108,7 +116,8 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         public_cert_records: nextPublicCertRecords,
         show_signal_detail: nextShowSignalDetail,
         show_override_justification: nextShowOverrideJust,
-        slack_webhook_url: nextSlackUrl ? "set" : null
+        slack_webhook_url: nextSlackUrl ? "set" : null,
+        calibration_mode: nextCalibrationMode
       }
     });
     return res.json({
@@ -122,7 +131,8 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         public_cert_records: nextPublicCertRecords,
         show_signal_detail: nextShowSignalDetail,
         show_override_justification: nextShowOverrideJust,
-        slack_webhook_url: nextSlackUrl
+        slack_webhook_url: nextSlackUrl,
+        calibration_mode: nextCalibrationMode
       }
     });
   } catch (e) {

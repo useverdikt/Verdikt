@@ -15,6 +15,8 @@ export function useWorkspaceThresholds(navigate, nav) {
   );
   const [thresholdSuggestions, setThresholdSuggestions] = useState([]);
   const [thresholdSuggestNote, setThresholdSuggestNote] = useState("");
+  const [calibrationMode, setCalibrationMode] = useState("suggest_only");
+  const [calibrationModeSaving, setCalibrationModeSaving] = useState(false);
   const [signalDefinitions, setSignalDefinitions] = useState([]);
   const [signalLibrary, setSignalLibrary] = useState([]);
   const [signalConnectors, setSignalConnectors] = useState([]);
@@ -127,11 +129,45 @@ export function useWorkspaceThresholds(navigate, nav) {
     }
   }, [navigate]);
 
+  const loadCalibrationPolicy = useCallback(async () => {
+    if (!hasBackend()) {
+      setCalibrationMode("suggest_only");
+      return;
+    }
+    try {
+      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/policies`, { navigate });
+      const mode = data?.policies?.calibration_mode;
+      setCalibrationMode(mode === "auto_apply" ? "auto_apply" : "suggest_only");
+    } catch {
+      setCalibrationMode("suggest_only");
+    }
+  }, [navigate]);
+
+  const saveCalibrationMode = useCallback(
+    async (autoApply) => {
+      if (!hasBackend()) return;
+      const next = autoApply ? "auto_apply" : "suggest_only";
+      const prev = calibrationMode;
+      setCalibrationMode(next);
+      setCalibrationModeSaving(true);
+      try {
+        await apiPost(`/api/workspaces/${getWorkspaceId()}/policies`, { calibration_mode: next }, { navigate });
+      } catch (e) {
+        setCalibrationMode(prev);
+        throw e;
+      } finally {
+        setCalibrationModeSaving(false);
+      }
+    },
+    [navigate, calibrationMode]
+  );
+
   useEffect(() => {
     if (nav === "thresholds") {
       void loadThresholdSuggestions();
+      void loadCalibrationPolicy();
     }
-  }, [nav, loadThresholdSuggestions]);
+  }, [nav, loadThresholdSuggestions, loadCalibrationPolicy]);
 
   return {
     thresholds,
@@ -140,7 +176,11 @@ export function useWorkspaceThresholds(navigate, nav) {
     setThresholdRequired,
     thresholdSuggestions,
     thresholdSuggestNote,
+    calibrationMode,
+    calibrationModeSaving,
     loadThresholdSuggestions,
+    loadCalibrationPolicy,
+    saveCalibrationMode,
     applyThresholdsFromApi,
     applySignalCatalogFromApi,
     signalDefinitions,

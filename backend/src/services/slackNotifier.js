@@ -16,6 +16,17 @@
 const { getWorkspacePolicy } = require("./workspaceConfig");
 const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
 const { nowIso } = require("../lib/time");
+const { PUBLIC_APP_URL } = require("../config");
+
+const CALIBRATION_EMOJI = {
+  MISS: ":rotating_light:",
+  OVER_BLOCK: ":balance_scale:"
+};
+
+const CALIBRATION_COLOR = {
+  MISS: "#dc2626",
+  OVER_BLOCK: "#d97706"
+};
 
 const STATUS_EMOJI = {
   CERTIFIED: ":white_check_mark:",
@@ -148,4 +159,130 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
   }
 }
 
-module.exports = { deliverSlackVerdict, buildSlackPayload };
+/**
+ * Build a Slack Block Kit payload for a production alignment MISS / OVER_BLOCK nudge.
+ *
+ * @param {object} release
+ * @param {object} alignmentResult – { alignment, actualOutcome, criteria_triggers? }
+ * @param {Array} suggestions – prod calibration threshold suggestions (may be empty)
+ */
+function buildCalibrationSlackPayload(release, alignmentResult, suggestions = []) {
+  const alignment = String(alignmentResult?.alignment || "").toUpperCase();
+  const emoji = CALIBRATION_EMOJI[alignment] || ":chart_with_downwards_trend:";
+  const color = CALIBRATION_COLOR[alignment] || "#6366f1";
+  const version = release.version || release.id?.slice(0, 8) || "release";
+  const actual = alignmentResult?.actualOutcome || "unknown";
+
+  const headline =
+    alignment === "MISS"
+      ? `${emoji} *Production MISS* — \`${version}\` was certified but prod was *${actual}*`
+      : `${emoji} *Over-block* — \`${version}\` was blocked but prod was healthy`;
+
+  const blocks = [
+    { type: "section", text: { type: "mrkdwn", text: headline } },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `*Type:* ${release.release_type || "unknown"}  ·  *Time:* ${nowIso().slice(0, 16).replace("T", " ")} UTC`
+        }
+      ]
+    }
+  ];
+
+  const triggers = alignmentResult?.criteria_triggers || [];
+  if (triggers.length > 0) {
+    const triggerLines = triggers
+      .slice(0, 4)
+      .map((t) => `• \`${t.signal}\` — ${t.label || t.outcome}`)
+      .join("\n");
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `*Prod triggers:*\n${triggerLines}` }
+    });
+  }
+
+  if (suggestions.length > 0) {
+    const sugLines = suggestions
+      .slice(0, 4)
+      .map((s) => `• \`${s.signal_id}\` ${s.direction}: ${s.current} → ${s.suggested} (${s.alignment})`)
+      .join("\n");
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Threshold suggestions (review on Thresholds):*\n${sugLines}${suggestions.length > 4 ? `\n_…and ${suggestions.length - 4} more_` : ""}`
+      }
+    });
+  } else {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "_No pending threshold suggestions yet — check Intelligence for alignment detail._"
+      }
+    });
+  }
+
+  const base = String(PUBLIC_APP_URL || "").replace(/\/$/, "");
+  if (base) {
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Review Thresholds", emoji: true },
+          url: `${base}/thresholds`
+        }
+      ]
+    });
+  }
+
+  blocks.push({ type: "divider" });
+
+  return { attachments: [{ color, blocks }] };
+}
+
+/**
+ * Notify workspace Slack when prod alignment is MISS or OVER_BLOCK.
+ */
+async function deliverSlackCalibrationNudge(release, alignmentResult, suggestions = []) {
+  const alignment = String(alignmentResult?.alignment || "").toUpperCase();
+  if (!["MISS", "OVER_BLOCK"].includes(alignment)) return;
+
+  try {
+    const policy = await getWorkspacePolicy(release.workspace_id);
+    const rawUrl = policy?.slack_webhook_url;
+    if (!rawUrl) return;
+
+    let safeUrl;
+    try {
+      safeUrl = await validateOutboundWebhookUrl(rawUrl);
+    } catch {
+      console.error("[slack_notifier] invalid webhook URL for workspace:", release.workspace_id);
+      return;
+    }
+
+    const payload = buildCalibrationSlackPayload(release, alignmentResult, suggestions);
+    const res = await fetch(safeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8_000)
+    });
+
+    if (!res.ok) {
+      console.error("[slack_notifier] calibration nudge non-2xx:", release.id, res.status);
+    }
+  } catch (err) {
+    console.error("[slack_notifier] calibration nudge failed:", release.id, err?.message);
+  }
+}
+
+module.exports = {
+  deliverSlackVerdict,
+  buildSlackPayload,
+  deliverSlackCalibrationNudge,
+  buildCalibrationSlackPayload
+};

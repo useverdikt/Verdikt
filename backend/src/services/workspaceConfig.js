@@ -23,6 +23,9 @@ function normalizePolicyRow(row) {
   }
   if (!out.gate_mode) out.gate_mode = "default";
   if (out.escalation_sla_hours == null) out.escalation_sla_hours = 24;
+  if (!out.calibration_mode || !["suggest_only", "auto_apply"].includes(out.calibration_mode)) {
+    out.calibration_mode = "suggest_only";
+  }
   return out;
 }
 

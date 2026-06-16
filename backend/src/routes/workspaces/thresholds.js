@@ -15,6 +15,7 @@ const {
 } = require("../deps");
 const { buildCalibrationThresholdSuggestions } = require("../../services/calibrationSuggestions");
 const { buildGateCalibrationContext } = require("../../services/gateCalibrationContext");
+const { applyThresholdSuggestion } = require("../../services/thresholdSuggestionApply");
 
 module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -127,39 +128,10 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply
     const sug = out.suggestions.find((s) => s.id === suggestionId);
     if (!sug) return res.status(404).json({ error: "suggestion not found" });
 
-    const thresholdMap = await getThresholdMap(req.params.workspaceId);
-    const currentThreshold = thresholdMap[sug.signal_id] || { min: null, max: null };
-    const nextMin = sug.direction === "min" ? sug.suggested : currentThreshold.min;
-    const nextMax = sug.direction === "max" ? sug.suggested : currentThreshold.max;
-    await run(
-      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
-      [
-        req.params.workspaceId,
-        sug.signal_id,
-        nextMin,
-        nextMax,
-        currentThreshold.required_for_certification ? 1 : 0
-      ]
-    );
-
-    await writeAudit({
-      workspaceId: req.params.workspaceId,
-      eventType: "THRESHOLD_SUGGESTION_APPLIED",
+    await applyThresholdSuggestion(req.params.workspaceId, sug, {
       actorType: "USER",
       actorName: "workspace_admin",
-      details: {
-        suggestion_id: suggestionId,
-        signal_id: sug.signal_id,
-        direction: sug.direction,
-        previous: currentThreshold,
-        applied: { min: nextMin, max: nextMax },
-        confidence: sug.confidence,
-        basis_window: sug.basis_window || out.window,
-        source: sug.source || "signal_history",
-        alignment: sug.alignment || null,
-        release_id: sug.release_id || null,
-        release_version: sug.release_version || null
-      }
+      basis_window: sug.basis_window || out.window
     });
     return res.json({ ok: true, applied: sug });
   } catch (e) {
