@@ -2416,6 +2416,71 @@ describe("calibration threshold suggestions", () => {
     assert.ok(gate.body.calibration.pending_suggestions_count >= 1);
     assert.equal(gate.body.calibration.mode, "suggest_only");
   });
+
+  it("auto_apply policy applies OVER_BLOCK prod suggestions via calibrationAutoApply", async () => {
+    const email = `cal_auto_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Auto" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+    await run("UPDATE workspace_policies SET calibration_mode = 'auto_apply' WHERE workspace_id = ?", [ws]);
+    await run("UPDATE thresholds SET min_value = ? WHERE workspace_id = ? AND signal_id = ?", [90, ws, "accuracy"]);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "cal-auto-v1", release_type: "model_update" })
+      .expect(201);
+    const releaseId = created.body.id;
+    const ts = nowIso();
+
+    await run(
+      `INSERT INTO outcome_alignments
+        (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
+         signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        releaseId,
+        ws,
+        "UNCERTIFIED",
+        "HEALTHY",
+        "OVER_BLOCK",
+        "{}",
+        "[]",
+        JSON.stringify([
+          {
+            signal_id: "accuracy",
+            direction: "lower_min",
+            current_threshold: 90,
+            suggested_threshold: 85.5,
+            rationale: "Prod healthy after block."
+          }
+        ]),
+        ts,
+        ts
+      ]
+    );
+
+    const { maybeAutoApplyCalibrationSuggestions } = require("../src/services/calibrationAutoApply");
+    const result = await maybeAutoApplyCalibrationSuggestions(ws, releaseId, "OVER_BLOCK");
+    assert.ok(result.applied.length >= 1, "auto_apply should apply prod suggestion");
+
+    const thresh = await agent.get(`/api/workspaces/${ws}/thresholds`).expect(200);
+    assert.equal(thresh.body.thresholds.accuracy.min, 85.5);
+  });
+
+  it("policies default calibration_mode to suggest_only", async () => {
+    const email = `cal_pol_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Pol" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const policies = await agent.get(`/api/workspaces/${ws}/policies`).expect(200);
+    assert.equal(policies.body.policies.calibration_mode, "suggest_only");
+  });
 });
 
 // ─── postVerdictEffects + webhook delivery ───────────────────────────────────
@@ -2499,6 +2564,31 @@ describe("postVerdictEffects side-effects", () => {
     assert.ok(body.includes("accuracy"), "failed signal should appear in slack payload");
     assert.ok(body.includes("safety"), "failed signal should appear in slack payload");
     assert.equal(payload.attachments[0].color, "#dc2626", "uncertified color should be red");
+  });
+
+  it("buildCalibrationSlackPayload surfaces MISS alignment and threshold suggestions", () => {
+    const { buildCalibrationSlackPayload } = require("../src/services/slackNotifier");
+    const release = { version: "v2.1.0", release_type: "model_update" };
+    const alignmentResult = {
+      alignment: "MISS",
+      actualOutcome: "DEGRADED",
+      criteria_triggers: [{ signal: "accuracy", label: "accuracy dropped 12% post-deploy" }]
+    };
+    const suggestions = [
+      {
+        signal_id: "accuracy",
+        direction: "min",
+        current: 85,
+        suggested: 89.25,
+        alignment: "MISS",
+        reason: "Consider raising floor"
+      }
+    ];
+    const payload = buildCalibrationSlackPayload(release, alignmentResult, suggestions);
+    const body = JSON.stringify(payload);
+    assert.ok(body.includes("Production MISS"), "headline should mention MISS");
+    assert.ok(body.includes("accuracy"), "suggestion signal should appear");
+    assert.equal(payload.attachments[0].color, "#dc2626");
   });
 
   it("buildSlackPayload returns empty-state gracefully when no cert and no failed signals", () => {

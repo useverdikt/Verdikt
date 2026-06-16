@@ -188,5 +188,7 @@ async function buildCalibrationThresholdSuggestions(workspaceId) {
 
 module.exports = {
   buildCalibrationThresholdSuggestions,
-  calibrationSuggestionId
+  calibrationSuggestionId,
+  missSuggestionsFromAlignment,
+  mapOverBlockRawToSuggestion
 };
