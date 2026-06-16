@@ -11,7 +11,7 @@ export function useIntelligencePageData(wsId) {
   const [prodObsEnabled, setProdObsEnabled] = useState(() => readWorkspaceProdObservation(wsId));
 
   useEffect(() => {
-    const sync = () => setProdObsEnabled(readProdObservationEnabled(wsId));
+    const sync = () => setProdObsEnabled(readWorkspaceProdObservation(wsId));
     sync();
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
