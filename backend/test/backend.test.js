@@ -2358,6 +2358,64 @@ describe("calibration threshold suggestions", () => {
     const thresh = await agent.get(`/api/workspaces/${ws}/thresholds`).expect(200);
     assert.equal(thresh.body.thresholds.accuracy.min, 85.5);
   });
+
+  it("calibration-suggestions endpoint and check_gate include prod calibration context", async () => {
+    const email = `cal_gate_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Gate" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    await ensureWorkspaceSeeded(ws);
+    await seedDefaultThresholdsForTest(ws);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "cal-gate-v1", release_type: "model_update" })
+      .expect(201);
+    const releaseId = created.body.id;
+    const ts = nowIso();
+
+    await run(
+      `INSERT INTO outcome_alignments
+        (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
+         signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        releaseId,
+        ws,
+        "UNCERTIFIED",
+        "HEALTHY",
+        "OVER_BLOCK",
+        "{}",
+        "[]",
+        JSON.stringify([
+          {
+            signal_id: "accuracy",
+            direction: "lower_min",
+            current_threshold: 90,
+            suggested_threshold: 85.5,
+            rationale: "Prod healthy after block."
+          }
+        ]),
+        ts,
+        ts
+      ]
+    );
+
+    const calApi = await agent.get(`/api/workspaces/${ws}/calibration-suggestions`).expect(200);
+    assert.equal(calApi.body.mode, "suggest_only");
+    assert.ok((calApi.body.suggestions || []).length >= 1);
+    assert.ok(calApi.body.context);
+    assert.ok(calApi.body.context.pending_suggestions_count >= 1);
+    assert.equal(calApi.body.context.mode, "suggest_only");
+
+    const gate = await agent.get(`/api/releases/${releaseId}/gate`).expect(200);
+    assert.ok(gate.body.calibration, "gate should include calibration context when alignments exist");
+    assert.ok(gate.body.calibration.summary);
+    assert.ok(gate.body.calibration.pending_suggestions_count >= 1);
+    assert.equal(gate.body.calibration.mode, "suggest_only");
+  });
 });
 
 // ─── postVerdictEffects + webhook delivery ───────────────────────────────────

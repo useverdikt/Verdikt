@@ -9,6 +9,7 @@ const { getReleaseIntelligence, computeVerdict } = require("./domain");
 const { buildGateBlockers } = require("./gateBlockers");
 const { buildGateRemediation } = require("./gateRemediation");
 const { buildGateCertification } = require("./gateCertification");
+const { buildGateCalibrationContext } = require("./gateCalibrationContext");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -107,6 +108,13 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
       })
     : null;
 
+  let calibration = null;
+  try {
+    calibration = await buildGateCalibrationContext(release.workspace_id);
+  } catch (err) {
+    console.error("[gate_calibration] context build failed:", release.workspace_id, err?.message);
+  }
+
   await writeAudit({
     workspaceId: release.workspace_id,
     releaseId,
@@ -140,6 +148,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     next_step: nextStep,
     remediation,
     certification,
+    calibration,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,
