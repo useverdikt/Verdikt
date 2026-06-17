@@ -23,7 +23,7 @@ describe("summarizeListSignalOutcomes", () => {
       signalCategories,
       releaseSignals: {
         accuracy: 92,
-        safety: 88,
+        safety: 91,
         p95latency: 120
       },
       thresholds: {
@@ -54,7 +54,7 @@ describe("summarizeListSignalOutcomes", () => {
       signalCategories,
       releaseSignals: {
         behavioural_drift: 0.12,
-        custom_metric: 5
+        custom_metric: 15
       },
       thresholds: {
         behavioural_drift: 0.15,
