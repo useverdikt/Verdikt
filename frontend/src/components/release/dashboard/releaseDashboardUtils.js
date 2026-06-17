@@ -1,5 +1,21 @@
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, shippedWithoutCertificationFlag } from "../../../lib/releaseStatus.js";
 
+export function resolveDetailSuggestedActions(release, verdictIntel, recommendationIntel) {
+  if (isLiveBypassRisk(release)) {
+    if (Array.isArray(recommendationIntel?.suggested_actions) && recommendationIntel.suggested_actions.length) {
+      return recommendationIntel.suggested_actions;
+    }
+    return null;
+  }
+  if (Array.isArray(verdictIntel?.recommended_actions) && verdictIntel.recommended_actions.length) {
+    return verdictIntel.recommended_actions;
+  }
+  if (Array.isArray(recommendationIntel?.suggested_actions) && recommendationIntel.suggested_actions.length) {
+    return recommendationIntel.suggested_actions;
+  }
+  return null;
+}
+
 export function verdictMeta(releaseOrStatus) {
   const release =
     releaseOrStatus && typeof releaseOrStatus === "object" ? releaseOrStatus : { status: releaseOrStatus };
