@@ -95,6 +95,73 @@ describe("bypass merge prod tracking", () => {
     assert.equal(afterOverride.shipped_without_certification_at, rel.shipped_without_certification_at);
   });
 
+  it("prod bypass merge refreshes recommendation to incident suggested actions", async () => {
+    const email = `byprec_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "BYPREC" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const repo = `BypassRec${crypto.randomBytes(3).toString("hex")}`;
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+
+    const created = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Rec refresh (#9393)", release_type: "model_update", pr_number: 9393 })
+      .expect(201);
+
+    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+      "UNCERTIFIED",
+      nowIso(),
+      created.body.id
+    ]);
+    await run(
+      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 50, 't', ?)`,
+      [created.body.id, nowIso()]
+    );
+
+    const { computeAndPersistRecommendation } = require("../src/services/recommendationEngine");
+    const preProd = await queryOne("SELECT * FROM releases WHERE id = ?", [created.body.id]);
+    await computeAndPersistRecommendation(preProd);
+    const preRow = await queryOne("SELECT recommendation_json FROM release_intelligence WHERE release_id = ?", [
+      created.body.id
+    ]);
+    const preRec = JSON.parse(preRow.recommendation_json);
+    assert.ok(
+      preRec.suggested_actions.some((a) => /re-run signal|do not proceed/i.test(a)),
+      "pre-prod recommendation should include pre-ship actions"
+    );
+
+    const payload = {
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 9393, base: { ref: "main" } }
+    };
+    const signed = signGithubPayload(payload);
+    await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    const postRow = await queryOne("SELECT recommendation_json FROM release_intelligence WHERE release_id = ?", [
+      created.body.id
+    ]);
+    const postRec = JSON.parse(postRow.recommendation_json);
+    assert.ok(
+      postRec.suggested_actions.some((a) => /rollback|escalate|live in production/i.test(a)),
+      `expected prod incident actions, got: ${JSON.stringify(postRec.suggested_actions)}`
+    );
+    assert.ok(!postRec.suggested_actions.some((a) => /re-run signal ingest/i.test(a)));
+  });
+
   it("bypass_merge_then_verdict_does_not_open_monitoring_window_twice", async () => {
     const email = `byp2_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);

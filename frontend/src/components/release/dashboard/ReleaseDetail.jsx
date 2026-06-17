@@ -11,7 +11,8 @@ import {
   formatSignalValueLocal,
   formatThresholdLineLocal,
   getOrderedDetailSignals,
-  regressionRequiredLocal
+  regressionRequiredLocal,
+  resolveDetailSuggestedActions
 } from "./releaseDashboardUtils.js";
 import { buildDetailSignalRows } from "../../../lib/workspaceSignalUi.js";
 import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
@@ -287,12 +288,7 @@ export default function ReleaseDetail({
           )}
           <div className="dl">Suggested actions</div>
           {(() => {
-            const actions =
-              Array.isArray(verdictIntel.recommended_actions) && verdictIntel.recommended_actions.length
-                ? verdictIntel.recommended_actions
-                : Array.isArray(recommendationIntel.suggested_actions) && recommendationIntel.suggested_actions.length
-                  ? recommendationIntel.suggested_actions
-                  : null;
+            const actions = resolveDetailSuggestedActions(release, verdictIntel, recommendationIntel);
             if (actions) {
               return actions.slice(0, 4).map((a, i) => (
                 <div className="ri" key={i}>{a}</div>
