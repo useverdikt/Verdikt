@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, canOfferOverride } from "../../../lib/releaseStatus.js";
 import IntegrationPullBanner from "../../IntegrationPullBanner.jsx";
 import {
   SignalEvidenceBlock,
@@ -35,6 +35,8 @@ export default function ReleaseDetail({
   const signals = release.signals || {};
   const reqd = regressionRequiredLocal(releaseTypes, release.releaseType);
   const isCollecting = normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
+  const liveBypassRisk = isLiveBypassRisk(release);
+  const showOverrideAction = canOfferOverride(release);
   const releaseId =
     release.backendReleaseId ||
     (typeof release.id === "string" && release.id.startsWith("rel_") ? release.id : null);
@@ -297,10 +299,17 @@ export default function ReleaseDetail({
               ));
             }
             return hasFailed ? (
-              <>
-                <div className="ri">Address failing signals before promoting to production.</div>
-                <div className="ri">Review thresholds in App → Thresholds.</div>
-              </>
+              liveBypassRisk ? (
+                <>
+                  <div className="ri">Code is live in production without certification — assess rollback, escalate, or document the incident.</div>
+                  <div className="ri">Gate signal ingest is closed; pre-ship override is not available.</div>
+                </>
+              ) : (
+                <>
+                  <div className="ri">Address failing signals before promoting to production.</div>
+                  <div className="ri">Review thresholds in App → Thresholds.</div>
+                </>
+              )
             ) : (
               <>
                 <div className="ri">Continue monitoring post-deploy alignment.</div>
@@ -314,7 +323,7 @@ export default function ReleaseDetail({
             );
           })()}
           <div className="da">
-            {normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.UNCERTIFIED && (
+            {showOverrideAction && (
               <button type="button" className="dab pr" onClick={() => onBeginOverride?.(release)}>
                 Override &amp; certify
               </button>
