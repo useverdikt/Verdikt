@@ -228,7 +228,7 @@ async function getPublicCertRecord(slugParam, versionParam) {
     listWorkspaceDefinitions(release.workspace_id)
   ]);
 
-  const { certification, remediation } = await buildGateContext(release, intelligence);
+  const { certification, remediation, snapshot } = await buildGateContext(release, intelligence);
   const { date, time } = formatVerdictTimestamp(release.verdict_issued_at);
 
   const displayName =
@@ -270,9 +270,12 @@ async function getPublicCertRecord(slugParam, versionParam) {
           algorithm: signature.algorithm,
           payload_hash: signature.payload_hash,
           signed_at: signature.signed_at,
-          public_key_hint: signature.public_key_hint
+          public_key_hint: signature.public_key_hint,
+          evidence_hash: signature.evidence_hash || snapshot?.evidence_hash || null
         }
       : null,
+    frozen_at: snapshot?.frozen_at || null,
+    evidence_hash: snapshot?.evidence_hash || null,
     signal_groups: showSignalDetail ? await buildSignalGroups(release.workspace_id, release.id, thresholdMap, latest, definitions) : null
   };
 

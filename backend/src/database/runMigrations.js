@@ -10,6 +10,9 @@ const MIGRATIONS_DIR = path.join(__dirname, "..", "..", "migrations", "postgres"
 /**
  * Runs ordered *.sql migrations from backend/migrations/postgres.
  * Tracked in schema_migrations; each file runs at most once.
+ *
+ * Each migration file executes inside a single BEGIN/COMMIT on one connection,
+ * so multi-statement files (e.g. backfill + trigger) are atomic.
  */
 async function runMigrations() {
   const pool = getPool();
