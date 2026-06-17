@@ -2,7 +2,7 @@
 
 const { run } = require("../database");
 const { nowIso } = require("../lib/time");
-const { stampAuditRowHash } = require("./auditIntegrity");
+const { computeAuditChainFields } = require("./auditIntegrity");
 const { getAgentSessionIdFromContext } = require("../lib/auditContext");
 
 function auditActorFromAuth(auth) {
@@ -32,29 +32,43 @@ async function writeAudit({
   const createdAt = nowIso();
   const sessionId =
     agentSessionId !== undefined ? agentSessionId : getAgentSessionIdFromContext();
-  const ins = await run(
-    `INSERT INTO audit_events (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     RETURNING id`,
+  const detailsJson = JSON.stringify(details);
+
+  const draftRow = {
+    workspace_id: workspaceId,
+    release_id: releaseId,
+    event_type: eventType,
+    actor_type: actorType,
+    actor_name: actorName,
+    details_json: detailsJson,
+    created_at: createdAt
+  };
+
+  let prevHash = null;
+  let rowHash = null;
+  try {
+    ({ prev_hash: prevHash, row_hash: rowHash } = await computeAuditChainFields(workspaceId, draftRow));
+  } catch {
+    /* non-fatal — insert without chain if compute fails */
+  }
+
+  await run(
+    `INSERT INTO audit_events
+       (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id, prev_hash, row_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       workspaceId,
       releaseId,
       eventType,
       actorType,
       actorName,
-      JSON.stringify(details),
+      detailsJson,
       createdAt,
-      sessionId || null
+      sessionId || null,
+      prevHash,
+      rowHash
     ]
   );
-  const rowId = ins.lastInsertRowid;
-  if (rowId != null) {
-    try {
-      await stampAuditRowHash(rowId);
-    } catch {
-      /* non-fatal */
-    }
-  }
 }
 
 module.exports = { writeAudit, auditActorFromAuth };
