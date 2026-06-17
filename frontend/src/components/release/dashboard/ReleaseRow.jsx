@@ -3,6 +3,7 @@ import { isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
 import {
   envClass,
   envDisplayLabel,
+  summarizeListSignalOutcomes,
   verdictMeta
 } from "./releaseDashboardUtils.js";
 import { ExpandChevron } from "./ReleaseDashboardIcons.jsx";
@@ -15,6 +16,8 @@ export default function ReleaseRow({
   onToggle,
   catStatuses,
   signalCategories,
+  signalDefinitions = [],
+  thresholds = {},
   formatAge,
   releaseVersionPrimarySecondary,
   releaseTypes
@@ -29,17 +32,15 @@ export default function ReleaseRow({
   const secondaryLabel = rvHead.secondary || rtLabel || null;
   const fullTitle = rvHead.fullTitle || String(release.version || rvHead.primary || "—");
 
-  const dots = signalCategories.slice(0, 5).map((cat) => {
-    const s = catStatuses[cat.id] || "missing";
-    if (s === "pass") return "p";
-    if (s === "fail") return "f";
-    if (s === "waived") return "w";
-    return "m";
+  const { dots, passCount, failCount, warnCount, evaluatedCount, overflow } = summarizeListSignalOutcomes({
+    signalDefinitions,
+    signalCategories,
+    releaseSignals: release.signals,
+    thresholds,
+    releaseType: release.releaseType,
+    releaseTypes
   });
-  const passCount = dots.filter((d) => d === "p").length;
-  const failCount = dots.filter((d) => d === "f").length;
-  const warnCount = dots.filter((d) => d === "w").length;
-  const receivedSignalCount = Object.values(release.signals || {}).filter((v) => v != null).length;
+  const receivedSignalCount = evaluatedCount;
   const summaryPending = isSummaryPending(release);
 
   const timeLabel = formatAge ? formatAge(release) : release.date || "—";
@@ -102,7 +103,7 @@ export default function ReleaseRow({
         {summaryPending ? (
           <>
             <div className="sig-mini sig-mini--loading" aria-hidden="true">
-              {signalCategories.slice(0, 5).map((_, i) => (
+              {[0, 1, 2].map((i) => (
                 <div key={i} className="sd sk-pulse" />
               ))}
             </div>
@@ -116,24 +117,34 @@ export default function ReleaseRow({
               {dots.map((d, i) => (
                 <div key={i} className={`sd ${d}`}></div>
               ))}
+              {overflow > 0 ? <span className="sig-overflow">+{overflow}</span> : null}
             </div>
             <div className="sig-frac">
-              {release.status === "collecting" ? (
-                <>
-                  <span className="fp">{passCount}</span> / {dots.length} received
-                </>
+              {normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING ? (
+                evaluatedCount === 0 ? (
+                  "0 received"
+                ) : (
+                  <>
+                    <span className="fp">{passCount}</span> / {evaluatedCount} received
+                  </>
+                )
+              ) : evaluatedCount === 0 ? (
+                "no signals"
               ) : failCount > 0 ? (
                 <>
                   <span className="ff">{failCount} failed</span>
                   {warnCount > 0 ? ` · ${warnCount} warn` : ""}
+                  {overflow > 0 ? ` · +${overflow}` : ""}
                 </>
               ) : warnCount > 0 ? (
                 <>
-                  <span className="fp">{passCount}</span> / {dots.length} · {warnCount} warn
+                  <span className="fp">{passCount}</span> / {evaluatedCount} · {warnCount} warn
+                  {overflow > 0 ? ` · +${overflow}` : ""}
                 </>
               ) : (
                 <>
-                  <span className="fp">{passCount}</span> / {dots.length} passed
+                  <span className="fp">{passCount}</span> / {evaluatedCount} passed
+                  {overflow > 0 ? ` · +${overflow}` : ""}
                 </>
               )}
             </div>

@@ -46,24 +46,49 @@ Settings → Secrets and variables → Actions:
 
 Optional (prod smoke workflow): `PROD_SMOKE_API_KEY`, `PROD_SMOKE_WORKSPACE_ID` — same values.
 
-### 3. Branch protection (main) — **enabled**
+### 3. Repository ruleset (main) — **enabled**
 
-`main` on **useverdikt/Verdikt** requires:
+Merge enforcement on **useverdikt/Verdikt** uses a GitHub **repository ruleset** (Settings → Rules → Rulesets), not legacy branch protection.
 
-- Status check **`verdikt-gate`** (GitHub App check from workflow job `verdikt-gate`)
-- PR before merge (recommended)
-
-Verify anytime: `gh api repos/useverdikt/Verdikt/branches/main/protection`
+| Setting | Value |
+|---------|--------|
+| Ruleset name | `main` |
+| Enforcement status | **Active** |
+| Target branches | Include by pattern → `main` |
+| Require a pull request before merging | On |
+| Require status checks to pass | On — add **`verdikt-gate`** (shows as **Verdikt gate / verdikt-gate** on PRs) |
 
 Workflow file: `.github/workflows/verdikt-gate.yml` (runs only when PR has label `verdikt:rc`).
 
+**Behavior:**
+
+| PR state | `verdikt-gate` check | Merge button |
+|----------|----------------------|--------------|
+| No `verdikt:rc` label | Skipped | Enabled (gate not in play) |
+| `verdikt:rc` + certified | Green | Enabled |
+| `verdikt:rc` + failed / timeout | Red (Required) | **Disabled** |
+
+**Re-run after fixing signals:** The gate workflow only triggers on PR `opened`, `synchronize`, `reopened`, or `labeled`. Ingesting signals or moving from `self_heal` → certified in Verdikt does **not** re-trigger GitHub Actions. If the gate already failed red, merge stays blocked until you **manually re-run** the check:
+
+1. PR → **Checks** → **Verdikt gate / verdikt-gate** → **Re-run failed jobs**, or  
+2. **Actions** → **Verdikt gate** → select the run → **Re-run all jobs**
+
+Alternatives: push a new commit to the PR (`synchronize`), or remove and re-add **`verdikt:rc`**. Probe the API without waiting on GHA: `./scripts/dogfood-gate-probe.sh "$SHA" "$PR" useverdikt Verdikt`.
+
+```bash
+gh api repos/useverdikt/Verdikt/rulesets --jq '.[] | {name, enforcement, targets: .conditions.ref_name.include}'
+```
+
+Expect ruleset `main`, enforcement `active`, target pattern `main`. Legacy `gh api …/branches/main/protection` returns 404 when only a ruleset is configured.
+
 The gate job **polls** the API (12 × 10s) — it does not fail on the first check while signals are still arriving. Expect **30–60 seconds** after labeling for integration auto-pull to populate the cert window.
 
-**Before relying on branch protection (partners too):**
+**Before relying on the ruleset (partners too):**
 
 1. Confirm SHA tagging on at least one signal integration (Settings → Signal sources → Probe SHA match).
 2. Use the polling workflow from `docs/examples/verdikt-gate-gha.yml` — not a single-check curl.
 3. Set expectation: first `verdikt:rc` on a PR opens COLLECTING; gate returns `action: collecting` for ~60s, then `self_heal` if evidence never lands.
+4. If merge stays enabled after a red gate: ruleset is **Disabled**, has no **target branch**, or `verdikt-gate` is not listed under required status checks.
 
 ---
 
@@ -100,6 +125,8 @@ Connect Braintrust/BrowserStack with SHA-tagged runs matching the PR head commit
 
 Release status → **CERTIFIED** (or override path for negative test).
 
+If the gate job already finished **red** before signals landed, re-run **Verdikt gate** on the PR (see §3 above) — the check does not auto-retry when evidence arrives later.
+
 ### 5. Verify enforcement
 
 | Check | Expected |
@@ -107,13 +134,15 @@ Release status → **CERTIFIED** (or override path for negative test).
 | **Verdikt gate** / `verdikt-gate` | Green (`gate.exit_code === 0`) |
 | GitHub commit status | **verdikt/certification** success on head SHA (VCS writeback) |
 | PR comment | Verdikt certification comment on PR (if writeback configured) |
-| Merge button | Enabled only if branch protection + gate green |
+| Merge button | Enabled only when ruleset is active and gate is green (or gate skipped — no label) |
 
-Re-run gate manually:
+Re-run gate manually (API probe — does not update the PR check):
 
 ```bash
 ./scripts/dogfood-gate-probe.sh "$SHA" "$PR" useverdikt Verdikt
 ```
+
+To clear a red **Required** check after certifying, use **Re-run failed jobs** on the **Verdikt gate** workflow run (see §3).
 
 ### 6. Merge
 
@@ -142,12 +171,14 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 | No commit status on GitHub | Configure VCS write-back PAT (separate from GitHub App) |
 | Label does nothing | GitHub App not installed on repo or label name mismatch |
 | Secrets error in GHA | Add `VERDIKT_API_KEY` + `VERDIKT_WORKSPACE_ID` |
+| Gate red but release is CERTIFIED in app | Re-run **Verdikt gate** on the PR — signal ingest does not re-trigger the workflow |
+| Gate red but merge still enabled | Ruleset **Disabled**, no target on `main`, or `verdikt-gate` not in required checks |
 
 ---
 
 ## Done criteria (demo-ready)
 
-- [x] Branch protection on `main` requires `verdikt-gate`
+- [x] Repository ruleset on `main` requires `verdikt-gate` (enforcement active)
 - [ ] One PR certified via `verdikt:rc` + Signal Simulator
 - [ ] GHA **Verdikt gate** blocked then passed
 - [ ] GitHub commit status visible on PR
@@ -170,9 +201,9 @@ Treat Verdikt-on-Verdikt as **always on**, not a one-off demo:
 | Rule | Why |
 |------|-----|
 | Every merge-bound PR gets **`verdikt:rc`** before review | Opens the cert window for the PR head SHA |
-| **Branch protection** requires `verdikt-gate` | Merge blocked until evidence passes — **live on useverdikt/Verdikt** |
+| **Ruleset on `main`** requires `verdikt-gate` | Merge blocked when labeled PR fails gate — **live on useverdikt/Verdikt** |
 | Gate failure → read **`blockers`** + **`next_step`** in GHA logs | Structured reason instead of guessing why COLLECTING |
-| Gate job **polls** (12 × 10s) — waits on `action: collecting` | Avoids racing integration auto-pull on label |
+| Gate job **polls** (12 × 10s) — waits on `action: collecting` | Avoids racing integration auto-pull on label; if it times out red, **re-run the job** after signals land |
 | Keep repo secrets current (`VERDIKT_API_KEY`, `VERDIKT_WORKSPACE_ID`) | Gate job must resolve the same workspace as the app |
 | Screenshot audit trail + cert record after each dogfood PR | Sales/demo proof that we eat our own cooking |
 
