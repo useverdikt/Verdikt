@@ -5,6 +5,12 @@ import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
 import { Badge, Card, Spinner, ErrorState } from "../ui.jsx";
 import { panelErrorMessage } from "../panelLoad.js";
+import {
+  ALIGNMENT_LEGEND,
+  ALIGNMENT_TABLE_HEADERS,
+  formatOutcomeDrivers,
+  preShipRecommendationColor
+} from "../alignmentTableCopy.js";
 
 function OutcomeCriteriaCard({ criteria }) {
   if (!criteria) return null;
@@ -42,11 +48,35 @@ const ALIGNMENT_META = {
   UNKNOWN:    { color: "#7a788b", label: "Unknown",  icon: "?" }
 };
 const OUTCOME_META = {
-  HEALTHY:  { color: "#22c87a" },
-  DEGRADED: { color: "#f5a623" },
-  INCIDENT: { color: "#ef4444" },
-  UNKNOWN:  { color: "#7a788b" }
+  HEALTHY:  { color: "#22c87a", label: "Healthy" },
+  DEGRADED: { color: "#f5a623", label: "Degraded" },
+  INCIDENT: { color: "#ef4444", label: "Incident" },
+  UNKNOWN:  { color: "#7a788b", label: "Unknown" }
 };
+
+function VcsObservationDetail({ signal_deltas = {} }) {
+  const rows = [
+    ["vcs_reverts", "Revert commits"],
+    ["vcs_hotfixes", "Hotfix commits"],
+    ["vcs_incident_prs", "Incident PRs"]
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {rows.map(([key, label]) => (
+        <div key={key} style={{ fontSize: 12, color: C.muted }}>
+          <strong style={{ color: C.text }}>{label}</strong>
+          {": "}
+          <code style={{ fontFamily: C.mono }}>{signal_deltas[key]?.post ?? 0}</code>
+        </div>
+      ))}
+      {signal_deltas.vcs_healthy?.post != null ? (
+        <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>
+          VCS monitoring window closed with no degradation signals.
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
   const [data, setData] = useState(null);
@@ -284,8 +314,10 @@ Content-Type: application/json
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    {["Release", "Predicted", "Actual", "Why", "Alignment", "Incident"].map(h => (
-                      <th key={h} style={thStyle}>{h}</th>
+                    {ALIGNMENT_TABLE_HEADERS.map((h) => (
+                      <th key={h.key} style={thStyle} title={h.title}>
+                        {h.label}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -293,57 +325,69 @@ Content-Type: application/json
                   {data.alignments.map((a) => {
                     const am = ALIGNMENT_META[a.alignment] || ALIGNMENT_META.UNKNOWN;
                     const om = OUTCOME_META[a.actual_outcome] || OUTCOME_META.UNKNOWN;
+                    const drivers = formatOutcomeDrivers(a);
                     const isExpanded = expandedRow === a.release_id;
-                    const hasCriteria = a.outcome_criteria?.length > 0;
+                    const recColorKey = preShipRecommendationColor(a.recommended_verdict);
+                    const recColor = recColorKey === "red" ? C.red : recColorKey === "amber" ? C.amber : C.green;
                     return (
                       <React.Fragment key={a.release_id}>
                         <tr
-                          onClick={() => hasCriteria && setExpandedRow(isExpanded ? null : a.release_id)}
-                          style={{ cursor: hasCriteria ? "pointer" : "default", background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent" }}
+                          onClick={() => drivers.expandable && setExpandedRow(isExpanded ? null : a.release_id)}
+                          style={{
+                            cursor: drivers.expandable ? "pointer" : "default",
+                            background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent"
+                          }}
                         >
                           <td style={tdStyle}>
                             <code style={{ fontSize: 11, fontFamily: C.mono }}>{a.version || a.release_id?.slice(0, 8) || "—"}</code>
-                            {hasCriteria && <span style={{ fontSize: 9, color: C.dim, marginLeft: 5 }}>{isExpanded ? "▲" : "▼"}</span>}
-                          </td>
-                          <td style={tdStyle}>
-                            <Badge color={a.recommended_verdict?.includes("UNCERTIFIED") ? C.red : C.green}>
-                              {a.recommended_verdict || "—"}
-                            </Badge>
-                          </td>
-                          <td style={tdStyle}>
-                            <span style={{ color: om.color, fontFamily: C.mono, fontWeight: 700, fontSize: 12 }}>{a.actual_outcome}</span>
-                          </td>
-                          <td style={{ ...tdStyle, maxWidth: 220 }}>
-                            {/* Fix #1: show first trigger criteria inline */}
-                            {a.outcome_criteria?.length > 0 ? (
-                              <span style={{ fontSize: 11, color: C.muted }}>{a.outcome_criteria[0].label}: {a.outcome_criteria[0].value?.toFixed?.(1) ?? a.outcome_criteria[0].value}</span>
-                            ) : (
-                              <span style={{ fontSize: 11, color: C.dim }}>No signals triggered</span>
+                            {drivers.expandable && (
+                              <span style={{ fontSize: 9, color: C.dim, marginLeft: 5 }}>{isExpanded ? "▲" : "▼"}</span>
                             )}
                           </td>
-                          <td style={tdStyle}><Badge color={am.color}>{am.icon} {am.label}</Badge></td>
+                          <td style={tdStyle}>
+                            <Badge color={recColor}>{a.recommended_verdict || "—"}</Badge>
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{ color: om.color, fontFamily: C.mono, fontWeight: 700, fontSize: 12 }} title={om.label}>
+                              {a.actual_outcome}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, maxWidth: 260 }}>
+                            <span style={{ fontSize: 11, color: C.muted }}>{drivers.text}</span>
+                          </td>
+                          <td style={tdStyle} title={ALIGNMENT_LEGEND}>
+                            <Badge color={am.color}>{am.icon} {am.label}</Badge>
+                          </td>
                           <td style={tdStyle}>
                             <span style={{ fontSize: 11, color: a.incident_ref ? C.accent : C.dim, fontFamily: C.mono }}>
                               {a.incident_ref || "—"}
                             </span>
                           </td>
                         </tr>
-                        {/* Expanded row: all criteria triggers */}
                         {isExpanded && (
                           <tr>
                             <td colSpan={6} style={{ ...tdStyle, background: "rgba(255,255,255,0.02)", paddingTop: 10, paddingBottom: 10 }}>
-                              <div style={{ fontSize: 10, color: C.dim, fontFamily: C.mono, letterSpacing: "0.08em", marginBottom: 6, fontWeight: 700 }}>WHY THIS OUTCOME WAS CLASSIFIED</div>
-                              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                                {a.outcome_criteria.map((c, i) => (
-                                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.muted }}>
-                                    <span style={{ color: c.outcome === "INCIDENT" ? C.red : C.amber, fontWeight: 700, flexShrink: 0 }}>
-                                      {c.outcome === "INCIDENT" ? "✗" : "⚠"}
-                                    </span>
-                                    <span><strong style={{ color: C.text }}>{c.signal}</strong> = <code style={{ fontFamily: C.mono }}>{typeof c.value === "number" ? c.value.toFixed(2) : c.value}</code></span>
-                                    <span style={{ color: C.dim }}>— {c.label} (threshold: {c.threshold})</span>
-                                  </div>
-                                ))}
+                              <div style={{ fontSize: 10, color: C.dim, fontFamily: C.mono, letterSpacing: "0.08em", marginBottom: 6, fontWeight: 700 }}>
+                                OUTCOME DRIVERS
                               </div>
+                              {drivers.detailKind === "criteria" ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                                  {a.outcome_criteria.map((c, i) => (
+                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.muted }}>
+                                      <span style={{ color: c.outcome === "INCIDENT" ? C.red : C.amber, fontWeight: 700, flexShrink: 0 }}>
+                                        {c.outcome === "INCIDENT" ? "✗" : "⚠"}
+                                      </span>
+                                      <span>
+                                        <strong style={{ color: C.text }}>{c.signal}</strong> ={" "}
+                                        <code style={{ fontFamily: C.mono }}>{typeof c.value === "number" ? c.value.toFixed(2) : c.value}</code>
+                                      </span>
+                                      <span style={{ color: C.dim }}>— {c.label} (threshold: {c.threshold})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <VcsObservationDetail signal_deltas={a.signal_deltas} />
+                              )}
                             </td>
                           </tr>
                         )}
@@ -352,6 +396,7 @@ Content-Type: application/json
                   })}
                 </tbody>
               </table>
+              <p style={{ margin: "12px 0 0", fontSize: 11, color: C.dim, lineHeight: 1.55 }}>{ALIGNMENT_LEGEND}</p>
             </div>
           )}
         </>
