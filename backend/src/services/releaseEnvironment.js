@@ -10,6 +10,7 @@ const { nowIso } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { openMonitoringWindow } = require("./vcsMonitor");
 const { deliverSlackBypassMerge } = require("./slackNotifier");
+const { computeAndPersistRecommendation } = require("./recommendationEngine");
 
 const CERT_LIKE = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
 
@@ -48,6 +49,14 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
   );
 
   const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [release.id])) || release;
+
+  if (becomingProd && !isCertLikeStatus(relStatus)) {
+    try {
+      await computeAndPersistRecommendation(fresh);
+    } catch (err) {
+      console.error("[recommendation_engine] prod promotion refresh failed:", release.id, err?.message);
+    }
+  }
 
   await writeAudit({
     workspaceId,

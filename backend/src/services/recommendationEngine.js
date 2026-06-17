@@ -24,6 +24,7 @@ const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { safeJsonParse } = require("../lib/safeJson");
 const { upsertReleaseIntelligence, parseRecommendationBlob } = require("./intelligenceBuilder");
+const { isProdEnvironment, isCertLikeStatus } = require("./releaseEnvironment");
 
 // ─── Grade weights for reliability penalty ────────────────────────────────────
 const RELIABILITY_PENALTY = { A: 0, B: 2, C: 6, D: 12, F: 20, unknown: 4 };
@@ -622,8 +623,24 @@ async function computeAndPersistRecommendation(release) {
   return rec;
 }
 
+function releaseNeedsProdIncidentRecommendation(release) {
+  return isProdEnvironment(release?.environment) && !isCertLikeStatus(release?.status);
+}
+
 /**
- * Get persisted recommendation for a release.
+ * Return recommendation for a release, refreshing when live in prod without cert-like governance.
+ */
+async function getRecommendationForRelease(release) {
+  if (releaseNeedsProdIncidentRecommendation(release)) {
+    return computeAndPersistRecommendation(release);
+  }
+  const cached = await getRecommendation(release.id);
+  if (cached) return cached;
+  return computeAndPersistRecommendation(release);
+}
+
+/**
+ * Get persisted recommendation for a release (by id only — may be stale after prod promotion).
  */
 async function getRecommendation(releaseId) {
   const row = await queryOne(
@@ -639,4 +656,11 @@ function roundN(v, decimals) {
   return Math.round(v * f) / f;
 }
 
-module.exports = { buildRecommendation, computeAndPersistRecommendation, getRecommendation, loadRecommendationContext };
+module.exports = {
+  buildRecommendation,
+  computeAndPersistRecommendation,
+  getRecommendation,
+  getRecommendationForRelease,
+  releaseNeedsProdIncidentRecommendation,
+  loadRecommendationContext
+};

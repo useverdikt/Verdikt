@@ -31,6 +31,7 @@ const {
   attachStream,
   computeAndPersistRecommendation,
   getRecommendation,
+  getRecommendationForRelease,
   ingestProductionSignals,
   getProductionObservations,
   computeOutcomeAlignment,
@@ -588,7 +589,7 @@ app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireRelease
 /** Get the structured recommendation for a release (cached from last verdict). */
 app.get("/api/releases/:releaseId/recommendation", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
-    const rec = await getRecommendation(req.params.releaseId);
+    const rec = await getRecommendationForRelease(req.releaseRow);
     if (!rec) return res.status(404).json({ error: "no recommendation computed for this release yet" });
     return res.json({ release_id: req.params.releaseId, ...rec });
   } catch (e) {

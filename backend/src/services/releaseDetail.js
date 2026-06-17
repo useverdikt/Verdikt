@@ -10,6 +10,8 @@ const {
   persistReleaseEvidenceQuality
 } = require("./evidenceQuality");
 const { buildGateContext } = require("./gateContext");
+const { isProdEnvironment, isCertLikeStatus } = require("./releaseEnvironment");
+const { computeAndPersistRecommendation } = require("./recommendationEngine");
 
 const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
@@ -144,7 +146,17 @@ async function buildReleaseDetail(release) {
     signalRows
   );
 
-  const { certification } = await buildGateContext(release, intelligence);
+  let intelligenceOut = intelligence;
+  if (isProdEnvironment(releaseOut.environment) && !isCertLikeStatus(releaseOut.status)) {
+    try {
+      const recommendation = await computeAndPersistRecommendation(releaseOut);
+      intelligenceOut = { ...(intelligence || {}), recommendation };
+    } catch (err) {
+      console.error("[recommendation_engine] prod detail refresh failed:", releaseId, err?.message);
+    }
+  }
+
+  const { certification } = await buildGateContext(release, intelligenceOut);
 
   return {
     release: {
@@ -160,7 +172,7 @@ async function buildReleaseDetail(release) {
     override: mapOverrideRow(override),
     override_history: mapOverrideHistoryRows(overrideHistoryRows),
     last_signal_evaluation,
-    intelligence,
+    intelligence: intelligenceOut,
     certification,
     outcome_alignment
   };
