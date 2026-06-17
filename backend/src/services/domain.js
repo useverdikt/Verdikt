@@ -53,6 +53,7 @@ const { assessOverrideJustification } = require("./overrideAssessor");
 const { buildThresholdSuggestions } = require("./thresholdAdvisor");
 const { maybeEnrichSuggestionReason } = require("./llmAssist");
 const { runPostVerdictEffects } = require("./postVerdictEffects");
+const { persistCertificationSnapshot } = require("./certificationSnapshots");
 
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
 
@@ -226,6 +227,18 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     [nextStatus, nowIso(), nowIso(), releaseId]
   );
   await upsertReleaseIntelligence(releaseId, release.workspace_id, { verdict: deterministicIntelligence, trace });
+
+  try {
+    await persistCertificationSnapshot({
+      releaseId,
+      workspaceId: release.workspace_id,
+      thresholdMap,
+      signalMap: latest,
+      status: nextStatus
+    });
+  } catch (err) {
+    console.error("[certification_snapshot] persist failed:", releaseId, err?.message);
+  }
 
   // ── Verdict change audit ──────────────────────────────────────────────────
   const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);

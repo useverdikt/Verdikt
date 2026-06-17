@@ -22,9 +22,12 @@ function AuditIntegrityBadge({ wsId, wsReady }) {
 
   if (!wsReady || !integrity) return null;
 
-  const tampered = Array.isArray(integrity.tampered) ? integrity.tampered.length : 0;
+  const issueCount =
+    (integrity.tampered?.length || 0) +
+    (integrity.broken_chain?.length || 0) +
+    (integrity.missing_hash?.length || 0);
+  const ok = integrity.valid !== false && issueCount === 0;
   const verified = Number(integrity.ok || 0);
-  const ok = tampered === 0;
 
   return (
     <div
@@ -46,7 +49,7 @@ function AuditIntegrityBadge({ wsId, wsReady }) {
       <span>
         {ok
           ? `Audit integrity verified (${verified} events)`
-          : `Integrity alert — ${tampered} tampered event${tampered === 1 ? "" : "s"}`}
+          : `Integrity alert — ${issueCount} issue${issueCount === 1 ? "" : "s"}`}
       </span>
     </div>
   );

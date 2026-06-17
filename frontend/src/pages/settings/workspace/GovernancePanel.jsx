@@ -280,30 +280,37 @@ export default function GovernancePanel({ section, wsId, toast }) {
           </div>
         </div>
         <div className="sblock-body">
-          {integrityResult && !integrityResult.error && (
+          {integrityResult && !integrityResult.error && (() => {
+            const issueCount =
+              (integrityResult.tampered?.length || 0) +
+              (integrityResult.broken_chain?.length || 0) +
+              (integrityResult.missing_hash?.length || 0);
+            const ok = integrityResult.valid !== false && issueCount === 0;
+            return (
             <div
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 10,
                 padding: "10px 14px",
-                background: integrityResult.tampered?.length > 0 ? "rgba(239,68,68,0.07)" : "rgba(16,185,129,0.07)",
-                border: `1px solid ${integrityResult.tampered?.length > 0 ? "rgba(239,68,68,0.2)" : "rgba(16,185,129,0.2)"}`,
+                background: ok ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)",
+                border: `1px solid ${ok ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
                 borderRadius: 8,
                 marginBottom: 12
               }}
             >
-              <span style={{ fontSize: 15 }}>{integrityResult.tampered?.length > 0 ? "⚠" : "✓"}</span>
+              <span style={{ fontSize: 15 }}>{ok ? "✓" : "⚠"}</span>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: integrityResult.tampered?.length > 0 ? "#ef4444" : "var(--green)" }}>
-                  {integrityResult.tampered?.length > 0 ? `${integrityResult.tampered.length} tampered record(s) detected` : "All records verified"}
+                <div style={{ fontSize: 13, fontWeight: 600, color: ok ? "var(--green)" : "#ef4444" }}>
+                  {ok ? "All records verified" : `${issueCount} integrity issue(s) detected`}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--dim)", marginTop: 2 }}>
-                  {integrityResult.ok}/{integrityResult.total} rows passed • {integrityResult.tampered?.length ?? 0} failed
+                  {integrityResult.ok}/{integrityResult.total} rows passed • {issueCount} failed
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
           {integrityResult?.error && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>{integrityResult.error}</div>}
           {integrityResult?.tampered?.length > 0 && (
             <div style={{ overflowX: "auto", marginBottom: 12 }}>

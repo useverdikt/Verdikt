@@ -30,3 +30,11 @@ See [DEPENDABOT_TRIAGE.md](./DEPENDABOT_TRIAGE.md). Weekly grouped minor/patch P
 - Signal/verdict domain split from `appMainLogic.js` (~600 lines remaining)
 - Integration pull job queue (Phase B worker — async `POST .../sources/pull`)
 - Full RLS on every baseline table (core + post-baseline covered; remainder low-risk via app-layer)
+
+## Done (trust hardening)
+
+| Area | Resolution |
+|------|------------|
+| Verdict evidence | `certification_snapshots` frozen at verdict; gate context + public cert prefer snapshot (`028`) |
+| Cert signing | `evidence_hash` in canonical payload; signatures no longer overwritten on conflict |
+| Audit chain | Per-workspace `prev_hash` chain; append-only DB trigger; verify is read-only |

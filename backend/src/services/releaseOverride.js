@@ -13,6 +13,9 @@ const {
 const { signCertificationRecord } = require("./certSigner");
 const { deliverVerdictWebhook } = require("./outboundWebhook");
 const { deliverReleaseCallback } = require("./releaseCallback");
+const { getThresholdMap } = require("./workspaceConfig");
+const { getLatestSignalMap } = require("./verdictEngine");
+const { persistCertificationSnapshot } = require("./certificationSnapshots");
 
 function validateOverridePayload({ justification, metadata = {} }) {
   if (!justification || !String(justification).trim()) {
@@ -140,6 +143,19 @@ async function applyReleaseOverride(
   try {
     const freshRelease = await queryOne("SELECT * FROM releases WHERE id = ?", [release.id]);
     if (freshRelease) {
+      const [thresholdMap, latest] = await Promise.all([
+        getThresholdMap(freshRelease.workspace_id),
+        getLatestSignalMap(freshRelease.id)
+      ]);
+      await persistCertificationSnapshot({
+        releaseId: freshRelease.id,
+        workspaceId: freshRelease.workspace_id,
+        thresholdMap,
+        signalMap: latest,
+        status: "CERTIFIED_WITH_OVERRIDE",
+        allowUpdate: true
+      });
+
       const intel = await getReleaseIntelligence(release.id);
       overrideCertSig = await signCertificationRecord(freshRelease, intel?.verdict);
 

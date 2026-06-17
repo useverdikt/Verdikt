@@ -4,48 +4,48 @@
  * gateContext.js
  *
  * Single entry point for building gate-context objects (certification / remediation).
- * Handles the shared boilerplate of fetching thresholdMap + latest + missingRequired
- * before delegating to the appropriate builder.
- *
- * Called by:
- *   - releaseDetail.js  (detail API — cert record UI)
- *   - postVerdictEffects.js  (webhook / callback delivery)
- *
- * releaseGate.js already owns all inputs at call time, so it calls the builders
- * directly to avoid a redundant fetch round-trip.
+ * Prefers frozen verdict-time snapshots when available.
  */
 
 const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap, getMissingRequiredSignals } = require("./verdictEngine");
+const { getCertificationSnapshot } = require("./certificationSnapshots");
 const { buildGateCertification } = require("./gateCertification");
 const { buildGateRemediation } = require("./gateRemediation");
 
 const CERT_LIKE = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
 const BLOCKED_OR_COLLECTING = new Set(["UNCERTIFIED", "COLLECTING"]);
 
+async function resolveGateEvidence(release) {
+  const snapshot = await getCertificationSnapshot(release.id);
+  if (snapshot) {
+    return {
+      thresholdMap: snapshot.threshold_map || {},
+      latest: snapshot.signal_map || {},
+      snapshot
+    };
+  }
+
+  const [thresholdMap, latest] = await Promise.all([
+    getThresholdMap(release.workspace_id),
+    getLatestSignalMap(release.id)
+  ]);
+  return { thresholdMap, latest, snapshot: null };
+}
+
 /**
  * Build the gate-context objects for a release that already has a verdict.
- *
- * Returns `{ certification, remediation }` — one of the two is always null.
- * Safe to call from any post-verdict context; errors in each builder are caught
- * individually so a failure in one does not suppress the other.
- *
- * @param {object} release     – release row from the database
- * @param {object} intelligence – result of getReleaseIntelligence(), may be null
- * @returns {Promise<{ certification: object|null, remediation: object|null }>}
  */
 async function buildGateContext(release, intelligence) {
   const status = String(release.status || "").toUpperCase();
 
   let thresholdMap = {};
   let latest = {};
+  let snapshot = null;
   let missingRequiredSignals = [];
 
   try {
-    [thresholdMap, latest] = await Promise.all([
-      getThresholdMap(release.workspace_id),
-      getLatestSignalMap(release.id)
-    ]);
+    ({ thresholdMap, latest, snapshot } = await resolveGateEvidence(release));
     missingRequiredSignals = await getMissingRequiredSignals(
       release.workspace_id,
       release.id,
@@ -63,6 +63,10 @@ async function buildGateContext(release, intelligence) {
   if (CERT_LIKE.has(status)) {
     try {
       certification = await buildGateCertification(shared);
+      if (certification && snapshot) {
+        certification.frozen_at = snapshot.frozen_at;
+        certification.evidence_hash = snapshot.evidence_hash;
+      }
     } catch (err) {
       console.error("[gate_context] certification build failed for", release.id, err?.message);
     }
@@ -75,12 +79,16 @@ async function buildGateContext(release, intelligence) {
         ...shared,
         failedSignals: []
       });
+      if (remediation && snapshot) {
+        remediation.frozen_at = snapshot.frozen_at;
+        remediation.evidence_hash = snapshot.evidence_hash;
+      }
     } catch (err) {
       console.error("[gate_context] remediation build failed for", release.id, err?.message);
     }
   }
 
-  return { certification, remediation };
+  return { certification, remediation, snapshot };
 }
 
-module.exports = { buildGateContext };
+module.exports = { buildGateContext, resolveGateEvidence };
