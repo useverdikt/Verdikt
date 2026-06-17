@@ -3,6 +3,7 @@
 const { run, queryOne, queryAll } = require("../../database");
 const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
 const { openReleaseSession } = require("../../services/releaseIdentity");
+const { countShippedWithoutCertification } = require("../../services/releaseEnvironment");
 const {
   nowIso,
   writeAudit,
@@ -17,19 +18,22 @@ module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const ws = req.params.workspaceId;
-    const countRow = await queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [ws]);
+    const [countRow, shipped_without_certification_count] = await Promise.all([
+      queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [ws]),
+      countShippedWithoutCertification(ws)
+    ]);
     const total_count = Number(countRow?.c ?? 0);
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
     const before = typeof req.query.before === "string" && req.query.before.trim() ? req.query.before.trim() : null;
     const rows = before
       ? await queryAll(
-          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality
+          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality, shipped_without_certification, shipped_without_certification_at
            FROM releases WHERE workspace_id = ? AND created_at::timestamptz < ?::timestamptz
            ORDER BY created_at::timestamptz DESC LIMIT ?`,
           [ws, before, limit]
         )
       : await queryAll(
-          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality
+          `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality, shipped_without_certification, shipped_without_certification_at
            FROM releases WHERE workspace_id = ? ORDER BY created_at::timestamptz DESC LIMIT ?`,
           [ws, limit]
         );
@@ -38,6 +42,7 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
     return res.json({
       workspace_id: ws,
       total_count,
+      shipped_without_certification_count,
       limit,
       next_before,
       has_more: !!next_before,

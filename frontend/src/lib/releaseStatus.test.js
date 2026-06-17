@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { mapBackendStatusToUi, normalizeReleaseStatus, isIngestLocked, UI_RELEASE_STATUS } from "./releaseStatus.js";
+import {
+  mapBackendStatusToUi,
+  normalizeReleaseStatus,
+  isIngestLocked,
+  isLiveBypassRisk,
+  shippedWithoutCertificationFlag,
+  UI_RELEASE_STATUS
+} from "./releaseStatus.js";
 
 describe("releaseStatus", () => {
   it("maps backend statuses 1:1 to UI slugs", () => {
@@ -26,5 +33,26 @@ describe("releaseStatus", () => {
     expect(isIngestLocked("COLLECTING")).toBe(false);
     expect(isIngestLocked("CERTIFIED")).toBe(true);
     expect(isIngestLocked("CERTIFIED_WITH_OVERRIDE")).toBe(true);
+  });
+
+  it("detects live bypass risk for prod + non-cert-like status", () => {
+    expect(
+      isLiveBypassRisk({ environment: "prod", status: UI_RELEASE_STATUS.UNCERTIFIED })
+    ).toBe(true);
+    expect(
+      isLiveBypassRisk({ environment: "prod", status: UI_RELEASE_STATUS.COLLECTING })
+    ).toBe(true);
+    expect(
+      isLiveBypassRisk({ environment: "prod", status: UI_RELEASE_STATUS.CERTIFIED })
+    ).toBe(false);
+    expect(
+      isLiveBypassRisk({ environment: "pre-prod", status: UI_RELEASE_STATUS.UNCERTIFIED })
+    ).toBe(false);
+  });
+
+  it("reads frozen shipped_without_certification flag", () => {
+    expect(shippedWithoutCertificationFlag({ shipped_without_certification: 1 })).toBe(true);
+    expect(shippedWithoutCertificationFlag({ shipped_without_certification: true })).toBe(true);
+    expect(shippedWithoutCertificationFlag({ shipped_without_certification: 0 })).toBe(false);
   });
 });

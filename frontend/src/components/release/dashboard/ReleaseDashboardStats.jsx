@@ -1,4 +1,6 @@
 export default function ReleaseDashboardStats({ wsReady, stats, loopBand }) {
+  const bypassCount = stats.shippedWithoutCertificationCount ?? 0;
+  const bypassActive = bypassCount > 0;
   return (
     <div className="stats-row">
       <div className="stat-card green">
@@ -10,6 +12,11 @@ export default function ReleaseDashboardStats({ wsReady, stats, loopBand }) {
         <div className="stat-label">Uncertified</div>
         <div className="stat-value r">{wsReady ? stats.uncertified : "—"}</div>
         <div className="stat-sub">uncertified releases</div>
+      </div>
+      <div className={`stat-card bypass${bypassActive ? " bypass-active" : " bypass-idle"}`}>
+        <div className="stat-label">Gate bypasses</div>
+        <div className="stat-value">{wsReady ? bypassCount : "—"}</div>
+        <div className="stat-sub">shipped without certification</div>
       </div>
       <div className="stat-card amber">
         <div className="stat-label">Override rate</div>

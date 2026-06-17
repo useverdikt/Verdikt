@@ -145,6 +145,7 @@
 .release-redesign .stat-card:nth-child(2) { animation-delay: .10s; }
 .release-redesign .stat-card:nth-child(3) { animation-delay: .15s; }
 .release-redesign .stat-card:nth-child(4) { animation-delay: .20s; }
+.release-redesign .stat-card:nth-child(5) { animation-delay: .25s; }
 .release-redesign .stat-card:hover { border-color: #243050; }
 .release-redesign .stat-card::after {
   content: '';
@@ -157,6 +158,16 @@
 .release-redesign .stat-card.red   { --rr-glow: rgba(239,68,68,.06); }
 .release-redesign .stat-card.amber { --rr-glow: rgba(245,158,11,.06); }
 .release-redesign .stat-card.blue  { --rr-glow: rgba(59,130,246,.06); }
+.release-redesign .stat-card.bypass-idle {
+  --rr-glow: rgba(148,163,184,.04);
+}
+.release-redesign .stat-card.bypass-idle .stat-value { color: #94a3b8; }
+.release-redesign .stat-card.bypass-active {
+  --rr-glow: rgba(225,29,72,.12);
+  border-color: rgba(225,29,72,.35);
+  background: linear-gradient(145deg, rgba(225,29,72,.10), rgba(9,13,20,.95));
+}
+.release-redesign .stat-card.bypass-active .stat-value { color: #fb7185; }
 
 .release-redesign .stat-label {
   font-family: "JetBrains Mono", monospace;
@@ -341,6 +352,30 @@
   height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+.release-redesign .v-bypass {
+  background: linear-gradient(135deg, rgba(225,29,72,.22), rgba(249,115,22,.14));
+  color: #fb7185;
+  border: 1px solid rgba(225,29,72,.55);
+  box-shadow: 0 0 12px rgba(225,29,72,.25), inset 0 0 0 1px rgba(249,115,22,.15);
+  animation: bypass-pulse 1.4s ease-in-out infinite;
+}
+.release-redesign .v-bypass .vbadge-dot {
+  background: #e11d48;
+  box-shadow: 0 0 8px #e11d48, 0 0 14px rgba(249,115,22,.6);
+  animation: bypass-dot 1.4s ease-in-out infinite;
+}
+.release-redesign .release-row.bypass-risk {
+  background: linear-gradient(90deg, rgba(225,29,72,.08), transparent 55%);
+  border-left: 2px solid rgba(225,29,72,.65);
+}
+@keyframes bypass-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(225,29,72,.2), inset 0 0 0 1px rgba(249,115,22,.12); }
+  50%      { box-shadow: 0 0 18px rgba(225,29,72,.45), inset 0 0 0 1px rgba(249,115,22,.28); }
+}
+@keyframes bypass-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.35); opacity: 0.75; }
 }
 .release-redesign .v-cert { background: rgba(34,197,94,.10); color: #22c55e; }
 .release-redesign .v-un   { background: rgba(239,68,68,.10);  color: #ef4444; }

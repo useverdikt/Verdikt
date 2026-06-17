@@ -29,6 +29,7 @@ export default function ReleaseView({
   hasMoreReleases = false,
   loadingMoreReleases = false,
   onLoadMoreReleases,
+  shippedWithoutCertificationCount = null,
   navigate
 }) {
   const setupChecklist = useWorkspaceSetupStatus(navigate, wsId, { thresholds, signalDefinitions });
@@ -68,6 +69,7 @@ export default function ReleaseView({
       hasMoreReleases={hasMoreReleases}
       loadingMoreReleases={loadingMoreReleases}
       onLoadMoreReleases={onLoadMoreReleases}
+      shippedWithoutCertificationCount={shippedWithoutCertificationCount}
     />
   );
 }

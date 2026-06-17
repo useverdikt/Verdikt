@@ -104,6 +104,7 @@ export default function App() {
     loadMoreReleases,
     releasesNextBefore,
     releasesLoadingMore,
+    shippedWithoutCertificationCount,
     loadMoreAudit,
     auditNextBefore,
     auditLoadingMore
@@ -323,6 +324,7 @@ export default function App() {
               hasMoreReleases={Boolean(releasesNextBefore)}
               loadingMoreReleases={releasesLoadingMore}
               onLoadMoreReleases={loadMoreReleases}
+              shippedWithoutCertificationCount={shippedWithoutCertificationCount}
               navigate={navigate}
             />
           }

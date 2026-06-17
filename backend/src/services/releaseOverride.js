@@ -16,6 +16,7 @@ const { deliverReleaseCallback } = require("./releaseCallback");
 const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
 const { persistCertificationSnapshot } = require("./certificationSnapshots");
+const { isProdEnvironment } = require("./releaseEnvironment");
 
 function validateOverridePayload({ justification, metadata = {} }) {
   if (!justification || !String(justification).trim()) {
@@ -58,6 +59,10 @@ async function applyReleaseOverride(
     };
   }
 
+  const retroactive =
+    Number(release.shipped_without_certification) === 1 && isProdEnvironment(release.environment);
+  const metadataWithRetroactive = retroactive ? { ...metadata, retroactive: true } : metadata;
+
   const ts = nowIso();
   await run(
     `INSERT INTO override_history (release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at)
@@ -68,7 +73,7 @@ async function applyReleaseOverride(
       approver_name,
       approver_role,
       justification,
-      JSON.stringify(metadata),
+      JSON.stringify(metadataWithRetroactive),
       ts
     ]
   );
@@ -90,7 +95,7 @@ async function applyReleaseOverride(
       approver_name,
       approver_role,
       justification,
-      JSON.stringify(metadata),
+      JSON.stringify(metadataWithRetroactive),
       overrideCreatedAt,
       ts
     ]
@@ -128,8 +133,25 @@ async function applyReleaseOverride(
     eventType: "OVERRIDE_APPROVED",
     actorType: approver_type.toUpperCase(),
     actorName: approver_name,
-    details: { approver_role, justification, metadata }
+    details: { approver_role, justification, metadata: metadataWithRetroactive }
   });
+  if (retroactive) {
+    await writeAudit({
+      workspaceId: release.workspace_id,
+      releaseId: release.id,
+      eventType: "RETROACTIVE_OVERRIDE_AFTER_BYPASS_MERGE",
+      actorType: approver_type.toUpperCase(),
+      actorName: approver_name,
+      details: {
+        approver_role,
+        justification,
+        retroactive: true,
+        shipped_without_certification_at: release.shipped_without_certification_at,
+        environment: release.environment,
+        prior_status: release.status
+      }
+    });
+  }
   await writeAudit({
     workspaceId: release.workspace_id,
     releaseId: release.id,

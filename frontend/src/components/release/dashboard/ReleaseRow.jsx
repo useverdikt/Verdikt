@@ -19,7 +19,7 @@ export default function ReleaseRow({
   releaseVersionPrimarySecondary,
   releaseTypes
 }) {
-  const verdict = verdictMeta(release.status);
+  const verdict = verdictMeta(release);
   const rvHead = releaseVersionPrimarySecondary
     ? releaseVersionPrimarySecondary(release.version)
     : { primary: release.version || "—", secondary: "" };
@@ -58,7 +58,7 @@ export default function ReleaseRow({
 
   return (
     <div
-      className={`release-row${isExpanded ? " expanded" : ""}${verdict.pulse ? " coll-pulse" : ""}`}
+      className={`release-row${isExpanded ? " expanded" : ""}${verdict.pulse ? " coll-pulse" : ""}${verdict.cls === "v-bypass" ? " bypass-risk" : ""}`}
       data-last={isLast ? "true" : undefined}
       onClick={onToggle}
       role="button"

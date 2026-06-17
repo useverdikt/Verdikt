@@ -280,9 +280,102 @@ async function deliverSlackCalibrationNudge(release, alignmentResult, suggestion
   }
 }
 
+/**
+ * Urgent Slack alert when code merges to main without a cert-like governance status.
+ * Uses the same webhook path as verdict notifications — distinct from standard UNCERTIFIED verdict styling.
+ */
+function buildBypassMergeSlackPayload(release, statusAtMerge) {
+  const version = release.version || release.id?.slice(0, 8) || "release";
+  const status = String(statusAtMerge || release.status || "UNKNOWN").toUpperCase();
+  const base = String(PUBLIC_APP_URL || "").replace(/\/$/, "");
+
+  const blocks = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `:rotating_light: *GATE BYPASSED — LIVE IN PROD*\n\`${version}\` merged to main while governance status was *${status.replace(/_/g, " ")}*`
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "_Active incident risk: production is live without certification. VCS monitoring opened. Retroactive override required to restore governance alignment._"
+      }
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `*PR:* ${release.pr_number ? `#${release.pr_number}` : "—"}  ·  *Env:* prod  ·  *Time:* ${nowIso().slice(0, 16).replace("T", " ")} UTC`
+        }
+      ]
+    }
+  ];
+
+  if (base && release.id) {
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Review release", emoji: true },
+          url: `${base}/releases`,
+          style: "danger"
+        }
+      ]
+    });
+  }
+
+  blocks.push({ type: "divider" });
+
+  return {
+    attachments: [
+      {
+        color: "#e11d48",
+        blocks
+      }
+    ]
+  };
+}
+
+async function deliverSlackBypassMerge(release, statusAtMerge) {
+  try {
+    const policy = await getWorkspacePolicy(release.workspace_id);
+    const rawUrl = policy?.slack_webhook_url;
+    if (!rawUrl) return;
+
+    let safeUrl;
+    try {
+      safeUrl = await validateOutboundWebhookUrl(rawUrl);
+    } catch {
+      console.error("[slack_notifier] invalid webhook URL for workspace:", release.workspace_id);
+      return;
+    }
+
+    const payload = buildBypassMergeSlackPayload(release, statusAtMerge);
+    const res = await fetch(safeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8_000)
+    });
+
+    if (!res.ok) {
+      console.error("[slack_notifier] bypass merge alert non-2xx:", release.id, res.status);
+    }
+  } catch (err) {
+    console.error("[slack_notifier] bypass merge alert failed:", release.id, err?.message);
+  }
+}
+
 module.exports = {
   deliverSlackVerdict,
   buildSlackPayload,
   deliverSlackCalibrationNudge,
-  buildCalibrationSlackPayload
+  buildCalibrationSlackPayload,
+  deliverSlackBypassMerge,
+  buildBypassMergeSlackPayload
 };

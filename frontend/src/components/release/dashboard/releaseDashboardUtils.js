@@ -1,7 +1,17 @@
-import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, shippedWithoutCertificationFlag } from "../../../lib/releaseStatus.js";
 
-export function verdictMeta(status) {
-  const s = normalizeReleaseStatus(status);
+export function verdictMeta(releaseOrStatus) {
+  const release =
+    releaseOrStatus && typeof releaseOrStatus === "object" ? releaseOrStatus : { status: releaseOrStatus };
+  if (isLiveBypassRisk(release)) {
+    const bypassed = shippedWithoutCertificationFlag(release);
+    return {
+      cls: "v-bypass",
+      label: bypassed ? "GATE BYPASSED · LIVE" : "LIVE · UNCERTIFIED",
+      pulse: true
+    };
+  }
+  const s = normalizeReleaseStatus(release.status);
   if (s === UI_RELEASE_STATUS.CERTIFIED) return { cls: "v-cert", label: "CERTIFIED", pulse: false };
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return { cls: "v-ov", label: "WITH OVERRIDE", pulse: false };
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return { cls: "v-un", label: "UNCERTIFIED", pulse: false };

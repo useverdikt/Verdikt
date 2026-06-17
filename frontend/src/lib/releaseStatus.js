@@ -49,3 +49,20 @@ export function isCertifiedLike(uiStatus) {
   const s = normalizeReleaseStatus(uiStatus);
   return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
 }
+
+function isProdEnvironment(env) {
+  const s = String(env || "").toLowerCase();
+  return s === "prod" || s === "production" || s === "main" || s === "master";
+}
+
+/** prod + non-cert-like governance — active incident risk (worse than pre-merge UNCERTIFIED). */
+export function isLiveBypassRisk(release) {
+  if (!release) return false;
+  if (!isProdEnvironment(release.environment)) return false;
+  return !isCertifiedLike(release.status);
+}
+
+export function shippedWithoutCertificationFlag(release) {
+  if (!release) return false;
+  return release.shipped_without_certification === true || Number(release.shipped_without_certification) === 1;
+}

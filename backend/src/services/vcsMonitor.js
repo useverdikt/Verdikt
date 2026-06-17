@@ -319,7 +319,11 @@ async function markWindow(releaseId, status, findings, signals, outcome) {
 
 /**
  * Open a VCS monitoring window for a newly-verdicted release.
- * Safe to call multiple times — uses INSERT OR IGNORE.
+ * Safe to call multiple times — ON CONFLICT(release_id) DO NOTHING.
+ *
+ * Bypass-merge path: promoteReleaseOnMerge opens a window at prod promotion; when
+ * collecting later completes (or override is applied), runPostVerdictEffects calls
+ * this again — the window must not open twice for the same release.
  *
  * @param {object} release        – full DB row
  * @param {number} windowMinutes  – monitoring duration after verdict (default 120)
