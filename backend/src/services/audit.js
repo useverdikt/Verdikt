@@ -2,8 +2,18 @@
 
 const { run } = require("../database");
 const { nowIso } = require("../lib/time");
-const { computeAuditChainFields } = require("./auditIntegrity");
+const auditIntegrity = require("./auditIntegrity");
 const { getAgentSessionIdFromContext } = require("../lib/auditContext");
+
+class AuditChainComputeError extends Error {
+  constructor(cause) {
+    const message =
+      cause instanceof Error ? cause.message : String(cause || "unknown error");
+    super(`Audit chain computation failed: ${message}`);
+    this.name = "AuditChainComputeError";
+    this.cause = cause instanceof Error ? cause : undefined;
+  }
+}
 
 function auditActorFromAuth(auth) {
   if (auth?.authType === "api_key") {
@@ -44,12 +54,19 @@ async function writeAudit({
     created_at: createdAt
   };
 
-  let prevHash = null;
-  let rowHash = null;
+  let prevHash;
+  let rowHash;
   try {
-    ({ prev_hash: prevHash, row_hash: rowHash } = await computeAuditChainFields(workspaceId, draftRow));
-  } catch {
-    /* non-fatal — insert without chain if compute fails */
+    ({ prev_hash: prevHash, row_hash: rowHash } = await auditIntegrity.computeAuditChainFields(
+      workspaceId,
+      draftRow
+    ));
+  } catch (err) {
+    throw new AuditChainComputeError(err);
+  }
+
+  if (prevHash == null || rowHash == null) {
+    throw new AuditChainComputeError(new Error("missing prev_hash or row_hash"));
   }
 
   await run(
@@ -71,4 +88,4 @@ async function writeAudit({
   );
 }
 
-module.exports = { writeAudit, auditActorFromAuth };
+module.exports = { writeAudit, auditActorFromAuth, AuditChainComputeError };
