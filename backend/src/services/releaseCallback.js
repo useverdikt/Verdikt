@@ -5,6 +5,7 @@ const { nowIso } = require("../lib/time");
 
 function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = {}, failedSignals = [], certification = null) {
   const signals = failedSignals.length ? failedSignals : (verdictIntelligence?.failed_signals ?? []);
+  const certLike = ["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(release.status);
   return {
     event: "verdikt.verdict",
     release_id: release.id,
@@ -15,8 +16,8 @@ function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = 
     failed_signals: signals,
     certification: certification || null,
     gate: {
-      certified: ["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(release.status),
-      can_merge: release.status === "CERTIFIED",
+      certified: certLike,
+      can_merge: certLike,
       blocking_signals: signals.map((f) => f.signal_id).filter(Boolean),
       ...gateExtras
     },
