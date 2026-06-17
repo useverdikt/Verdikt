@@ -22,7 +22,19 @@ const { safeJsonParse } = require("../lib/safeJson");
 const { upsertReleaseIntelligence, parseRecommendationBlob } = require("./intelligenceBuilder");
 
 // ─── Grade weights for reliability penalty ────────────────────────────────────
-const RELIABILITY_PENALTY = { A: 0, B: 4, C: 10, D: 18, F: 28, unknown: 6 };
+const RELIABILITY_PENALTY = { A: 0, B: 2, C: 6, D: 12, F: 20, unknown: 4 };
+const MAX_PROXIMITY_PENALTY = 42;
+const MAX_RELIABILITY_PENALTY = 28;
+const MAX_FAILURE_MODE_PENALTY = 24;
+
+function isBinaryPassSignal(signalId, value, minFloor) {
+  if (minFloor == null || value == null) return false;
+  const id = String(signalId || "");
+  if (id === "smoke" || id === "e2e_regression") return value >= minFloor;
+  if (minFloor >= 99 && value >= minFloor) return true;
+  if (minFloor <= 1 && value >= minFloor) return true;
+  return false;
+}
 
 // ─── Confidence band labels ───────────────────────────────────────────────────
 function confidenceLevel(score) {
@@ -88,6 +100,7 @@ function buildRecommendation(release, ctx = {}) {
   // AT_RISK : gap < 3% of threshold value  (e.g. floor=90 → within 2.7 pts = 90–92.7)
   // MONITOR : gap < 5.5% of threshold value (e.g. floor=90 → within 4.95 pts = 90–94.95)
   const atRiskSignals = [];
+  let proximityPenalty = 0;
   for (const [signalId, threshold] of Object.entries(thresholds)) {
     if (String(signalId).endsWith("_delta")) continue;
     const value = signals[signalId];
@@ -97,31 +110,33 @@ function buildRecommendation(release, ctx = {}) {
     const maxCeil = threshold.max;
 
     if (minFloor != null && value >= minFloor) {
+      if (isBinaryPassSignal(signalId, value, minFloor)) continue;
+
       const gap = value - minFloor;
       const bandAtRisk = minFloor * 0.03;   // 3 % → genuinely at risk
       const bandMonitor = minFloor * 0.055; // 5.5 % → worth noting
 
       if (gap < bandAtRisk) {
         atRiskSignals.push({ signal_id: signalId, value, threshold: minFloor, gap, band: "3%" });
-        confidenceScore -= 16;
+        proximityPenalty += 12;
         reasoning.push(`**${signalId}** is ${roundN(value, 1)} — only ${roundN(gap, 1)} points above threshold (${minFloor}). At risk of failing on next release.`);
       } else if (gap < bandMonitor) {
         atRiskSignals.push({ signal_id: signalId, value, threshold: minFloor, gap, band: "5%" });
-        confidenceScore -= 6;
+        proximityPenalty += 4;
         reasoning.push(`**${signalId}** is ${roundN(value, 1)} — within ${roundN(gap, 1)} points of threshold floor (${minFloor}). Monitor this trend.`);
       }
-      // gap >= bandMonitor: signal is comfortably above threshold — no comment needed
     }
     if (maxCeil != null && value <= maxCeil) {
       const gap = maxCeil - value;
       const bandAtRisk = maxCeil * 0.03;
       if (gap < bandAtRisk) {
         atRiskSignals.push({ signal_id: signalId, value, threshold: maxCeil, gap, band: "3%" });
-        confidenceScore -= 16;
+        proximityPenalty += 12;
         reasoning.push(`**${signalId}** is ${roundN(value, 1)} — within ${roundN(gap, 1)} points of threshold ceiling (${maxCeil}).`);
       }
     }
   }
+  confidenceScore -= Math.min(MAX_PROXIMITY_PENALTY, proximityPenalty);
 
   // ── 3. Failed signals ─────────────────────────────────────────────────────
   for (const f of failedSignals) {
@@ -135,26 +150,36 @@ function buildRecommendation(release, ctx = {}) {
     reasoning.push(`${missingRequiredSignals.length} required signal(s) missing at verdict: ${missingRequiredSignals.slice(0, 4).join(", ")}${missingRequiredSignals.length > 4 ? "…" : ""}.`);
   }
 
-  // ── 5. Signal reliability penalties ──────────────────────────────────────
+  // ── 5. Signal reliability penalties (only for signals in this verdict) ───────
   const lowReliabilitySignals = [];
+  const verdictRelevantSignals = new Set([
+    ...atRiskSignals.map((s) => s.signal_id),
+    ...failedSignals.map((f) => f.signal_id),
+    ...missingRequiredSignals
+  ]);
+  let reliabilityPenalty = 0;
   for (const [signalId, rel] of Object.entries(reliabilityMap)) {
-    const penalty = RELIABILITY_PENALTY[rel.grade] ?? 6;
+    if (!verdictRelevantSignals.has(signalId)) continue;
+    const penalty = RELIABILITY_PENALTY[rel.grade] ?? RELIABILITY_PENALTY.unknown;
     if (penalty > 0 && (signals[signalId] != null || failedSignals.some((f) => f.signal_id === signalId))) {
-      confidenceScore -= penalty;
+      reliabilityPenalty += penalty;
       if (rel.grade === "C" || rel.grade === "D" || rel.grade === "F") {
         lowReliabilitySignals.push({ signal_id: signalId, grade: rel.grade, on_time_rate: rel.on_time_rate });
         reasoning.push(`**${signalId}** signal reliability is **${rel.grade}** (${Math.round(rel.on_time_rate * 100)}% on-time, ${rel.grade === "F" ? "highly unstable" : "variable"}) — treat this verdict with caution.`);
       }
     }
   }
+  confidenceScore -= Math.min(MAX_RELIABILITY_PENALTY, reliabilityPenalty);
 
   // ── 6. Failure mode pattern history ──────────────────────────────────────
+  let failureModePenalty = 0;
   for (const mode of failureModes) {
     if (mode.confidence >= 0.6) {
-      confidenceScore -= Math.round(mode.confidence * 18);
+      failureModePenalty += Math.round(mode.confidence * 14);
       reasoning.push(`Failure mode classified: **${mode.label}** (${Math.round(mode.confidence * 100)}% confidence). This pattern was detected on signals: ${mode.signals.slice(0, 4).join(", ")}.`);
     }
   }
+  confidenceScore -= Math.min(MAX_FAILURE_MODE_PENALTY, failureModePenalty);
 
   // ── 7. Override history on these signals ──────────────────────────────────
   if (overrideAnalytics) {
@@ -235,6 +260,14 @@ function buildRecommendation(release, ctx = {}) {
 
   // ── 12. Clamp confidence ──────────────────────────────────────────────────
   confidenceScore = Math.max(0, Math.min(100, Math.round(confidenceScore)));
+  if (
+    (baseStatus === "CERTIFIED" || baseStatus === "CERTIFIED_WITH_OVERRIDE") &&
+    failedSignals.length === 0 &&
+    missingRequiredSignals.length === 0
+  ) {
+    // Advisory score should not read as "zero trust" when the gate already certified.
+    confidenceScore = Math.max(confidenceScore, atRiskSignals.length === 0 ? 72 : 38);
+  }
   const level = confidenceLevel(confidenceScore);
 
   // ── 13. Recommended verdict classification ────────────────────────────────
