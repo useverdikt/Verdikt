@@ -46,24 +46,44 @@ Settings → Secrets and variables → Actions:
 
 Optional (prod smoke workflow): `PROD_SMOKE_API_KEY`, `PROD_SMOKE_WORKSPACE_ID` — same values.
 
-### 3. Branch protection (main) — **enabled**
+### 3. Repository ruleset (main) — **enabled**
 
-`main` on **useverdikt/Verdikt** requires:
+Merge enforcement on **useverdikt/Verdikt** uses a GitHub **repository ruleset** (Settings → Rules → Rulesets), not legacy branch protection.
 
-- Status check **`verdikt-gate`** (GitHub App check from workflow job `verdikt-gate`)
-- PR before merge (recommended)
-
-Verify anytime: `gh api repos/useverdikt/Verdikt/branches/main/protection`
+| Setting | Value |
+|---------|--------|
+| Ruleset name | `main` |
+| Enforcement status | **Active** |
+| Target branches | Include by pattern → `main` |
+| Require a pull request before merging | On |
+| Require status checks to pass | On — add **`verdikt-gate`** (shows as **Verdikt gate / verdikt-gate** on PRs) |
 
 Workflow file: `.github/workflows/verdikt-gate.yml` (runs only when PR has label `verdikt:rc`).
 
+**Behavior:**
+
+| PR state | `verdikt-gate` check | Merge button |
+|----------|----------------------|--------------|
+| No `verdikt:rc` label | Skipped | Enabled (gate not in play) |
+| `verdikt:rc` + certified | Green | Enabled |
+| `verdikt:rc` + failed / timeout | Red (Required) | **Disabled** |
+
+Verify anytime:
+
+```bash
+gh api repos/useverdikt/Verdikt/rulesets --jq '.[] | {name, enforcement, targets: .conditions.ref_name.include}'
+```
+
+Expect ruleset `main`, enforcement `active`, target pattern `main`. Legacy `gh api …/branches/main/protection` returns 404 when only a ruleset is configured.
+
 The gate job **polls** the API (12 × 10s) — it does not fail on the first check while signals are still arriving. Expect **30–60 seconds** after labeling for integration auto-pull to populate the cert window.
 
-**Before relying on branch protection (partners too):**
+**Before relying on the ruleset (partners too):**
 
 1. Confirm SHA tagging on at least one signal integration (Settings → Signal sources → Probe SHA match).
 2. Use the polling workflow from `docs/examples/verdikt-gate-gha.yml` — not a single-check curl.
 3. Set expectation: first `verdikt:rc` on a PR opens COLLECTING; gate returns `action: collecting` for ~60s, then `self_heal` if evidence never lands.
+4. If merge stays enabled after a red gate: ruleset is **Disabled**, has no **target branch**, or `verdikt-gate` is not listed under required status checks.
 
 ---
 
@@ -107,7 +127,7 @@ Release status → **CERTIFIED** (or override path for negative test).
 | **Verdikt gate** / `verdikt-gate` | Green (`gate.exit_code === 0`) |
 | GitHub commit status | **verdikt/certification** success on head SHA (VCS writeback) |
 | PR comment | Verdikt certification comment on PR (if writeback configured) |
-| Merge button | Enabled only if branch protection + gate green |
+| Merge button | Enabled only when ruleset is active and gate is green (or gate skipped — no label) |
 
 Re-run gate manually:
 
@@ -142,12 +162,13 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 | No commit status on GitHub | Configure VCS write-back PAT (separate from GitHub App) |
 | Label does nothing | GitHub App not installed on repo or label name mismatch |
 | Secrets error in GHA | Add `VERDIKT_API_KEY` + `VERDIKT_WORKSPACE_ID` |
+| Gate red but merge still enabled | Ruleset **Disabled**, no target on `main`, or `verdikt-gate` not in required checks |
 
 ---
 
 ## Done criteria (demo-ready)
 
-- [x] Branch protection on `main` requires `verdikt-gate`
+- [x] Repository ruleset on `main` requires `verdikt-gate` (enforcement active)
 - [ ] One PR certified via `verdikt:rc` + Signal Simulator
 - [ ] GHA **Verdikt gate** blocked then passed
 - [ ] GitHub commit status visible on PR
@@ -170,7 +191,7 @@ Treat Verdikt-on-Verdikt as **always on**, not a one-off demo:
 | Rule | Why |
 |------|-----|
 | Every merge-bound PR gets **`verdikt:rc`** before review | Opens the cert window for the PR head SHA |
-| **Branch protection** requires `verdikt-gate` | Merge blocked until evidence passes — **live on useverdikt/Verdikt** |
+| **Ruleset on `main`** requires `verdikt-gate` | Merge blocked when labeled PR fails gate — **live on useverdikt/Verdikt** |
 | Gate failure → read **`blockers`** + **`next_step`** in GHA logs | Structured reason instead of guessing why COLLECTING |
 | Gate job **polls** (12 × 10s) — waits on `action: collecting` | Avoids racing integration auto-pull on label |
 | Keep repo secrets current (`VERDIKT_API_KEY`, `VERDIKT_WORKSPACE_ID`) | Gate job must resolve the same workspace as the app |
