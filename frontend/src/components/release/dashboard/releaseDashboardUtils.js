@@ -1,4 +1,7 @@
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, shippedWithoutCertificationFlag } from "../../../lib/releaseStatus.js";
+import { buildCertRecordSignalEntries } from "../../../lib/workspaceSignalUi.js";
+
+export const LIST_SIGNAL_DOT_CAP = 8;
 
 export function resolveDetailSuggestedActions(release, verdictIntel, recommendationIntel) {
   if (isLiveBypassRisk(release)) {
@@ -149,4 +152,43 @@ export function gradeCls(g) {
   if (String(g).startsWith("B")) return "gb";
   if (String(g).startsWith("C")) return "gc";
   return "gd";
+}
+
+/** Per-signal pass/fail dots for release list rows (not category rollups). */
+export function summarizeListSignalOutcomes({
+  signalDefinitions = [],
+  signalCategories = [],
+  releaseSignals = {},
+  thresholds = {},
+  releaseType,
+  releaseTypes = [],
+  maxDots = LIST_SIGNAL_DOT_CAP
+}) {
+  const legacyOrdered = getOrderedDetailSignals(signalCategories);
+  const entries = buildCertRecordSignalEntries({
+    definitions: signalDefinitions,
+    legacyOrdered,
+    releaseSignals,
+    thresholds,
+    evaluateSignal: evaluateSignalLocal,
+    fmtVal: formatSignalValueLocal,
+    getRegressionRequired: (rt) => regressionRequiredLocal(releaseTypes, rt),
+    releaseType
+  });
+
+  const allDots = entries.map((e) => (e.waived ? "w" : e.pass ? "p" : "f"));
+  const passCount = entries.filter((e) => e.pass && !e.waived).length;
+  const failCount = entries.filter((e) => !e.pass && !e.waived).length;
+  const warnCount = entries.filter((e) => e.waived).length;
+  const evaluatedCount = entries.length;
+  const overflow = Math.max(0, allDots.length - maxDots);
+
+  return {
+    dots: allDots.slice(0, maxDots),
+    passCount,
+    failCount,
+    warnCount,
+    evaluatedCount,
+    overflow
+  };
 }

@@ -119,6 +119,8 @@ export default function ReleaseDashboardTable({
                   onToggle={() => toggleRow(r.id)}
                   catStatuses={catStatuses}
                   signalCategories={signalCategories}
+                  signalDefinitions={signalDefinitions}
+                  thresholds={thresholds}
                   formatAge={formatReleaseAge}
                   releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
                   releaseTypes={releaseTypes}
