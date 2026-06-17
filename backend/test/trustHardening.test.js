@@ -10,8 +10,9 @@ const { describe, it, before } = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("crypto");
 const { initDatabase, run, queryOne } = require("../src/database");
-const { writeAudit } = require("../src/services/audit");
-const { verifyAuditIntegrity } = require("../src/services/auditIntegrity");
+const { writeAudit, AuditChainComputeError } = require("../src/services/audit");
+const auditIntegrity = require("../src/services/auditIntegrity");
+const { verifyAuditIntegrity } = auditIntegrity;
 const {
   persistCertificationSnapshot,
   computeEvidenceHash
@@ -116,5 +117,47 @@ describe("audit hash chain", () => {
     } catch (err) {
       assert.match(String(err.message), /append-only/i);
     }
+  });
+
+  it("rejects insert when chain computation fails", async () => {
+    const ws = `ws_chain_fail_${crypto.randomBytes(4).toString("hex")}`;
+    await ensureWorkspaceSeeded(ws);
+
+    const before = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = ?",
+      [ws]
+    );
+    const original = auditIntegrity.computeAuditChainFields;
+    auditIntegrity.computeAuditChainFields = async () => {
+      throw new Error("simulated chain compute failure");
+    };
+
+    try {
+      await assert.rejects(
+        () =>
+          writeAudit({
+            workspaceId: ws,
+            eventType: "TEST_CHAIN_FAIL",
+            actorType: "SYSTEM",
+            actorName: "test",
+            details: { n: 1 }
+          }),
+        (err) => err instanceof AuditChainComputeError
+      );
+    } finally {
+      auditIntegrity.computeAuditChainFields = original;
+    }
+
+    const after = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = ?",
+      [ws]
+    );
+    assert.equal(Number(after.c), Number(before.c), "no row should be inserted on chain failure");
+
+    const nullHashes = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = ? AND (prev_hash IS NULL OR row_hash IS NULL)",
+      [ws]
+    );
+    assert.equal(Number(nullHashes.c), 0);
   });
 });

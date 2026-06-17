@@ -62,6 +62,7 @@ async function seedDefaultThresholdsForTest(workspaceId) {
 const { callIntelligenceModel } = require("../src/services/aiClient");
 const { upsertReleaseIntelligence, getReleaseIntelligence } = require("../src/services/intelligenceBuilder");
 const { computeAndPersistRecommendation, getRecommendation } = require("../src/services/recommendationEngine");
+const { writeAudit } = require("../src/services/audit");
 
 before(async () => {
   await initDatabase();
@@ -1363,11 +1364,14 @@ describe("release intelligence recommendation vs user decision (unit)", () => {
       releaseId,
       now
     ]);
-    await run(
-      `INSERT INTO audit_events (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at)
-       VALUES (?, ?, 'SIGNALS_INGESTED', 'SYSTEM', 'test', ?, ?)`,
-      [ws, releaseId, JSON.stringify({ failed_signals: [], missing_required_signals: [] }), now]
-    );
+    await writeAudit({
+      workspaceId: ws,
+      releaseId,
+      eventType: "SIGNALS_INGESTED",
+      actorType: "SYSTEM",
+      actorName: "test",
+      details: { failed_signals: [], missing_required_signals: [] }
+    });
 
     const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
     const rec = await computeAndPersistRecommendation(release);
