@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.4",
-    "vite": "^5.4.11"
+    "vite": "^8.0.16"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -33,7 +33,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",
     "jsdom": "^26.1.0",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.9"
   },
   "overrides": {
     "shell-quote": "^1.8.4"
