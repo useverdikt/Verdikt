@@ -103,6 +103,7 @@ export function useWorkspaceSync(navigate, nav) {
     loadMoreReleases: releasesApi.loadMoreReleases,
     releasesNextBefore: releasesApi.releasesNextBefore,
     releasesLoadingMore: releasesApi.releasesLoadingMore,
+    shippedWithoutCertificationCount: releasesApi.shippedWithoutCertificationCount,
     addAudit: auditApi.addAudit,
     openAuditRecord: releasesApi.openAuditRecord,
     loadMoreAudit: auditApi.loadMoreAudit,

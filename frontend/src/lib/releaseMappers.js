@@ -55,6 +55,12 @@ export function mapBackendDetailToUi(detail) {
   if (release.updated_at) out.updated_at = release.updated_at;
   if (release.collection_deadline) out.collection_deadline = release.collection_deadline;
   if (release.verdict_issued_at) out.verdict_issued_at = release.verdict_issued_at;
+  if (release.shipped_without_certification != null) {
+    out.shipped_without_certification = Number(release.shipped_without_certification) === 1;
+  }
+  if (release.shipped_without_certification_at) {
+    out.shipped_without_certification_at = release.shipped_without_certification_at;
+  }
   if (detail.last_signal_evaluation && typeof detail.last_signal_evaluation === "object") {
     out.last_signal_evaluation = detail.last_signal_evaluation;
   }
@@ -89,6 +95,8 @@ export function mapBackendListRowToUi(row) {
     updated_at: row.updated_at,
     verdict_issued_at: row.verdict_issued_at,
     collection_deadline: row.collection_deadline,
+    shipped_without_certification: Number(row.shipped_without_certification) === 1,
+    shipped_without_certification_at: row.shipped_without_certification_at ?? null,
     detailLoaded: false
   };
 }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
-import { normalizeReleaseStatus, UI_RELEASE_STATUS, isCertifiedLike } from "../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, isCertifiedLike, isLiveBypassRisk } from "../lib/releaseStatus.js";
 import { envDisplayLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
 
 export function useReleaseDashboardStats({
@@ -10,7 +10,8 @@ export function useReleaseDashboardStats({
   signalCategories,
   calcCategoryStatus,
   thresholds,
-  formatReleaseAge
+  formatReleaseAge,
+  shippedWithoutCertificationCount: workspaceBypassCount = null
 }) {
   const statsReleases = useMemo(
     () => (wsId ? releases.filter((r) => r.backendReleaseId) : releases),
@@ -31,8 +32,20 @@ export function useReleaseDashboardStats({
     const loopCount =
       loopReadiness?.full_loop_count ??
       statsReleases.filter((r) => hasComputedAlignment(r.alignmentVerdict)).length;
-    return { certRate, uncertified, overrideRate, loopCount, total, certified };
-  }, [statsReleases, loopReadiness]);
+    const shippedWithoutCertificationCount =
+      typeof workspaceBypassCount === "number"
+        ? workspaceBypassCount
+        : statsReleases.filter((r) => r.shipped_without_certification).length;
+    return {
+      certRate,
+      uncertified,
+      overrideRate,
+      loopCount,
+      total,
+      certified,
+      shippedWithoutCertificationCount
+    };
+  }, [statsReleases, loopReadiness, workspaceBypassCount]);
 
   const releaseCatStatuses = useMemo(() => {
     if (!calcCategoryStatus) return {};
@@ -51,16 +64,18 @@ export function useReleaseDashboardStats({
       const rs = normalizeReleaseStatus(r.status);
       return {
         r,
-        dot:
-          rs === UI_RELEASE_STATUS.CERTIFIED
+        dot: isLiveBypassRisk(r)
+          ? "#e11d48"
+          : rs === UI_RELEASE_STATUS.CERTIFIED
             ? "#22c55e"
             : rs === UI_RELEASE_STATUS.UNCERTIFIED
               ? "#ef4444"
               : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
                 ? "#f59e0b"
                 : "#3b82f6",
-        text:
-          rs === UI_RELEASE_STATUS.COLLECTING
+        text: isLiveBypassRisk(r)
+          ? "gate bypassed · live in prod"
+          : rs === UI_RELEASE_STATUS.COLLECTING
             ? "collecting signals"
             : rs === UI_RELEASE_STATUS.UNCERTIFIED
               ? "UNCERTIFIED"

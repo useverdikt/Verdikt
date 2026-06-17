@@ -1,7 +1,7 @@
 import React from "react";
 import { C } from "../../../theme/tokens.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
-import { normalizeReleaseStatus } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, isLiveBypassRisk, shippedWithoutCertificationFlag } from "../../../lib/releaseStatus.js";
 import {
   SIGNAL_CATEGORIES,
   getRegressionRequired,
@@ -14,8 +14,28 @@ import {
 } from "../../../app/main/appMainLogic.js";
 
 export const StatusBadge = ({
-  status
+  status,
+  release = null
 }) => {
+  if (release && isLiveBypassRisk(release)) {
+    const bypassed = shippedWithoutCertificationFlag(release);
+    const c = "#e11d48";
+    const l = bypassed ? "GATE BYPASSED · LIVE" : "LIVE · UNCERTIFIED";
+    return /* @__PURE__ */ React.createElement("span", {
+      style: {
+        background: "linear-gradient(135deg, rgba(225,29,72,.22), rgba(249,115,22,.14))",
+        color: c,
+        border: `1px solid ${c}88`,
+        borderRadius: 4,
+        padding: "2px 8px",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.1em",
+        fontFamily: C.mono,
+        boxShadow: `0 0 10px ${c}40`
+      }
+    }, l);
+  }
   const M = {
     collecting: {
       c: C.accent,

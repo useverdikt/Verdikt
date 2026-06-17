@@ -16,14 +16,14 @@
  *   1. Failure mode classification
  *   2. Recommendation engine (confidence + reasoning)
  *   3. Certification record signing (CERTIFIED releases only)
- *   4. Env-chain link updates
- *   5. VCS status write-back (GitHub/GitLab commit status + PR comment)
- *   6. VCS monitoring window (automatic post-deploy production inference)
+ *   4. VCS monitoring window (idempotent with bypass-merge prod promotion)
+ *   5. Evidence quality persistence
+ *   6. VCS status write-back
  *   7. Outbound verdict webhook (CI/CD callbacks)
  *   8. SSE broadcast (live UI updates)
  */
 
-const { queryOne, queryAll, run } = require("../database");
+const { queryOne } = require("../database");
 const { nowIso } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { classifyFailureModes } = require("./correlationEngine");
@@ -40,67 +40,6 @@ const { computeSignalReliability } = require("./signalReliability");
 const { buildGateContext } = require("./gateContext");
 const { deliverSlackVerdict } = require("./slackNotifier");
 
-async function maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus) {
-  try {
-    const status = String(nextStatus || "").toUpperCase();
-    const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
-    if (!certLike.has(status)) return;
-
-    const fresh = await queryOne("SELECT id, workspace_id, environment, pr_number FROM releases WHERE id = ?", [releaseId]);
-    if (!fresh) return;
-    if (!Number.isFinite(Number(fresh.pr_number))) return;
-    if (String(fresh.environment || "").toLowerCase() === "prod") return;
-
-    const blockedRows = await queryAll(
-      "SELECT details_json FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 20",
-      [releaseId, "RELEASE_ENV_PROMOTION_BLOCKED"]
-    );
-    if (!blockedRows.length) return;
-
-    const mergedToMainWhileCollecting = blockedRows.some((row) => {
-      try {
-        const details = JSON.parse(row.details_json || "{}");
-        const base = String(details.base_branch || "").toLowerCase();
-        const requestedEnv = String(details.requested_environment || "").toLowerCase();
-        const reason = String(details.reason || "").toLowerCase();
-        return reason === "release_still_collecting" && (requestedEnv === "prod" || base === "main" || base === "master");
-      } catch {
-        return false;
-      }
-    });
-    if (!mergedToMainWhileCollecting) return;
-
-    const fromEnv = fresh.environment || null;
-    await run("UPDATE releases SET environment = ?, updated_at = ? WHERE id = ?", ["prod", nowIso(), releaseId]);
-    await writeAudit({
-      workspaceId: fresh.workspace_id,
-      releaseId,
-      eventType: "RELEASE_ENV_PROMOTED",
-      actorType: "SYSTEM",
-      actorName: "github_merge_post_verdict",
-      details: {
-        from_environment: fromEnv,
-        to_environment: "prod",
-        pr_number: Number(fresh.pr_number),
-        verdict_status: status,
-        reason: "merged_to_main_while_collecting_promoted_after_verdict"
-      }
-    });
-  } catch (err) {
-    console.error("[env_promotion] post-verdict promote failed:", err?.message);
-  }
-}
-
-/**
- * Run all post-verdict side effects.
- *
- * @param {string} releaseId
- * @param {object} release           – original release row (pre-verdict)
- * @param {string} nextStatus        – the newly committed verdict status
- * @param {Array}  failedSignals     – signals that caused the verdict
- * @param {object} deterministicIntelligence
- * @returns {{ recommendation, certSigRow }}
- */
 async function runPostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence) {
   const freshRelease = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
 
@@ -131,30 +70,28 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     }
   }
 
-  // 4. If merge to main/master happened while collecting, promote after verdict.
-  await maybePromoteAfterVerdictIfMergedWhileCollecting(releaseId, nextStatus);
+  // 4. VCS monitoring window — idempotent with bypass-merge prod promotion.
+  // If merge opened a window while still collecting, post-verdict must not open a second one.
+  try {
+    await openMonitoringWindow(freshRelease, 120);
+  } catch (err) {
+    console.error("[vcs_monitor] open window failed:", releaseId, err?.message);
+  }
 
-  // 4b. Persist evidence quality (signal provenance summary for cert record).
+  // 5. Persist evidence quality (signal provenance summary for cert record).
   try {
     await persistReleaseEvidenceQuality(releaseId);
   } catch (err) {
     console.error("[evidence_quality] persist failed:", releaseId, err?.message);
   }
 
-  // 5. VCS status write-back (async — does not block)
+  // 6. VCS status write-back (async — does not block)
   try {
     void writeVcsStatus(freshRelease, failedSignals).catch((err) =>
       console.error("[vcs_writeback] async error:", releaseId, err?.message)
     );
   } catch (err) {
     console.error("[vcs_writeback] sync setup failed:", releaseId, err?.message);
-  }
-
-  // 6. VCS monitoring window (automatic post-deploy inference over next 2 hours)
-  try {
-    await openMonitoringWindow(freshRelease, 120);
-  } catch (err) {
-    console.error("[vcs_monitor] open window failed:", releaseId, err?.message);
   }
 
   // 7. Outbound verdict webhook + Slack (async — does not block)
