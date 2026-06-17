@@ -14,6 +14,10 @@
  *   COLLECTING             – not enough signals to decide yet
  *
  * Confidence score: 0–100 integer (maps to HIGH ≥70, MEDIUM 40–69, LOW <40)
+ *
+ * UNCERTIFIED: gate-health score — share of hard gates still passing (0% = all hard gates
+ * failed). Proximity / at-risk penalties affect reasoning only, not the meter.
+ * CERTIFIED*: penalty model with floors so borderline passes do not read as 0% trust.
  */
 
 const { queryOne, queryAll, run } = require("../database");
@@ -41,6 +45,67 @@ function confidenceLevel(score) {
   if (score >= 70) return "HIGH";
   if (score >= 40) return "MEDIUM";
   return "LOW";
+}
+
+function isRequiredHardGate(threshold) {
+  return threshold?.required === true || threshold?.required === 1;
+}
+
+/**
+ * Hard-gate outcomes for UNCERTIFIED confidence (failure severity, not proximity noise).
+ */
+function countHardGateOutcomes(thresholds, signals, failedSignals) {
+  const failedSet = new Set(failedSignals.map((f) => f.signal_id));
+  let hardTotal = 0;
+  let hardFailed = 0;
+
+  for (const [signalId, threshold] of Object.entries(thresholds)) {
+    if (!isRequiredHardGate(threshold)) continue;
+    const evaluated = signals[signalId] != null || failedSet.has(signalId);
+    if (!evaluated) continue;
+    hardTotal++;
+    if (failedSet.has(signalId)) {
+      hardFailed++;
+    }
+  }
+
+  if (hardTotal === 0 && failedSignals.length > 0) {
+    const evaluatedIds = new Set([
+      ...Object.keys(signals).filter((id) => signals[id] != null),
+      ...failedSignals.map((f) => f.signal_id)
+    ]);
+    hardTotal = evaluatedIds.size;
+    hardFailed = failedSignals.length;
+  }
+
+  return { hardTotal, hardFailed };
+}
+
+/**
+ * UNCERTIFIED confidence = residual hard-gate health (not stacked proximity penalties).
+ * One reliable hard-gate miss → materially above 0%; all hard gates failed → 0%.
+ */
+function computeUncertifiedGateConfidence({
+  thresholds,
+  signals,
+  failedSignals,
+  missingRequiredSignals,
+  reliabilityMap
+}) {
+  const { hardTotal, hardFailed } = countHardGateOutcomes(thresholds, signals, failedSignals);
+  const failRatio = hardTotal > 0 ? hardFailed / hardTotal : failedSignals.length > 0 ? 1 : 0;
+
+  let score = Math.round(100 * (1 - failRatio));
+  score -= missingRequiredSignals.length * 6;
+
+  for (const f of failedSignals) {
+    const grade = reliabilityMap[f.signal_id]?.grade;
+    if (grade === "C" || grade === "D" || grade === "F") {
+      score -= 12;
+    }
+  }
+
+  return Math.max(0, Math.min(100, score));
 }
 
 // ─── Core engine ─────────────────────────────────────────────────────────────
@@ -259,14 +324,24 @@ function buildRecommendation(release, ctx = {}) {
   }
 
   // ── 12. Clamp confidence ──────────────────────────────────────────────────
-  confidenceScore = Math.max(0, Math.min(100, Math.round(confidenceScore)));
-  if (
-    (baseStatus === "CERTIFIED" || baseStatus === "CERTIFIED_WITH_OVERRIDE") &&
-    failedSignals.length === 0 &&
-    missingRequiredSignals.length === 0
-  ) {
-    // Advisory score should not read as "zero trust" when the gate already certified.
-    confidenceScore = Math.max(confidenceScore, atRiskSignals.length === 0 ? 72 : 38);
+  if (baseStatus === "UNCERTIFIED") {
+    confidenceScore = computeUncertifiedGateConfidence({
+      thresholds,
+      signals,
+      failedSignals,
+      missingRequiredSignals,
+      reliabilityMap
+    });
+  } else {
+    confidenceScore = Math.max(0, Math.min(100, Math.round(confidenceScore)));
+    if (
+      (baseStatus === "CERTIFIED" || baseStatus === "CERTIFIED_WITH_OVERRIDE") &&
+      failedSignals.length === 0 &&
+      missingRequiredSignals.length === 0
+    ) {
+      // Advisory score should not read as "zero trust" when the gate already certified.
+      confidenceScore = Math.max(confidenceScore, atRiskSignals.length === 0 ? 72 : 38);
+    }
   }
   const level = confidenceLevel(confidenceScore);
 
@@ -399,9 +474,18 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   for (const s of sigRows) signals[s.signal_id] = s.value;
 
   // Thresholds
-  const threshRows = await queryAll("SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?", [workspaceId]);
+  const threshRows = await queryAll(
+    "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ?",
+    [workspaceId]
+  );
   const thresholds = {};
-  for (const t of threshRows) thresholds[t.signal_id] = { min: t.min_value, max: t.max_value };
+  for (const t of threshRows) {
+    thresholds[t.signal_id] = {
+      min: t.min_value,
+      max: t.max_value,
+      required: t.required_for_certification === 1 || t.required_for_certification === true
+    };
+  }
 
   // Latest signal evaluation (failed signals from audit)
   const lastEval = await queryOne(
