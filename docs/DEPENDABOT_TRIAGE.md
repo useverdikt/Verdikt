@@ -2,7 +2,7 @@
 
 ## Current posture (open alerts)
 
-As of 2026-06-16: **54** open alerts — 2 critical, 30 high, 20 medium, 2 low.
+As of 2026-06-17: **0** open alerts (down from 54 on 2026-06-16). Last fixes: `bcrypt@6` (removed transitive `tar` via `@mapbox/node-pre-gyp`), `shell-quote@1.8.4` override in `frontend/package.json`.
 
 Dependabot is configured in `.github/dependabot.yml` with weekly grouped **minor/patch** PRs per package root (`/backend`, `/frontend`, `/mcp`) and monthly GitHub Actions updates. **Semver-major** bumps are ignored by config and need explicit PRs.
 
