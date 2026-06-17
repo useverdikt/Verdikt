@@ -146,6 +146,14 @@ function buildRecommendation(release, ctx = {}) {
   const suggestedActions = [];
   let confidenceScore = 100;
 
+  // Whether the code is already live — "fix and re-run" advice is no longer relevant.
+  const env = (release.environment || "").toLowerCase();
+  const isProd = env === "prod" || env === "production";
+  const isProdBypassed =
+    isProd &&
+    baseStatus === "UNCERTIFIED" &&
+    (release.shipped_without_certification === 1 || release.shipped_without_certification === true);
+
   // ── 1. Handle COLLECTING state ────────────────────────────────────────────
   if (baseStatus === "COLLECTING") {
     return {
@@ -287,7 +295,6 @@ function buildRecommendation(release, ctx = {}) {
   }
 
   // ── 10. Environment context (staging vs prod tolerance) ───────────────────
-  const env = (release.environment || "").toLowerCase();
   if (env === "dev" || env === "development") {
     confidenceScore = Math.min(100, confidenceScore + 8);
     reasoning.push(`Environment is **development** — higher risk tolerance is acceptable at this stage.`);
@@ -365,10 +372,10 @@ function buildRecommendation(release, ctx = {}) {
   }
 
   // ── 14. Recommendation text ───────────────────────────────────────────────
-  const recommendation = buildRecommendationText(recommendedVerdict, level, atRiskSignals, failedSignals, failureModes, env);
+  const recommendation = buildRecommendationText(recommendedVerdict, level, atRiskSignals, failedSignals, failureModes, { env, isProd, isProdBypassed });
 
   // ── 15. Suggested actions ─────────────────────────────────────────────────
-  buildSuggestedActions(recommendedVerdict, level, atRiskSignals, failedSignals, failureModes, lowReliabilitySignals, suggestedActions);
+  buildSuggestedActions(recommendedVerdict, level, atRiskSignals, failedSignals, failureModes, lowReliabilitySignals, suggestedActions, { isProd, isProdBypassed });
 
   return {
     recommended_verdict: recommendedVerdict,
@@ -387,10 +394,11 @@ function buildRecommendation(release, ctx = {}) {
   };
 }
 
-function buildRecommendationText(verdict, level, atRisk, failed, modes, env) {
+function buildRecommendationText(verdict, level, atRisk, failed, modes, envCtx = {}) {
+  const { env = "", isProd = false, isProdBypassed = false } =
+    typeof envCtx === "string" ? { env: envCtx, isProd: envCtx === "prod" || envCtx === "production" } : envCtx;
   const atRiskNames = atRisk.slice(0, 3).map((s) => s.signal_id).join(", ");
   const failedNames = failed.slice(0, 3).map((f) => f.signal_id).join(", ");
-  const isProd = env === "prod" || env === "production";
 
   switch (verdict) {
     case "CERTIFIED":
@@ -408,9 +416,18 @@ function buildRecommendationText(verdict, level, atRisk, failed, modes, env) {
       }
 
     case "UNCERTIFIED":
+      if (isProdBypassed) {
+        return `Code is live in production without certification. ${failedNames ? `${failedNames} failed quality gates.` : "Required signals are below threshold."} Assess rollback risk, escalate to the appropriate approver, or apply a retroactive override with a monitoring plan.`;
+      }
+      if (isProd) {
+        return `Release is in production and uncertified. ${failedNames ? `${failedNames} failed quality gates.` : "Required signals are below threshold."} Escalate immediately or roll back — do not continue operating without a retroactive override or remediation plan.`;
+      }
       return `Block release. ${failedNames ? `${failedNames} failed quality gates.` : "Required signals are below threshold."} Fix failing signals and re-run evaluation before proceeding.`;
 
     case "UNCERTIFIED_NOISY":
+      if (isProd) {
+        return `Release is in production with low-confidence signals. ${failedNames ? `${failedNames} may be from unreliable sources` : "Signal reliability is poor"} — the failure may not be representative. Apply a retroactive override with an explicit monitoring plan while investigating signal quality.`;
+      }
       return `Release is technically uncertified, but signal confidence is LOW (${failedNames ? `${failedNames} are from unreliable sources` : "signal reliability is poor"}). Consider whether the threshold needs recalibration, or request a senior override with a detailed monitoring plan.`;
 
     default:
@@ -418,7 +435,9 @@ function buildRecommendationText(verdict, level, atRisk, failed, modes, env) {
   }
 }
 
-function buildSuggestedActions(verdict, level, atRisk, failed, modes, lowRel, out) {
+function buildSuggestedActions(verdict, level, atRisk, failed, modes, lowRel, out, envCtx = {}) {
+  const { isProd = false, isProdBypassed = false } = envCtx;
+
   if (verdict === "CERTIFIED" && level === "HIGH") {
     out.push("Deploy with standard monitoring.");
     return;
@@ -445,6 +464,17 @@ function buildSuggestedActions(verdict, level, atRisk, failed, modes, lowRel, ou
   }
 
   if (verdict === "UNCERTIFIED") {
+    if (isProd) {
+      // Code is already live — pre-ship "fix and re-run" advice is irrelevant.
+      out.push("Assess rollback risk immediately. If prod impact is low and stable, document the decision.");
+      if (failed.length > 0) {
+        const failedNames = failed.slice(0, 3).map((f) => f.signal_id).join(", ");
+        out.push(`Failing signals in prod: ${failedNames}. Monitor these closely for user impact.`);
+      }
+      out.push("Apply a retroactive override with justification, impact summary, and mitigation plan, or initiate a rollback.");
+      out.push("Escalate to the appropriate approver — this release must not remain in prod without a named sign-off.");
+      return;
+    }
     for (const f of failed.slice(0, 4)) {
       out.push(`Fix **${f.signal_id}** — currently ${f.value ?? "missing"}, needs ${f.rule || "to meet threshold"}.`);
     }
@@ -454,6 +484,12 @@ function buildSuggestedActions(verdict, level, atRisk, failed, modes, lowRel, ou
   }
 
   if (verdict === "UNCERTIFIED_NOISY") {
+    if (isProd) {
+      out.push("Apply a retroactive override with an explicit monitoring plan while investigating signal quality.");
+      out.push("Investigate signal source reliability — the failure may not be representative.");
+      if (atRisk.length > 0) out.push(`Watch closely: ${atRisk.map((s) => s.signal_id).join(", ")}.`);
+      return;
+    }
     out.push("Request a senior override with a detailed monitoring plan.");
     out.push("Investigate signal source reliability — consider re-running evals with a fresh sample.");
     out.push("Review threshold configuration — current thresholds may need recalibration.");

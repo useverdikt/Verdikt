@@ -180,3 +180,68 @@ describe("buildRecommendation confidence scoring", () => {
     assert.equal(rec.confidence_level, "LOW");
   });
 });
+
+describe("buildRecommendation — UNCERTIFIED prod context", () => {
+  const prodCtx = {
+    signals: { accuracy: 60, safety: 70 },
+    thresholds: {
+      accuracy: { min: 85, required: true },
+      safety: { min: 90, required: true }
+    },
+    failedSignals: [
+      { signal_id: "accuracy", value: 60, rule: "below min 85" },
+      { signal_id: "safety", value: 70, rule: "below min 90" }
+    ],
+    missingRequiredSignals: [],
+    failureModes: [],
+    reliabilityMap: {}
+  };
+
+  it("UNCERTIFIED pre-prod recommendation tells you to block and fix", () => {
+    const rec = buildRecommendation({ status: "UNCERTIFIED", environment: "uat" }, prodCtx);
+    assert.ok(rec.recommendation.includes("Block release"), `expected block advice, got: ${rec.recommendation}`);
+    assert.ok(rec.suggested_actions.some((a) => a.includes("Do not proceed")));
+  });
+
+  it("UNCERTIFIED prod without bypass flag uses escalate/rollback language", () => {
+    const rec = buildRecommendation({ status: "UNCERTIFIED", environment: "prod" }, prodCtx);
+    assert.ok(
+      rec.recommendation.toLowerCase().includes("rollback") || rec.recommendation.toLowerCase().includes("escalate"),
+      `expected escalate/rollback advice for prod, got: ${rec.recommendation}`
+    );
+    assert.ok(!rec.recommendation.includes("Block release"), "should not tell prod to block — it is already live");
+    assert.ok(!rec.recommendation.includes("Fix failing signals and re-run"), "pre-ship advice must not appear for prod");
+    assert.ok(rec.suggested_actions.some((a) => a.toLowerCase().includes("rollback")));
+  });
+
+  it("UNCERTIFIED prod with shipped_without_certification uses bypass-specific language", () => {
+    const rec = buildRecommendation(
+      { status: "UNCERTIFIED", environment: "prod", shipped_without_certification: 1 },
+      prodCtx
+    );
+    assert.ok(
+      rec.recommendation.toLowerCase().includes("live in production without certification"),
+      `expected bypass copy, got: ${rec.recommendation}`
+    );
+    assert.ok(!rec.recommendation.includes("Block release"), "should not tell a bypass merge to block");
+    assert.ok(rec.suggested_actions.some((a) => a.toLowerCase().includes("retroactive override")));
+    assert.ok(rec.suggested_actions.some((a) => a.toLowerCase().includes("escalate")));
+  });
+
+  it("suggested actions for UNCERTIFIED prod never include pre-ship steps", () => {
+    const rec = buildRecommendation(
+      { status: "UNCERTIFIED", environment: "prod", shipped_without_certification: 1 },
+      prodCtx
+    );
+    for (const action of rec.suggested_actions) {
+      assert.ok(
+        !action.includes("Re-run signal ingest"),
+        `pre-ship action must not appear in prod: "${action}"`
+      );
+      assert.ok(
+        !action.includes("Do not proceed until"),
+        `pre-ship action must not appear in prod: "${action}"`
+      );
+    }
+  });
+});
