@@ -152,12 +152,26 @@ function mapIntegrationSignals(provider, payload) {
 }
 
 const { resolveReleaseForWorkspaceIngest } = require("./releaseIdentity");
+const { isProdEnvironment } = require("./releaseEnvironment");
 
 function releaseVerdictLockedAgainstIngest(release) {
-  return (
-    !!release.verdict_issued_at &&
-    (release.status === "CERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE")
-  );
+  if (!release) return false;
+  const status = String(release.status || "").toUpperCase();
+  if (
+    release.verdict_issued_at &&
+    (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")
+  ) {
+    return true;
+  }
+  return status === "UNCERTIFIED" && isProdEnvironment(release.environment);
+}
+
+function releaseIngestLockError(release) {
+  const status = String(release?.status || "").toUpperCase();
+  if (status === "UNCERTIFIED" && isProdEnvironment(release?.environment)) {
+    return "release is uncertified and live in production; gate signal ingest is closed";
+  }
+  return "release verdict is locked after certification; further signal ingest is not accepted";
 }
 
 /** Column names used to match a CSV row to a release (`releases.version`). */
@@ -224,6 +238,7 @@ module.exports = {
   mapIntegrationSignals,
   resolveReleaseForWorkspaceIngest,
   releaseVerdictLockedAgainstIngest,
+  releaseIngestLockError,
   extractVersionFromRow,
   mapFlatRowToSignals
 };

@@ -39,8 +39,10 @@ const {
   computeVerdict,
   mapIntegrationSignals,
   resolveReleaseForWorkspaceIngest,
-  releaseVerdictLockedAgainstIngest
+  releaseVerdictLockedAgainstIngest,
+  releaseIngestLockError
 } = require("./verdictEngine");
+const { isProdEnvironment } = require("./releaseEnvironment");
 const {
   computeRegressionHistoryInsights,
   buildDeterministicVerdictIntelligence,
@@ -60,9 +62,13 @@ const { persistCertificationSnapshot } = require("./certificationSnapshots");
 async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
   // Guard against concurrent verdict commits: skip if another worker already
   // finalised this release while we were waiting.
-  const freshStatus = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
-  if (!freshStatus) return null;
-  if (["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"].includes(freshStatus.status)) {
+  const freshRow = await queryOne("SELECT status, environment FROM releases WHERE id = ?", [releaseId]);
+  if (!freshRow) return null;
+  const freshStatus = freshRow.status;
+  if (["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(freshStatus)) {
+    return null;
+  }
+  if (freshStatus === "UNCERTIFIED" && isProdEnvironment(freshRow.environment)) {
     return null;
   }
 
@@ -319,6 +325,7 @@ module.exports = {
   mapIntegrationSignals,
   resolveReleaseForWorkspaceIngest,
   releaseVerdictLockedAgainstIngest,
+  releaseIngestLockError,
   // intelligenceBuilder
   getReleaseIntelligence,
   upsertReleaseIntelligence,

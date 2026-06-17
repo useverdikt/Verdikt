@@ -15,6 +15,7 @@ const {
   evaluateReleaseAfterSignalIngest,
   mapIntegrationSignals,
   releaseVerdictLockedAgainstIngest,
+  releaseIngestLockError,
   validateSignalPayload,
   getReleaseIntelligence,
   upsertReleaseIntelligence,
@@ -79,8 +80,9 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
 
   if (releaseVerdictLockedAgainstIngest(release)) {
     return res.status(409).json({
-      error: "release verdict is locked after certification; further signal ingest is not accepted",
-      status: release.status
+      error: releaseIngestLockError(release),
+      status: release.status,
+      environment: release.environment || null
     });
   }
 
@@ -161,8 +163,9 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
   }
   if (releaseVerdictLockedAgainstIngest(release)) {
     return res.status(409).json({
-      error: "release verdict is locked after certification; further signal ingest is not accepted",
-      status: release.status
+      error: releaseIngestLockError(release),
+      status: release.status,
+      environment: release.environment || null
     });
   }
   const out = await ingestIntegrationSignals({

@@ -24,10 +24,20 @@ export function normalizeReleaseStatus(status) {
   return mapBackendStatusToUi(status);
 }
 
-/** Ingest is locked only after a certified verdict — UNCERTIFIED releases can still receive signals. */
-export function isIngestLocked(status) {
-  const s = normalizeReleaseStatus(status);
-  return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
+/** Gate ingest locked after certification, or when uncertified and already live in prod. */
+export function isIngestLocked(statusOrRelease, environment) {
+  const release =
+    statusOrRelease && typeof statusOrRelease === "object"
+      ? statusOrRelease
+      : { status: statusOrRelease, environment };
+  const s = normalizeReleaseStatus(release.status);
+  if (s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) {
+    return true;
+  }
+  if (s === UI_RELEASE_STATUS.UNCERTIFIED && isProdEnvironment(release.environment)) {
+    return true;
+  }
+  return false;
 }
 
 /** @param {string} uiStatus */

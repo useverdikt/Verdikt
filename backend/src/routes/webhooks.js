@@ -23,6 +23,7 @@ const {
   evaluateReleaseAfterSignalIngest,
   mapIntegrationSignals,
   releaseVerdictLockedAgainstIngest,
+  releaseIngestLockError,
   resolveReleaseForWorkspaceIngest
 } = require("../services/domain");
 const { openReleaseSession, buildGithubMappings } = require("../services/releaseIdentity");
@@ -285,9 +286,10 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
   }
   if (releaseVerdictLockedAgainstIngest(release)) {
     return res.status(409).json({
-      error: "release verdict is locked after certification; further signal ingest is not accepted",
+      error: releaseIngestLockError(release),
       status: release.status,
-      release_id: release.id
+      release_id: release.id,
+      environment: release.environment || null
     });
   }
   const mapped = mapIntegrationSignals(provider, payload);
@@ -389,9 +391,10 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
     }
     if (releaseVerdictLockedAgainstIngest(release)) {
       return res.status(409).json({
-        error: "release verdict is locked after certification; further signal ingest is not accepted",
+        error: releaseIngestLockError(release),
         status: release.status,
-        release_id: release.id
+        release_id: release.id,
+        environment: release.environment || null
       });
     }
 
