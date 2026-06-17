@@ -30,7 +30,8 @@ export function ReleaseDashboard({
   setupChecklist,
   hasMoreReleases = false,
   loadingMoreReleases = false,
-  onLoadMoreReleases
+  onLoadMoreReleases,
+  shippedWithoutCertificationCount = null
 }) {
   const filters = useReleaseDashboardFilters(releases, { onEnsureReleaseDetail });
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
@@ -46,7 +47,8 @@ export function ReleaseDashboard({
     signalCategories,
     calcCategoryStatus,
     thresholds,
-    formatReleaseAge
+    formatReleaseAge,
+    workspaceBypassCount: shippedWithoutCertificationCount
   });
 
   return (

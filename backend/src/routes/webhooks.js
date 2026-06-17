@@ -27,6 +27,7 @@ const {
 } = require("../services/domain");
 const { openReleaseSession, buildGithubMappings } = require("../services/releaseIdentity");
 const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
+const { promoteReleaseOnMerge } = require("../services/releaseEnvironment");
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
 
 const {
@@ -142,79 +143,30 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       if (!matched.length) return res.json({ ok: true, ignored: "no_matching_release", pr_number: prNumber });
 
       const newEnv = isMainBranch ? "prod" : baseBranch;
-      const now = nowIso();
       let promoted = 0;
-      let blockedCollecting = 0;
-      const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
+      let shippedWithoutCertification = 0;
       for (const rel of matched) {
-        const relStatus = String(rel.status || "").toUpperCase();
-        if (relStatus === "COLLECTING") {
-          blockedCollecting++;
-          await writeAudit({
-            workspaceId,
-            releaseId: rel.id,
-            eventType: "RELEASE_ENV_PROMOTION_BLOCKED",
-            actorType: "SYSTEM",
-            actorName: "github_merge",
-            details: {
-              pr_number: prNumber,
-              base_branch: baseBranch,
-              current_environment: rel.environment,
-              requested_environment: newEnv,
-              reason: "release_still_collecting"
-            }
-          });
-          continue;
-        }
-        if (!certLike.has(relStatus)) {
-          await writeAudit({
-            workspaceId,
-            releaseId: rel.id,
-            eventType: "RELEASE_ENV_PROMOTION_BLOCKED",
-            actorType: "SYSTEM",
-            actorName: "github_merge",
-            details: {
-              pr_number: prNumber,
-              base_branch: baseBranch,
-              current_environment: rel.environment,
-              requested_environment: newEnv,
-              release_status: relStatus,
-              reason: "release_not_certified"
-            }
-          });
-          continue;
-        }
-        await run(
-          "UPDATE releases SET environment = ?, updated_at = ? WHERE id = ?",
-          [newEnv, now, rel.id]
-        );
-        promoted++;
-        await writeAudit({
+        const result = await promoteReleaseOnMerge(rel, {
           workspaceId,
-          releaseId: rel.id,
-          eventType: "RELEASE_ENV_PROMOTED",
-          actorType: "SYSTEM",
-          actorName: "github_merge",
-          details: {
-            pr_number: prNumber,
-            base_branch: baseBranch,
-            from_environment: rel.environment,
-            to_environment: newEnv,
-            merged: true
-          }
+          prNumber,
+          baseBranch,
+          newEnv,
+          isMainBranch
         });
+        promoted++;
+        if (result.shipped_without_certification) shippedWithoutCertification++;
       }
       console.log(`[${req.requestId}] github merge promotion`, {
         workspace_id: workspaceId,
         pr_number: prNumber,
         releases_promoted: promoted,
-        blocked_collecting: blockedCollecting,
+        shipped_without_certification: shippedWithoutCertification,
         new_environment: newEnv
       });
       return res.json({
         ok: true,
         promoted,
-        blocked_collecting: blockedCollecting,
+        shipped_without_certification: shippedWithoutCertification,
         environment: newEnv,
         pr_number: prNumber
       });

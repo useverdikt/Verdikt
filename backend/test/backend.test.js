@@ -764,7 +764,7 @@ describe("API integration", () => {
     }
   });
 
-  it("GitHub merge blocks prod promotion while release is still collecting", async () => {
+  it("GitHub merge promotes to prod and flags shipped_without_certification while collecting", async () => {
     const email = `ghb_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHB" }).expect(200);
@@ -796,15 +796,26 @@ describe("API integration", () => {
       .send(signed.raw)
       .expect(200);
 
-    assert.equal(hook.body.promoted, 0);
-    assert.equal(hook.body.blocked_collecting, 1);
-    const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
-    assert.equal(rel.environment, "pre-prod");
-    const audit = await queryOne(
-      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
-      [created.body.id, "RELEASE_ENV_PROMOTION_BLOCKED"]
+    assert.equal(hook.body.promoted, 1);
+    assert.equal(hook.body.shipped_without_certification, 1);
+    assert.equal(hook.body.environment, "prod");
+    const rel = await queryOne(
+      "SELECT environment, shipped_without_certification, shipped_without_certification_at FROM releases WHERE id = ?",
+      [created.body.id]
     );
-    assert.ok(audit);
+    assert.equal(rel.environment, "prod");
+    assert.equal(Number(rel.shipped_without_certification), 1);
+    assert.ok(rel.shipped_without_certification_at);
+    const bypassAudit = await queryOne(
+      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      [created.body.id, "RELEASE_SHIPPED_WITHOUT_CERTIFICATION"]
+    );
+    assert.ok(bypassAudit);
+    const promotedAudit = await queryOne(
+      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      [created.body.id, "RELEASE_ENV_PROMOTED"]
+    );
+    assert.ok(promotedAudit);
   });
 
   it("GET /detail returns expand payload without audit; full GET includes audit", async () => {
@@ -956,13 +967,13 @@ describe("API integration", () => {
       .expect(200);
 
     assert.equal(hook.body.promoted, 1);
-    assert.equal(hook.body.blocked_collecting, 0);
+    assert.equal(hook.body.shipped_without_certification, 0);
     assert.equal(hook.body.environment, "prod");
     const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
     assert.equal(rel.environment, "prod");
   });
 
-  it("merged-to-main while collecting auto-promotes to prod after verdict", async () => {
+  it("merged-to-main while collecting promotes immediately; verdict does not re-promote", async () => {
     const email = `ghpv_${crypto.randomBytes(6).toString("hex")}@test.local`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHPV" }).expect(200);
@@ -994,8 +1005,16 @@ describe("API integration", () => {
       .set("x-hub-signature-256", signedMerge.sig)
       .send(signedMerge.raw)
       .expect(200);
-    assert.equal(hook.body.promoted, 0);
-    assert.equal(hook.body.blocked_collecting, 1);
+    assert.equal(hook.body.promoted, 1);
+    assert.equal(hook.body.shipped_without_certification, 1);
+    assert.equal(hook.body.environment, "prod");
+
+    const relAfterMerge = await queryOne(
+      "SELECT environment, status, shipped_without_certification FROM releases WHERE id = ?",
+      [created.body.id]
+    );
+    assert.equal(relAfterMerge.environment, "prod");
+    assert.equal(Number(relAfterMerge.shipped_without_certification), 1);
 
     await run("UPDATE releases SET collection_deadline = ? WHERE id = ?", [
       new Date(Date.now() - 60_000).toISOString(),
@@ -1015,9 +1034,13 @@ describe("API integration", () => {
       })
       .expect(200);
 
-    const rel = await queryOne("SELECT environment, status FROM releases WHERE id = ?", [created.body.id]);
+    const rel = await queryOne(
+      "SELECT environment, status, shipped_without_certification FROM releases WHERE id = ?",
+      [created.body.id]
+    );
     assert.equal(rel.environment, "prod");
     assert.equal(rel.status, "CERTIFIED");
+    assert.equal(Number(rel.shipped_without_certification), 1);
   });
 
   it("manual release creation always starts in pre-prod", async () => {

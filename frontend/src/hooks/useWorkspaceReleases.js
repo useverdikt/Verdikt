@@ -36,6 +36,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     return list[0]?.id ?? null;
   });
   const [_releasesTotalCount, setReleasesTotalCount] = useState(null);
+  const [shippedWithoutCertificationCount, setShippedWithoutCertificationCount] = useState(null);
   const [releasesNextBefore, setReleasesNextBefore] = useState(null);
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
 
@@ -117,6 +118,9 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     (relData, { priorityChartWindow = false } = {}) => {
       const rows = relData?.releases || [];
       setReleasesNextBefore(relData?.next_before || null);
+      if (typeof relData?.shipped_without_certification_count === "number") {
+        setShippedWithoutCertificationCount(relData.shipped_without_certification_count);
+      }
       if (rows.length) {
         setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
         const stubs = rows.map(mapBackendListRowToUi);
@@ -238,6 +242,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     loadMoreReleases,
     openAuditRecord,
     hydrateVisibleSummaries,
-    navRef
+    navRef,
+    shippedWithoutCertificationCount
   };
 }
