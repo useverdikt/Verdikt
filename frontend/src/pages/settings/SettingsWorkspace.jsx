@@ -118,6 +118,7 @@ export default function SettingsWorkspace() {
     show_signal_detail: true,
     show_override_justification: true
   });
+  const [publicSlugSaved, setPublicSlugSaved] = useState(false);
   const [slackWebhookInput, setSlackWebhookInput] = useState("");
   const [slackSaving, setSlackSaving] = useState(false);
 
@@ -219,7 +220,7 @@ export default function SettingsWorkspace() {
     if (!wsId) return;
     let active = true;
     apiGet(`/api/workspaces/${wsId}/policies`, { navigate })
-      .then((data) => {
+      .then(async (data) => {
         if (!active) return;
         const p = data?.policies;
         if (!p) return;
@@ -232,24 +233,67 @@ export default function SettingsWorkspace() {
         if (p.public_slug) {
           setGeneralSlug(p.public_slug);
           localStorage.setItem("vdk3_workspace_slug", p.public_slug);
+          setPublicSlugSaved(true);
+          return;
+        }
+        const localSlug =
+          slugifyWorkspaceSlug(localStorage.getItem("vdk3_workspace_slug") || "") ||
+          slugifyWorkspaceSlug(orgName) ||
+          "workspace";
+        setGeneralSlug(localSlug);
+        try {
+          await apiPost(
+            `/api/workspaces/${wsId}/policies`,
+            {
+              public_slug: localSlug,
+              public_display_name: orgName.trim().slice(0, 120) || null
+            },
+            { navigate }
+          );
+          if (active) {
+            localStorage.setItem("vdk3_workspace_slug", localSlug);
+            setPublicSlugSaved(true);
+          }
+        } catch {
+          if (active) setPublicSlugSaved(false);
         }
       })
       .catch(() => {});
-    return () => { active = false; };
-  }, [wsId, navigate]);
+    return () => {
+      active = false;
+    };
+  }, [wsId, navigate, orgName]);
+
+  const persistPolicies = useCallback(
+    async (patch) => {
+      const slug = slugifyWorkspaceSlug(generalSlug) || "workspace";
+      return apiPost(
+        `/api/workspaces/${wsId}/policies`,
+        {
+          public_slug: slug,
+          public_display_name: orgName.trim().slice(0, 120) || null,
+          ...patch
+        },
+        { navigate }
+      );
+    },
+    [generalSlug, navigate, orgName, wsId]
+  );
 
   const updateCertVisibility = useCallback(
     async (key, value) => {
       const next = { ...certVisibility, [key]: value };
       setCertVisibility(next);
       try {
-        await apiPost(`/api/workspaces/${wsId}/policies`, next, { navigate });
+        await persistPolicies(next);
+        setPublicSlugSaved(true);
+        localStorage.setItem("vdk3_workspace_slug", slugifyWorkspaceSlug(generalSlug) || "workspace");
       } catch (err) {
         setCertVisibility(certVisibility);
         toast(err?.message || "Failed to save visibility setting");
       }
     },
-    [certVisibility, navigate, toast, wsId]
+    [certVisibility, generalSlug, persistPolicies, toast]
   );
 
   const saveSlackWebhook = useCallback(async () => {
@@ -493,14 +537,8 @@ export default function SettingsWorkspace() {
       }
     }
     try {
-      await apiPost(
-        `/api/workspaces/${wsId}/policies`,
-        {
-          public_slug: cleanedSlug,
-          public_display_name: orgName.trim().slice(0, 120) || null
-        },
-        { navigate }
-      );
+      await persistPolicies({});
+      setPublicSlugSaved(true);
     } catch (err) {
       toast(err?.message || "Failed to save public certification URL");
       return;
@@ -629,6 +667,7 @@ export default function SettingsWorkspace() {
           setGeneralNote={setGeneralNote}
           certVisibility={certVisibility}
           updateCertVisibility={updateCertVisibility}
+          publicSlugSaved={publicSlugSaved}
         />
         <TeamSettingsSection
           section={section}
