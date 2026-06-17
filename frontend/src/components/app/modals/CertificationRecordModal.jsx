@@ -205,21 +205,28 @@ export default function CertificationRecordModal({
             </div>
           )}
 
-          {/* Certified decision log — why this release was trusted */}
-          {certification && (rs === UI_RELEASE_STATUS.CERTIFIED || rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) && (
+          {/* Certified decision log — authoritative pass-path narrative (not the advisory recommendation engine) */}
+          {(rs === UI_RELEASE_STATUS.CERTIFIED || rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) && (
             <div style={{ background: C.surface, border: `1px solid ${C.green}20`, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
               <div style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 700, color: C.green, letterSpacing: "0.1em", marginBottom: 8 }}>
                 DECISION LOG — WHY THIS RELEASE WAS CERTIFIED
               </div>
-              <div style={{ fontSize: 12, color: C.text, lineHeight: 1.7, marginBottom: certification.required_signals_met?.length ? 10 : 0 }}>
-                {certification.summary}
+              <div style={{ fontSize: 12, color: C.text, lineHeight: 1.7, marginBottom: certification?.required_signals_met?.length ? 10 : 0 }}>
+                {certification?.summary ||
+                  "All required signals met current thresholds at verdict time. This is the authoritative certification record — not a probabilistic recommendation."}
               </div>
-              {certification.baseline_reference && (
+              {typeof certification?.confidence === "number" && (
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
+                  Certification confidence: {Math.round(certification.confidence * 100)}%
+                  {certification.risk_level ? ` · Risk: ${certification.risk_level}` : ""}
+                </div>
+              )}
+              {certification?.baseline_reference && (
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
                   Compared against baseline: <span style={{ color: C.dim, fontFamily: C.mono }}>{certification.baseline_reference.version}</span>
                 </div>
               )}
-              {Array.isArray(certification.required_signals_met) && certification.required_signals_met.length > 0 && (
+              {Array.isArray(certification?.required_signals_met) && certification.required_signals_met.length > 0 && (
                 <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {certification.required_signals_met.map((sig) => (
                     <span key={sig} style={{ fontSize: 10, fontFamily: C.mono, color: C.green, background: C.green + "12", border: `1px solid ${C.green}25`, borderRadius: 5, padding: "2px 8px" }}>
@@ -228,7 +235,7 @@ export default function CertificationRecordModal({
                   ))}
                 </div>
               )}
-              {certification.monitoring_note && certification.monitoring_note !== "Ship with normal monitoring and post-release review." && (
+              {certification?.monitoring_note && certification.monitoring_note !== "Ship with normal monitoring and post-release review." && (
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
                   {certification.monitoring_note}
                 </div>
@@ -240,8 +247,8 @@ export default function CertificationRecordModal({
             <SignalEvidenceBlock release={release} showFlag />
           ) : null}
 
-          {/* Recommendation Panel */}
-          {backendReleaseId && (
+          {/* Advisory recommendation — only for blocked releases; certified verdict is in the decision log above */}
+          {backendReleaseId && rs === UI_RELEASE_STATUS.UNCERTIFIED && (
             <div style={{ marginBottom: 16 }}>
               <RecommendationPanel releaseId={backendReleaseId} />
             </div>
