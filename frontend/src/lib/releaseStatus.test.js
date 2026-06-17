@@ -28,8 +28,11 @@ describe("releaseStatus", () => {
     expect(normalizeReleaseStatus("shipped")).toBe("uncertified");
   });
 
-  it("locks ingest only for certified verdicts", () => {
+  it("locks ingest for certified verdicts and uncertified prod", () => {
     expect(isIngestLocked("UNCERTIFIED")).toBe(false);
+    expect(isIngestLocked("UNCERTIFIED", "pre-prod")).toBe(false);
+    expect(isIngestLocked({ status: "UNCERTIFIED", environment: "pre-prod" })).toBe(false);
+    expect(isIngestLocked({ status: "UNCERTIFIED", environment: "prod" })).toBe(true);
     expect(isIngestLocked("COLLECTING")).toBe(false);
     expect(isIngestLocked("CERTIFIED")).toBe(true);
     expect(isIngestLocked("CERTIFIED_WITH_OVERRIDE")).toBe(true);
