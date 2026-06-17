@@ -47,7 +47,7 @@ import {
 import { resolveSignalMeta } from "./lib/workspaceSignalUi.js";
 import { SignalDetailPanel } from "./components/app/main/AppMainPanels.jsx";
 import { hasBackend } from "./lib/hasBackend.js";
-import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "./lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, canOfferOverride } from "./lib/releaseStatus.js";
 import { useLoopReadinessNudge } from "./hooks/useLoopReadinessNudge.js";
 import { useAppNavigation } from "./hooks/useAppNavigation.js";
 import { useAppProject } from "./hooks/useAppProject.js";
@@ -311,6 +311,7 @@ export default function App() {
               setShowStartCert={setShowStartCert}
               onViewFullRecord={setAuditDetail}
               onBeginOverride={(release) => {
+                if (!canOfferOverride(release)) return;
                 if (release?.id) setSelectedId(release.id);
                 setShowOverride(true);
               }}

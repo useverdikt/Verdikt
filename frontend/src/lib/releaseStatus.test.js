@@ -4,6 +4,7 @@ import {
   normalizeReleaseStatus,
   isIngestLocked,
   isLiveBypassRisk,
+  canOfferOverride,
   shippedWithoutCertificationFlag,
   UI_RELEASE_STATUS
 } from "./releaseStatus.js";
@@ -57,5 +58,13 @@ describe("releaseStatus", () => {
     expect(shippedWithoutCertificationFlag({ shipped_without_certification: 1 })).toBe(true);
     expect(shippedWithoutCertificationFlag({ shipped_without_certification: true })).toBe(true);
     expect(shippedWithoutCertificationFlag({ shipped_without_certification: 0 })).toBe(false);
+  });
+
+  it("canOfferOverride only for pre-prod UNCERTIFIED", () => {
+    expect(canOfferOverride({ status: "UNCERTIFIED", environment: "pre-prod" })).toBe(true);
+    expect(canOfferOverride({ status: "UNCERTIFIED", environment: "prod" })).toBe(false);
+    expect(canOfferOverride({ status: "UNCERTIFIED", environment: "production" })).toBe(false);
+    expect(canOfferOverride({ status: "COLLECTING", environment: "pre-prod" })).toBe(false);
+    expect(canOfferOverride({ status: "CERTIFIED", environment: "pre-prod" })).toBe(false);
   });
 });

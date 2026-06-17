@@ -40,6 +40,15 @@ export function isIngestLocked(statusOrRelease, environment) {
   return false;
 }
 
+/** Pre-ship override is closed once uncertified code is already live in prod. */
+export function canOfferOverride(release) {
+  if (!release) return false;
+  const s = normalizeReleaseStatus(release.status);
+  if (s !== UI_RELEASE_STATUS.UNCERTIFIED) return false;
+  if (isProdEnvironment(release.environment)) return false;
+  return true;
+}
+
 /** @param {string} uiStatus */
 export function uiStatusLabel(uiStatus) {
   const s = normalizeReleaseStatus(uiStatus);
