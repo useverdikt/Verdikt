@@ -4,8 +4,8 @@ export const ALIGNMENT_TABLE_HEADERS = [
   { key: "release", label: "Release" },
   {
     key: "pre_ship",
-    label: "Pre-ship rec.",
-    title: "Pre-ship recommendation from Verdikt at verdict time (advisory — not the merge gate status)"
+    label: "Pre-ship recommendation",
+    title: "Advisory risk read at verdict time — separate from release status and merge gate"
   },
   { key: "prod_outcome", label: "Prod outcome", title: "Post-deploy classification from production observations" },
   {
@@ -18,7 +18,71 @@ export const ALIGNMENT_TABLE_HEADERS = [
 ];
 
 export const ALIGNMENT_LEGEND =
-  "Correct — pre-ship call matched prod. Miss — certified or low-risk call but prod degraded/incident. Over-block — blocked or UNCERTIFIED recommendation but prod was healthy.";
+  "Correct — pre-ship read matched prod. Miss — go-ahead call but prod had issues. Over-block — Verdikt advised hold but prod was healthy. Bypass · healthy — merged without certification; prod was fine.";
+
+const PRE_SHIP_BY_VERDICT = {
+  CERTIFIED: {
+    label: "Low risk",
+    color: "green",
+    riskIndicator: false,
+    detail: "Proceed with standard monitoring"
+  },
+  CERTIFIED_WITH_RISK: {
+    label: "Cautious proceed",
+    color: "amber",
+    riskIndicator: true,
+    detail: "Passes gate with elevated risk flags"
+  },
+  UNCERTIFIED: {
+    label: "Do not ship",
+    color: "red",
+    riskIndicator: false,
+    detail: "Hold release — signals or thresholds failed"
+  },
+  UNCERTIFIED_NOISY: {
+    label: "Uncertain evidence",
+    color: "amber",
+    riskIndicator: true,
+    detail: "Low-confidence block — noisy or unreliable signals"
+  }
+};
+
+const ALIGNMENT_BY_KEY = {
+  CORRECT: { label: "Correct", color: "#22c87a", icon: "✓", title: "Pre-ship read matched prod outcome" },
+  MISS: { label: "Miss", color: "#ef4444", icon: "✗", title: "Go-ahead call but prod degraded or incident" },
+  OVER_BLOCK: { label: "Over-block", color: "#f5a623", icon: "⚠", title: "Hold / do-not-ship call but prod was healthy" },
+  UNKNOWN: { label: "Unknown", color: "#7a788b", icon: "?", title: "Insufficient data to score alignment" }
+};
+
+export function formatPreShipRecommendation(verdict, row = {}) {
+  const meta = PRE_SHIP_BY_VERDICT[verdict] || {
+    label: verdict || "—",
+    color: "dim",
+    riskIndicator: false,
+    detail: ""
+  };
+  const parts = [meta.detail];
+  if (row.release_status) parts.push(`Release status: ${row.release_status}`);
+  if (row.shipped_without_certification) parts.push("Bypassed at merge");
+  if (row.environment) parts.push(`Environment: ${row.environment}`);
+  return {
+    ...meta,
+    title: parts.filter(Boolean).join(" · ")
+  };
+}
+
+export function resolveAlignmentDisplay(alignment, row = {}) {
+  const bypassed = row.shipped_without_certification === 1 || row.shipped_without_certification === true;
+  if (alignment === "OVER_BLOCK" && bypassed) {
+    return {
+      label: "Bypass · healthy",
+      color: "#e11d48",
+      icon: "↷",
+      title: "Merged without certification; prod monitoring showed no incident criteria met"
+    };
+  }
+  return ALIGNMENT_BY_KEY[alignment] || ALIGNMENT_BY_KEY.UNKNOWN;
+}
 
 export function formatOutcomeDrivers({ outcome_criteria = [], actual_outcome, signal_deltas = {} }) {
   if (outcome_criteria.length > 0) {
@@ -65,9 +129,7 @@ export function formatOutcomeDrivers({ outcome_criteria = [], actual_outcome, si
   return { text: "No incident criteria met", expandable: false, detailKind: "none" };
 }
 
+/** @deprecated use formatPreShipRecommendation */
 export function preShipRecommendationColor(verdict) {
-  if (!verdict) return "dim";
-  if (verdict.includes("UNCERTIFIED")) return "red";
-  if (verdict === "CERTIFIED_WITH_RISK") return "amber";
-  return "green";
+  return formatPreShipRecommendation(verdict).color;
 }

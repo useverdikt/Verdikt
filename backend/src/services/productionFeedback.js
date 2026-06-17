@@ -401,7 +401,8 @@ async function getProductionAdjustment(workspaceId) {
 async function getWorkspaceProductionHealth(workspaceId) {
   const alignments = await queryAll(
     `
-    SELECT oa.*, r.version, r.status AS release_status, r.verdict_issued_at
+    SELECT oa.*, r.version, r.status AS release_status, r.verdict_issued_at,
+           r.shipped_without_certification, r.environment
     FROM outcome_alignments oa
     JOIN releases r ON r.id = oa.release_id
     WHERE oa.workspace_id = ?
@@ -481,6 +482,8 @@ async function getWorkspaceProductionHealth(workspaceId) {
       release_id: a.release_id,
       version: a.version,
       release_status: a.release_status,
+      environment: a.environment || null,
+      shipped_without_certification: Number(a.shipped_without_certification) === 1,
       recommended_verdict: a.recommended_verdict,
       actual_outcome: a.actual_outcome,
       alignment: a.alignment,

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatOutcomeDrivers } from "./alignmentTableCopy.js";
+import {
+  formatOutcomeDrivers,
+  formatPreShipRecommendation,
+  resolveAlignmentDisplay
+} from "./alignmentTableCopy.js";
 
 describe("formatOutcomeDrivers", () => {
   it("shows breached criteria when outcome rules fired", () => {
@@ -34,5 +38,36 @@ describe("formatOutcomeDrivers", () => {
       signal_deltas: { accuracy: { post: 91 } }
     });
     expect(out.text).toBe("No incident criteria met");
+  });
+});
+
+describe("formatPreShipRecommendation", () => {
+  it("uses human labels instead of status vocabulary", () => {
+    expect(formatPreShipRecommendation("UNCERTIFIED").label).toBe("Do not ship");
+    expect(formatPreShipRecommendation("CERTIFIED_WITH_RISK").label).toBe("Cautious proceed");
+    expect(formatPreShipRecommendation("CERTIFIED_WITH_RISK").riskIndicator).toBe(true);
+    expect(formatPreShipRecommendation("CERTIFIED").label).toBe("Low risk");
+  });
+
+  it("includes frozen release facts in the tooltip", () => {
+    const meta = formatPreShipRecommendation("UNCERTIFIED", {
+      release_status: "UNCERTIFIED",
+      shipped_without_certification: true,
+      environment: "prod"
+    });
+    expect(meta.title).toContain("Release status: UNCERTIFIED");
+    expect(meta.title).toContain("Bypassed at merge");
+    expect(meta.title).toContain("Environment: prod");
+  });
+});
+
+describe("resolveAlignmentDisplay", () => {
+  it("distinguishes bypass merges from true over-blocks", () => {
+    const bypass = resolveAlignmentDisplay("OVER_BLOCK", { shipped_without_certification: true });
+    expect(bypass.label).toBe("Bypass · healthy");
+    expect(bypass.label).not.toBe("Over-block");
+
+    const overBlock = resolveAlignmentDisplay("OVER_BLOCK", { shipped_without_certification: false });
+    expect(overBlock.label).toBe("Over-block");
   });
 });

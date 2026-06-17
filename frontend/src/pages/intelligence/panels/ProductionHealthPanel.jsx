@@ -9,7 +9,8 @@ import {
   ALIGNMENT_LEGEND,
   ALIGNMENT_TABLE_HEADERS,
   formatOutcomeDrivers,
-  preShipRecommendationColor
+  formatPreShipRecommendation,
+  resolveAlignmentDisplay
 } from "../alignmentTableCopy.js";
 
 function OutcomeCriteriaCard({ criteria }) {
@@ -41,12 +42,6 @@ function OutcomeCriteriaCard({ criteria }) {
   );
 }
 
-const ALIGNMENT_META = {
-  CORRECT:    { color: "#22c87a", label: "Correct", icon: "✓" },
-  MISS:       { color: "#ef4444", label: "Miss",    icon: "✗" },
-  OVER_BLOCK: { color: "#f5a623", label: "Over-block", icon: "⚠" },
-  UNKNOWN:    { color: "#7a788b", label: "Unknown",  icon: "?" }
-};
 const OUTCOME_META = {
   HEALTHY:  { color: "#22c87a", label: "Healthy" },
   DEGRADED: { color: "#f5a623", label: "Degraded" },
@@ -323,12 +318,12 @@ Content-Type: application/json
                 </thead>
                 <tbody>
                   {data.alignments.map((a) => {
-                    const am = ALIGNMENT_META[a.alignment] || ALIGNMENT_META.UNKNOWN;
+                    const alignmentDisplay = resolveAlignmentDisplay(a.alignment, a);
                     const om = OUTCOME_META[a.actual_outcome] || OUTCOME_META.UNKNOWN;
                     const drivers = formatOutcomeDrivers(a);
+                    const preShip = formatPreShipRecommendation(a.recommended_verdict, a);
                     const isExpanded = expandedRow === a.release_id;
-                    const recColorKey = preShipRecommendationColor(a.recommended_verdict);
-                    const recColor = recColorKey === "red" ? C.red : recColorKey === "amber" ? C.amber : C.green;
+                    const recColor = preShip.color === "red" ? C.red : preShip.color === "amber" ? C.amber : preShip.color === "green" ? C.green : C.dim;
                     return (
                       <React.Fragment key={a.release_id}>
                         <tr
@@ -344,8 +339,15 @@ Content-Type: application/json
                               <span style={{ fontSize: 9, color: C.dim, marginLeft: 5 }}>{isExpanded ? "▲" : "▼"}</span>
                             )}
                           </td>
-                          <td style={tdStyle}>
-                            <Badge color={recColor}>{a.recommended_verdict || "—"}</Badge>
+                          <td style={tdStyle} title={preShip.title}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <Badge color={recColor}>{preShip.label}</Badge>
+                              {preShip.riskIndicator ? (
+                                <span style={{ fontSize: 10, color: C.amber, lineHeight: 1 }} title="Elevated risk flags" aria-label="Elevated risk">
+                                  ⚠
+                                </span>
+                              ) : null}
+                            </span>
                           </td>
                           <td style={tdStyle}>
                             <span style={{ color: om.color, fontFamily: C.mono, fontWeight: 700, fontSize: 12 }} title={om.label}>
@@ -355,8 +357,10 @@ Content-Type: application/json
                           <td style={{ ...tdStyle, maxWidth: 260 }}>
                             <span style={{ fontSize: 11, color: C.muted }}>{drivers.text}</span>
                           </td>
-                          <td style={tdStyle} title={ALIGNMENT_LEGEND}>
-                            <Badge color={am.color}>{am.icon} {am.label}</Badge>
+                          <td style={tdStyle} title={alignmentDisplay.title || ALIGNMENT_LEGEND}>
+                            <Badge color={alignmentDisplay.color}>
+                              {alignmentDisplay.icon} {alignmentDisplay.label}
+                            </Badge>
                           </td>
                           <td style={tdStyle}>
                             <span style={{ fontSize: 11, color: a.incident_ref ? C.accent : C.dim, fontFamily: C.mono }}>
