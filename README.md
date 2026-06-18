@@ -29,11 +29,23 @@ PR labeled verdikt:rc
   → Cert window opens (anchored to commit SHA)
   → Signals arrive — integration pull or API push
   → Verdict engine evaluates thresholds + regression deltas
-  → Gate: CERTIFIED · UNCERTIFIED · CERTIFIED_WITH_OVERRIDE
-  → action: merge | self_heal | escalate
-  → Branch protection enforces the gate
+  → Gate: COLLECTING → CERTIFIED · UNCERTIFIED · CERTIFIED_WITH_OVERRIDE
+  → action: collecting | merge | self_heal | escalate
+  → Branch protection enforces the gate (when configured)
   → Post-deploy: outcome alignment (CORRECT · MISS · OVER_BLOCK)
+  → Calibration: threshold suggestions from alignment (human review by default)
 ```
+
+## Production truth
+
+Verdikt records what actually reaches production — not just what cleared the gate.
+
+- **Bypass tracking** — merges without certification freeze `shipped_without_certification` at merge time; live risk stays on the record even if certified later.
+- **Calibration** — post-deploy CORRECT / MISS / OVER_BLOCK outcomes feed threshold suggestions; humans review by default (`auto_apply` is opt-in for design partners).
+- **Override vs bypass** — override requires justification and a signed record; bypass is recorded without one.
+- **Incident flow** — VCS Production Monitor watches for reverts, hotfixes, and incident-labelled PRs after deploy; link an `incident_ref` on the alignment row or call `record_outcome` for calibration.
+
+Dogfood the full loop (gate + incident): [docs/DOGFOOD_RUNBOOK.md](docs/DOGFOOD_RUNBOOK.md).
 
 ## Signal sources
 
@@ -109,6 +121,7 @@ npm run test:e2e          # Playwright e2e (run npx playwright install once)
 - [backend/README.md](backend/README.md) — API reference, auth, webhooks, env vars
 - [supabase/README.md](supabase/README.md) — RLS, auth linkage, local stack
 - [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) — partner MCP setup · [mcp/README.md](mcp/README.md) — maintainer reference (in repo)
+- [docs/DOGFOOD_RUNBOOK.md](docs/DOGFOOD_RUNBOOK.md) — certify and incident-flow dogfood on useverdikt/Verdikt
 
 ## Contributing
 
