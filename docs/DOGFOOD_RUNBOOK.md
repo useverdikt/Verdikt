@@ -154,6 +154,80 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 
 ---
 
+## Incident flow dogfood (follow-up PR)
+
+Use this **after** at least one certified PR has merged to `main`. The goal is to prove post-deploy incident detection, alignment (MISS / CORRECT), and optional `incident_ref` linking — not to merge broken code.
+
+### Prerequisites
+
+| Setting | Where |
+|---------|--------|
+| VCS write-back + Production Monitor | Settings → Release Trigger (enables post-merge VCS scan) |
+| Production observation | Intelligence hub toggle (alignment panel needs it) |
+| A **CERTIFIED** release on `main` | From the smoke PR above — note its release id / version in the app |
+
+VCS monitor opens a **~120 minute window** after prod promotion. During that window Verdikt scans for:
+
+- Revert commits on `main`
+- Hotfix commits (2+ → INCIDENT; 1 → DEGRADED)
+- PRs opened with labels like `incident`, `p0`, `emergency`, `hotfix`, etc.
+
+### 1. Open the incident follow-up PR
+
+```bash
+git checkout main && git pull
+git checkout -b dogfood/incident-flow
+# trivial change — e.g. docs/INCIDENT_FLOW_DOGFOOD.md checklist only
+git push -u origin dogfood/incident-flow
+# open PR to main on GitHub (do not merge unless doing a separate cert test)
+```
+
+On GitHub, add label **`incident`** (or `p0` / `emergency`) to this PR **while the monitor window for the prior merge is still open**.
+
+This PR is the **stimulus** — Verdikt attributes `vcs_incident_prs` to the **merged release**, not this PR's cert window.
+
+### 2. Wait for VCS scan (or trigger manually)
+
+- App → release detail for the merged deploy → **VCS Production Monitor** panel
+- Or `GET /api/releases/:releaseId/vcs-monitor`
+
+Expect `vcs_incident_prs >= 1` and inferred outcome **INCIDENT** when the scan picks up the labelled PR.
+
+### 3. Verify alignment
+
+Intelligence → **Production Health** / alignment table for that release:
+
+| Pre-ship verdict | Post-deploy finding | Expected alignment |
+|------------------|---------------------|--------------------|
+| CERTIFIED | INCIDENT criteria met | **MISS** |
+| UNCERTIFIED + bypass merge | No incident criteria | **CORRECT** (bypass · healthy) |
+
+### 4. Link incident reference (optional)
+
+```bash
+curl -sS -X PUT "$BASE/api/releases/$REL_ID/production-signals/incident" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"incident_ref":"https://github.com/useverdikt/Verdikt/pull/NNN"}'
+```
+
+Or record via MCP `record_outcome` with `label: incident` for calibration.
+
+### 5. Close the incident PR
+
+**Do not merge** the incident stimulus PR unless you are intentionally running another cert cycle. Close it after the monitor window records findings.
+
+### Done criteria (incident flow)
+
+- [ ] Certified release merged; VCS monitor window opened
+- [ ] Follow-up PR labelled `incident` detected during window
+- [ ] Alignment row shows MISS (certified → incident) or expected bypass outcome
+- [ ] `incident_ref` linked or `record_outcome` recorded
+- [ ] Screenshot for demo deck
+
+See also: [docs/INCIDENT_FLOW_DOGFOOD.md](INCIDENT_FLOW_DOGFOOD.md) (tracker checklist on the follow-up PR branch).
+
+---
+
 ## Negative test (recommended once)
 
 1. Open PR, label `verdikt:rc`
@@ -184,6 +258,7 @@ After deploy/monitor window: Intelligence → check outcome alignment for that r
 - [ ] GitHub commit status visible on PR
 - [ ] Screenshot of audit trail + cert record for sales deck
 - [ ] (Stretch) One alignment row after deploy
+- [ ] (Stretch) Incident flow dogfood — follow-up PR with `incident` label during VCS monitor window
 
 ---
 
