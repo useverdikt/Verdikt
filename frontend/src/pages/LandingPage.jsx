@@ -308,8 +308,8 @@ export default memo(function LandingPage() {
               <div className="step-tag verdict">Verdict</div>
               <div className="step-title">Decide</div>
               <div className="step-body">
-                Signals collect, then <strong>CERTIFIED</strong>, <strong>UNCERTIFIED</strong>, or{" "}
-                <strong>CERTIFIED WITH OVERRIDE</strong> — certified records are cryptographically signed.
+                Collect signals, then <strong>CERTIFIED</strong>, <strong>UNCERTIFIED</strong>, or{" "}
+                <strong>CERTIFIED WITH OVERRIDE</strong>. Certified records are signed.
               </div>
             </div>
             <div className="pipeline-step">
