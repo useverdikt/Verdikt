@@ -10,6 +10,7 @@ const { buildGateBlockers } = require("./gateBlockers");
 const { buildGateRemediation } = require("./gateRemediation");
 const { buildGateCertification } = require("./gateCertification");
 const { buildGateCalibrationContext } = require("./gateCalibrationContext");
+const { getWorkspaceRemediationDebt } = require("./remediationDebt");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -26,7 +27,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
   };
   const reason = reasonByStatus[release.status] || `release status is ${release.status}`;
 
-  const [policy, intelligence, thresholdMap, trajectoryInfo, latest] = await Promise.all([
+  const [policy, intelligence, thresholdMap, trajectoryInfo, latest, remediationDebt] = await Promise.all([
     getWorkspacePolicy(release.workspace_id),
     getReleaseIntelligence(releaseId),
     getThresholdMap(release.workspace_id),
@@ -35,7 +36,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
       releaseId,
       releaseRow: release
     }),
-    getLatestSignalMap(releaseId)
+    getLatestSignalMap(releaseId),
+    getWorkspaceRemediationDebt(release.workspace_id)
   ]);
 
   const mode =
@@ -47,11 +49,16 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
           ? "strict"
           : "default";
   const strictAllowed = release.status === "CERTIFIED";
-  const gateAllowed = mode === "strict" ? strictAllowed : allowed;
-  const gateReason =
+  let gateAllowed = mode === "strict" ? strictAllowed : allowed;
+  let gateReason =
     mode === "strict" && release.status === "CERTIFIED_WITH_OVERRIDE"
       ? "strict mode requires CERTIFIED without override"
       : reason;
+
+  if (remediationDebt.active && release.status === "CERTIFIED_WITH_OVERRIDE") {
+    gateAllowed = false;
+    gateReason = remediationDebt.message;
+  }
 
   const failedSignalsFromIntel = intelligence?.verdict?.failed_signals ?? [];
   let failedSignals = failedSignalsFromIntel;
@@ -149,6 +156,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     remediation,
     certification,
     calibration,
+    remediation_debt: remediationDebt,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,

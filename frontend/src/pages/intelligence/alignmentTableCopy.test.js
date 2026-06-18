@@ -31,6 +31,16 @@ describe("formatOutcomeDrivers", () => {
     expect(out.expandable).toBe(true);
   });
 
+  it("shows investigating copy for open labelled PRs", () => {
+    const out = formatOutcomeDrivers({
+      outcome_criteria: [],
+      actual_outcome: "INVESTIGATING",
+      signal_deltas: { vcs_investigating_prs: { post: 1 } }
+    });
+    expect(out.text).toContain("Investigating");
+    expect(out.text).toContain("not merged");
+  });
+
   it("shows generic healthy copy when no VCS marker present", () => {
     const out = formatOutcomeDrivers({
       outcome_criteria: [],

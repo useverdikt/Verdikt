@@ -43,7 +43,7 @@ Verdikt records what actually reaches production — not just what cleared the g
 - **Bypass tracking** — merges without certification freeze `shipped_without_certification` at merge time; live risk stays on the record even if certified later.
 - **Calibration** — post-deploy CORRECT / MISS / OVER_BLOCK outcomes feed threshold suggestions; humans review by default (`auto_apply` is opt-in for design partners).
 - **Override vs bypass** — override requires justification and a signed record; bypass is recorded without one.
-- **Incident flow** — VCS Production Monitor watches for reverts, hotfixes, and incident-labelled PRs after deploy; link an `incident_ref` on the alignment row or call `record_outcome` for calibration.
+- **Incident flow** — VCS monitor: **merged** incident/hotfix PRs and `main` commits count as confirmed; open labelled PRs are **investigating** only (no MISS alone). Emergency merges without cert create **remediation debt** (override blocked for 7 days).
 
 Dogfood the full loop (gate + incident): [docs/DOGFOOD_RUNBOOK.md](docs/DOGFOOD_RUNBOOK.md).
 
