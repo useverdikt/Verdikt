@@ -36,12 +36,12 @@ export default memo(function LandingPage() {
   // SEO meta tags
   useEffect(() => {
     const metas = [
-      { name: "description", content: "Ship AI agents with evidence, not hope. Verdikt evaluates agent releases, records the signals behind every decision, and tells you when human oversight is required." },
+      { name: "description", content: "Ship AI agents with evidence, not hope. Verdikt is the trust layer between AI agents and production: gate releases, track bypasses, and learn from production outcomes." },
       { property: "og:title", content: "Verdikt — Ship AI Agents with Evidence, Not Hope" },
-      { property: "og:description", content: "Know when to trust your agents before they reach production." },
+      { property: "og:description", content: "Gate AI-agent releases, track bypasses, and calibrate thresholds from production outcomes." },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Verdikt — Ship AI Agents with Evidence, Not Hope" },
-      { name: "twitter:description", content: "Know when to trust your agents before they reach production." },
+      { name: "twitter:description", content: "Gate AI-agent releases, track bypasses, and calibrate thresholds from production outcomes." },
     ];
     const added = metas.map((attrs) => {
       const selector = attrs.name ? `meta[name="${attrs.name}"]` : `meta[property="${attrs.property}"]`;
@@ -186,6 +186,7 @@ export default memo(function LandingPage() {
         <div className="nav-links">
           <a href="#diagnostic">The question</a>
           <a href="#how">How it works</a>
+          <a href="#truth">Production truth</a>
           <a href="#record">The record</a>
           <a href="https://docs.useverdikt.com">Docs</a>
         </div>
@@ -197,6 +198,9 @@ export default memo(function LandingPage() {
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-copy">
+            <div className="hero-eyebrow">
+              The trust layer between AI agents and production
+            </div>
             <h1>
               Ship AI agents with evidence,<br />
               <em>not hope.</em>
@@ -216,7 +220,8 @@ export default memo(function LandingPage() {
             </div>
             <div className="hero-note">
               Works alongside <strong>Braintrust</strong>, <strong>LangSmith</strong>, any CI pipeline.<br />
-              MCP tools for <strong>Cursor</strong> and <strong>Claude Code</strong>. HTTP API for GitHub Actions.<br />
+              MCP tools for <strong>Cursor</strong> and <strong>Claude Code</strong> — published as <strong>@useverdikt/mcp</strong>.<br />
+              HTTP API for GitHub Actions.<br />
               No changes to your eval stack.
             </div>
           </div>
@@ -287,7 +292,7 @@ export default memo(function LandingPage() {
               <div className="step-tag signals">Signals</div>
               <div className="step-title">Ingest</div>
               <div className="step-body">
-                Label the PR — Verdikt auto-pulls eval scores for that commit.
+                Add <strong>verdikt:rc</strong> to the PR, or push signals via API, MCP, or CSV.
               </div>
             </div>
             <div className="pipeline-step">
@@ -303,7 +308,8 @@ export default memo(function LandingPage() {
               <div className="step-tag verdict">Verdict</div>
               <div className="step-title">Decide</div>
               <div className="step-body">
-                <strong>CERTIFIED</strong>, <strong>UNCERTIFIED</strong>, or <strong>OVERRIDE</strong> — each cryptographically signed.
+                Signals collect, then <strong>CERTIFIED</strong>, <strong>UNCERTIFIED</strong>, or{" "}
+                <strong>CERTIFIED WITH OVERRIDE</strong> — certified records are cryptographically signed.
               </div>
             </div>
             <div className="pipeline-step">
@@ -311,7 +317,54 @@ export default memo(function LandingPage() {
               <div className="step-tag align">Align</div>
               <div className="step-title">Validate</div>
               <div className="step-body">
-                Post-deploy: scored <strong>CORRECT</strong>, <strong>MISS</strong>, or <strong>OVER_BLOCK</strong>.
+                Post-deploy: scored <strong>CORRECT</strong>, <strong>MISS</strong>, or <strong>OVER_BLOCK</strong> —
+                then fed into threshold suggestions for the next release.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRUTH LOOP ── */}
+      <section className="truth" id="truth">
+        <div className="truth-inner">
+          <div className="section-rule reveal">Production truth</div>
+          <div className="truth-layout">
+            <div className="truth-copy reveal reveal-delay-1">
+              <h2>
+                The gate does not<br /><em>trust itself either.</em>
+              </h2>
+              <p className="section-body">
+                Branch protection can be bypassed. Verdikt records what actually reaches production — not
+                just what cleared the gate — so a bypass never disappears from the record.
+              </p>
+            </div>
+            <div className="truth-grid reveal reveal-delay-2">
+              <div className="truth-card bypass">
+                <div className="truth-card-kicker">Bypass tracking</div>
+                <h3>Production is the source of truth.</h3>
+                <p>
+                  If code ships without certification, Verdikt freezes that fact at merge time and marks the
+                  release as live risk — even if someone certifies it later.
+                </p>
+              </div>
+              <div className="truth-card calibration">
+                <div className="truth-card-kicker">Calibration loop</div>
+                <h3>Outcomes tune the next gate.</h3>
+                <p>
+                  Post-deploy results are classified as correct, miss, or over-block and converted into
+                  suggested threshold changes. Humans review by default — calibration does not silently
+                  auto-apply.
+                </p>
+              </div>
+              <div className="truth-card agents">
+                <div className="truth-card-kicker">Agent-native</div>
+                <h3>Agents get an action, not a paragraph.</h3>
+                <p>
+                  MCP and HTTP gates return <strong>merge</strong>, <strong>collecting</strong>,{" "}
+                  <strong>self_heal</strong>, or <strong>escalate</strong>, with agent sessions and audit
+                  events tied back to the release record.
+                </p>
               </div>
             </div>
           </div>
@@ -326,14 +379,14 @@ export default memo(function LandingPage() {
             <div className="record-copy reveal reveal-delay-1">
               <h2>Verdikt recommends.<br /><em>Humans decide.</em><br />Every call gets a record.</h2>
               <p className="section-body">
-                When a release ships despite failing signals, Verdikt requires a human to accept
-                the risk, file a justification, and sign the record. That record is cryptographically
-                sealed and cannot be edited — not even by administrators.
+                Override and bypass are different paths. Certifying with override despite failing signals
+                requires a human justification and a signed record. Merging without certification freezes
+                that bypass at merge time — no override required, but the live risk stays on the record.
               </p>
               <div className="record-detail">
                 <strong>What the record contains:</strong> release ID, verdict at time of decision,
-                every signal value and threshold, confidence score, the override justification,
-                the approver identity, and the exact timestamp — all hashed and stored immutably.
+                every signal value and threshold, confidence score, override justification when filed,
+                approver identity, and timestamp — frozen at decision time on an append-only audit trail.
                 Production outcome appended after deploy.
               </div>
             </div>
@@ -431,6 +484,7 @@ export default memo(function LandingPage() {
           <div className="footer-links">
             <a href="#diagnostic" aria-label="Jump to the question section">The question</a>
             <a href="#how" aria-label="Jump to how it works">How it works</a>
+            <a href="#truth" aria-label="Jump to production truth">Production truth</a>
             <a href="#record" aria-label="Jump to the record section">The record</a>
             <a href="https://docs.useverdikt.com" aria-label="Verdikt documentation">Docs</a>
             <a href={`mailto:${CONTACT_EMAIL}`} aria-label="Email Verdikt">{CONTACT_EMAIL}</a>
