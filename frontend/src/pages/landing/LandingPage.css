@@ -260,6 +260,42 @@
 }
 .vdk-landing .step-body{font-size:14px;color:var(--fg2);font-weight:300;line-height:1.6}
 
+/* ─── PRODUCTION TRUTH ─── */
+.vdk-landing .truth{
+  padding:var(--section-y-tight) var(--gutter) var(--section-y);
+  border-top:1px solid var(--border);
+  background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+}
+.vdk-landing .truth-inner{max-width:var(--max);margin:0 auto}
+.vdk-landing .truth-layout{
+  display:grid;grid-template-columns:.88fr 1.12fr;gap:48px;align-items:start;
+}
+.vdk-landing .truth-copy .section-body{max-width:none}
+.vdk-landing .truth-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.vdk-landing .truth-card{
+  border:1px solid var(--border);border-radius:10px;
+  padding:20px 22px;background:rgba(9,13,20,.72);
+  box-shadow:0 18px 48px rgba(0,0,0,.24);
+  position:relative;overflow:hidden;
+}
+.vdk-landing .truth-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--border2);
+}
+.vdk-landing .truth-card.bypass::before{background:var(--uncerti)}
+.vdk-landing .truth-card.calibration::before{background:var(--override)}
+.vdk-landing .truth-card.agents::before{background:var(--cta)}
+.vdk-landing .truth-card-kicker{
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--fg3);
+  margin-bottom:10px;
+}
+.vdk-landing .truth-card h3{
+  font-family:var(--serif);font-size:24px;font-weight:600;
+  color:var(--fg);letter-spacing:-.01em;line-height:1.2;margin-bottom:8px;
+}
+.vdk-landing .truth-card p{font-size:14px;color:var(--fg2);font-weight:300;line-height:1.7}
+.vdk-landing .truth-card strong{color:var(--fg);font-weight:500}
+
 /* ─── RECORD ─── */
 .vdk-landing .record{
   padding:var(--section-y-tight) var(--gutter) var(--section-y);
@@ -412,6 +448,7 @@
   .vdk-landing .terminal{display:none}
   .vdk-landing .pipeline{grid-template-columns:1fr 1fr}
   .vdk-landing .pipeline-step:nth-child(2){border-right:none}
+  .vdk-landing .truth-layout{grid-template-columns:1fr}
   .vdk-landing .record-layout{grid-template-columns:1fr}
   .vdk-landing .nav-links{display:none}
 }
