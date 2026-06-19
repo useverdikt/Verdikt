@@ -7,7 +7,7 @@ import { panelErrorMessage } from "../panelLoad.js";
 import { fullLoopBarPct, pipelineFunnelBarPct } from "../../../lib/loopReadinessUi.js";
 import { useLoopReadiness } from "../../../hooks/useLoopReadiness.js";
 
-export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
+export function LoopReadinessPanel({ wsId, prodObservationEnabled, suppressProdObsNotice = false }) {
   const { data, loading, error, reload } = useLoopReadiness(wsId, { enabled: prodObservationEnabled });
 
   if (!prodObservationEnabled) {
@@ -16,16 +16,22 @@ export function LoopReadinessPanel({ wsId, prodObservationEnabled }) {
         title="Feedback Loop Readiness"
         eyebrow="PRE-RELEASE → VERDICT → POST-DEPLOY → ALIGNMENT"
       >
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginBottom: 12 }}>
-          Post-deploy loop metrics stay off until you enable <strong style={{ color: C.text }}>Production observation</strong>{" "}
-          in workspace settings. Pre-release certification is unchanged; this only controls gathering production-side data for the learning loop.
-        </div>
-        <Link
-          to="/settings?section=workspace"
-          style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 600, color: C.accentL, textDecoration: "none" }}
-        >
-          Open Workspace → General
-        </Link>
+        {suppressProdObsNotice ? (
+          <EmptyState msg="Loop metrics require production observation — see the notice above." />
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginBottom: 12 }}>
+              Post-deploy loop metrics stay off until you enable <strong style={{ color: C.text }}>Production observation</strong>{" "}
+              in workspace settings. Pre-release certification is unchanged; this only controls gathering production-side data for the learning loop.
+            </div>
+            <Link
+              to="/settings?section=workspace"
+              style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 600, color: C.accentL, textDecoration: "none" }}
+            >
+              Open Workspace → General
+            </Link>
+          </>
+        )}
       </Card>
     );
   }

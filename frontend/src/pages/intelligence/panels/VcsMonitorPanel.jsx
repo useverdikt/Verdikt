@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiGet } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
@@ -66,6 +67,14 @@ export function VcsMonitorPanel({ wsId }) {
       }
     >
       {/* How it works banner */}
+      <div style={{ marginBottom: 10, fontSize: 12 }}>
+        <Link
+          to="/intelligence/alignment"
+          style={{ fontFamily: C.mono, fontWeight: 600, color: C.accentL, textDecoration: "none" }}
+        >
+          View production alignment table →
+        </Link>
+      </div>
       <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: C.raise, border: `1px solid ${C.border}`, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
         <strong style={{ color: C.text }}>How this works:</strong> After each prod merge, Verdikt opens a 2-hour window on your connected repo.
         <strong style={{ color: C.text }}> Confirmed</strong> signals require impact on <code>main</code> (merged incident PR, revert, or hotfix commit).
