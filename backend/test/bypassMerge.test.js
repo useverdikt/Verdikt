@@ -311,6 +311,8 @@ describe("bypass merge prod tracking", () => {
 
     const list = await agent.get(`/api/workspaces/${ws}/releases`).expect(200);
     assert.equal(typeof list.body.shipped_without_certification_count, "number");
+    assert.equal(typeof list.body.production_incidents_count, "number");
+    assert.equal(typeof list.body.remediation_debt_active, "boolean");
     assert.ok(list.body.releases.every((r) => "shipped_without_certification" in r));
   });
 

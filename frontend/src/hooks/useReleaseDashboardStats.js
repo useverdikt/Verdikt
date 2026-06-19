@@ -11,7 +11,9 @@ export function useReleaseDashboardStats({
   calcCategoryStatus,
   thresholds,
   formatReleaseAge,
-  shippedWithoutCertificationCount: workspaceBypassCount = null
+  shippedWithoutCertificationCount: workspaceBypassCount = null,
+  productionIncidentsCount: workspaceIncidentsCount = null,
+  remediationDebtActive = false
 }) {
   const statsReleases = useMemo(
     () => (wsId ? releases.filter((r) => r.backendReleaseId) : releases),
@@ -36,6 +38,8 @@ export function useReleaseDashboardStats({
       typeof workspaceBypassCount === "number"
         ? workspaceBypassCount
         : statsReleases.filter((r) => r.shipped_without_certification).length;
+    const productionIncidentsCount =
+      typeof workspaceIncidentsCount === "number" ? workspaceIncidentsCount : 0;
     return {
       certRate,
       uncertified,
@@ -43,9 +47,11 @@ export function useReleaseDashboardStats({
       loopCount,
       total,
       certified,
-      shippedWithoutCertificationCount
+      shippedWithoutCertificationCount,
+      productionIncidentsCount,
+      remediationDebtActive: remediationDebtActive === true
     };
-  }, [statsReleases, loopReadiness, workspaceBypassCount]);
+  }, [statsReleases, loopReadiness, workspaceBypassCount, workspaceIncidentsCount, remediationDebtActive]);
 
   const releaseCatStatuses = useMemo(() => {
     if (!calcCategoryStatus) return {};
