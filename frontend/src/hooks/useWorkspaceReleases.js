@@ -37,6 +37,8 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   });
   const [_releasesTotalCount, setReleasesTotalCount] = useState(null);
   const [shippedWithoutCertificationCount, setShippedWithoutCertificationCount] = useState(null);
+  const [productionIncidentsCount, setProductionIncidentsCount] = useState(null);
+  const [remediationDebtActive, setRemediationDebtActive] = useState(false);
   const [releasesNextBefore, setReleasesNextBefore] = useState(null);
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
 
@@ -120,6 +122,12 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
       setReleasesNextBefore(relData?.next_before || null);
       if (typeof relData?.shipped_without_certification_count === "number") {
         setShippedWithoutCertificationCount(relData.shipped_without_certification_count);
+      }
+      if (typeof relData?.production_incidents_count === "number") {
+        setProductionIncidentsCount(relData.production_incidents_count);
+      }
+      if (typeof relData?.remediation_debt_active === "boolean") {
+        setRemediationDebtActive(relData.remediation_debt_active);
       }
       if (rows.length) {
         setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
@@ -243,6 +251,8 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     openAuditRecord,
     hydrateVisibleSummaries,
     navRef,
-    shippedWithoutCertificationCount
+    shippedWithoutCertificationCount,
+    productionIncidentsCount,
+    remediationDebtActive
   };
 }

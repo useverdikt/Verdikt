@@ -31,7 +31,9 @@ export function ReleaseDashboard({
   hasMoreReleases = false,
   loadingMoreReleases = false,
   onLoadMoreReleases,
-  shippedWithoutCertificationCount = null
+  shippedWithoutCertificationCount = null,
+  productionIncidentsCount = null,
+  remediationDebtActive = false
 }) {
   const filters = useReleaseDashboardFilters(releases, { onEnsureReleaseDetail });
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
@@ -48,7 +50,9 @@ export function ReleaseDashboard({
     calcCategoryStatus,
     thresholds,
     formatReleaseAge,
-    workspaceBypassCount: shippedWithoutCertificationCount
+    workspaceBypassCount: shippedWithoutCertificationCount,
+    productionIncidentsCount,
+    remediationDebtActive
   });
 
   return (
@@ -64,7 +68,7 @@ export function ReleaseDashboard({
       <div className="body-split">
         <div className="content">
           <SetupBanner setupChecklist={setupChecklist} />
-          <ReleaseDashboardStats wsReady={wsReady} stats={stats} loopBand={sidePanel.loopBand} />
+          <ReleaseDashboardStats wsReady={wsReady} stats={stats} />
           <ReleaseDashboardTable
             wsReady={wsReady}
             releases={releases}

@@ -4,6 +4,7 @@ const { run, queryOne, queryAll } = require("../../database");
 const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
 const { openReleaseSession } = require("../../services/releaseIdentity");
 const { countShippedWithoutCertification } = require("../../services/releaseEnvironment");
+const { getWorkspaceGovernanceStats } = require("../../services/governanceStats");
 const {
   nowIso,
   writeAudit,
@@ -18,9 +19,10 @@ module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const ws = req.params.workspaceId;
-    const [countRow, shipped_without_certification_count] = await Promise.all([
+    const [countRow, shipped_without_certification_count, governance] = await Promise.all([
       queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [ws]),
-      countShippedWithoutCertification(ws)
+      countShippedWithoutCertification(ws),
+      getWorkspaceGovernanceStats(ws)
     ]);
     const total_count = Number(countRow?.c ?? 0);
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
@@ -43,6 +45,8 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
       workspace_id: ws,
       total_count,
       shipped_without_certification_count,
+      production_incidents_count: governance.production_incidents_count,
+      remediation_debt_active: governance.remediation_debt_active,
       limit,
       next_before,
       has_more: !!next_before,
