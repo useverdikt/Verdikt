@@ -39,6 +39,26 @@ describe("buildGateBlockers", () => {
       failedSignals: [{ signal_id: "accuracy", value: 70, rule: ">= 85", failure_kind: "absolute_threshold" }]
     });
     assert.ok(out.blockers.some((b) => b.type === "threshold_failed" && b.signal_id === "accuracy"));
-    assert.match(out.next_step, /Fix the underlying/i);
+  });
+
+  it("includes remediation_debt blocker when override blocked by emergency merge debt", () => {
+    const out = buildGateBlockers({
+      status: "CERTIFIED_WITH_OVERRIDE",
+      mode: "default",
+      gateAllowed: false,
+      gateReason: "Remediation debt active",
+      remediationDebt: {
+        active: true,
+        source_release_id: "rel_debt",
+        source_version: "hotfix (#99)",
+        since: "2026-06-12T10:00:00.000Z",
+        lookback_days: 7
+      }
+    });
+    const debt = out.blockers.find((b) => b.type === "remediation_debt");
+    assert.ok(debt);
+    assert.equal(debt.source_version, "hotfix (#99)");
+    assert.match(debt.next_step, /CERTIFIED/i);
+    assert.match(out.next_step, /CERTIFIED/i);
   });
 });

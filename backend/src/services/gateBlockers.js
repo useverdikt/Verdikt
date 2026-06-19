@@ -11,7 +11,8 @@ function buildGateBlockers({
   gateReason,
   blockingSignals = [],
   missingRequiredSignals = [],
-  failedSignals = []
+  failedSignals = [],
+  remediationDebt = null
 }) {
   if (gateAllowed) {
     return {
@@ -66,6 +67,25 @@ function buildGateBlockers({
         : `Signal "${signalId}" failed quality gate.`,
       next_step:
         "Fix the underlying eval/monitoring issue, re-run CI or integration pull, then check gate again. Adjust thresholds in Settings → Thresholds only if the bar should change."
+    });
+  }
+
+  if (
+    remediationDebt?.active &&
+    status === "CERTIFIED_WITH_OVERRIDE" &&
+    !gateAllowed
+  ) {
+    const version = remediationDebt.source_version || "prior release";
+    push({
+      type: "remediation_debt",
+      code: "remediation_debt_active",
+      source_release_id: remediationDebt.source_release_id || null,
+      source_version: remediationDebt.source_version || null,
+      since: remediationDebt.since || null,
+      lookback_days: remediationDebt.lookback_days ?? null,
+      message: `Remediation debt active from emergency merge without certification (${version}).`,
+      next_step:
+        "Ship the next release as CERTIFIED (no override). Override merges stay blocked until the bypass ages out of the lookback window or you achieve a clean certification."
     });
   }
 
