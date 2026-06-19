@@ -46,14 +46,16 @@ const OUTCOME_META = {
   HEALTHY:  { color: "#22c87a", label: "Healthy" },
   DEGRADED: { color: "#f5a623", label: "Degraded" },
   INCIDENT: { color: "#ef4444", label: "Incident" },
+  INVESTIGATING: { color: "#a78bfa", label: "Investigating" },
   UNKNOWN:  { color: "#7a788b", label: "Unknown" }
 };
 
 function VcsObservationDetail({ signal_deltas = {} }) {
   const rows = [
     ["vcs_reverts", "Revert commits"],
-    ["vcs_hotfixes", "Hotfix commits"],
-    ["vcs_incident_prs", "Incident PRs"]
+    ["vcs_hotfixes", "Hotfix on main"],
+    ["vcs_incident_prs", "Merged incident PRs"],
+    ["vcs_investigating_prs", "Open investigating PRs"]
   ];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
