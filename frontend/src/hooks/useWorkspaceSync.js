@@ -104,6 +104,8 @@ export function useWorkspaceSync(navigate, nav) {
     releasesNextBefore: releasesApi.releasesNextBefore,
     releasesLoadingMore: releasesApi.releasesLoadingMore,
     shippedWithoutCertificationCount: releasesApi.shippedWithoutCertificationCount,
+    productionIncidentsCount: releasesApi.productionIncidentsCount,
+    remediationDebtActive: releasesApi.remediationDebtActive,
     addAudit: auditApi.addAudit,
     openAuditRecord: releasesApi.openAuditRecord,
     loadMoreAudit: auditApi.loadMoreAudit,

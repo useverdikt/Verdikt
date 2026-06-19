@@ -126,9 +126,19 @@
 /* ── STATS ROW ──────────────────────────────────────────────────────────────── */
 .release-redesign .stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   margin-bottom: 24px;
+}
+@media (max-width: 1100px) {
+  .release-redesign .stats-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .release-redesign .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .release-redesign .stat-card {
@@ -146,6 +156,7 @@
 .release-redesign .stat-card:nth-child(3) { animation-delay: .15s; }
 .release-redesign .stat-card:nth-child(4) { animation-delay: .20s; }
 .release-redesign .stat-card:nth-child(5) { animation-delay: .25s; }
+.release-redesign .stat-card:nth-child(6) { animation-delay: .30s; }
 .release-redesign .stat-card:hover { border-color: #243050; }
 .release-redesign .stat-card::after {
   content: '';
@@ -168,6 +179,22 @@
   background: linear-gradient(145deg, rgba(225,29,72,.10), rgba(9,13,20,.95));
 }
 .release-redesign .stat-card.bypass-active .stat-value { color: #fb7185; }
+
+.release-redesign .stat-card.incident-idle .stat-value { color: #94a3b8; }
+.release-redesign .stat-card.incident-active {
+  --rr-glow: rgba(239,68,68,.12);
+  border-color: rgba(239,68,68,.35);
+  background: linear-gradient(145deg, rgba(239,68,68,.08), rgba(9,13,20,.95));
+}
+.release-redesign .stat-card.incident-active .stat-value { color: #ef4444; }
+
+.release-redesign .stat-card.debt-idle .stat-value { color: #94a3b8; }
+.release-redesign .stat-card.debt-active {
+  --rr-glow: rgba(245,158,11,.14);
+  border-color: rgba(245,158,11,.4);
+  background: linear-gradient(145deg, rgba(245,158,11,.10), rgba(9,13,20,.95));
+}
+.release-redesign .stat-card.debt-active .stat-value { color: #f59e0b; }
 
 .release-redesign .stat-label {
   font-family: "JetBrains Mono", monospace;

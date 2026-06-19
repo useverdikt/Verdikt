@@ -105,6 +105,8 @@ export default function App() {
     releasesNextBefore,
     releasesLoadingMore,
     shippedWithoutCertificationCount,
+    productionIncidentsCount,
+    remediationDebtActive,
     loadMoreAudit,
     auditNextBefore,
     auditLoadingMore
@@ -326,6 +328,8 @@ export default function App() {
               loadingMoreReleases={releasesLoadingMore}
               onLoadMoreReleases={loadMoreReleases}
               shippedWithoutCertificationCount={shippedWithoutCertificationCount}
+              productionIncidentsCount={productionIncidentsCount}
+              remediationDebtActive={remediationDebtActive}
               navigate={navigate}
             />
           }
