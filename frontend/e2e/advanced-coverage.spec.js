@@ -144,12 +144,13 @@ test.describe("permission / role matrix", () => {
 
 test.describe("deep widget states", () => {
   test("Production alignment panel renders either empty or metrics state", async ({ page }) => {
-    await page.goto("/intelligence");
+    await page.goto("/intelligence/alignment");
     await waitForSessionGateLocal(page);
+    await expect(page).toHaveURL(/\/intelligence\/alignment$/);
     await expect(page.getByText("Production Alignment", { exact: true }).first()).toBeVisible();
     await expect(
       page.getByText(
-        /Waiting for first alignment|Production data is collected|Prediction accuracy|total releases with feedback|alignment and post-deploy/i
+        /Waiting for first alignment|Production data is collected|Prediction accuracy|total releases with feedback|alignment and post-deploy|Alignment data requires production observation|Production observation is off|View VCS production monitor/i
       ).first()
     ).toBeVisible({ timeout: 15_000 });
   });
