@@ -17,6 +17,7 @@ const INFERRED_OUTCOME_META = {
   HEALTHY:  { color: "#22c87a", icon: "✓" },
   DEGRADED: { color: "#f5a623", icon: "⚠" },
   INCIDENT: { color: "#ef4444", icon: "✗" },
+  INVESTIGATING: { color: "#a78bfa", icon: "◎" },
   UNKNOWN:  { color: "#7a788b", icon: "?" }
 };
 
@@ -66,9 +67,9 @@ export function VcsMonitorPanel({ wsId }) {
     >
       {/* How it works banner */}
       <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: C.raise, border: `1px solid ${C.border}`, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-        <strong style={{ color: C.text }}>How this works:</strong> After every certified verdict, Verdikt automatically opens a 2-hour monitoring window on your connected GitHub/GitLab repo.
-        It scans for <strong style={{ color: C.text }}>revert commits</strong>, <strong style={{ color: C.text }}>hotfix commits</strong>, and <strong style={{ color: C.text }}>incident-labelled PRs</strong>.
-        No pipeline changes. No webhooks. Just connect your VCS integration in settings.
+        <strong style={{ color: C.text }}>How this works:</strong> After each prod merge, Verdikt opens a 2-hour window on your connected repo.
+        <strong style={{ color: C.text }}> Confirmed</strong> signals require impact on <code>main</code> (merged incident PR, revert, or hotfix commit).
+        Open labelled PRs are <strong style={{ color: C.text }}>investigating</strong> only — they do not trigger MISS on their own.
       </div>
 
       {loading && !data ? <Spinner /> : error ? (
@@ -83,7 +84,8 @@ export function VcsMonitorPanel({ wsId }) {
               { label: "Total monitored", value: data.total, color: C.text },
               { label: "Healthy (no activity)", value: byOutcome.HEALTHY ?? 0, color: C.green },
               { label: "Degraded (hotfix)", value: byOutcome.DEGRADED ?? 0, color: C.amber },
-              { label: "Incident (revert / P0)", value: byOutcome.INCIDENT ?? 0, color: C.red },
+              { label: "Investigating (open PR)", value: byOutcome.INVESTIGATING ?? 0, color: "#a78bfa" },
+              { label: "Incident (revert / merged)", value: byOutcome.INCIDENT ?? 0, color: C.red },
               { label: "Active windows", value: active, color: C.amber }
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: C.raise, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px" }}>
@@ -132,7 +134,12 @@ export function VcsMonitorPanel({ wsId }) {
                       <td style={tdStyle}>
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                           {Object.entries(sigs).filter(([k, v]) => typeof v === "number" && v > 0 && k !== "vcs_healthy").map(([k, v]) => {
-                            const signalColor = k === "vcs_reverts" || k === "vcs_incident_prs" ? C.red : C.amber;
+                            const signalColor =
+                              k === "vcs_reverts" || k === "vcs_incident_prs"
+                                ? C.red
+                                : k === "vcs_investigating_prs"
+                                  ? "#a78bfa"
+                                  : C.amber;
                             return (
                               <span key={k} style={{ fontSize: 10, fontFamily: C.mono, color: signalColor, background: signalColor + "15", border: `1px solid ${signalColor}30`, borderRadius: 4, padding: "1px 6px" }}>
                                 {k.replace("vcs_", "")}={v}

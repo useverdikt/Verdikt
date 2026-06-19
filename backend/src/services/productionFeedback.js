@@ -43,7 +43,7 @@ const OUTCOME_CRITERIA = {
     { threshold: 1, label: "Multiple hotfix commits post-deploy", outcome: "INCIDENT" },
     { threshold: 0, label: "Hotfix commit detected post-deploy", outcome: "DEGRADED" }
   ],
-  vcs_incident_prs: [{ threshold: 0, label: "Incident-labelled PR opened post-deploy", outcome: "INCIDENT" }],
+  vcs_incident_prs: [{ threshold: 0, label: "Incident-labelled PR merged to main post-deploy", outcome: "INCIDENT" }],
   vcs_healthy: []
 };
 
@@ -135,6 +135,23 @@ function deriveActualOutcome(postMap) {
   else if (outcomes.includes("DEGRADED")) outcome = "DEGRADED";
   else if (Object.keys(postMap).length > 0) outcome = "HEALTHY";
   else outcome = "UNKNOWN";
+
+  const investigating = postMap.vcs_investigating_prs;
+  if (
+    investigating > 0 &&
+    outcome !== "INCIDENT" &&
+    outcome !== "DEGRADED"
+  ) {
+    outcome = "INVESTIGATING";
+    triggered.push({
+      signal: "vcs_investigating_prs",
+      value: investigating,
+      threshold: 0,
+      label: "Open incident/hotfix PR under investigation (not merged)",
+      outcome: "INVESTIGATING",
+      direction: "above"
+    });
+  }
 
   return { outcome, criteria_triggers: triggered };
 }
@@ -262,6 +279,7 @@ async function runPostAlignmentEffects(releaseId, workspaceId, alignmentResult) 
 
 function deriveAlignment(recommendedVerdict, actualOutcome) {
   if (!recommendedVerdict || actualOutcome === "UNKNOWN") return "UNKNOWN";
+  if (actualOutcome === "INVESTIGATING") return "UNKNOWN";
   const predictedSafe = ["CERTIFIED", "CERTIFIED_WITH_RISK"].includes(recommendedVerdict);
   const predictedRisky = ["UNCERTIFIED", "UNCERTIFIED_NOISY"].includes(recommendedVerdict);
   const actualHealthy = actualOutcome === "HEALTHY";

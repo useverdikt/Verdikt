@@ -99,8 +99,17 @@ export function formatOutcomeDrivers({ outcome_criteria = [], actual_outcome, si
   const vcsReverts = signal_deltas.vcs_reverts?.post ?? 0;
   const vcsHotfixes = signal_deltas.vcs_hotfixes?.post ?? 0;
   const vcsIncidents = signal_deltas.vcs_incident_prs?.post ?? 0;
+  const vcsInvestigating = signal_deltas.vcs_investigating_prs?.post ?? 0;
   const hasVcsObservation =
-    vcsHealthy || vcsReverts > 0 || vcsHotfixes > 0 || vcsIncidents > 0;
+    vcsHealthy || vcsReverts > 0 || vcsHotfixes > 0 || vcsIncidents > 0 || vcsInvestigating > 0;
+
+  if (actual_outcome === "INVESTIGATING" || vcsInvestigating > 0) {
+    return {
+      text: `Investigating — ${vcsInvestigating} open labelled PR(s), not merged`,
+      expandable: vcsInvestigating > 0,
+      detailKind: vcsInvestigating > 0 ? "vcs_summary" : "none"
+    };
+  }
 
   if (actual_outcome === "HEALTHY" && vcsHealthy && vcsReverts === 0 && vcsHotfixes === 0 && vcsIncidents === 0) {
     return {

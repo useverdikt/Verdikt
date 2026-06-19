@@ -16,6 +16,8 @@ const request = require("supertest");
 const { initDatabase, queryOne, queryAll, run } = require("../src/database");
 const { createApp } = require("../src/app");
 const { applyReleaseOverride } = require("../src/services/releaseOverride");
+const { buildReleaseGateResponse } = require("../src/services/releaseGate");
+const { getWorkspaceRemediationDebt } = require("../src/services/remediationDebt");
 const { nowIso } = require("../src/lib/time");
 
 let app;
@@ -310,5 +312,63 @@ describe("bypass merge prod tracking", () => {
     const list = await agent.get(`/api/workspaces/${ws}/releases`).expect(200);
     assert.equal(typeof list.body.shipped_without_certification_count, "number");
     assert.ok(list.body.releases.every((r) => "shipped_without_certification" in r));
+  });
+
+  it("remediation debt blocks override gate after emergency merge", async () => {
+    const email = `bypdebt_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "BYP Debt" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const repo = `BypassDebt${crypto.randomBytes(3).toString("hex")}`;
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+
+    const bypassRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Emergency merge (#9292)", release_type: "model_update", pr_number: 9292 })
+      .expect(201);
+    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+      "UNCERTIFIED",
+      nowIso(),
+      bypassRelease.body.id
+    ]);
+
+    const payload = {
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 9292, base: { ref: "main" } }
+    };
+    const signed = signGithubPayload(payload);
+    await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    const debt = await getWorkspaceRemediationDebt(ws);
+    assert.equal(debt.active, true);
+
+    const overrideRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Follow-up override (#9293)", release_type: "model_update", pr_number: 9293 })
+      .expect(201);
+    await run("UPDATE releases SET status = ? WHERE id = ?", [
+      "CERTIFIED_WITH_OVERRIDE",
+      overrideRelease.body.id
+    ]);
+
+    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [overrideRelease.body.id]);
+    const gate = await buildReleaseGateResponse(rel, { mode: "default" });
+    assert.equal(gate.remediation_debt.active, true);
+    assert.equal(gate.can_merge, false);
+    assert.match(String(gate.gate.reason), /emergency merge/i);
   });
 });

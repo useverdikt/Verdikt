@@ -166,55 +166,69 @@ Use this **after** at least one certified PR has merged to `main`. The goal is t
 | Production observation | Intelligence hub toggle (alignment panel needs it) |
 | A **CERTIFIED** release on `main` | From the smoke PR above — note its release id / version in the app |
 
-VCS monitor opens a **~120 minute window** after prod promotion. During that window Verdikt scans for:
+VCS monitor opens a **~120 minute window** anchored to **prod merge time**. During that window Verdikt scans for:
 
-- Revert commits on `main`
-- Hotfix commits (2+ → INCIDENT; 1 → DEGRADED)
-- PRs opened with labels like `incident`, `p0`, `emergency`, `hotfix`, etc.
+- **Confirmed (can cause MISS):** revert/hotfix commits on `main`; incident-labelled PR **merged** to `main`
+- **Investigating only (no MISS alone):** open incident/hotfix-labelled PR not yet merged
+- **Ignored:** closed-unmerged labelled PRs
 
-### 1. Open the incident follow-up PR
+### 1. Stimulus options (pick one)
+
+**A. Merged hotfix (integrity-first — recommended)**
 
 ```bash
 git checkout main && git pull
-git checkout -b dogfood/incident-flow
-# trivial change — e.g. docs/INCIDENT_FLOW_DOGFOOD.md checklist only
-git push -u origin dogfood/incident-flow
-# open PR to main on GitHub (do not merge unless doing a separate cert test)
+git checkout -b dogfood/hotfix-stimulus
+# tiny fix — commit message should include "hotfix" e.g. "hotfix: doc typo"
+git push -u origin dogfood/hotfix-stimulus
+# open PR, label verdikt:rc + hotfix, certify, MERGE to main during monitor window
 ```
 
-On GitHub, add label **`incident`** (or `p0` / `emergency`) to this PR **while the monitor window for the prior merge is still open**.
+**B. Open investigating PR (soft signal only)**
 
-This PR is the **stimulus** — Verdikt attributes `vcs_incident_prs` to the **merged release**, not this PR's cert window.
+```bash
+git checkout -b dogfood/incident-investigating
+git push -u origin dogfood/incident-investigating
+# open PR, label incident — do NOT merge
+```
+
+Expect prod outcome **INVESTIGATING**, alignment **Unknown** — not MISS.
+
+**C. Merged incident PR (confirmed)**
+
+Open PR with `incident` label, **merge during window** (certify if using gate). Expect **INCIDENT** + **MISS** if prior release was CERTIFIED.
 
 ### 2. Wait for VCS scan (or trigger manually)
 
-- App → release detail for the merged deploy → **VCS Production Monitor** panel
-- Or `GET /api/releases/:releaseId/vcs-monitor`
+- Intelligence → **VCS Production Monitor**
+- Or `POST /api/releases/:releaseId/vcs-monitor/scan`
 
-Expect `vcs_incident_prs >= 1` and inferred outcome **INCIDENT** when the scan picks up the labelled PR.
+| Stimulus | Expected signals | Prod outcome | Alignment (if CERTIFIED deploy) |
+|----------|------------------|--------------|----------------------------------|
+| Open `incident` PR | `vcs_investigating_prs >= 1` | INVESTIGATING | Unknown (not MISS) |
+| Merged `incident` PR | `vcs_incident_prs >= 1` | INCIDENT | MISS |
+| Hotfix commit on main | `vcs_hotfixes >= 1` | DEGRADED or INCIDENT | MISS if 2+ hotfixes |
 
 ### 3. Verify alignment
 
-Intelligence → **Production Health** / alignment table for that release:
+Intelligence → **Production Health** for the **deployed** release (#170 / #171):
 
 | Pre-ship verdict | Post-deploy finding | Expected alignment |
 |------------------|---------------------|--------------------|
-| CERTIFIED | INCIDENT criteria met | **MISS** |
-| UNCERTIFIED + bypass merge | No incident criteria | **CORRECT** (bypass · healthy) |
+| CERTIFIED | INCIDENT (merged/revert) | **MISS** |
+| CERTIFIED | INVESTIGATING only | **Unknown** |
+| UNCERTIFIED + bypass merge | No confirmed incident | **Bypass · healthy** |
 
-### 4. Link incident reference (optional)
+### 4. Remediation debt (emergency merge)
 
-```bash
-curl -sS -X PUT "$BASE/api/releases/$REL_ID/production-signals/incident" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"incident_ref":"https://github.com/useverdikt/Verdikt/pull/NNN"}'
-```
+If a release merged **without certification** (`shipped_without_certification`), the workspace enters **remediation debt** for 7 days:
 
-Or record via MCP `record_outcome` with `label: incident` for calibration.
+- Override merges are **blocked** on subsequent PRs until debt clears
+- Gate response includes `remediation_debt.active: true`
 
-### 5. Close the incident PR
+### 5. Close stimulus PRs
 
-**Do not merge** the incident stimulus PR unless you are intentionally running another cert cycle. Close it after the monitor window records findings.
+Close open investigating PRs without merge when done. Do not use open-unmerged PRs as proof of production incidents.
 
 ### Done criteria (incident flow)
 

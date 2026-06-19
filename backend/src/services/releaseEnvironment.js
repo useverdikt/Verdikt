@@ -8,7 +8,7 @@
 const { run, queryOne } = require("../database");
 const { nowIso } = require("../lib/time");
 const { writeAudit } = require("./audit");
-const { openMonitoringWindow } = require("./vcsMonitor");
+const { refreshMonitoringWindowForProd } = require("./vcsMonitor");
 const { deliverSlackBypassMerge } = require("./slackNotifier");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
 
@@ -92,14 +92,14 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
       }
     });
 
-    // Idempotent: ON CONFLICT DO NOTHING on vcs_monitoring_windows.release_id.
-    await openMonitoringWindow(fresh, 120);
+    // Idempotent refresh: window anchors to prod merge time, not pre-merge cert time.
+    await refreshMonitoringWindowForProd(fresh, 120);
 
     void deliverSlackBypassMerge(fresh, relStatus).catch((err) =>
       console.error("[slack_notifier] bypass merge alert failed:", release.id, err?.message)
     );
   } else if (becomingProd) {
-    await openMonitoringWindow(fresh, 120);
+    await refreshMonitoringWindowForProd(fresh, 120);
   }
 
   return {
