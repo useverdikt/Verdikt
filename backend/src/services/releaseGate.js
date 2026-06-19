@@ -90,7 +90,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     gateReason,
     blockingSignals,
     missingRequiredSignals,
-    failedSignals
+    failedSignals,
+    remediationDebt
   });
 
   const remediation =

@@ -33,8 +33,7 @@ async function getWorkspaceRemediationDebt(workspaceId) {
     source_release_id: row.id,
     source_version: row.version,
     since: row.shipped_without_certification_at,
-    message:
-      "Prior emergency merge without certification — override merges blocked until debt clears or lookback expires."
+    message: `Remediation debt active from emergency merge without certification (${row.version}). Override merges blocked — ship CERTIFIED to recover.`
   };
 }
 

@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
+import RemediationDebtBanner from "../RemediationDebtBanner.jsx";
+import { useRemediationDebt } from "../../../hooks/useRemediationDebt.js";
 
 function useModalLayer(onClose) {
   const closeRef = useRef(onClose);
@@ -39,6 +42,8 @@ export default function OverrideModal({
 }) {
   const titleId = React.useId();
   useModalLayer(onClose);
+  const navigate = useNavigate();
+  const { debt: remediationDebt } = useRemediationDebt(navigate);
   const isMobile = window.innerWidth <= 900;
   const regCtx = useMemo(() => buildRegressionOverrideContext(release.release_deltas), [release.release_deltas, buildRegressionOverrideContext]);
   const [reason, setReason] = useState("");
@@ -62,6 +67,7 @@ export default function OverrideModal({
     <div style={{ position: "fixed", inset: 0, background: "#000000d8", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20, backdropFilter: "blur(4px)" }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="scale-in" style={{ background: C.raise, border: `1px solid ${C.borderL}`, borderRadius: isMobile ? 12 : 18, padding: isMobile ? 16 : 32, maxWidth: regCtx.regressionRows.length ? 620 : 560, width: "100%", boxShadow: "0 32px 100px #00000090", maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto" }}>
         <div style={{ color: C.amber, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", fontFamily: C.mono, marginBottom: 8 }}>OVERRIDE REQUEST — {release.version}</div>
+        <RemediationDebtBanner debt={remediationDebt} compact />
         <h3 id={titleId} style={{ margin: "0 0 10px", fontSize: 20, fontWeight: 800, color: C.text }}>Ship UNCERTIFIED — Override Required</h3>
         <p style={{ margin: "0 0 20px", color: C.muted, fontSize: 13, lineHeight: 1.7 }}>
           This release is UNCERTIFIED. If it ships, it ships as CERTIFIED WITH OVERRIDE - not as certified, not anonymously. The named owner and written justification are permanent and immutable.
