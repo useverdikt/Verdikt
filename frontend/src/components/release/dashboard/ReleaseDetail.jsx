@@ -1,4 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import RemediationDebtBanner from "../../app/RemediationDebtBanner.jsx";
+import { useRemediationDebt } from "../../../hooks/useRemediationDebt.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, canOfferOverride } from "../../../lib/releaseStatus.js";
 import IntegrationPullBanner from "../../IntegrationPullBanner.jsx";
 import {
@@ -43,6 +45,8 @@ export default function ReleaseDetail({
     (typeof release.id === "string" && release.id.startsWith("rel_") ? release.id : null);
   const receivedSignalCount = Object.values(signals).filter((v) => v != null).length;
   const detailPending = isReleaseDetailPending(release);
+  const navigate = useNavigate();
+  const { debt: remediationDebt } = useRemediationDebt(navigate);
 
   const legacyOrdered = getOrderedDetailSignals(signalCategories);
   const ordered =
@@ -207,6 +211,7 @@ export default function ReleaseDetail({
         <ReleaseDetailLoadingSkeleton signalCount={ordered.length} />
       ) : (
         <>
+      <RemediationDebtBanner debt={remediationDebt} compact />
       {!isCollecting && receivedSignalCount > 0 ? (
         <SignalEvidenceBlock release={release} showFlag />
       ) : null}
