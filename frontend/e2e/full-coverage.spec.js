@@ -89,6 +89,14 @@ test.describe("authenticated app shell", () => {
     await expect(page).toHaveURL(/\/intelligence$/);
     await expect(page.getByText(/Intelligence/i).first()).toBeVisible();
     await expect(page.getByText(/Hub/i).first()).toBeVisible();
+    await expect(page.getByRole("navigation", { name: /Intelligence Hub sections/i })).toBeVisible();
+  });
+
+  test("Intelligence Hub sub-route /intelligence/alignment", async ({ page }) => {
+    await page.goto("/intelligence/alignment");
+    await expect(page).toHaveURL(/\/intelligence\/alignment$/);
+    await expect(page.getByText(/Production Alignment/i).first()).toBeVisible();
+    await expect(page).not.toHaveURL(/\/releases$/);
   });
 
   test("email previews /emails", async ({ page }) => {

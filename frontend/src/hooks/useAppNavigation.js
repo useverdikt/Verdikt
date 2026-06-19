@@ -19,7 +19,8 @@ export function useAppNavigation() {
   useEffect(() => {
     const p = location.pathname.replace(/\/$/, "") || "/";
     const known = new Set(["/releases", "/trends", "/thresholds", "/audit", "/escalations"]);
-    if (!known.has(p)) navigate("/releases", { replace: true });
+    const isIntel = p === "/intelligence" || p.startsWith("/intelligence/");
+    if (!known.has(p) && !isIntel) navigate("/releases", { replace: true });
   }, [location.pathname, navigate]);
 
   const nav = useMemo(() => {

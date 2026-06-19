@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { apiGet } from "../../../lib/apiClient.js";
 import { C } from "../theme.js";
 import { btnStyle, thStyle, tdStyle } from "../styles.js";
-import { Badge, Card, Spinner, ErrorState } from "../ui.jsx";
+import { Badge, Card, Spinner, ErrorState, EmptyState } from "../ui.jsx";
 import { panelErrorMessage } from "../panelLoad.js";
 import {
   ALIGNMENT_LEGEND,
@@ -75,7 +75,7 @@ function VcsObservationDetail({ signal_deltas = {} }) {
   );
 }
 
-export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
+export function ProductionHealthPanel({ wsId, prodObservationEnabled, suppressProdObsNotice = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -109,16 +109,22 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
         title="Production Alignment"
         eyebrow="PREDICTION vs REALITY · POWERED BY VCS INFERENCE + OPTIONAL METRICS"
       >
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginBottom: 12 }}>
-          Production alignment and post-deploy feedback require <strong style={{ color: C.text }}>Production observation</strong>{" "}
-          to be enabled. Turn it on under Workspace → General to let Verdikt gather production-side data for this intelligence.
-        </div>
-        <Link
-          to="/settings?section=workspace"
-          style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 600, color: C.accentL, textDecoration: "none" }}
-        >
-          Open Workspace → General
-        </Link>
+        {suppressProdObsNotice ? (
+          <EmptyState msg="Alignment data requires production observation — see the notice above." />
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginBottom: 12 }}>
+              Production alignment and post-deploy feedback require <strong style={{ color: C.text }}>Production observation</strong>{" "}
+              to be enabled. Turn it on under Workspace → General to let Verdikt gather production-side data for this intelligence.
+            </div>
+            <Link
+              to="/settings?section=workspace"
+              style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 600, color: C.accentL, textDecoration: "none" }}
+            >
+              Open Workspace → General
+            </Link>
+          </>
+        )}
       </Card>
     );
   }
@@ -145,6 +151,14 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
         </div>
       }
     >
+      <div style={{ marginBottom: 14, fontSize: 12 }}>
+        <Link
+          to="/intelligence/vcs"
+          style={{ fontFamily: C.mono, fontWeight: 600, color: C.accentL, textDecoration: "none" }}
+        >
+          View VCS production monitor →
+        </Link>
+      </div>
       {loading && !data ? <Spinner /> : error ? (
         <ErrorState msg={error} onRetry={load} />
       ) : total === 0 ? (
@@ -158,7 +172,11 @@ export function ProductionHealthPanel({ wsId, prodObservationEnabled }) {
               No pipeline changes needed.
             </div>
             <div style={{ marginTop: 10, fontSize: 11, color: C.dim }}>
-              → Check the <strong style={{ color: C.accent }}>VCS Production Monitor</strong> panel above to see active windows.
+              → Check the{" "}
+              <Link to="/intelligence/vcs" style={{ color: C.accentL, fontWeight: 600, textDecoration: "none" }}>
+                VCS Production Monitor
+              </Link>{" "}
+              for active windows.
             </div>
           </div>
 
