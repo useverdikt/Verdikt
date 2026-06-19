@@ -3,6 +3,7 @@
 const { run } = require("../../database");
 const { queryOne } = require("../../database");
 const { normalizeWorkspaceSlug, validateWorkspaceSlug } = require("../../lib/workspaceSlug");
+const { getWorkspaceRemediationDebt } = require("../../services/remediationDebt");
 const {
   nowIso,
   writeAudit,
@@ -19,6 +20,13 @@ const {
 } = require("../deps");
 
 module.exports = function registerRoutes(app) {
+app.get("/api/workspaces/:workspaceId/remediation-debt", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
+  try {
+    return res.json(await getWorkspaceRemediationDebt(req.params.workspaceId));
+  } catch (e) {
+    next(e);
+  }
+});
 app.get("/api/workspaces/:workspaceId/policies", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const policy = await getWorkspacePolicy(req.params.workspaceId);

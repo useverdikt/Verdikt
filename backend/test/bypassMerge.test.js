@@ -370,5 +370,8 @@ describe("bypass merge prod tracking", () => {
     assert.equal(gate.remediation_debt.active, true);
     assert.equal(gate.can_merge, false);
     assert.match(String(gate.gate.reason), /emergency merge/i);
+    const debtBlocker = gate.blockers.find((b) => b.type === "remediation_debt");
+    assert.ok(debtBlocker, "gate must include structured remediation_debt blocker");
+    assert.equal(debtBlocker.source_version, "Emergency merge (#9292)");
   });
 });
