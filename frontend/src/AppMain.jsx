@@ -53,16 +53,25 @@ import { useAppNavigation } from "./hooks/useAppNavigation.js";
 import { useAppProject } from "./hooks/useAppProject.js";
 import { useAppToast } from "./hooks/useAppToast.js";
 import { useWorkspaceSync, useAuditRecordOpener } from "./hooks/useWorkspaceSync.js";
+import { WorkspaceProvider } from "./context/WorkspaceProvider.jsx";
 import { useReleaseSidebar } from "./hooks/useReleaseSidebar.js";
 import { useReleaseActions } from "./hooks/useReleaseActions.js";
 import LoopReadinessNudge from "./components/app/LoopReadinessNudge.jsx";
 
 export default function App() {
   const { navigate, nav, isMobile } = useAppNavigation();
+  return (
+    <WorkspaceProvider navigate={navigate} nav={nav}>
+      <AppMainContent navigate={navigate} nav={nav} isMobile={isMobile} />
+    </WorkspaceProvider>
+  );
+}
+
+function AppMainContent({ navigate, nav, isMobile }) {
   const project = useAppProject();
   const { toast, showToast } = useAppToast();
 
-  const workspace = useWorkspaceSync(navigate, nav);
+  const workspace = useWorkspaceSync();
   const {
     wsReady,
     releases,

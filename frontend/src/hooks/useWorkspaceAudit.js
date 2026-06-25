@@ -4,6 +4,9 @@ import { hasBackend } from "../lib/hasBackend.js";
 import { S } from "../lib/workspaceStorage.js";
 import { DEFAULT_AUDIT } from "../lib/workspaceDefaults.js";
 import { mapWorkspaceAuditEventsToLog } from "../lib/auditLogUtils.js";
+import { appQueryClient } from "../queries/queryClient.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
+import { fetchWorkspaceAudit } from "../queries/workspaceFetchers.js";
 
 const AUDIT_PAGE_SIZE = 50;
 
@@ -36,7 +39,11 @@ export function useWorkspaceAudit(navigate, { setApiBanner } = {}) {
     if (!hasBackend()) return;
     try {
       setApiBanner?.(null);
-      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/audit?limit=${AUDIT_PAGE_SIZE}`, { navigate });
+      const wsId = getWorkspaceId();
+      const data = await appQueryClient.fetchQuery({
+        queryKey: workspaceKeys.audit(wsId, { limit: AUDIT_PAGE_SIZE }),
+        queryFn: () => fetchWorkspaceAudit(wsId, navigate, { limit: AUDIT_PAGE_SIZE })
+      });
       applyAuditFromApi(data);
     } catch (e) {
       setApiBanner?.(e.message || "Failed to refresh audit log");

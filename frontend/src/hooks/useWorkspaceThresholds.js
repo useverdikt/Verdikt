@@ -4,6 +4,9 @@ import { hasBackend } from "../lib/hasBackend.js";
 import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
 import { S } from "../lib/workspaceStorage.js";
 import { DEFAULT_THRESHOLDS } from "../lib/workspaceDefaults.js";
+import { appQueryClient } from "../queries/queryClient.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
+import { fetchSignalDefinitions } from "../queries/workspaceFetchers.js";
 
 /** Threshold + workspace signal definition state. */
 export function useWorkspaceThresholds(navigate, nav) {
@@ -48,7 +51,11 @@ export function useWorkspaceThresholds(navigate, nav) {
     setSignalsCatalogLoading(true);
     setSignalsCatalogError(null);
     try {
-      const data = await apiGet(`/api/workspaces/${getWorkspaceId()}/signal-definitions`, { navigate });
+      const wsId = getWorkspaceId();
+      const data = await appQueryClient.fetchQuery({
+        queryKey: workspaceKeys.signalDefinitions(wsId),
+        queryFn: () => fetchSignalDefinitions(wsId, navigate)
+      });
       applySignalCatalogFromApi(data);
     } catch (e) {
       setSignalsCatalogError(e?.message || "Failed to load signal catalog");
