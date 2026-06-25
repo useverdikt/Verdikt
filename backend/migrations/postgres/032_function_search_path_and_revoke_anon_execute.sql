@@ -22,6 +22,9 @@
 --     controllable via SQL migration.
 
 -- 1) Lock the search_path on the append-only audit trigger function.
+--    Drop the dependent trigger first (a function with an attached trigger
+--    cannot be dropped directly), then recreate both.
+DROP TRIGGER IF EXISTS verdikt_audit_events_no_mutate ON audit_events;
 DROP FUNCTION IF EXISTS verdikt_audit_events_immutable();
 
 CREATE OR REPLACE FUNCTION verdikt_audit_events_immutable()
@@ -34,7 +37,6 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS verdikt_audit_events_no_mutate ON audit_events;
 CREATE TRIGGER verdikt_audit_events_no_mutate
   BEFORE UPDATE OR DELETE ON audit_events
   FOR EACH ROW EXECUTE FUNCTION verdikt_audit_events_immutable();
