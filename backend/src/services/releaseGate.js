@@ -61,9 +61,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
   // non-emergency merges can proceed via override or bypass. Emergency
   // releases (e.g. incident_hotfix) are exempt so teams can keep fighting a
   // live incident without being blocked by the circuit breaker.
-  const isEmergencyRelease = sharedPkg.isEmergencyReleaseType
-    ? sharedPkg.isEmergencyReleaseType(release.release_type)
-    : false;
+  const isEmergencyRelease = sharedPkg.isEmergencyReleaseType(release.release_type);
   if (remediationDebt.active && !isEmergencyRelease && release.status !== "CERTIFIED") {
     gateAllowed = false;
     gateReason = remediationDebt.message;
