@@ -12,7 +12,7 @@ const { buildGateCertification } = require("./gateCertification");
 const { buildGateCalibrationContext } = require("./gateCalibrationContext");
 const { getWorkspaceRemediationDebt } = require("./remediationDebt");
 const { getWorkspaceIncidentCorroboration } = require("./incidentContext");
-const sharedPkg = require("../lib/sharedPkg");
+const { isEmergencyReleaseType } = require("../lib/emergencyReleaseType");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -62,7 +62,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
   // non-emergency merges can proceed via override or bypass. Emergency
   // releases (e.g. incident_hotfix) are exempt so teams can keep fighting a
   // live incident without being blocked by the circuit breaker.
-  const isEmergencyRelease = sharedPkg.isEmergencyReleaseType(release.release_type);
+  const isEmergencyRelease = isEmergencyReleaseType(release.release_type);
   const incidentCorroboration = isEmergencyRelease
     ? await getWorkspaceIncidentCorroboration(release.workspace_id)
     : null;

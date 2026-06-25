@@ -6,7 +6,7 @@ const { openReleaseSession } = require("../../services/releaseIdentity");
 const { countShippedWithoutCertification } = require("../../services/releaseEnvironment");
 const { getWorkspaceGovernanceStats } = require("../../services/governanceStats");
 const { getWorkspaceIncidentCorroboration } = require("../../services/incidentContext");
-const sharedPkg = require("../../lib/sharedPkg");
+const { isEmergencyReleaseType } = require("../../lib/emergencyReleaseType");
 const {
   nowIso,
   writeAudit,
@@ -82,7 +82,7 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
       });
     }
 
-    if (sharedPkg.isEmergencyReleaseType(release_type)) {
+    if (isEmergencyReleaseType(release_type)) {
       const incidentCtx = await getWorkspaceIncidentCorroboration(req.params.workspaceId);
       if (!incidentCtx.eligible) {
         return res.status(400).json({
