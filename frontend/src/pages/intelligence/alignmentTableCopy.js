@@ -18,7 +18,7 @@ export const ALIGNMENT_TABLE_HEADERS = [
 ];
 
 export const ALIGNMENT_LEGEND =
-  "Correct — pre-ship read matched prod. Miss — go-ahead call but prod had issues. Over-block — Verdikt advised hold but prod was healthy. Bypass · healthy — merged without certification; prod was fine.";
+  "Correct — pre-ship read matched prod. Miss — go-ahead call but prod had issues. Cautious — Verdikt advised hold but prod was healthy. Bypass · healthy — merged without certification; prod was fine.";
 
 const PRE_SHIP_BY_VERDICT = {
   CERTIFIED: {
@@ -50,7 +50,7 @@ const PRE_SHIP_BY_VERDICT = {
 const ALIGNMENT_BY_KEY = {
   CORRECT: { label: "Correct", color: "#22c87a", icon: "✓", title: "Pre-ship read matched prod outcome" },
   MISS: { label: "Miss", color: "#ef4444", icon: "✗", title: "Go-ahead call but prod degraded or incident" },
-  OVER_BLOCK: { label: "Over-block", color: "#f5a623", icon: "⚠", title: "Hold / do-not-ship call but prod was healthy" },
+  CAUTIOUS: { label: "Cautious", color: "#f5a623", icon: "⚠", title: "Hold / do-not-ship call but prod was healthy" },
   UNKNOWN: { label: "Unknown", color: "#7a788b", icon: "?", title: "Insufficient data to score alignment" }
 };
 
@@ -73,7 +73,7 @@ export function formatPreShipRecommendation(verdict, row = {}) {
 
 export function resolveAlignmentDisplay(alignment, row = {}) {
   const bypassed = row.shipped_without_certification === 1 || row.shipped_without_certification === true;
-  if (alignment === "OVER_BLOCK" && bypassed) {
+  if (alignment === "CAUTIOUS" && bypassed) {
     return {
       label: "Bypass · healthy",
       color: "#e11d48",

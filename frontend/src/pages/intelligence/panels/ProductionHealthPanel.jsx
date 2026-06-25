@@ -229,7 +229,7 @@ Content-Type: application/json
               { label: "Prediction accuracy", value: acc != null ? `${acc}%` : "—", color: accColor },
               { label: "Correct predictions", value: data.correct, color: C.green },
               { label: "Misses (certified → incident)", value: data.misses, color: C.red },
-              { label: "Over-blocks (blocked → healthy)", value: data.over_blocks, color: C.amber }
+              { label: "Cautious blocks (blocked → healthy)", value: data.over_blocks, color: C.amber }
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: C.raise, border: `1px solid ${C.border}`, borderRadius: 9, padding: "12px 14px" }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color, fontFamily: C.mono, lineHeight: 1 }}>{value}</div>
@@ -260,7 +260,7 @@ Content-Type: application/json
                 {pendingCal} threshold suggestion{pendingCal === 1 ? "" : "s"} from production alignment
               </div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 10 }}>
-                MISS and over-block patterns are converted into actionable threshold changes. Review and apply on the Thresholds page — suggest-only, no automatic changes.
+                MISS and cautious-block patterns are converted into actionable threshold changes. Review and apply on the Thresholds page — suggest-only, no automatic changes.
               </div>
               <Link
                 to="/thresholds"
