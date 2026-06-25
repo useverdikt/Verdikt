@@ -49,12 +49,12 @@ const { maybeEnrichVerdictIntelligence } = require("../src/services/llmAssist");
 /** Seed full default threshold rows for unit tests that exercise verdict/delta logic. */
 async function seedDefaultThresholdsForTest(workspaceId) {
   await ensureWorkspaceSeeded(workspaceId);
-  const countRow = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = ?", [workspaceId]);
+  const countRow = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = $1", [workspaceId]);
   if (Number(countRow?.c || 0) > 0) return;
   const defaults = sharedPkg.getDefaultThresholdSeedRows();
   const defaultRequired = new Set(sharedPkg.defaultRequiredSignalIds || []);
   const insertSql =
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5)";
   for (const row of defaults) {
     await run(insertSql, [workspaceId, row[0], row[1], row[2], defaultRequired.has(row[0]) ? 1 : 0]);
   }
@@ -72,8 +72,8 @@ describe("API integration", () => {
   const app = createApp();
 
   async function setUserRole(userId, workspaceId, role) {
-    await run("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
-    await run("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?", [
+    await run("UPDATE users SET role = $1 WHERE id = $2", [role, userId]);
+    await run("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3", [
       role,
       workspaceId,
       userId
@@ -93,7 +93,7 @@ describe("API integration", () => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const row = await queryOne(
-        "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+        "SELECT * FROM audit_events WHERE release_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
         [releaseId, eventType]
       );
       if (row) return row;
@@ -106,14 +106,14 @@ describe("API integration", () => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const row = await queryOne(
-        "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ? AND event_type = ?",
+        "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = $1 AND event_type = $2",
         [releaseId, eventType]
       );
       if (Number(row?.c || 0) >= minCount) return Number(row.c);
       await new Promise((r) => setTimeout(r, 50));
     }
     const row = await queryOne(
-      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ? AND event_type = ?",
+      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = $1 AND event_type = $2",
       [releaseId, eventType]
     );
     return Number(row?.c || 0);
@@ -153,7 +153,7 @@ describe("API integration", () => {
       })
       .expect(201);
     assert.equal(res.body.ok, true);
-    const row = await queryOne("SELECT * FROM waitlist_requests WHERE email = ?", [email]);
+    const row = await queryOne("SELECT * FROM waitlist_requests WHERE email = $1", [email]);
     assert.ok(row);
     assert.equal(row.name, "Pat Example");
     assert.equal(row.company, "Acme Labs");
@@ -216,7 +216,7 @@ describe("API integration", () => {
     const partnerWs = `ws_partner_${crypto.randomBytes(4).toString("hex")}`;
     await ensureWorkspaceSeeded(partnerWs);
     await run(
-      "INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES ($1, $2, $3, $4)",
       [partnerWs, userId, "viewer", nowIso()]
     );
 
@@ -237,9 +237,9 @@ describe("API integration", () => {
     const userId = me.body.user.id;
     const partnerWs = `ws_invite_${crypto.randomBytes(4).toString("hex")}`;
     await ensureWorkspaceSeeded(partnerWs);
-    await run("DELETE FROM workspace_members WHERE user_id = ?", [userId]);
+    await run("DELETE FROM workspace_members WHERE user_id = $1", [userId]);
     await run(
-      "INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES ($1, $2, $3, $4)",
       [partnerWs, userId, "viewer", nowIso()]
     );
 
@@ -260,7 +260,7 @@ describe("API integration", () => {
     const partnerWs = `ws_active_${crypto.randomBytes(4).toString("hex")}`;
     await ensureWorkspaceSeeded(partnerWs);
     await run(
-      "INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
       [
         `rel_${crypto.randomUUID()}`,
         partnerWs,
@@ -500,7 +500,7 @@ describe("API integration", () => {
       .send(signed.raw)
       .expect(201);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [hook.body.release_id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [hook.body.release_id]);
     assert.equal(rel.workspace_id, ws);
     assert.equal(rel.version, `Safety hotfix for policy routing (#${prNumber})`);
     assert.equal(rel.release_type, "safety_patch");
@@ -554,7 +554,7 @@ describe("API integration", () => {
       .send(signed.raw)
       .expect(201);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [hook.body.release_id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [hook.body.release_id]);
     assert.equal(rel.version, `pr/${prNumber}@${sha.slice(0, 8)}`);
     assert.equal(rel.release_type, "model_update");
   });
@@ -615,7 +615,7 @@ describe("API integration", () => {
     assert.equal(second.body.release_id, first.body.release_id);
 
     const count = await queryOne(
-      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND pr_number = ? AND commit_sha = ?",
+      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = $1 AND pr_number = $2 AND commit_sha = $3",
       [ws, prNumber, sha]
     );
     assert.equal(Number(count?.c || 0), 1);
@@ -675,7 +675,7 @@ describe("API integration", () => {
     assert.ok(Array.isArray(details.sources));
 
     const signalCount = await queryOne(
-      "SELECT COUNT(*) AS c FROM signals WHERE release_id = ? AND source = ?",
+      "SELECT COUNT(*) AS c FROM signals WHERE release_id = $1 AND source = $2",
       [hook.body.release_id, "pulled:braintrust"]
     );
     assert.ok(Number(signalCount?.c || 0) > 0);
@@ -749,7 +749,7 @@ describe("API integration", () => {
     assert.ok([200, 201].includes(r1.status), `r1 status ${r1.status}`);
     assert.ok([200, 201].includes(r2.status), `r2 status ${r2.status}`);
     const count = await queryOne(
-      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND pr_number = ? AND commit_sha = ?",
+      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = $1 AND pr_number = $2 AND commit_sha = $3",
       [ws, prNumber, sha]
     );
     assert.equal(Number(count?.c || 0), 1, "exactly one release row should exist");
@@ -801,19 +801,19 @@ describe("API integration", () => {
     assert.equal(hook.body.shipped_without_certification, 1);
     assert.equal(hook.body.environment, "prod");
     const rel = await queryOne(
-      "SELECT environment, shipped_without_certification, shipped_without_certification_at FROM releases WHERE id = ?",
+      "SELECT environment, shipped_without_certification, shipped_without_certification_at FROM releases WHERE id = $1",
       [created.body.id]
     );
     assert.equal(rel.environment, "prod");
     assert.equal(Number(rel.shipped_without_certification), 1);
     assert.ok(rel.shipped_without_certification_at);
     const bypassAudit = await queryOne(
-      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      "SELECT * FROM audit_events WHERE release_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
       [created.body.id, "RELEASE_SHIPPED_WITHOUT_CERTIFICATION"]
     );
     assert.ok(bypassAudit);
     const promotedAudit = await queryOne(
-      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      "SELECT * FROM audit_events WHERE release_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
       [created.body.id, "RELEASE_ENV_PROMOTED"]
     );
     assert.ok(promotedAudit);
@@ -867,13 +867,13 @@ describe("API integration", () => {
     };
 
     await agent.post(`/api/releases/${relId}/signals`).send(payload).expect(200);
-    const auditBefore = await queryOne("SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ?", [relId]);
+    const auditBefore = await queryOne("SELECT COUNT(*) AS c FROM audit_events WHERE release_id = $1", [relId]);
 
     const replay = await agent.post(`/api/releases/${relId}/signals`).send(payload).expect(200);
     assert.equal(replay.body.duplicate, true);
     assert.equal(replay.body.release_id, relId);
 
-    const auditAfter = await queryOne("SELECT COUNT(*) AS c FROM audit_events WHERE release_id = ?", [relId]);
+    const auditAfter = await queryOne("SELECT COUNT(*) AS c FROM audit_events WHERE release_id = $1", [relId]);
     assert.equal(Number(auditAfter.c), Number(auditBefore.c));
   });
 
@@ -950,7 +950,7 @@ describe("API integration", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Certified PR (#7171)", release_type: "model_update", environment: "pre-prod", pr_number: 7171 })
       .expect(201);
-    await run("UPDATE releases SET status = ?, verdict_issued_at = ? WHERE id = ?", ["CERTIFIED", nowIso(), created.body.id]);
+    await run("UPDATE releases SET status = $1, verdict_issued_at = $2 WHERE id = $3", ["CERTIFIED", nowIso(), created.body.id]);
 
     const payload = {
       action: "closed",
@@ -970,7 +970,7 @@ describe("API integration", () => {
     assert.equal(hook.body.promoted, 1);
     assert.equal(hook.body.shipped_without_certification, 0);
     assert.equal(hook.body.environment, "prod");
-    const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
+    const rel = await queryOne("SELECT environment FROM releases WHERE id = $1", [created.body.id]);
     assert.equal(rel.environment, "prod");
   });
 
@@ -1011,13 +1011,13 @@ describe("API integration", () => {
     assert.equal(hook.body.environment, "prod");
 
     const relAfterMerge = await queryOne(
-      "SELECT environment, status, shipped_without_certification FROM releases WHERE id = ?",
+      "SELECT environment, status, shipped_without_certification FROM releases WHERE id = $1",
       [created.body.id]
     );
     assert.equal(relAfterMerge.environment, "prod");
     assert.equal(Number(relAfterMerge.shipped_without_certification), 1);
 
-    await run("UPDATE releases SET collection_deadline = ? WHERE id = ?", [
+    await run("UPDATE releases SET collection_deadline = $1 WHERE id = $2", [
       new Date(Date.now() - 60_000).toISOString(),
       created.body.id
     ]);
@@ -1036,7 +1036,7 @@ describe("API integration", () => {
       .expect(200);
 
     const rel = await queryOne(
-      "SELECT environment, status, shipped_without_certification FROM releases WHERE id = ?",
+      "SELECT environment, status, shipped_without_certification FROM releases WHERE id = $1",
       [created.body.id]
     );
     assert.equal(rel.environment, "prod");
@@ -1058,7 +1058,7 @@ describe("API integration", () => {
       .expect(201);
 
     assert.equal(created.body.environment, "pre-prod");
-    const rel = await queryOne("SELECT environment FROM releases WHERE id = ?", [created.body.id]);
+    const rel = await queryOne("SELECT environment FROM releases WHERE id = $1", [created.body.id]);
     assert.equal(rel.environment, "pre-prod");
   });
 
@@ -1075,7 +1075,7 @@ describe("API integration", () => {
       .send({ version: "v-extend-deadline-1", release_type: "model_update" })
       .expect(201);
     assert.equal(created.body.status, "COLLECTING");
-    const before = await queryOne("SELECT collection_deadline FROM releases WHERE id = ?", [created.body.id]);
+    const before = await queryOne("SELECT collection_deadline FROM releases WHERE id = $1", [created.body.id]);
     assert.ok(before.collection_deadline);
 
     const extended = await agent
@@ -1086,10 +1086,10 @@ describe("API integration", () => {
     assert.equal(extended.body.extend_minutes, 10);
     assert.ok(Date.parse(extended.body.collection_deadline) > Date.parse(before.collection_deadline));
 
-    const after = await queryOne("SELECT collection_deadline FROM releases WHERE id = ?", [created.body.id]);
+    const after = await queryOne("SELECT collection_deadline FROM releases WHERE id = $1", [created.body.id]);
     assert.equal(after.collection_deadline, extended.body.collection_deadline);
 
-    await run("UPDATE releases SET status = 'CERTIFIED' WHERE id = ?", [created.body.id]);
+    await run("UPDATE releases SET status = 'CERTIFIED' WHERE id = $1", [created.body.id]);
     await agent.post(`/api/releases/${created.body.id}/collection-deadline/extend`).send({ extend_minutes: 5 }).expect(409);
   });
 
@@ -1103,7 +1103,7 @@ describe("API integration", () => {
     ];
     for (const table of tables) {
       const row = await queryOne(
-        "SELECT relrowsecurity AS enabled FROM pg_class WHERE oid = ?::regclass",
+        "SELECT relrowsecurity AS enabled FROM pg_class WHERE oid = $1::regclass",
         [`public.${table}`]
       );
       assert.equal(row.enabled, true, `${table} should have RLS enabled`);
@@ -1225,7 +1225,7 @@ describe("API integration", () => {
     const ws = me.body.user.workspace_id;
 
     await run(
-      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, 1) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification",
+      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, 1) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification",
       [ws, "crashrate", 0.1, null]
     );
 
@@ -1316,14 +1316,14 @@ describe("evaluateReleaseAfterSignalIngest (unit)", () => {
     const now = nowIso();
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, collection_deadline)
-       VALUES (?, ?, 'v-empty', 'model_update', 'pre-prod', 'COLLECTING', ?, ?, ?)`,
+       VALUES ($1, $2, 'v-empty', 'model_update', 'pre-prod', 'COLLECTING', $3, $4, $5)`,
       [releaseId, ws, now, now, new Date(Date.now() - 60_000).toISOString()]
     );
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
     const out = await evaluateReleaseAfterSignalIngest(release, releaseId, "test", 0);
     assert.equal(out.status, "UNCERTIFIED");
     assert.ok(out.failed_signals.some((f) => f.failure_kind === "no_ingest"));
-    const row = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
+    const row = await queryOne("SELECT status FROM releases WHERE id = $1", [releaseId]);
     assert.equal(row.status, "UNCERTIFIED");
   });
 
@@ -1335,16 +1335,16 @@ describe("evaluateReleaseAfterSignalIngest (unit)", () => {
     const now = nowIso();
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, verdict_issued_at, collection_deadline)
-       VALUES (?, ?, 'v-re', 'model_update', 'pre-prod', 'UNCERTIFIED', ?, ?, ?, ?)`,
+       VALUES ($1, $2, 'v-re', 'model_update', 'pre-prod', 'UNCERTIFIED', $3, $4, $5, $6)`,
       [releaseId, ws, now, now, firstVerdictAt, new Date(Date.now() - 60_000).toISOString()]
     );
-    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 70, 't', ?)`, [
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 70, 't', $2)`, [
       releaseId,
       now
     ]);
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
     await evaluateReleaseAfterSignalIngest(release, releaseId, "test", 1);
-    const after = await queryOne("SELECT verdict_issued_at FROM releases WHERE id = ?", [releaseId]);
+    const after = await queryOne("SELECT verdict_issued_at FROM releases WHERE id = $1", [releaseId]);
     assert.equal(after.verdict_issued_at, firstVerdictAt);
   });
 });
@@ -1357,10 +1357,10 @@ describe("release intelligence recommendation vs user decision (unit)", () => {
     const now = nowIso();
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, verdict_issued_at, collection_deadline)
-       VALUES (?, ?, 'v1', 'model_update', 'pre-prod', 'CERTIFIED', ?, ?, ?, ?)`,
+       VALUES ($1, $2, 'v1', 'model_update', 'pre-prod', 'CERTIFIED', $3, $4, $5, $6)`,
       [releaseId, ws, now, now, now, now]
     );
-    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 92, 't', ?)`, [
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 92, 't', $2)`, [
       releaseId,
       now
     ]);
@@ -1373,7 +1373,7 @@ describe("release intelligence recommendation vs user decision (unit)", () => {
       details: { failed_signals: [], missing_required_signals: [] }
     });
 
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
     const rec = await computeAndPersistRecommendation(release);
     assert.ok(rec.confidence_score != null);
 
@@ -1404,26 +1404,26 @@ describe("analyzeReleaseDeltas regression (unit)", () => {
 
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at)
-       VALUES (?, ?, 'v0', 'model_update', 'env', 'CERTIFIED', ?, ?)`,
+       VALUES ($1, $2, 'v0', 'model_update', 'env', 'CERTIFIED', $3, $4)`,
       [baseId, ws, oldIso, oldIso]
     );
 
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at)
-       VALUES (?, ?, 'v1', 'model_update', 'env', 'UNCERTIFIED', ?, ?)`,
+       VALUES ($1, $2, 'v1', 'model_update', 'env', 'UNCERTIFIED', $3, $4)`,
       [curId, ws, newIso, newIso]
     );
 
     await run(
-      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 90, 't', ?)`,
+      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 90, 't', $2)`,
       [baseId, oldIso]
     );
     await run(
-      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 78, 't', ?)`,
+      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 78, 't', $2)`,
       [curId, newIso]
     );
 
-    const releaseRow = await queryOne("SELECT * FROM releases WHERE id = ?", [curId]);
+    const releaseRow = await queryOne("SELECT * FROM releases WHERE id = $1", [curId]);
     const latest = { accuracy: 78 };
     const thresholdMap = await getThresholdMap(ws);
     const out = await analyzeReleaseDeltas({
@@ -1621,7 +1621,7 @@ describe("Release identity + SHA correlation", () => {
     assert.equal(second.body.id, first.body.id);
 
     const count = await queryOne(
-      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND commit_sha = ? AND pr_number = ?",
+      "SELECT COUNT(*) AS c FROM releases WHERE workspace_id = $1 AND commit_sha = $2 AND pr_number = $3",
       [ws, sha, prNumber]
     );
     assert.equal(Number(count?.c || 0), 1);
@@ -1674,7 +1674,7 @@ describe("Release identity + SHA correlation", () => {
       .expect(200);
 
     assert.equal(ingest.body.release_id, created.body.id);
-    const sigCount = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = ?", [created.body.id]);
+    const sigCount = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = $1", [created.body.id]);
     assert.ok(Number(sigCount?.c || 0) >= 5);
   });
 
@@ -1905,7 +1905,7 @@ describe("Release identity + SHA correlation", () => {
       .expect(200);
 
     const row = await queryOne(
-      "SELECT event_type, agent_session_id FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      "SELECT event_type, agent_session_id FROM audit_events WHERE release_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
       [rel.body.id, "AGENT_SIGNALS_POSTED"]
     );
     assert.ok(row);
@@ -1998,8 +1998,8 @@ describe("Escalation inbox", () => {
   const app = createApp();
 
   async function setUserRole(userId, workspaceId, role) {
-    await run("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
-    await run("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?", [
+    await run("UPDATE users SET role = $1 WHERE id = $2", [role, userId]);
+    await run("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3", [
       role,
       workspaceId,
       userId
@@ -2093,11 +2093,11 @@ describe("Escalation inbox", () => {
     assert.equal(out.body.escalation.state, "resolved");
     assert.equal(out.body.override.status, "CERTIFIED_WITH_OVERRIDE");
 
-    const release = await queryOne("SELECT status FROM releases WHERE id = ?", [rel.body.id]);
+    const release = await queryOne("SELECT status FROM releases WHERE id = $1", [rel.body.id]);
     assert.equal(release.status, "CERTIFIED_WITH_OVERRIDE");
 
     const audit = await queryOne(
-      "SELECT event_type FROM audit_events WHERE release_id = ? AND event_type = ? ORDER BY id DESC LIMIT 1",
+      "SELECT event_type FROM audit_events WHERE release_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
       [rel.body.id, "ESCALATION_ACKNOWLEDGED_WITH_OVERRIDE"]
     );
     assert.ok(audit);
@@ -2342,7 +2342,7 @@ describe("calibration threshold suggestions", () => {
     await seedDefaultThresholdsForTest(ws);
 
     await run(
-      "UPDATE thresholds SET min_value = ? WHERE workspace_id = ? AND signal_id = ?",
+      "UPDATE thresholds SET min_value = $1 WHERE workspace_id = $2 AND signal_id = $3",
       [90, ws, "accuracy"]
     );
 
@@ -2369,7 +2369,7 @@ describe("calibration threshold suggestions", () => {
       `INSERT INTO outcome_alignments
         (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
          signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         releaseId,
         ws,
@@ -2419,7 +2419,7 @@ describe("calibration threshold suggestions", () => {
       `INSERT INTO outcome_alignments
         (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
          signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         releaseId,
         ws,
@@ -2465,8 +2465,8 @@ describe("calibration threshold suggestions", () => {
     const ws = me.body.user.workspace_id;
     await ensureWorkspaceSeeded(ws);
     await seedDefaultThresholdsForTest(ws);
-    await run("UPDATE workspace_policies SET calibration_mode = 'auto_apply' WHERE workspace_id = ?", [ws]);
-    await run("UPDATE thresholds SET min_value = ? WHERE workspace_id = ? AND signal_id = ?", [90, ws, "accuracy"]);
+    await run("UPDATE workspace_policies SET calibration_mode = 'auto_apply' WHERE workspace_id = $1", [ws]);
+    await run("UPDATE thresholds SET min_value = $1 WHERE workspace_id = $2 AND signal_id = $3", [90, ws, "accuracy"]);
 
     const created = await agent
       .post(`/api/workspaces/${ws}/releases`)
@@ -2479,7 +2479,7 @@ describe("calibration threshold suggestions", () => {
       `INSERT INTO outcome_alignments
         (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
          signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         releaseId,
         ws,
@@ -2530,7 +2530,7 @@ describe("calibration threshold suggestions", () => {
     const ws = me.body.user.workspace_id;
     await ensureWorkspaceSeeded(ws);
     await seedDefaultThresholdsForTest(ws);
-    await run("UPDATE thresholds SET min_value = ? WHERE workspace_id = ? AND signal_id = ?", [90, ws, "accuracy"]);
+    await run("UPDATE thresholds SET min_value = $1 WHERE workspace_id = $2 AND signal_id = $3", [90, ws, "accuracy"]);
 
     const created = await agent
       .post(`/api/workspaces/${ws}/releases`)
@@ -2552,7 +2552,7 @@ describe("calibration threshold suggestions", () => {
         `INSERT INTO outcome_alignments
           (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
            signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT(release_id) DO UPDATE SET alignment = excluded.alignment, over_block_suggestions_json = excluded.over_block_suggestions_json`,
         [
           rel,

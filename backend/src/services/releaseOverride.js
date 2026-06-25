@@ -66,7 +66,7 @@ async function applyReleaseOverride(
   const ts = nowIso();
   await run(
     `INSERT INTO override_history (release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
       release.id,
       approver_type.toUpperCase(),
@@ -77,11 +77,11 @@ async function applyReleaseOverride(
       ts
     ]
   );
-  const existingOv = await queryOne("SELECT created_at FROM overrides WHERE release_id = ?", [release.id]);
+  const existingOv = await queryOne("SELECT created_at FROM overrides WHERE release_id = $1", [release.id]);
   const overrideCreatedAt = existingOv?.created_at || ts;
   await run(
     `INSERT INTO overrides (release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT(release_id) DO UPDATE SET
        approver_type = excluded.approver_type,
        approver_name = excluded.approver_name,
@@ -101,7 +101,7 @@ async function applyReleaseOverride(
     ]
   );
 
-  await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+  await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
     "CERTIFIED_WITH_OVERRIDE",
     nowIso(),
     release.id
@@ -163,7 +163,7 @@ async function applyReleaseOverride(
 
   let overrideCertSig = null;
   try {
-    const freshRelease = await queryOne("SELECT * FROM releases WHERE id = ?", [release.id]);
+    const freshRelease = await queryOne("SELECT * FROM releases WHERE id = $1", [release.id]);
     if (freshRelease) {
       const [thresholdMap, latest] = await Promise.all([
         getThresholdMap(freshRelease.workspace_id),

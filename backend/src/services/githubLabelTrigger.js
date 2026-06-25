@@ -13,7 +13,7 @@ function normalizeLabelName(value) {
 
 async function getGithubLabelTrigger(workspaceId) {
   const row = await queryOne(
-    "SELECT workspace_id, label_name, enabled, created_at, updated_at FROM github_label_triggers WHERE workspace_id = ?",
+    "SELECT workspace_id, label_name, enabled, created_at, updated_at FROM github_label_triggers WHERE workspace_id = $1",
     [workspaceId]
   );
   if (!row) {
@@ -38,7 +38,7 @@ async function setGithubLabelTrigger(workspaceId, { label_name, enabled }) {
   const enabledBit = enabled ? 1 : 0;
   await run(
     `INSERT INTO github_label_triggers (workspace_id, label_name, enabled, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT(workspace_id) DO UPDATE SET
        label_name = excluded.label_name,
        enabled = excluded.enabled,
@@ -54,7 +54,7 @@ async function setGithubLabelTrigger(workspaceId, { label_name, enabled }) {
 }
 
 async function deleteGithubLabelTrigger(workspaceId) {
-  await run("DELETE FROM github_label_triggers WHERE workspace_id = ?", [workspaceId]);
+  await run("DELETE FROM github_label_triggers WHERE workspace_id = $1", [workspaceId]);
 }
 
 module.exports = {

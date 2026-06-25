@@ -5,7 +5,7 @@ const { AI_SIGNAL_IDS } = require("../config");
 const { nowIso } = require("../lib/time");
 
 async function getSignalMapForRelease(releaseId) {
-  const rows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [releaseId]);
+  const rows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [releaseId]);
   const m = {};
   for (const row of rows) m[row.signal_id] = row.value;
   return m;
@@ -14,10 +14,10 @@ async function getSignalMapForRelease(releaseId) {
 async function findBaselineRelease(workspaceId, currentReleaseId, currentCreatedAt) {
   const row = await queryOne(
     `SELECT id FROM releases
-     WHERE workspace_id = ? AND id != ?
+     WHERE workspace_id = $1 AND id != $2
      AND status IN ('CERTIFIED', 'CERTIFIED_WITH_OVERRIDE')
-     AND created_at::timestamptz < ?::timestamptz
-     ORDER BY created_at::timestamptz DESC
+     AND created_at < $3
+     ORDER BY created_at DESC
      LIMIT 1`,
     [workspaceId, currentReleaseId, currentCreatedAt]
   );
@@ -133,10 +133,10 @@ async function persistReleaseDeltas(releaseId, pendingInserts) {
   const insertSql = `INSERT INTO release_deltas (
       release_id, workspace_id, signal_id, baseline_release_id, baseline_value, current_value,
       max_allowed_drop, drop_amount, passed, computed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`;
 
   await transaction(async (tx) => {
-    await tx.run("DELETE FROM release_deltas WHERE release_id = ?", [releaseId]);
+    await tx.run("DELETE FROM release_deltas WHERE release_id = $1", [releaseId]);
     for (const args of pendingInserts) {
       await tx.run(insertSql, args);
     }
@@ -155,7 +155,7 @@ async function listReleaseDeltas(releaseId) {
             rd.drop_amount, rd.passed, rd.computed_at, br.version AS baseline_version
      FROM release_deltas rd
      LEFT JOIN releases br ON br.id = rd.baseline_release_id
-     WHERE rd.release_id = ?
+     WHERE rd.release_id = $1
      ORDER BY rd.signal_id ASC`,
     [releaseId]
   );

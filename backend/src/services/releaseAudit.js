@@ -19,12 +19,12 @@ async function listReleaseAuditEvents(releaseId, { limit = 50, before = null } =
   const beforeId = before != null && String(before).trim() !== "" ? Number(before) : null;
   const params = [releaseId];
   let sql =
-    "SELECT id, event_type, actor_type, actor_name, details_json, created_at FROM audit_events WHERE release_id = ?";
+    "SELECT id, event_type, actor_type, actor_name, details_json, created_at FROM audit_events WHERE release_id = $1";
   if (Number.isFinite(beforeId)) {
-    sql += " AND id < ?";
+    sql += ` AND id < $${params.length + 1}`;
     params.push(beforeId);
   }
-  sql += " ORDER BY id DESC LIMIT ?";
+  sql += ` ORDER BY id DESC LIMIT $${params.length + 1}`;
   params.push(pageLimit);
 
   const rows = await queryAll(sql, params);

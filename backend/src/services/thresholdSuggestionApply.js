@@ -22,7 +22,7 @@ async function applyThresholdSuggestion(workspaceId, sug, auditMeta = {}) {
   const nextMax = sug.direction === "max" ? sug.suggested : currentThreshold.max;
 
   await run(
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value",
     [
       workspaceId,
       sug.signal_id,

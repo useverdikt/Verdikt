@@ -34,7 +34,7 @@ describe("certification snapshots", () => {
     await ensureWorkspaceSeeded(ws);
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, verdict_issued_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [releaseId, ws, "snap-v1", "model_update", "staging", "CERTIFIED", ts, ts, ts]
     );
 
@@ -51,12 +51,12 @@ describe("certification snapshots", () => {
 
     await run(
       `INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification)
-       VALUES (?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value = excluded.min_value`,
       [ws, "accuracy", 95, null, 1]
     );
 
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
     const { certification } = await buildGateContext(release, null);
     const passed = certification?.passed_signals?.find((s) => s.signal_id === "accuracy");
 
@@ -105,14 +105,14 @@ describe("audit hash chain", () => {
     assert.equal(before.broken_chain.length, 0);
 
     const row = await queryOne(
-      `SELECT * FROM audit_events WHERE workspace_id = ? AND event_type = 'TEST_CHAIN_A' ORDER BY id DESC LIMIT 1`,
+      `SELECT * FROM audit_events WHERE workspace_id = $1 AND event_type = 'TEST_CHAIN_A' ORDER BY id DESC LIMIT 1`,
       [ws]
     );
     assert.ok(row?.row_hash);
 
     // Simulate tamper: delete hash so verify reports missing, not silent repair
     try {
-      await run("UPDATE audit_events SET details_json = ? WHERE id = ?", ['{"n":999}', row.id]);
+      await run("UPDATE audit_events SET details_json = $1 WHERE id = $2", ['{"n":999}', row.id]);
       assert.fail("audit_events should be append-only");
     } catch (err) {
       assert.match(String(err.message), /append-only/i);
@@ -124,7 +124,7 @@ describe("audit hash chain", () => {
     await ensureWorkspaceSeeded(ws);
 
     const before = await queryOne(
-      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = ?",
+      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = $1",
       [ws]
     );
     const original = auditIntegrity.computeAuditChainFields;
@@ -149,13 +149,13 @@ describe("audit hash chain", () => {
     }
 
     const after = await queryOne(
-      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = ?",
+      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = $1",
       [ws]
     );
     assert.equal(Number(after.c), Number(before.c), "no row should be inserted on chain failure");
 
     const nullHashes = await queryOne(
-      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = ? AND (prev_hash IS NULL OR row_hash IS NULL)",
+      "SELECT COUNT(*) AS c FROM audit_events WHERE workspace_id = $1 AND (prev_hash IS NULL OR row_hash IS NULL)",
       [ws]
     );
     assert.equal(Number(nullHashes.c), 0);

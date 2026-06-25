@@ -33,7 +33,7 @@ async function extendCollectionDeadline(release, extendMinutes = DEFAULT_COLLECT
   const newDeadline = new Date(newEndMs).toISOString();
   const previousDeadline = release.collection_deadline || null;
 
-  await run("UPDATE releases SET collection_deadline = ?, updated_at = ? WHERE id = ?", [
+  await run("UPDATE releases SET collection_deadline = $1, updated_at = $2 WHERE id = $3", [
     newDeadline,
     nowIso(),
     release.id

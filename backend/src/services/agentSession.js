@@ -30,18 +30,18 @@ async function touchAgentSession({ sessionId, workspaceId, apiKeyId = null, labe
   if (!id || !workspaceId) return null;
   const now = nowIso();
   const metaJson = metadata && typeof metadata === "object" ? JSON.stringify(metadata) : null;
-  const existing = await queryOne("SELECT id FROM agent_sessions WHERE id = ?", [id]);
+  const existing = await queryOne("SELECT id FROM agent_sessions WHERE id = $1", [id]);
   if (existing) {
     await run(
-      `UPDATE agent_sessions SET last_seen_at = ?, api_key_id = COALESCE(?, api_key_id), label = COALESCE(?, label)
-       WHERE id = ? AND workspace_id = ?`,
+      `UPDATE agent_sessions SET last_seen_at = $1, api_key_id = COALESCE($2, api_key_id), label = COALESCE($3, label)
+       WHERE id = $4 AND workspace_id = $5`,
       [now, apiKeyId, label, id, workspaceId]
     );
     return id;
   }
   await run(
     `INSERT INTO agent_sessions (id, workspace_id, api_key_id, label, started_at, last_seen_at, metadata_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [id, workspaceId, apiKeyId, label, now, now, metaJson]
   );
   return id;
@@ -66,16 +66,16 @@ async function resolveAgentSessionForApiKey(req, keyRow) {
 async function getAgentSessionAuditTrail(workspaceId, sessionId, { limit = 100 } = {}) {
   const id = normalizeAgentSessionId(sessionId);
   if (!id) return null;
-  const session = await queryOne("SELECT * FROM agent_sessions WHERE id = ? AND workspace_id = ?", [id, workspaceId]);
+  const session = await queryOne("SELECT * FROM agent_sessions WHERE id = $1 AND workspace_id = $2", [id, workspaceId]);
   if (!session) return null;
   const cap = Math.min(200, Math.max(1, limit));
   const { queryAll } = require("../database");
   const events = await queryAll(
     `SELECT id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id
      FROM audit_events
-     WHERE workspace_id = ? AND agent_session_id = ?
+     WHERE workspace_id = $1 AND agent_session_id = $2
      ORDER BY id ASC
-     LIMIT ?`,
+     LIMIT $3`,
     [workspaceId, id, cap]
   );
   return {

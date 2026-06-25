@@ -46,7 +46,7 @@ function filterThresholdMapForAdopted(thresholdMap, adoptedSignalIds) {
 
 async function getStoredThresholdRow(workspaceId, signalId) {
   const row = await queryOne(
-    "SELECT min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ? AND signal_id = ?",
+    "SELECT min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = $1 AND signal_id = $2",
     [workspaceId, signalId]
   );
   if (!row) return null;
@@ -163,7 +163,7 @@ async function ensureGlobalCatalogSeeded() {
   const libCount = await queryOne("SELECT COUNT(*) AS c FROM signal_library");
   if (Number(libCount?.c || 0) === 0) {
     const insertLib =
-      "INSERT INTO signal_library (signal_id, display_name, description, direction, unit, suggested_threshold_json, source_hints_json, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+      "INSERT INTO signal_library (signal_id, display_name, description, direction, unit, suggested_threshold_json, source_hints_json, category, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)";
     for (const row of buildLibrarySeedRows()) {
       await run(insertLib, [
         row.signal_id,
@@ -180,7 +180,7 @@ async function ensureGlobalCatalogSeeded() {
   }
 
   const insertConn =
-    "INSERT INTO connector_signal_map (source_id, signal_id, display_name, direction, ingest_mode) VALUES (?, ?, ?, ?, ?) ON CONFLICT (source_id, signal_id) DO NOTHING";
+    "INSERT INTO connector_signal_map (source_id, signal_id, display_name, direction, ingest_mode) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (source_id, signal_id) DO NOTHING";
   for (const row of buildConnectorSeedRows()) {
     if (row.signal_id === "*") continue;
     await run(insertConn, [
@@ -240,7 +240,7 @@ function mapLibraryRow(row) {
 
 async function getLibraryEntry(signalId) {
   await ensureGlobalCatalogSeeded();
-  const row = await queryOne("SELECT * FROM signal_library WHERE signal_id = ?", [signalId]);
+  const row = await queryOne("SELECT * FROM signal_library WHERE signal_id = $1", [signalId]);
   return row ? mapLibraryRow(row) : null;
 }
 
@@ -267,7 +267,7 @@ async function listConnectorSignals() {
 async function listWorkspaceDefinitions(workspaceId) {
   await ensureWorkspaceSignalDefinitions(workspaceId);
   const rows = await queryAll(
-    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL ORDER BY signal_id",
+    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = $1 AND detached_at IS NULL ORDER BY signal_id",
     [workspaceId]
   );
   return rows.map(mapDefinitionRow);
@@ -275,7 +275,7 @@ async function listWorkspaceDefinitions(workspaceId) {
 
 async function getWorkspaceDefinition(workspaceId, signalId) {
   const row = await queryOne(
-    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NULL",
+    "SELECT * FROM workspace_signal_definitions WHERE workspace_id = $1 AND signal_id = $2 AND detached_at IS NULL",
     [workspaceId, signalId]
   );
   return mapDefinitionRow(row);
@@ -294,7 +294,7 @@ async function upsertThresholdForDefinition(workspaceId, signalId, { min, max, r
   const required = required_for_certification ? 1 : 0;
   await run(
     `INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification)
-     VALUES (?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (workspace_id, signal_id) DO UPDATE SET
        min_value = COALESCE(excluded.min_value, thresholds.min_value),
        max_value = COALESCE(excluded.max_value, thresholds.max_value),
@@ -324,7 +324,7 @@ async function createWorkspaceDefinition(workspaceId, input, opts = {}) {
   await run(
     `INSERT INTO workspace_signal_definitions
       (id, workspace_id, signal_id, display_name, description, direction, unit, source_id, from_library, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       id,
       workspaceId,
@@ -363,12 +363,12 @@ async function adoptLibrarySignal(workspaceId, signalId, opts = {}) {
 
   const detached = await queryOne(
     `SELECT * FROM workspace_signal_definitions
-     WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NOT NULL`,
+     WHERE workspace_id = $1 AND signal_id = $2 AND detached_at IS NOT NULL`,
     [workspaceId, signalId]
   );
   if (detached) {
     await run(
-      `UPDATE workspace_signal_definitions SET detached_at = NULL WHERE workspace_id = ? AND signal_id = ?`,
+      `UPDATE workspace_signal_definitions SET detached_at = NULL WHERE workspace_id = $1 AND signal_id = $2`,
       [workspaceId, signalId]
     );
     const stored = await getStoredThresholdRow(workspaceId, signalId);
@@ -411,18 +411,18 @@ async function deleteWorkspaceDefinition(workspaceId, signalId) {
     existing.from_library && existing.source_id !== "custom" && existing.source_id !== "zizkadb";
   if (keepThreshold) {
     await run(
-      `UPDATE workspace_signal_definitions SET detached_at = ?::timestamptz
-       WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NULL`,
+      `UPDATE workspace_signal_definitions SET detached_at = $1::timestamptz
+       WHERE workspace_id = $2 AND signal_id = $3 AND detached_at IS NULL`,
       [nowIso(), workspaceId, signalId]
     );
     return;
   }
-  await run("DELETE FROM workspace_signal_definitions WHERE workspace_id = ? AND signal_id = ?", [
+  await run("DELETE FROM workspace_signal_definitions WHERE workspace_id = $1 AND signal_id = $2", [
     workspaceId,
     signalId
   ]);
-  await run("DELETE FROM thresholds WHERE workspace_id = ? AND signal_id = ?", [workspaceId, signalId]);
-  await run("DELETE FROM thresholds WHERE workspace_id = ? AND signal_id = ?", [
+  await run("DELETE FROM thresholds WHERE workspace_id = $1 AND signal_id = $2", [workspaceId, signalId]);
+  await run("DELETE FROM thresholds WHERE workspace_id = $1 AND signal_id = $2", [
     workspaceId,
     `${signalId}_delta`
   ]);
@@ -430,13 +430,13 @@ async function deleteWorkspaceDefinition(workspaceId, signalId) {
 
 async function backfillDefinitionsFromThresholds(workspaceId) {
   const thresholdRows = await queryAll(
-    "SELECT signal_id FROM thresholds WHERE workspace_id = ?",
+    "SELECT signal_id FROM thresholds WHERE workspace_id = $1",
     [workspaceId]
   );
   for (const row of thresholdRows) {
     const detached = await queryOne(
       `SELECT 1 AS ok FROM workspace_signal_definitions
-       WHERE workspace_id = ? AND signal_id = ? AND detached_at IS NOT NULL`,
+       WHERE workspace_id = $1 AND signal_id = $2 AND detached_at IS NOT NULL`,
       [workspaceId, row.signal_id]
     );
     if (detached) continue;
@@ -462,7 +462,7 @@ async function backfillDefinitionsFromThresholds(workspaceId) {
 async function ensureWorkspaceSignalDefinitions(workspaceId) {
   await ensureGlobalCatalogSeeded();
   const countRow = await queryOne(
-    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
+    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = $1 AND detached_at IS NULL",
     [workspaceId]
   );
   if (Number(countRow?.c || 0) > 0) return;
@@ -470,7 +470,7 @@ async function ensureWorkspaceSignalDefinitions(workspaceId) {
   await backfillDefinitionsFromThresholds(workspaceId);
 
   const afterBackfill = await queryOne(
-    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
+    "SELECT COUNT(*) AS c FROM workspace_signal_definitions WHERE workspace_id = $1 AND detached_at IS NULL",
     [workspaceId]
   );
   if (Number(afterBackfill?.c || 0) > 0) return;

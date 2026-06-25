@@ -13,9 +13,9 @@ const LOOP_READINESS_SQL = `
   WITH eligible AS (
     SELECT r.id
     FROM releases r
-    WHERE r.workspace_id = ?
+    WHERE r.workspace_id = $1
       AND r.verdict_issued_at IS NOT NULL
-      AND r.verdict_issued_at::timestamptz <= ?::timestamptz
+      AND r.verdict_issued_at <= $2
   ),
   obs AS (
     SELECT COUNT(DISTINCT po.release_id) AS c
@@ -29,8 +29,8 @@ const LOOP_READINESS_SQL = `
     JOIN eligible e ON e.id = oa.release_id
   )
   SELECT
-    (SELECT COUNT(*) FROM releases WHERE workspace_id = ?) AS total_releases,
-    (SELECT COUNT(*) FROM releases WHERE workspace_id = ? AND verdict_issued_at IS NOT NULL) AS verdict_issued,
+    (SELECT COUNT(*) FROM releases WHERE workspace_id = $3) AS total_releases,
+    (SELECT COUNT(*) FROM releases WHERE workspace_id = $4 AND verdict_issued_at IS NOT NULL) AS verdict_issued,
     (SELECT COUNT(*) FROM eligible) AS eligible_releases,
     (SELECT c FROM obs) AS with_production_observations,
     (SELECT c FROM aligned) AS with_alignment,

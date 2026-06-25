@@ -16,18 +16,18 @@ const DEFAULT_WINDOW_N = 5;
 
 /** Get or create a baseline policy for a workspace. */
 async function getBaselinePolicy(workspaceId) {
-  const row = await queryOne("SELECT * FROM baseline_policies WHERE workspace_id = ?", [workspaceId]);
+  const row = await queryOne("SELECT * FROM baseline_policies WHERE workspace_id = $1", [workspaceId]);
   if (row) return row;
   const ts = nowIso();
   await run(
     `
     INSERT INTO baseline_policies (workspace_id, strategy, window_n, pinned_release_id, created_at, updated_at)
-    VALUES (?, ?, ?, NULL, ?, ?)
+    VALUES ($1, $2, $3, NULL, $4, $5)
     ON CONFLICT(workspace_id) DO NOTHING
   `,
     [workspaceId, DEFAULT_STRATEGY, DEFAULT_WINDOW_N, ts, ts]
   );
-  return queryOne("SELECT * FROM baseline_policies WHERE workspace_id = ?", [workspaceId]);
+  return queryOne("SELECT * FROM baseline_policies WHERE workspace_id = $1", [workspaceId]);
 }
 
 /** Update baseline policy for a workspace. */
@@ -38,7 +38,7 @@ async function setBaselinePolicy(workspaceId, { strategy, window_n, pinned_relea
   await run(
     `
     INSERT INTO baseline_policies (workspace_id, strategy, window_n, pinned_release_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6)
     ON CONFLICT(workspace_id) DO UPDATE SET
       strategy = excluded.strategy,
       window_n = excluded.window_n,
@@ -54,12 +54,12 @@ async function getCertifiedReleaseSignals(workspaceId, currentReleaseId, n) {
   const releases = await queryAll(
     `
     SELECT r.id FROM releases r
-    WHERE r.workspace_id = ?
-      AND r.id != ?
+    WHERE r.workspace_id = $1
+      AND r.id != $2
       AND r.status IN ('CERTIFIED', 'CERTIFIED_WITH_OVERRIDE')
       AND r.verdict_issued_at IS NOT NULL
-    ORDER BY r.verdict_issued_at::timestamptz DESC
-    LIMIT ?
+    ORDER BY r.verdict_issued_at DESC
+    LIMIT $3
   `,
     [workspaceId, currentReleaseId, n]
   );
@@ -68,7 +68,7 @@ async function getCertifiedReleaseSignals(workspaceId, currentReleaseId, n) {
 
   const out = [];
   for (const rel of releases) {
-    const signals = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [rel.id]);
+    const signals = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [rel.id]);
     const map = {};
     for (const s of signals) map[s.signal_id] = s.value;
     out.push({ release_id: rel.id, signals: map });
@@ -104,7 +104,7 @@ async function computeBaseline(workspaceId, currentReleaseId) {
 
   if (strategy === "pinned_golden" && pinned_release_id) {
     const pinnedSignals = await queryAll(
-      "SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC",
+      "SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC",
       [pinned_release_id]
     );
     if (pinnedSignals.length) {
@@ -123,14 +123,14 @@ async function computeBaseline(workspaceId, currentReleaseId) {
     const last = await queryOne(
       `
       SELECT id FROM releases
-      WHERE workspace_id = ? AND id != ? AND status IN ('CERTIFIED','CERTIFIED_WITH_OVERRIDE')
+      WHERE workspace_id = $1 AND id != $2 AND status IN ('CERTIFIED','CERTIFIED_WITH_OVERRIDE')
         AND verdict_issued_at IS NOT NULL
-      ORDER BY verdict_issued_at::timestamptz DESC LIMIT 1
+      ORDER BY verdict_issued_at DESC LIMIT 1
     `,
       [workspaceId, currentReleaseId]
     );
     if (!last) return { strategy, baseline_release_ids: [], signals: {}, health: { score: 0, reason: "no_certified_baseline" } };
-    const sigs = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [last.id]);
+    const sigs = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [last.id]);
     const signals = {};
     for (const s of sigs) signals[s.signal_id] = s.value;
     return {

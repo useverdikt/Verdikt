@@ -18,16 +18,16 @@ const IS_PROD_LIKE =
 async function seedDemoUser() {
   const email = "demo@verdikt.local";
   const password_hash = await bcrypt.hash("demo123", BCRYPT_ROUNDS);
-  const row = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+  const row = await queryOne("SELECT id FROM users WHERE email = $1", [email]);
   if (row) {
     if (!IS_PROD_LIKE) {
-      await run("UPDATE users SET password_hash = ?, role = ? WHERE email = ?", [password_hash, "vp_engineering", email]);
+      await run("UPDATE users SET password_hash = $1, role = $2 WHERE email = $3", [password_hash, "vp_engineering", email]);
     }
     return;
   }
   const id = crypto.randomUUID();
   await run(
-    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
     [id, email, password_hash, "Demo User", "ws_demo", "vp_engineering", nowIso()]
   );
 }
@@ -39,17 +39,17 @@ async function seedScreenshotsGalleryUser() {
   const email = "screenshots@verdikt.local";
   const password_hash = await bcrypt.hash("demo123", BCRYPT_ROUNDS);
   const workspace_id = "ws_screenshots";
-  const row = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+  const row = await queryOne("SELECT id FROM users WHERE email = $1", [email]);
   if (row) {
     if (!IS_PROD_LIKE) {
-      await run("UPDATE users SET password_hash = ? WHERE email = ?", [password_hash, email]);
+      await run("UPDATE users SET password_hash = $1 WHERE email = $2", [password_hash, email]);
     }
     await ensureWorkspaceSeeded(workspace_id);
     return;
   }
   const id = crypto.randomUUID();
   await run(
-    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
     [id, email, password_hash, "Screenshot gallery", workspace_id, "ai_product_lead", nowIso()]
   );
   await ensureWorkspaceSeeded(workspace_id);

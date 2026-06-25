@@ -97,7 +97,7 @@ async function resolveWorkspaceByPublicSlug(slugParam) {
   if (!slug) return null;
   const policy = await queryOne(
     `SELECT * FROM workspace_policies
-     WHERE LOWER(public_slug) = LOWER(?) AND public_slug IS NOT NULL AND public_slug <> ''`,
+     WHERE LOWER(public_slug) = LOWER($1) AND public_slug IS NOT NULL AND public_slug <> ''`,
     [slug]
   );
   if (!policy) return null;
@@ -109,7 +109,7 @@ async function resolveReleaseByVersion(workspaceId, versionParam) {
   if (!version) return null;
   return queryOne(
     `SELECT * FROM releases
-     WHERE workspace_id = ? AND version = ?
+     WHERE workspace_id = $1 AND version = $2
      ORDER BY verdict_issued_at DESC NULLS LAST, created_at DESC
      LIMIT 1`,
     [workspaceId, version]
@@ -222,7 +222,7 @@ async function getPublicCertRecord(slugParam, versionParam) {
 
   const [intelligence, override, signature, thresholdMap, latest, definitions] = await Promise.all([
     getReleaseIntelligence(release.id),
-    queryOne("SELECT * FROM overrides WHERE release_id = ?", [release.id]),
+    queryOne("SELECT * FROM overrides WHERE release_id = $1", [release.id]),
     getCertSignaturePublic(release.id),
     getThresholdMap(release.workspace_id),
     getLatestSignalMap(release.id),

@@ -62,12 +62,12 @@ function validateSignalPayload(rawSignals) {
 
 const INSERT_SCHEMA_SQL = `
   INSERT INTO signal_schema (workspace_id, signal_id, aliases_json, required, created_at)
-  VALUES (?, ?, ?, ?, ?)
+  VALUES ($1, $2, $3, $4, $5)
   ON CONFLICT(workspace_id, signal_id) DO NOTHING
 `;
 
 async function ensureSignalSchema(workspaceId) {
-  const existingRows = await queryAll("SELECT signal_id FROM signal_schema WHERE workspace_id = ?", [workspaceId]);
+  const existingRows = await queryAll("SELECT signal_id FROM signal_schema WHERE workspace_id = $1", [workspaceId]);
   const existing = new Set(existingRows.map((r) => r.signal_id));
   const now = nowIso();
   const toInsert = [...KNOWN_SIGNAL_IDS].filter((id) => !existing.has(id));
@@ -82,7 +82,7 @@ async function ensureSignalSchema(workspaceId) {
 
 async function getSignalSchema(workspaceId) {
   await ensureSignalSchema(workspaceId);
-  return queryAll("SELECT * FROM signal_schema WHERE workspace_id = ?", [workspaceId]);
+  return queryAll("SELECT * FROM signal_schema WHERE workspace_id = $1", [workspaceId]);
 }
 
 module.exports = { validateSignalPayload, ensureSignalSchema, getSignalSchema };

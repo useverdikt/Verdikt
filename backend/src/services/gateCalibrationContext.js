@@ -69,7 +69,7 @@ async function buildGateCalibrationContext(workspaceId) {
       `SELECT oa.release_id, oa.alignment, oa.actual_outcome, oa.computed_at, r.version
        FROM outcome_alignments oa
        JOIN releases r ON r.id = oa.release_id
-       WHERE oa.workspace_id = ? AND oa.alignment IN ('MISS', 'CAUTIOUS')
+       WHERE oa.workspace_id = $1 AND oa.alignment IN ('MISS', 'CAUTIOUS')
        ORDER BY oa.computed_at DESC
        LIMIT 5`,
       [workspaceId]

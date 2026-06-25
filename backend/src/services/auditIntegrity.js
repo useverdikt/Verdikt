@@ -33,7 +33,7 @@ function computeAuditRowHash(row, prevHash = GENESIS) {
 async function computeAuditChainFields(workspaceId, row) {
   const last = await queryOne(
     `SELECT row_hash FROM audit_events
-     WHERE workspace_id = ? AND row_hash IS NOT NULL
+     WHERE workspace_id = $1 AND row_hash IS NOT NULL
      ORDER BY id DESC LIMIT 1`,
     [workspaceId]
   );
@@ -47,7 +47,7 @@ async function computeAuditChainFields(workspaceId, row) {
  */
 async function verifyAuditIntegrity(workspaceId = null) {
   const rows = workspaceId
-    ? await queryAll("SELECT * FROM audit_events WHERE workspace_id = ? ORDER BY id ASC", [workspaceId])
+    ? await queryAll("SELECT * FROM audit_events WHERE workspace_id = $1 ORDER BY id ASC", [workspaceId])
     : await queryAll("SELECT * FROM audit_events ORDER BY workspace_id ASC, id ASC");
 
   let ok = 0;

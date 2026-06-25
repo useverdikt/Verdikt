@@ -32,20 +32,20 @@ function deltaRowPassedIntel(row) {
 async function getReleaseDeltaRowForIntel(releaseId, signalId) {
   return queryOne(
     `SELECT passed, baseline_value, drop_amount, baseline_release_id, current_value, max_allowed_drop
-     FROM release_deltas WHERE release_id = ? AND signal_id = ?`,
+     FROM release_deltas WHERE release_id = $1 AND signal_id = $2`,
     [releaseId, signalId]
   );
 }
 
 async function listPriorReleaseMetasForIntel(workspaceId, releaseType, currentReleaseId, limit) {
-  const cur = await queryOne("SELECT created_at FROM releases WHERE id = ?", [currentReleaseId]);
+  const cur = await queryOne("SELECT created_at FROM releases WHERE id = $1", [currentReleaseId]);
   if (!cur?.created_at) return [];
   return queryAll(
     `SELECT id, version, created_at FROM releases
-     WHERE workspace_id = ? AND release_type = ? AND id != ?
-     AND created_at::timestamptz < ?::timestamptz
-     ORDER BY created_at::timestamptz DESC
-     LIMIT ?`,
+     WHERE workspace_id = $1 AND release_type = $2 AND id != $3
+     AND created_at < $4
+     ORDER BY created_at DESC
+     LIMIT $5`,
     [workspaceId, releaseType, currentReleaseId, cur.created_at, limit]
   );
 }
@@ -212,8 +212,8 @@ async function buildDeterministicVerdictIntelligence({
   const prevRows = await queryAll(
     `SELECT id, version, status, release_type, created_at
      FROM releases
-     WHERE workspace_id = ? AND release_type = ? AND id != ?
-     ORDER BY created_at::timestamptz DESC
+     WHERE workspace_id = $1 AND release_type = $2 AND id != $3
+     ORDER BY created_at DESC
      LIMIT 5`,
     [release.workspace_id, release.release_type, release.id]
   );
@@ -270,7 +270,7 @@ function buildIntelligenceTrace({ releaseId, workspaceId, releaseType, output })
 
 async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}) {
   const row = await queryOne(
-    "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at FROM release_intelligence WHERE release_id = ?",
+    "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at FROM release_intelligence WHERE release_id = $1",
     [releaseId]
   );
   const createdAt = row?.created_at || nowIso();
@@ -283,7 +283,7 @@ async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}) {
   const outcomeJson = patch.outcome !== undefined ? JSON.stringify(patch.outcome) : row?.outcome_json || null;
   await run(
     `INSERT INTO release_intelligence (release_id, workspace_id, verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT(release_id) DO UPDATE SET
        workspace_id = excluded.workspace_id,
        verdict_json = excluded.verdict_json,
@@ -340,7 +340,7 @@ function parseRecommendationBlob(recommendationRaw, decisionRaw) {
 
 async function getReleaseIntelligence(releaseId) {
   const row = await queryOne(
-    "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at FROM release_intelligence WHERE release_id = ?",
+    "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at FROM release_intelligence WHERE release_id = $1",
     [releaseId]
   );
   if (!row) return null;
