@@ -51,6 +51,12 @@ test("self_heal action: next_step references remediation fields", () => {
   assert.ok(out.agent_guidance.next_step.includes("remediation"));
 });
 
+test("recover_certification action: next_step references CERTIFIED recovery", () => {
+  const out = formatGateForAgent({ action: "recover_certification", gate: { exit_code: 1 } });
+  assert.equal(out.agent_guidance.action, "recover_certification");
+  assert.ok(out.agent_guidance.next_step.toLowerCase().includes("certified"));
+});
+
 // ── collecting action ─────────────────────────────────────────────────────────
 
 test("collecting action: next_step tells agent to poll", () => {

@@ -13,7 +13,7 @@ const server = new McpServer(
   },
   {
     instructions:
-      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | escalate. Poll while collecting; escalate when blocked and self-heal is not possible."
+      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | recover_certification | escalate. Poll while collecting; recover_certification when remediation debt blocks non-emergency merges; escalate when blocked and self-heal is not possible."
   }
 );
 
@@ -24,9 +24,9 @@ server.registerTool(
     inputSchema: {
       version: z.string().describe("Release version or identifier (e.g. model-v2.1)"),
       release_type: z
-        .enum(["prompt_update", "model_patch", "safety_patch", "policy_change", "model_update"])
+        .enum(["prompt_update", "model_patch", "safety_patch", "policy_change", "model_update", "incident_hotfix"])
         .optional()
-        .describe("Type of AI release"),
+        .describe("Type of AI release. incident_hotfix requires active incident context (remediation debt, VCS INVESTIGATING/INCIDENT, or confirmed prod INCIDENT) and is exempt from remediation debt gate blocks."),
       commit_sha: z.string().optional().describe("Git commit SHA (full or 7+ chars) — required for production"),
       pr_number: z.number().int().optional().describe("Pull request number"),
       github_owner: z.string().optional().describe("GitHub org or user (production anchor)"),
@@ -98,7 +98,7 @@ server.registerTool(
   "check_gate",
   {
     description:
-      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | escalate). Poll on collecting/self_heal; do not fail on the first check while signals are in flight.",
+      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | recover_certification | escalate). Poll on collecting/self_heal; recover_certification when remediation debt blocks; do not fail on the first check while signals are in flight.",
     inputSchema: {
       release_id: z.string(),
       mode: z.enum(["default", "strict"]).optional().describe("strict requires CERTIFIED without override")

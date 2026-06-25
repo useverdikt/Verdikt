@@ -23,6 +23,14 @@ function getAllowedReleaseTypesSet() {
   return new Set(raw.allowedReleaseTypes);
 }
 
+function getEmergencyReleaseTypesSet() {
+  return new Set(raw.emergencyReleaseTypes || []);
+}
+
+function isEmergencyReleaseType(releaseType) {
+  return getEmergencyReleaseTypesSet().has(String(releaseType || ""));
+}
+
 function getDefaultThresholds() {
   return { ...raw.defaultThresholds };
 }
@@ -90,6 +98,8 @@ module.exports = Object.assign(
     normaliseSignalKey,
     getAllowedReleaseTypes,
     getAllowedReleaseTypesSet,
+    getEmergencyReleaseTypesSet,
+    isEmergencyReleaseType,
     getDefaultThresholds,
     getDefaultThresholdSeedRows,
     getAiSignalIds,

@@ -6,10 +6,11 @@ const DEBT_LOOKBACK_DAYS = 7;
 
 /**
  * Workspace carries remediation debt after an emergency merge (shipped without certification).
- * Next releases cannot merge on override until debt clears.
+ * Debt clears when a clean CERTIFIED prod release ships after the bypass, or when the
+ * lookback window expires.
  */
 async function getWorkspaceRemediationDebt(workspaceId) {
-  const row = await queryOne(
+  const bypass = await queryOne(
     `
     SELECT id, version, shipped_without_certification_at
     FROM releases
@@ -23,17 +24,45 @@ async function getWorkspaceRemediationDebt(workspaceId) {
     [workspaceId]
   );
 
-  if (!row) {
+  if (!bypass) {
     return { active: false, lookback_days: DEBT_LOOKBACK_DAYS };
+  }
+
+  const recovery = await queryOne(
+    `
+    SELECT id, version, verdict_issued_at, updated_at
+    FROM releases
+    WHERE workspace_id = ?
+      AND status = 'CERTIFIED'
+      AND environment = 'prod'
+      AND COALESCE(shipped_without_certification, 0) = 0
+      AND COALESCE(verdict_issued_at, updated_at)::timestamptz >= ?::timestamptz
+    ORDER BY COALESCE(verdict_issued_at, updated_at)::timestamptz DESC
+    LIMIT 1
+  `,
+    [workspaceId, bypass.shipped_without_certification_at]
+  );
+
+  if (recovery) {
+    return {
+      active: false,
+      lookback_days: DEBT_LOOKBACK_DAYS,
+      cleared: true,
+      cleared_by_release_id: recovery.id,
+      cleared_by_version: recovery.version,
+      source_release_id: bypass.id,
+      source_version: bypass.version,
+      since: bypass.shipped_without_certification_at
+    };
   }
 
   return {
     active: true,
     lookback_days: DEBT_LOOKBACK_DAYS,
-    source_release_id: row.id,
-    source_version: row.version,
-    since: row.shipped_without_certification_at,
-    message: `Remediation debt active from emergency merge without certification (${row.version}). Override merges blocked — ship CERTIFIED to recover.`
+    source_release_id: bypass.id,
+    source_version: bypass.version,
+    since: bypass.shipped_without_certification_at,
+    message: `Remediation debt active from emergency merge without certification (${bypass.version}). Non-emergency merges blocked — ship a clean CERTIFIED prod release to recover.`
   };
 }
 

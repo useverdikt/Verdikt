@@ -108,7 +108,8 @@ export const RTYPES = [
   { id: "model_patch", label: "Model Patch", icon: "⊘", reg: "wav" },
   { id: "safety_patch", label: "Safety Hotfix", icon: "⚡", reg: "wav" },
   { id: "policy_change", label: "Routing / Policy Change", icon: "◎", reg: "dis" },
-  { id: "model_update", label: "Model Version Update", icon: "◐", reg: "wav" }
+  { id: "model_update", label: "Model Version Update", icon: "◐", reg: "wav" },
+  { id: "incident_hotfix", label: "Incident Hotfix", icon: "🚑", reg: "wav" }
 ];
 
 export const CATS = [

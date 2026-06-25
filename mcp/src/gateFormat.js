@@ -8,6 +8,8 @@ export function formatGateForAgent(out) {
       "Signals still arriving. Poll check_gate again — do not treat as failure during the collection grace window.",
     self_heal:
       "Do not merge. Read remediation (summary, failures, suggested_actions) for workspace-specific context, fix root cause, re-post signals if needed, then check_gate again.",
+    recover_certification:
+      "Do not merge. Remediation debt is active — ship a clean CERTIFIED prod release (no override/bypass) to clear the circuit breaker, or use incident_hotfix during corroborated incident context.",
     escalate: "Do not merge. Call escalate tool; wait for human override in Escalations inbox."
   };
   return {

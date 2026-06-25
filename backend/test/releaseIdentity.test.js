@@ -53,6 +53,19 @@ describe("computeGateAction", () => {
       "escalate"
     );
   });
+
+  it("returns recover_certification when blocked by remediation debt", () => {
+    assert.equal(
+      computeGateAction({
+        status: "CERTIFIED_WITH_OVERRIDE",
+        gateAllowed: false,
+        blockingSignals: [],
+        missingRequiredSignals: [],
+        blockedByRemediationDebt: true
+      }),
+      "recover_certification"
+    );
+  });
 });
 
 describe("computeCollectionAgeMs", () => {
