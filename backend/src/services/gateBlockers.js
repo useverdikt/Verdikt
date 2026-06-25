@@ -12,7 +12,8 @@ function buildGateBlockers({
   blockingSignals = [],
   missingRequiredSignals = [],
   failedSignals = [],
-  remediationDebt = null
+  remediationDebt = null,
+  isEmergencyRelease = false
 }) {
   if (gateAllowed) {
     return {
@@ -72,7 +73,8 @@ function buildGateBlockers({
 
   if (
     remediationDebt?.active &&
-    status === "CERTIFIED_WITH_OVERRIDE" &&
+    !isEmergencyRelease &&
+    status !== "CERTIFIED" &&
     !gateAllowed
   ) {
     const version = remediationDebt.source_version || "prior release";
@@ -83,9 +85,9 @@ function buildGateBlockers({
       source_version: remediationDebt.source_version || null,
       since: remediationDebt.since || null,
       lookback_days: remediationDebt.lookback_days ?? null,
-      message: `Remediation debt active from emergency merge without certification (${version}).`,
+      message: `Remediation debt active from emergency merge without certification (${version}). Non-emergency merges are blocked until a clean CERTIFIED prod release clears the debt.`,
       next_step:
-        "Ship the next release as CERTIFIED (no override). Override merges stay blocked until the bypass ages out of the lookback window or you achieve a clean certification."
+        "Ship the next non-emergency release as CERTIFIED to prod (no override/bypass). Emergency (incident_hotfix) releases remain allowed during active incident context."
     });
   }
 

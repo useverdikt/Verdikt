@@ -16,7 +16,8 @@ const RELEASE_TYPE_LABELS = {
   model_patch: "Model Patch",
   safety_patch: "Safety Patch",
   policy_change: "Policy Change",
-  model_update: "Model Update"
+  model_update: "Model Update",
+  incident_hotfix: "Incident Hotfix"
 };
 
 const SOURCE_GROUP_LABELS = {
