@@ -3,7 +3,7 @@
 /**
  * calibrationSuggestions.js
  *
- * Turns production alignment rows (MISS / OVER_BLOCK) into threshold suggestions
+ * Turns production alignment rows (MISS / CAUTIOUS) into threshold suggestions
  * compatible with the existing threshold-suggestions apply/dismiss API.
  *
  * Suggest-only: humans apply on /thresholds; next check_gate reads updated thresholds.
@@ -42,12 +42,12 @@ function mapOverBlockRawToSuggestion(workspaceId, alignment, raw) {
     reason: raw.rationale || `Production was healthy after ${alignment.version || "release"} was blocked — consider loosening this threshold.`,
     fail_rate: 0,
     source: "prod_alignment",
-    alignment: "OVER_BLOCK",
+    alignment: "CAUTIOUS",
     release_id: alignment.release_id,
     release_version: alignment.version || null,
     basis_window: {
       type: "prod_alignment",
-      alignment: "OVER_BLOCK",
+      alignment: "CAUTIOUS",
       release_id: alignment.release_id,
       computed_at: alignment.computed_at
     }
@@ -138,7 +138,7 @@ async function buildCalibrationThresholdSuggestions(workspaceId) {
       `SELECT oa.*, r.version
        FROM outcome_alignments oa
        JOIN releases r ON r.id = oa.release_id
-       WHERE oa.workspace_id = ? AND oa.alignment IN ('MISS', 'OVER_BLOCK')
+       WHERE oa.workspace_id = ? AND oa.alignment IN ('MISS', 'CAUTIOUS')
        ORDER BY oa.computed_at DESC
        LIMIT 40`,
       [workspaceId]
@@ -150,7 +150,7 @@ async function buildCalibrationThresholdSuggestions(workspaceId) {
   const byKey = new Map();
 
   for (const alignment of alignments) {
-    if (alignment.alignment === "OVER_BLOCK") {
+    if (alignment.alignment === "CAUTIOUS") {
       const rawList = safeJsonParse(alignment.over_block_suggestions_json, []);
       for (const raw of rawList) {
         const sug = mapOverBlockRawToSuggestion(workspaceId, alignment, raw);

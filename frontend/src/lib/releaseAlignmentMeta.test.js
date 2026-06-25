@@ -5,7 +5,7 @@ describe("releaseAlignmentMeta", () => {
   it("maps backend alignment values to UI slugs", () => {
     expect(mapBackendAlignmentToUi("CORRECT")).toBe("correct");
     expect(mapBackendAlignmentToUi("MISS")).toBe("miss");
-    expect(mapBackendAlignmentToUi("OVER_BLOCK")).toBe("uncertified");
+    expect(mapBackendAlignmentToUi("CAUTIOUS")).toBe("uncertified");
     expect(mapBackendAlignmentToUi("UNKNOWN")).toBe("uncertified");
     expect(mapBackendAlignmentToUi(null)).toBe("uncertified");
   });

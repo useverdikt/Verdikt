@@ -337,7 +337,7 @@ export default function ThresholdsView({
         <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.raise }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Threshold suggestions</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-            Unified inbox: prod alignment (MISS / over-block) and signal-history analysis. Apply or dismiss here — next gate uses updated thresholds.
+            Unified inbox: prod alignment (MISS / cautious) and signal-history analysis. Apply or dismiss here — next gate uses updated thresholds.
           </div>
           {hasBackend() && canAct(currentUser) ? (
             <label
@@ -366,7 +366,7 @@ export default function ThresholdsView({
                   Automatically apply production calibration suggestions
                 </span>
                 <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
-                  Off by default. When enabled, MISS and over-block suggestions from production are applied without manual review — signal-history suggestions still require Apply.
+                  Off by default. When enabled, MISS and cautious suggestions from production are applied without manual review — signal-history suggestions still require Apply.
                 </span>
               </span>
             </label>
@@ -399,7 +399,7 @@ export default function ThresholdsView({
                           border: `1px solid ${s.alignment === "MISS" ? C.red : C.amber}30`
                         }}
                       >
-                        Prod {s.alignment === "MISS" ? "miss" : "over-block"}
+                        Prod {s.alignment === "MISS" ? "miss" : "cautious"}
                         {s.release_version ? ` · ${s.release_version}` : ""}
                       </span>
                     )}

@@ -2331,7 +2331,7 @@ describe("Workspace signal definitions", () => {
 describe("calibration threshold suggestions", () => {
   const app = createApp();
 
-  it("OVER_BLOCK alignment appears in threshold-suggestions and apply updates thresholds", async () => {
+  it("CAUTIOUS alignment appears in threshold-suggestions and apply updates thresholds", async () => {
     const email = `cal_apply_${crypto.randomBytes(4).toString("hex")}@test.local`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Apply" }).expect(200);
@@ -2375,7 +2375,7 @@ describe("calibration threshold suggestions", () => {
         ws,
         "UNCERTIFIED",
         "HEALTHY",
-        "OVER_BLOCK",
+        "CAUTIOUS",
         "{}",
         "[]",
         overBlockJson,
@@ -2389,7 +2389,7 @@ describe("calibration threshold suggestions", () => {
       (s) => s.source === "prod_alignment" && s.signal_id === "accuracy" && s.direction === "min"
     );
     assert.ok(cal, "prod alignment suggestion should appear in threshold-suggestions");
-    assert.equal(cal.alignment, "OVER_BLOCK");
+    assert.equal(cal.alignment, "CAUTIOUS");
     assert.equal(cal.suggested, 85.5);
 
     await agent.post(`/api/workspaces/${ws}/threshold-suggestions/${encodeURIComponent(cal.id)}/apply`).expect(200);
@@ -2425,7 +2425,7 @@ describe("calibration threshold suggestions", () => {
         ws,
         "UNCERTIFIED",
         "HEALTHY",
-        "OVER_BLOCK",
+        "CAUTIOUS",
         "{}",
         "[]",
         JSON.stringify([
@@ -2456,7 +2456,7 @@ describe("calibration threshold suggestions", () => {
     assert.equal(gate.body.calibration.mode, "suggest_only");
   });
 
-  it("auto_apply policy applies OVER_BLOCK prod suggestions via calibrationAutoApply", async () => {
+  it("auto_apply policy applies CAUTIOUS prod suggestions via calibrationAutoApply", async () => {
     const email = `cal_auto_${crypto.randomBytes(4).toString("hex")}@test.local`;
     const agent = request.agent(app);
     await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Auto" }).expect(200);
@@ -2485,7 +2485,7 @@ describe("calibration threshold suggestions", () => {
         ws,
         "UNCERTIFIED",
         "HEALTHY",
-        "OVER_BLOCK",
+        "CAUTIOUS",
         "{}",
         "[]",
         JSON.stringify([
@@ -2503,7 +2503,7 @@ describe("calibration threshold suggestions", () => {
     );
 
     const { maybeAutoApplyCalibrationSuggestions } = require("../src/services/calibrationAutoApply");
-    const result = await maybeAutoApplyCalibrationSuggestions(ws, releaseId, "OVER_BLOCK");
+    const result = await maybeAutoApplyCalibrationSuggestions(ws, releaseId, "CAUTIOUS");
     assert.ok(result.applied.length >= 1, "auto_apply should apply prod suggestion");
 
     const thresh = await agent.get(`/api/workspaces/${ws}/thresholds`).expect(200);
@@ -2559,7 +2559,7 @@ describe("calibration threshold suggestions", () => {
           ws,
           "UNCERTIFIED",
           "HEALTHY",
-          "OVER_BLOCK",
+          "CAUTIOUS",
           "{}",
           "[]",
           JSON.stringify([

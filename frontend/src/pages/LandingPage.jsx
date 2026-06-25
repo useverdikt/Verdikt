@@ -317,7 +317,7 @@ export default memo(function LandingPage() {
               <div className="step-tag align">Align</div>
               <div className="step-title">Validate</div>
               <div className="step-body">
-                Post-deploy: scored <strong>CORRECT</strong>, <strong>MISS</strong>, or <strong>OVER_BLOCK</strong> —
+                Post-deploy: scored <strong>CORRECT</strong>, <strong>MISS</strong>, or <strong>CAUTIOUS</strong> —
                 then fed into threshold suggestions for the next release.
               </div>
             </div>
@@ -352,7 +352,7 @@ export default memo(function LandingPage() {
                 <div className="truth-card-kicker">Calibration loop</div>
                 <h3>Outcomes tune the next gate.</h3>
                 <p>
-                  Post-deploy results are classified as correct, miss, or over-block and converted into
+                  Post-deploy results are classified as correct, miss, or cautious and converted into
                   suggested threshold changes. Humans review by default — calibration does not silently
                   auto-apply.
                 </p>
