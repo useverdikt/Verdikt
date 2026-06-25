@@ -1,5 +1,7 @@
 # Backend unit tests, frontend Vitest, and Playwright E2E (Chromium).
 # Requires package-lock.json in backend/ and frontend/ for npm ci.
+# Use --ignore-workspaces so per-package installs keep local .bin (Playwright, etc.)
+# despite the root npm workspaces config.
 
 name: CI
 
@@ -46,7 +48,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
+      - run: npm ci --ignore-workspaces
       - run: npm test
 
   frontend-unit:
@@ -62,7 +64,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+      - run: npm ci --ignore-workspaces
       - run: npm test
 
   mcp-package:
@@ -78,7 +80,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: mcp/package-lock.json
-      - run: npm ci
+      - run: npm ci --ignore-workspaces
       - run: npm test
       - run: npm pack --dry-run
 
@@ -116,10 +118,10 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --ignore-workspaces
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: npm ci --ignore-workspaces
       - name: Verify PostgreSQL connectivity for backend
         working-directory: backend
         run: |

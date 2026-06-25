@@ -9,9 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:regression": "playwright test e2e/regression.spec.js",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "npx playwright test",
+    "test:e2e:regression": "npx playwright test e2e/regression.spec.js",
+    "test:e2e:ui": "npx playwright test --ui",
     "lint": "eslint \"src/**/*.{js,jsx}\"",
     "lint:fix": "eslint \"src/**/*.{js,jsx}\" --fix",
     "supabase:local": "bash ../scripts/supabase-local-bootstrap.sh"
