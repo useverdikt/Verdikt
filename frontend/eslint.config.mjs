@@ -24,6 +24,17 @@ export default [
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/preserve-manual-memoization": "off",
       "react-hooks/exhaustive-deps": "warn",
+      "no-restricted-imports": [
+        "error",
+        {
+          "patterns": [
+            {
+              "group": ["tailwindcss", "tailwindcss/*", "@tailwindcss/*"],
+              "message": "Use theme/tokens.js for styling — Tailwind is not allowed in Verdikt frontend."
+            }
+          ]
+        }
+      ],
       "no-unused-vars": [
         "warn",
         {
