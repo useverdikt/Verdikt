@@ -1,0 +1,13 @@
+# Nixpacks config for Railway (monorepo root deploy).
+# Service Root Directory in Railway must be the repository root (`.`),
+# not `backend/` — backend depends on `file:../shared` via npm workspaces.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "npm-10_x"]
+
+[phases.install]
+dependsOn = ["setup"]
+cmds = ["npm ci"]
+
+[start]
+cmd = "npm run start:backend"
