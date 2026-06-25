@@ -104,7 +104,7 @@ async function resolveReleaseForWorkspaceIngest(
   { release_id, release_ref, version, commit_sha, pr_number, github_owner, github_repo, prefer_collecting = true }
 ) {
   if (typeof release_id === "string" && release_id.trim()) {
-    const byId = await queryOne("SELECT * FROM releases WHERE id = ? AND workspace_id = ?", [
+    const byId = await queryOne("SELECT * FROM releases WHERE id = $1 AND workspace_id = $2", [
       release_id.trim(),
       workspaceId
     ]);
@@ -117,21 +117,21 @@ async function resolveReleaseForWorkspaceIngest(
     const repo = String(github_repo || "").trim().toLowerCase() || null;
     const pr = Number.isFinite(Number(pr_number)) ? Number(pr_number) : null;
 
-    let sql = `SELECT * FROM releases WHERE workspace_id = ? AND commit_sha IS NOT NULL`;
+    let sql = `SELECT * FROM releases WHERE workspace_id = $1 AND commit_sha IS NOT NULL`;
     const params = [workspaceId];
 
     if (owner && repo) {
-      sql += ` AND LOWER(github_owner) = ? AND LOWER(github_repo) = ?`;
+      sql += ` AND LOWER(github_owner) = $${params.length + 1} AND LOWER(github_repo) = $${params.length + 2}`;
       params.push(owner, repo);
     }
     if (pr != null) {
-      sql += ` AND pr_number = ?`;
+      sql += ` AND pr_number = $${params.length + 1}`;
       params.push(pr);
     }
 
     sql += prefer_collecting
-      ? ` ORDER BY CASE WHEN status = 'COLLECTING' THEN 0 ELSE 1 END, created_at::timestamptz DESC LIMIT 20`
-      : ` ORDER BY created_at::timestamptz DESC LIMIT 20`;
+      ? ` ORDER BY CASE WHEN status = 'COLLECTING' THEN 0 ELSE 1 END, created_at DESC LIMIT 20`
+      : ` ORDER BY created_at DESC LIMIT 20`;
 
     const candidates = await queryAll(sql, params);
     for (const row of candidates) {
@@ -142,8 +142,8 @@ async function resolveReleaseForWorkspaceIngest(
   const prOnly = Number.isFinite(Number(pr_number)) ? Number(pr_number) : null;
   if (prOnly != null) {
     const byPr = await queryOne(
-      `SELECT * FROM releases WHERE workspace_id = ? AND pr_number = ?
-       ORDER BY CASE WHEN status = 'COLLECTING' THEN 0 ELSE 1 END, created_at::timestamptz DESC LIMIT 1`,
+      `SELECT * FROM releases WHERE workspace_id = $1 AND pr_number = $2
+       ORDER BY CASE WHEN status = 'COLLECTING' THEN 0 ELSE 1 END, created_at DESC LIMIT 1`,
       [workspaceId, prOnly]
     );
     if (byPr) return byPr;
@@ -152,7 +152,7 @@ async function resolveReleaseForWorkspaceIngest(
   const ref = typeof release_ref === "string" && release_ref.trim() ? release_ref.trim() : null;
   if (ref) {
     const byRef = await queryOne(
-      "SELECT * FROM releases WHERE workspace_id = ? AND release_ref = ? ORDER BY created_at::timestamptz DESC LIMIT 1",
+      "SELECT * FROM releases WHERE workspace_id = $1 AND release_ref = $2 ORDER BY created_at DESC LIMIT 1",
       [workspaceId, ref]
     );
     if (byRef) return byRef;
@@ -161,7 +161,7 @@ async function resolveReleaseForWorkspaceIngest(
   const ver = typeof version === "string" && version.trim() ? version.trim() : null;
   if (ver) {
     const byVersion = await queryOne(
-      "SELECT * FROM releases WHERE workspace_id = ? AND version = ? ORDER BY created_at::timestamptz DESC LIMIT 1",
+      "SELECT * FROM releases WHERE workspace_id = $1 AND version = $2 ORDER BY created_at DESC LIMIT 1",
       [workspaceId, ver]
     );
     if (byVersion) return byVersion;
@@ -173,15 +173,15 @@ async function resolveReleaseForWorkspaceIngest(
 async function claimReleaseIdempotency(idempotencyKey, provisionalReleaseId) {
   const now = nowIso();
   const gate = await run(
-    "INSERT INTO webhook_events (idempotency_key, release_id, created_at) VALUES (?, ?, ?) ON CONFLICT (idempotency_key) DO NOTHING",
+    "INSERT INTO webhook_events (idempotency_key, release_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (idempotency_key) DO NOTHING",
     [idempotencyKey, provisionalReleaseId, now]
   );
   if (gate.changes === 0) {
     let release = null;
     for (let attempt = 0; attempt < 8; attempt++) {
-      const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = ?", [idempotencyKey]);
+      const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = $1", [idempotencyKey]);
       if (existing?.release_id) {
-        release = await queryOne("SELECT * FROM releases WHERE id = ?", [existing.release_id]);
+        release = await queryOne("SELECT * FROM releases WHERE id = $1", [existing.release_id]);
         if (release) break;
       }
       await new Promise((resolve) => setTimeout(resolve, 15));
@@ -251,7 +251,7 @@ async function openReleaseSession({
       id, workspace_id, version, release_type, environment, status, created_at, updated_at,
       release_ref, trigger_source, mappings_json, collection_deadline, verdict_issued_at,
       ai_context_json, commit_sha, pr_number, callback_url, github_owner, github_repo, github_branch
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
     [
       releaseId,
       workspaceId,
@@ -296,7 +296,7 @@ async function openReleaseSession({
     }
   });
 
-  const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
   scheduleCollectingVcsWriteback(release);
   return { reused: false, release, collection_deadline: deadline };
 }

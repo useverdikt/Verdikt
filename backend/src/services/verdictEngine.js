@@ -32,7 +32,7 @@ function isAllowedSignalValue(signalId, value) {
 // ─── Signal loading ───────────────────────────────────────────────────────────
 
 async function getLatestSignalMap(releaseId) {
-  const rows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [releaseId]);
+  const rows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [releaseId]);
   const latest = {};
   for (const row of rows) latest[row.signal_id] = row.value;
   return latest;
@@ -40,7 +40,7 @@ async function getLatestSignalMap(releaseId) {
 
 async function resolveReleaseRow(releaseId, releaseRow) {
   if (releaseRow && typeof releaseRow === "object") return releaseRow;
-  return queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  return queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
 }
 
 async function getMissingRequiredSignals(

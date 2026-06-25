@@ -50,7 +50,7 @@ const OUTCOME_CRITERIA = {
 const INSERT_OBS_SQL = `
   INSERT INTO production_observations
     (release_id, workspace_id, signal_name, value, observed_at, source, idempotency_key, metadata_json, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `;
 
 async function ingestProductionSignals(releaseId, workspaceId, signals, opts = {}) {
@@ -70,7 +70,7 @@ async function ingestProductionSignals(releaseId, workspaceId, signals, opts = {
       }
       if (idempotencyKey) {
         const existing = await tx.queryOne(
-          "SELECT id FROM production_observations WHERE release_id = ? AND signal_name = ? AND idempotency_key = ? LIMIT 1",
+          "SELECT id FROM production_observations WHERE release_id = $1 AND signal_name = $2 AND idempotency_key = $3 LIMIT 1",
           [releaseId, signalName, idempotencyKey]
         );
         if (existing) {
@@ -157,23 +157,23 @@ function deriveActualOutcome(postMap) {
 }
 
 async function computeOutcomeAlignment(releaseId, workspaceId) {
-  const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
   if (!release) return null;
 
   const intel = await queryOne(
-    "SELECT recommendation_json, decision_json FROM release_intelligence WHERE release_id = ?",
+    "SELECT recommendation_json, decision_json FROM release_intelligence WHERE release_id = $1",
     [releaseId]
   );
   let recommendedVerdict = null;
   const rec = intel ? parseRecommendationBlob(intel.recommendation_json, intel.decision_json) : null;
   if (rec?.recommended_verdict) recommendedVerdict = rec.recommended_verdict;
 
-  const preRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [releaseId]);
+  const preRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [releaseId]);
   const preMap = {};
   for (const r of preRows) preMap[r.signal_id] = r.value;
 
   const postRows = await queryAll(
-    "SELECT signal_name, value FROM production_observations WHERE release_id = ? ORDER BY id ASC",
+    "SELECT signal_name, value FROM production_observations WHERE release_id = $1 ORDER BY id ASC",
     [releaseId]
   );
   const postMap = {};
@@ -203,7 +203,7 @@ async function computeOutcomeAlignment(releaseId, workspaceId) {
     INSERT INTO outcome_alignments
       (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
        signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     ON CONFLICT(release_id) DO UPDATE SET
       actual_outcome              = excluded.actual_outcome,
       alignment                   = excluded.alignment,
@@ -250,7 +250,7 @@ async function runPostAlignmentEffects(releaseId, workspaceId, alignmentResult) 
   const alignment = String(alignmentResult?.alignment || "").toUpperCase();
   if (!["MISS", "CAUTIOUS"].includes(alignment)) return;
 
-  const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
   if (!release) return;
 
   let suggestions = [];
@@ -293,7 +293,7 @@ function deriveAlignment(recommendedVerdict, actualOutcome) {
 }
 
 async function deriveOverBlockSuggestions(releaseId, workspaceId, preSignalMap, _recommendedVerdict) {
-  const threshRows = await queryAll("SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?", [
+  const threshRows = await queryAll("SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = $1", [
     workspaceId
   ]);
   const threshMap = {};
@@ -343,7 +343,7 @@ async function computeProductionAdjustment(workspaceId) {
     `
     SELECT alignment, signal_deltas_json
     FROM outcome_alignments
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
     ORDER BY computed_at DESC
     LIMIT 20
   `,
@@ -388,7 +388,7 @@ async function computeProductionAdjustment(workspaceId) {
     `
     INSERT INTO production_adjustment_cache
       (workspace_id, computed_at, miss_rate_pct, over_block_rate_pct, signal_drift_json, confidence_modifier, sample_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT(workspace_id) DO UPDATE SET
       computed_at         = excluded.computed_at,
       miss_rate_pct       = excluded.miss_rate_pct,
@@ -404,7 +404,7 @@ async function computeProductionAdjustment(workspaceId) {
 }
 
 async function getProductionAdjustment(workspaceId) {
-  const row = await queryOne("SELECT * FROM production_adjustment_cache WHERE workspace_id = ?", [workspaceId]);
+  const row = await queryOne("SELECT * FROM production_adjustment_cache WHERE workspace_id = $1", [workspaceId]);
   if (!row || row.sample_count < 3) return null;
   return {
     confidence_modifier: row.confidence_modifier,
@@ -423,7 +423,7 @@ async function getWorkspaceProductionHealth(workspaceId) {
            r.shipped_without_certification, r.environment
     FROM outcome_alignments oa
     JOIN releases r ON r.id = oa.release_id
-    WHERE oa.workspace_id = ?
+    WHERE oa.workspace_id = $1
     ORDER BY oa.computed_at DESC
     LIMIT 50
   `,
@@ -472,7 +472,7 @@ async function getWorkspaceProductionHealth(workspaceId) {
     }
   }
 
-  const obsRow = await queryOne("SELECT COUNT(*) AS c FROM production_observations WHERE workspace_id = ?", [workspaceId]);
+  const obsRow = await queryOne("SELECT COUNT(*) AS c FROM production_observations WHERE workspace_id = $1", [workspaceId]);
   const obsCount = obsRow?.c ?? 0;
 
   const adjustment = await getProductionAdjustment(workspaceId);
@@ -519,7 +519,7 @@ async function getProductionObservations(releaseId) {
     `
     SELECT signal_name, value, observed_at, source, metadata_json
     FROM production_observations
-    WHERE release_id = ?
+    WHERE release_id = $1
     ORDER BY observed_at ASC
   `,
     [releaseId]
@@ -528,7 +528,7 @@ async function getProductionObservations(releaseId) {
 }
 
 async function setIncidentRef(releaseId, workspaceId, incidentRef) {
-  const row = await queryOne("SELECT release_id FROM outcome_alignments WHERE release_id = ? AND workspace_id = ?", [
+  const row = await queryOne("SELECT release_id FROM outcome_alignments WHERE release_id = $1 AND workspace_id = $2", [
     releaseId,
     workspaceId
   ]);
@@ -540,12 +540,12 @@ async function setIncidentRef(releaseId, workspaceId, incidentRef) {
       INSERT INTO outcome_alignments
         (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
          signal_deltas_json, incident_ref, computed_at, updated_at)
-      VALUES (?, ?, NULL, 'UNKNOWN', 'UNKNOWN', '{}', ?, ?, ?)
+      VALUES ($1, $2, NULL, 'UNKNOWN', 'UNKNOWN', '{}', $3, $4, $5)
     `,
       [releaseId, workspaceId, incidentRef, ts, ts]
     );
   } else {
-    await run("UPDATE outcome_alignments SET incident_ref = ?, updated_at = ? WHERE release_id = ?", [
+    await run("UPDATE outcome_alignments SET incident_ref = $1, updated_at = $2 WHERE release_id = $3", [
       incidentRef,
       nowIso(),
       releaseId
@@ -559,7 +559,7 @@ async function getOutcomeAlignmentForRelease(releaseId) {
     `
     SELECT alignment, actual_outcome, recommended_verdict, computed_at, incident_ref
     FROM outcome_alignments
-    WHERE release_id = ?
+    WHERE release_id = $1
   `,
     [releaseId]
   );

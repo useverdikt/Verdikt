@@ -21,7 +21,7 @@ function extractIdempotencyKey(req, fallbackKeys = []) {
 async function countSignalsForIdempotencyKey(releaseId, idempotencyKey) {
   if (!idempotencyKey) return 0;
   const row = await queryOne(
-    "SELECT COUNT(*) AS c FROM signals WHERE release_id = ? AND idempotency_key = ?",
+    "SELECT COUNT(*) AS c FROM signals WHERE release_id = $1 AND idempotency_key = $2",
     [releaseId, idempotencyKey]
   );
   return Number(row?.c ?? 0);
@@ -30,7 +30,7 @@ async function countSignalsForIdempotencyKey(releaseId, idempotencyKey) {
 async function loadLastIngestAuditDetails(releaseId) {
   const row = await queryOne(
     `SELECT details_json FROM audit_events
-       WHERE release_id = ? AND event_type = 'SIGNALS_INGESTED'
+       WHERE release_id = $1 AND event_type = 'SIGNALS_INGESTED'
        ORDER BY id DESC LIMIT 1`,
     [releaseId]
   );
@@ -44,7 +44,7 @@ async function loadLastIngestAuditDetails(releaseId) {
 
 /** Read-only ingest response for duplicate idempotency keys — no verdict recompute or audit writes. */
 async function buildIngestReadResponse(release, releaseId) {
-  const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
+  const fresh = (await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId])) || release;
   const [latest, thresholdMap, deltas, intelligenceRow, auditDetails] = await Promise.all([
     getLatestSignalMap(releaseId),
     getThresholdMap(fresh.workspace_id),

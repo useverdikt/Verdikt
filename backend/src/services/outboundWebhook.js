@@ -13,14 +13,14 @@ const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeede
 const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
 
 async function getOutboundWebhook(workspaceId) {
-  const row = await queryOne("SELECT * FROM outbound_webhooks WHERE workspace_id = ? AND enabled = 1", [workspaceId]);
+  const row = await queryOne("SELECT * FROM outbound_webhooks WHERE workspace_id = $1 AND enabled = 1", [workspaceId]);
   if (!row) return null;
   if (!row.secret) return row;
   let sec = row.secret;
   if (!looksEncrypted(sec)) {
     const mig = migratePlaintextFieldIfNeeded(sec, "outbound_webhooks.secret");
     if (mig !== sec) {
-      await run("UPDATE outbound_webhooks SET secret = ?, updated_at = ? WHERE workspace_id = ?", [
+      await run("UPDATE outbound_webhooks SET secret = $1, updated_at = $2 WHERE workspace_id = $3", [
         mig,
         nowIso(),
         workspaceId
@@ -39,7 +39,7 @@ async function setOutboundWebhook(workspaceId, { url, secret, events }) {
   await run(
     `
     INSERT INTO outbound_webhooks (id, workspace_id, url, secret, events, enabled, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, 1, $6, $7)
     ON CONFLICT(workspace_id) DO UPDATE SET
       url        = excluded.url,
       secret     = COALESCE(excluded.secret, outbound_webhooks.secret),
@@ -52,7 +52,7 @@ async function setOutboundWebhook(workspaceId, { url, secret, events }) {
 }
 
 async function deleteOutboundWebhook(workspaceId) {
-  await run("UPDATE outbound_webhooks SET enabled = 0, updated_at = ? WHERE workspace_id = ?", [nowIso(), workspaceId]);
+  await run("UPDATE outbound_webhooks SET enabled = 0, updated_at = $1 WHERE workspace_id = $2", [nowIso(), workspaceId]);
 }
 
 function buildVerdictPayload(release, eventType, verdictIntelligence, sigRow, failedSignals = [], certification = null) {
@@ -114,7 +114,7 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
         `
     INSERT INTO outbound_webhook_deliveries
       (webhook_id, release_id, event_type, payload_json, response_status, error_message, delivered_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
   `,
         [webhook.id, release.id, eventType, bodyStr, null, errorMessage, deliveredAt]
       );
@@ -143,7 +143,7 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
     `
     INSERT INTO outbound_webhook_deliveries
       (webhook_id, release_id, event_type, payload_json, response_status, error_message, delivered_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
   `,
     [webhook.id, release.id, eventType, bodyStr, responseStatus, errorMessage, deliveredAt]
   );

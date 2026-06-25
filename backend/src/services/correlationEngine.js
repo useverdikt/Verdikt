@@ -75,7 +75,7 @@ function pearson(xs, ys) {
 
 const UPSERT_CORR_SQL = `
   INSERT INTO signal_correlations (workspace_id, signal_a, signal_b, correlation, sample_count, computed_at)
-  VALUES (?, ?, ?, ?, ?, ?)
+  VALUES ($1, $2, $3, $4, $5, $6)
   ON CONFLICT(workspace_id, signal_a, signal_b) DO UPDATE SET
     correlation  = excluded.correlation,
     sample_count = excluded.sample_count,
@@ -85,7 +85,7 @@ const UPSERT_CORR_SQL = `
 const UPSERT_FM_SQL = `
   INSERT INTO failure_mode_classifications
     (release_id, workspace_id, failure_mode, confidence, signals_json, computed_at)
-  VALUES (?, ?, ?, ?, ?, ?)
+  VALUES ($1, $2, $3, $4, $5, $6)
   ON CONFLICT(release_id, failure_mode) DO UPDATE SET
     confidence   = excluded.confidence,
     signals_json = excluded.signals_json,
@@ -96,10 +96,10 @@ async function computeAndPersistCorrelations(workspaceId, windowN = 20) {
   const certReleases = await queryAll(
     `
     SELECT id FROM releases
-    WHERE workspace_id = ? AND status IN ('CERTIFIED','CERTIFIED_WITH_OVERRIDE')
+    WHERE workspace_id = $1 AND status IN ('CERTIFIED','CERTIFIED_WITH_OVERRIDE')
       AND verdict_issued_at IS NOT NULL
-    ORDER BY verdict_issued_at::timestamptz DESC
-    LIMIT ?
+    ORDER BY verdict_issued_at DESC
+    LIMIT $2
   `,
     [workspaceId, windowN]
   );
@@ -108,7 +108,7 @@ async function computeAndPersistCorrelations(workspaceId, windowN = 20) {
 
   const signalMap = {};
   for (const rel of certReleases) {
-    const sigs = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [rel.id]);
+    const sigs = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [rel.id]);
     const seen = {};
     for (const s of sigs) seen[s.signal_id] = s.value;
     for (const [sid, val] of Object.entries(seen)) {
@@ -153,7 +153,7 @@ async function getCorrelations(workspaceId, minAbs = 0.3) {
     `
     SELECT signal_a, signal_b, correlation, sample_count, computed_at
     FROM signal_correlations
-    WHERE workspace_id = ? AND ABS(correlation) >= ?
+    WHERE workspace_id = $1 AND ABS(correlation) >= $2
     ORDER BY ABS(correlation) DESC
   `,
     [workspaceId, minAbs]
@@ -205,7 +205,7 @@ async function getFailureModes(releaseId) {
     `
     SELECT failure_mode, confidence, signals_json, computed_at
     FROM failure_mode_classifications
-    WHERE release_id = ?
+    WHERE release_id = $1
     ORDER BY confidence DESC
   `,
     [releaseId]
@@ -225,7 +225,7 @@ async function getFailureModeTrends(workspaceId, _limit = 30) {
     `
     SELECT f.failure_mode, COUNT(*) as count, MAX(f.computed_at) as last_seen
     FROM failure_mode_classifications f
-    WHERE f.workspace_id = ?
+    WHERE f.workspace_id = $1
     GROUP BY f.failure_mode
     ORDER BY count DESC
   `,

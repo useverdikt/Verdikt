@@ -10,7 +10,7 @@ const { WEBHOOK_SECRET, IS_PROD_LIKE } = require("../config");
  * Ensures a random per-workspace signing secret exists (encrypted at rest when configured).
  */
 async function ensureInboundWebhookSecret(workspaceId) {
-  const row = await queryOne("SELECT secret_enc FROM workspace_inbound_webhook_secrets WHERE workspace_id = ?", [
+  const row = await queryOne("SELECT secret_enc FROM workspace_inbound_webhook_secrets WHERE workspace_id = $1", [
     workspaceId
   ]);
   if (row?.secret_enc) return;
@@ -20,7 +20,7 @@ async function ensureInboundWebhookSecret(workspaceId) {
   const ts = nowIso();
   await run(
     `INSERT INTO workspace_inbound_webhook_secrets (workspace_id, secret_enc, created_at, updated_at)
-     VALUES (?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4)
      ON CONFLICT (workspace_id) DO NOTHING`,
     [workspaceId, enc, ts, ts]
   );
@@ -31,7 +31,7 @@ async function ensureInboundWebhookSecret(workspaceId) {
  * @returns {Promise<string | null>} Plaintext HMAC secret or null if none
  */
 async function getPlaintextInboundSecret(workspaceId) {
-  const row = await queryOne("SELECT secret_enc FROM workspace_inbound_webhook_secrets WHERE workspace_id = ?", [
+  const row = await queryOne("SELECT secret_enc FROM workspace_inbound_webhook_secrets WHERE workspace_id = $1", [
     workspaceId
   ]);
   if (!row?.secret_enc) return null;
@@ -39,7 +39,7 @@ async function getPlaintextInboundSecret(workspaceId) {
   if (!looksEncrypted(enc)) {
     const migrated = migratePlaintextFieldIfNeeded(enc, "inbound_webhook_secret");
     if (migrated !== enc) {
-      await run("UPDATE workspace_inbound_webhook_secrets SET secret_enc = ?, updated_at = ? WHERE workspace_id = ?", [
+      await run("UPDATE workspace_inbound_webhook_secrets SET secret_enc = $1, updated_at = $2 WHERE workspace_id = $3", [
         migrated,
         nowIso(),
         workspaceId

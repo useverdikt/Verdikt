@@ -48,7 +48,7 @@ async function persistCertificationSnapshot({
     await run(
       `INSERT INTO certification_snapshots
          (release_id, workspace_id, status_at_verdict, threshold_snapshot_json, signal_snapshot_json, evidence_hash, frozen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT(release_id) DO UPDATE SET
          status_at_verdict = excluded.status_at_verdict,
          threshold_snapshot_json = excluded.threshold_snapshot_json,
@@ -69,7 +69,7 @@ async function persistCertificationSnapshot({
     await run(
       `INSERT INTO certification_snapshots
          (release_id, workspace_id, status_at_verdict, threshold_snapshot_json, signal_snapshot_json, evidence_hash, frozen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT(release_id) DO NOTHING`,
       [
         releaseId,
@@ -87,7 +87,7 @@ async function persistCertificationSnapshot({
 }
 
 async function getCertificationSnapshot(releaseId) {
-  const row = await queryOne("SELECT * FROM certification_snapshots WHERE release_id = ?", [releaseId]);
+  const row = await queryOne("SELECT * FROM certification_snapshots WHERE release_id = $1", [releaseId]);
   if (!row) return null;
   let threshold_map = {};
   let signal_map = {};

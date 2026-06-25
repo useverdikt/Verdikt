@@ -38,7 +38,7 @@ describe("remediationDebt", () => {
       .send({ version: "Bypass (#9501)", release_type: "model_update", pr_number: 9501 })
       .expect(201);
     await run(
-      "UPDATE releases SET status = ?, environment = ?, shipped_without_certification = 1, shipped_without_certification_at = ?, updated_at = ? WHERE id = ?",
+      "UPDATE releases SET status = $1, environment = $2, shipped_without_certification = 1, shipped_without_certification_at = $3, updated_at = $4 WHERE id = $5",
       ["UNCERTIFIED", "prod", bypassAt, bypassAt, bypass.body.id]
     );
 
@@ -51,7 +51,7 @@ describe("remediationDebt", () => {
       .send({ version: "Recovery CERTIFIED (#9502)", release_type: "model_update", pr_number: 9502 })
       .expect(201);
     await run(
-      "UPDATE releases SET status = ?, environment = ?, shipped_without_certification = 0, verdict_issued_at = ?, updated_at = ? WHERE id = ?",
+      "UPDATE releases SET status = $1, environment = $2, shipped_without_certification = 0, verdict_issued_at = $3, updated_at = $4 WHERE id = $5",
       ["CERTIFIED", "prod", recoveryAt, recoveryAt, recovery.body.id]
     );
 

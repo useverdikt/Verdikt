@@ -37,14 +37,14 @@ async function buildThresholdSuggestions(workspaceId) {
   const sixtyDaysAgoIso = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
   const byTime = await queryAll(
     `SELECT id, status, created_at FROM releases
-     WHERE workspace_id = ? AND created_at::timestamptz >= ?::timestamptz
-     ORDER BY created_at::timestamptz DESC`,
+     WHERE workspace_id = $1 AND created_at >= $2
+     ORDER BY created_at DESC`,
     [workspaceId, sixtyDaysAgoIso]
   );
   const byCount = await queryAll(
     `SELECT id, status, created_at FROM releases
-     WHERE workspace_id = ?
-     ORDER BY created_at::timestamptz DESC
+     WHERE workspace_id = $1
+     ORDER BY created_at DESC
      LIMIT 20`,
     [workspaceId]
   );
@@ -93,7 +93,7 @@ async function buildThresholdSuggestions(workspaceId) {
     return { window: { ...windowMeta, last_n_releases: 0 }, suggestions: fallbackSuggestions };
   }
 
-  const placeholders = releaseIds.map(() => "?").join(",");
+  const placeholders = releaseIds.map((_, i) => `$${i + 1}`).join(",");
   const signals = await queryAll(
     `SELECT release_id, signal_id, value
      FROM signals
@@ -110,7 +110,7 @@ async function buildThresholdSuggestions(workspaceId) {
   const signalEvents = await queryAll(
     `SELECT release_id, details_json
      FROM audit_events
-     WHERE workspace_id = ? AND event_type = 'SIGNALS_INGESTED' AND release_id IS NOT NULL
+     WHERE workspace_id = $1 AND event_type = 'SIGNALS_INGESTED' AND release_id IS NOT NULL
      ORDER BY id DESC
      LIMIT 400`,
     [workspaceId]

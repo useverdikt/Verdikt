@@ -11,7 +11,7 @@ const {
 } = require("./signalIngestIdempotency");
 
 const INSERT_SIGNALS_SQL =
-  "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?)";
+  "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)";
 
 async function ingestIntegrationSignals({
   release,

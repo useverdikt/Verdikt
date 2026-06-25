@@ -195,7 +195,7 @@ async function scanWindow(window) {
   } catch (err) {
     console.error("[vcs_monitor] scan failed:", release_id, err.message);
     await run(
-      "UPDATE vcs_monitoring_windows SET status = 'error', error_message = ?, last_scanned_at = ?, scan_count = scan_count + 1 WHERE release_id = ?",
+      "UPDATE vcs_monitoring_windows SET status = 'error', error_message = $1, last_scanned_at = $2, scan_count = scan_count + 1 WHERE release_id = $3",
       [err.message.slice(0, 200), nowIso(), release_id]
     );
     return "error";
@@ -227,13 +227,13 @@ async function markWindow(releaseId, status, findings, signals, outcome) {
   await run(
     `
     UPDATE vcs_monitoring_windows SET
-      status                = ?,
-      last_scanned_at       = ?,
+      status                = $1,
+      last_scanned_at       = $2,
       scan_count            = scan_count + 1,
-      findings_json         = ?,
-      inferred_signals_json = ?,
-      inferred_outcome      = ?
-    WHERE release_id = ?
+      findings_json         = $3,
+      inferred_signals_json = $4,
+      inferred_outcome      = $5
+    WHERE release_id = $6
   `,
     [
       status,
@@ -256,7 +256,7 @@ async function openMonitoringWindow(release, windowMinutes = 120) {
       `
       INSERT INTO vcs_monitoring_windows
         (release_id, workspace_id, commit_sha, pr_number, monitoring_start, monitoring_end, window_minutes, status, created_at)
-      VALUES (?, ?, NULL, ?, ?, ?, ?, 'no_sha', ?)
+      VALUES ($1, $2, NULL, $3, $4, $5, $6, 'no_sha', $7)
       ON CONFLICT(release_id) DO NOTHING
     `,
       [releaseId, workspace_id, pr_number || null, verdict_issued_at || nowIso(), verdict_issued_at || nowIso(), windowMinutes, nowIso()]
@@ -271,7 +271,7 @@ async function openMonitoringWindow(release, windowMinutes = 120) {
     `
     INSERT INTO vcs_monitoring_windows
       (release_id, workspace_id, commit_sha, pr_number, monitoring_start, monitoring_end, window_minutes, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
     ON CONFLICT(release_id) DO NOTHING
   `,
     [releaseId, workspace_id, commit_sha, pr_number || null, start, end, windowMinutes, nowIso()]
@@ -295,7 +295,7 @@ async function refreshMonitoringWindowForProd(release, windowMinutes = 120) {
     `
     INSERT INTO vcs_monitoring_windows
       (release_id, workspace_id, commit_sha, pr_number, monitoring_start, monitoring_end, window_minutes, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
     ON CONFLICT(release_id) DO UPDATE SET
       monitoring_start = excluded.monitoring_start,
       monitoring_end = excluded.monitoring_end,
@@ -312,7 +312,7 @@ async function refreshMonitoringWindowForProd(release, windowMinutes = 120) {
 }
 
 async function getMonitoringWindow(releaseId) {
-  const row = await queryOne("SELECT * FROM vcs_monitoring_windows WHERE release_id = ?", [releaseId]);
+  const row = await queryOne("SELECT * FROM vcs_monitoring_windows WHERE release_id = $1", [releaseId]);
   if (!row) return null;
   return {
     ...row,
@@ -327,7 +327,7 @@ async function getWorkspaceMonitoringSummary(workspaceId) {
     SELECT vmw.*, r.version
     FROM vcs_monitoring_windows vmw
     LEFT JOIN releases r ON r.id = vmw.release_id
-    WHERE vmw.workspace_id = ?
+    WHERE vmw.workspace_id = $1
     ORDER BY vmw.created_at DESC
     LIMIT 20
   `,

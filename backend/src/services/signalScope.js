@@ -11,7 +11,7 @@ const sharedPkg = require("../lib/sharedPkg");
 
 async function getConnectedSourceIds(workspaceId) {
   const rows = await queryAll(
-    "SELECT source_id FROM signal_integrations WHERE workspace_id = ?",
+    "SELECT source_id FROM signal_integrations WHERE workspace_id = $1",
     [workspaceId]
   );
   return new Set(rows.map((r) => String(r.source_id || "")).filter(Boolean));

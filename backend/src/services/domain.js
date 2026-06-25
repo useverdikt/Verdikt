@@ -62,7 +62,7 @@ const { persistCertificationSnapshot } = require("./certificationSnapshots");
 async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
   // Guard against concurrent verdict commits: skip if another worker already
   // finalised this release while we were waiting.
-  const freshRow = await queryOne("SELECT status, environment FROM releases WHERE id = ?", [releaseId]);
+  const freshRow = await queryOne("SELECT status, environment FROM releases WHERE id = $1", [releaseId]);
   if (!freshRow) return null;
   const freshStatus = freshRow.status;
   if (["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(freshStatus)) {
@@ -90,7 +90,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   // ── Still collecting: not all signals present and window still open ─────────
   if (!deadlinePassed && missingRequiredSignals.length > 0) {
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "COLLECTING",
       nowIso(),
       releaseId
@@ -184,7 +184,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   const failedSignals = [...thresholdFailedSignals, ...missingSignalFails];
   const nextStatus = failedSignals.length === 0 ? "CERTIFIED" : "UNCERTIFIED";
-  const prevRow = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
+  const prevRow = await queryOne("SELECT status FROM releases WHERE id = $1", [releaseId]);
   const prevStatus = prevRow?.status ?? release.status;
 
   // ── Build deterministic intelligence ─────────────────────────────────────
@@ -229,7 +229,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   // ── Commit verdict to DB ──────────────────────────────────────────────────
   await run(
-    "UPDATE releases SET status = ?, updated_at = ?, verdict_issued_at = COALESCE(verdict_issued_at, ?) WHERE id = ?",
+    "UPDATE releases SET status = $1, updated_at = $2, verdict_issued_at = COALESCE(verdict_issued_at, $3) WHERE id = $4",
     [nextStatus, nowIso(), nowIso(), releaseId]
   );
   await upsertReleaseIntelligence(releaseId, release.workspace_id, { verdict: deterministicIntelligence, trace });
@@ -287,7 +287,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   // ── Optional LLM enrichment (fire-and-forget, never blocks) ──────────────
   if (ENABLE_ASSISTIVE_LLM && !!AI_PROVIDER_API_KEY && typeof fetch === "function") {
-    const refreshed = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const refreshed = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
     enqueueVerdictAssistiveEnrichment({
       releaseId,
       workspaceId: release.workspace_id,

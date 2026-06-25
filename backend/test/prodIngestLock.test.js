@@ -74,7 +74,7 @@ describe("prod uncertified ingest lock", () => {
 
     const now = nowIso();
     await run(
-      `UPDATE releases SET status = ?, environment = ?, verdict_issued_at = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE releases SET status = $1, environment = $2, verdict_issued_at = $3, updated_at = $4 WHERE id = $5`,
       ["UNCERTIFIED", "prod", now, now, created.body.id]
     );
 
@@ -87,7 +87,7 @@ describe("prod uncertified ingest lock", () => {
     assert.equal(res.body.status, "UNCERTIFIED");
     assert.equal(res.body.environment, "prod");
 
-    const count = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = ?", [created.body.id]);
+    const count = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = $1", [created.body.id]);
     assert.equal(Number(count.c), 0);
   });
 
@@ -100,40 +100,40 @@ describe("prod uncertified ingest lock", () => {
 
     await run(
       `INSERT INTO releases (id, workspace_id, version, release_type, environment, status, created_at, updated_at, verdict_issued_at, collection_deadline)
-       VALUES (?, ?, 'v-sh', 'model_update', 'pre-prod', 'UNCERTIFIED', ?, ?, ?, ?)`,
+       VALUES ($1, $2, 'v-sh', 'model_update', 'pre-prod', 'UNCERTIFIED', $3, $4, $5, $6)`,
       [releaseId, ws, now, now, now, deadline]
     );
-    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 70, 't', ?)`, [
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 70, 't', $2)`, [
       releaseId,
       now
     ]);
 
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
-    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 95, 't', ?)`, [
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 95, 't', $2)`, [
       releaseId,
       now
     ]);
-    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'safety', 96, 't', ?)`, [
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'safety', 96, 't', $2)`, [
       releaseId,
       now
     ]);
-    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'smoke', 100, 't', ?)`, [
+    await run(`INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'smoke', 100, 't', $2)`, [
       releaseId,
       now
     ]);
     await run(
-      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'e2e_regression', 100, 't', ?)`,
+      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'e2e_regression', 100, 't', $2)`,
       [releaseId, now]
     );
     await run(
-      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'manual_qa_pct', 99, 't', ?)`,
+      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'manual_qa_pct', 99, 't', $2)`,
       [releaseId, now]
     );
 
     const out = await evaluateReleaseAfterSignalIngest(release, releaseId, "test", 5);
     assert.equal(out.status, "CERTIFIED");
 
-    const row = await queryOne("SELECT status FROM releases WHERE id = ?", [releaseId]);
+    const row = await queryOne("SELECT status FROM releases WHERE id = $1", [releaseId]);
     assert.equal(row.status, "CERTIFIED");
   });
 });

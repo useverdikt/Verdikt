@@ -35,7 +35,7 @@ app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireHuman
       return res.status(400).json({ error: "thresholds object is required" });
     }
     const upsertSql =
-      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification";
+      "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification";
     await transaction(async (tx) => {
       for (const [signalId, t] of Object.entries(thresholds)) {
         const required = t?.required_for_certification === true || t?.required_for_certification === 1 ? 1 : 0;

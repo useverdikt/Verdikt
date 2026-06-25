@@ -55,7 +55,7 @@ async function buildGateRemediation({
   const baselineReleaseId = regressionContext?.baseline_release_id;
   if (baselineReleaseId) {
     const baselineRow = await queryOne(
-      "SELECT id, version, created_at, verdict_issued_at FROM releases WHERE id = ?",
+      "SELECT id, version, created_at, verdict_issued_at FROM releases WHERE id = $1",
       [baselineReleaseId]
     );
     if (baselineRow) {

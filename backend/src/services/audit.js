@@ -72,7 +72,7 @@ async function writeAudit({
   await run(
     `INSERT INTO audit_events
        (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id, prev_hash, row_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       workspaceId,
       releaseId,

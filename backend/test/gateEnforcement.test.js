@@ -20,20 +20,20 @@ let app;
 
 async function seedDefaultThresholdsForTest(workspaceId) {
   await ensureWorkspaceSeeded(workspaceId);
-  const countRow = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = ?", [workspaceId]);
+  const countRow = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = $1", [workspaceId]);
   if (Number(countRow?.c || 0) > 0) return;
   const defaults = sharedPkg.getDefaultThresholdSeedRows();
   const defaultRequired = new Set(sharedPkg.defaultRequiredSignalIds || []);
   const insertSql =
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5)";
   for (const row of defaults) {
     await run(insertSql, [workspaceId, row[0], row[1], row[2], defaultRequired.has(row[0]) ? 1 : 0]);
   }
 }
 
 async function setUserRole(userId, workspaceId, role) {
-  await run("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
-  await run("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?", [role, workspaceId, userId]);
+  await run("UPDATE users SET role = $1 WHERE id = $2", [role, userId]);
+  await run("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3", [role, workspaceId, userId]);
 }
 
 function assertGateBlocked(gate) {

@@ -29,12 +29,12 @@ function slopeDirection(values) {
 async function computeReleaseTrajectory({ workspaceId, releaseId, releaseRow }) {
   const recent = await queryAll(
     `SELECT id, created_at FROM releases
-     WHERE workspace_id = ?
-       AND id != ?
+     WHERE workspace_id = $1
+       AND id != $2
        AND status IN ('CERTIFIED', 'CERTIFIED_WITH_OVERRIDE')
        AND verdict_issued_at IS NOT NULL
-       AND created_at::timestamptz < ?::timestamptz
-     ORDER BY created_at::timestamptz DESC
+       AND created_at < $3
+     ORDER BY created_at DESC
      LIMIT 4`,
     [workspaceId, releaseId, releaseRow?.created_at || new Date().toISOString()]
   );
@@ -51,7 +51,7 @@ async function computeReleaseTrajectory({ workspaceId, releaseId, releaseRow }) 
   const releaseIds = [releaseId, ...recent.map((r) => r.id)];
   const signalRows = await queryAll(
     `SELECT release_id, signal_id, value FROM signals
-     WHERE release_id IN (${releaseIds.map(() => "?").join(",")})
+     WHERE release_id IN (${releaseIds.map(() => "$1").join(",")})
      ORDER BY id ASC`,
     releaseIds
   );

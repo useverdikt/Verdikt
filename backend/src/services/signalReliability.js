@@ -33,7 +33,7 @@ function cv(values) {
 const UPSERT_REL_SQL = `
   INSERT INTO signal_reliability
     (workspace_id, signal_id, computed_at, sample_count, on_time_rate, variance_score, reliability, grade)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
   ON CONFLICT(workspace_id, signal_id) DO UPDATE SET
     computed_at    = excluded.computed_at,
     sample_count   = excluded.sample_count,
@@ -47,11 +47,11 @@ async function computeSignalReliability(workspaceId, windowN = 20) {
   const releases = await queryAll(
     `
     SELECT id FROM releases
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
       AND status IN ('CERTIFIED','CERTIFIED_WITH_OVERRIDE','UNCERTIFIED')
       AND verdict_issued_at IS NOT NULL
-    ORDER BY verdict_issued_at::timestamptz DESC
-    LIMIT ?
+    ORDER BY verdict_issued_at DESC
+    LIMIT $2
   `,
     [workspaceId, windowN]
   );
@@ -60,7 +60,7 @@ async function computeSignalReliability(workspaceId, windowN = 20) {
 
   const n = releases.length;
   const releaseIds = releases.map((rel) => rel.id);
-  const placeholders = releaseIds.map(() => "?").join(", ");
+  const placeholders = releaseIds.map((_, i) => `$${i + 1}`).join(", ");
   const allSigs = await queryAll(
     `SELECT release_id, signal_id, value FROM signals WHERE release_id IN (${placeholders}) ORDER BY id ASC`,
     releaseIds
@@ -132,7 +132,7 @@ async function getSignalReliability(workspaceId) {
     `
     SELECT signal_id, sample_count, on_time_rate, variance_score, reliability, grade, computed_at
     FROM signal_reliability
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
     ORDER BY reliability DESC
   `,
     [workspaceId]

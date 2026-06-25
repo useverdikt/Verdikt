@@ -14,10 +14,10 @@ async function getWorkspaceRemediationDebt(workspaceId) {
     `
     SELECT id, version, shipped_without_certification_at
     FROM releases
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
       AND shipped_without_certification = 1
       AND shipped_without_certification_at IS NOT NULL
-      AND shipped_without_certification_at::timestamptz >= NOW() - INTERVAL '${DEBT_LOOKBACK_DAYS} days'
+      AND shipped_without_certification_at >= NOW() - INTERVAL '${DEBT_LOOKBACK_DAYS} days'
     ORDER BY shipped_without_certification_at DESC
     LIMIT 1
   `,
@@ -32,12 +32,12 @@ async function getWorkspaceRemediationDebt(workspaceId) {
     `
     SELECT id, version, verdict_issued_at, updated_at
     FROM releases
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
       AND status = 'CERTIFIED'
       AND environment = 'prod'
       AND COALESCE(shipped_without_certification, 0) = 0
-      AND COALESCE(verdict_issued_at, updated_at)::timestamptz >= ?::timestamptz
-    ORDER BY COALESCE(verdict_issued_at, updated_at)::timestamptz DESC
+      AND COALESCE(verdict_issued_at, updated_at) >= $2
+    ORDER BY COALESCE(verdict_issued_at, updated_at) DESC
     LIMIT 1
   `,
     [workspaceId, bypass.shipped_without_certification_at]

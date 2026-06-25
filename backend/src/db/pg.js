@@ -3,7 +3,15 @@
 /**
  * PostgreSQL pool. DATABASE_URL is required (no SQLite fallback).
  */
-const { Pool } = require("pg");
+const { Pool, types } = require("pg");
+
+/** Keep ISO string timestamps for migrated TIMESTAMPTZ columns (TEXT-era callers). */
+function parseTimestamp(val) {
+  if (val == null) return null;
+  return new Date(val).toISOString();
+}
+types.setTypeParser(1184, parseTimestamp);
+types.setTypeParser(1187, parseTimestamp);
 
 let pool;
 

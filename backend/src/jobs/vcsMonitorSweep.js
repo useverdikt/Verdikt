@@ -17,7 +17,7 @@ async function runVcsMonitorSweep() {
       WHERE status IN ('pending', 'scanning')
         AND (
           last_scanned_at IS NULL
-          OR EXTRACT(EPOCH FROM (NOW() - (last_scanned_at::timestamptz))) >= ?
+          OR EXTRACT(EPOCH FROM (NOW() - last_scanned_at)) >= $1
         )
       ORDER BY monitoring_end ASC
       LIMIT 20

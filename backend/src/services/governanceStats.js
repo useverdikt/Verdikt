@@ -13,12 +13,12 @@ async function countProductionIncidents(workspaceId) {
     FROM (
       SELECT release_id
       FROM outcome_alignments
-      WHERE workspace_id = ?
+      WHERE workspace_id = $1
         AND UPPER(COALESCE(actual_outcome, '')) = 'INCIDENT'
       UNION
       SELECT release_id
       FROM vcs_monitoring_windows
-      WHERE workspace_id = ?
+      WHERE workspace_id = $2
         AND UPPER(COALESCE(inferred_outcome, '')) = 'INCIDENT'
     ) incidents
   `,

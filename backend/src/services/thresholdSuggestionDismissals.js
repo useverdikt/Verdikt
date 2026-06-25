@@ -18,12 +18,12 @@ async function loadDismissedSuggestionKeys(workspaceId) {
     queryAll(
       `SELECT signal_id, direction, source, suggestion_id
        FROM threshold_suggestion_dismissals
-       WHERE workspace_id = ?`,
+       WHERE workspace_id = $1`,
       [workspaceId]
     ),
     queryAll(
       `SELECT details_json FROM audit_events
-       WHERE workspace_id = ? AND event_type IN ('THRESHOLD_SUGGESTION_DISMISSED', 'THRESHOLD_SUGGESTION_APPLIED')
+       WHERE workspace_id = $1 AND event_type IN ('THRESHOLD_SUGGESTION_DISMISSED', 'THRESHOLD_SUGGESTION_APPLIED')
        ORDER BY id DESC LIMIT 500`,
       [workspaceId]
     )
@@ -66,7 +66,7 @@ async function recordSuggestionDismissal(workspaceId, suggestion, reason = "not_
   await run(
     `INSERT INTO threshold_suggestion_dismissals
       (workspace_id, signal_id, direction, source, suggestion_id, reason, dismissed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT(workspace_id, signal_id, direction, source) DO UPDATE SET
        suggestion_id = excluded.suggestion_id,
        reason = excluded.reason,
@@ -86,7 +86,7 @@ async function recordSuggestionDismissal(workspaceId, suggestion, reason = "not_
     await run(
       `INSERT INTO threshold_suggestion_dismissals
         (workspace_id, signal_id, direction, source, suggestion_id, reason, dismissed_at)
-       VALUES (?, ?, ?, 'any', ?, ?, ?)
+       VALUES ($1, $2, $3, 'any', $4, $5, $6)
        ON CONFLICT(workspace_id, signal_id, direction, source) DO UPDATE SET
          suggestion_id = excluded.suggestion_id,
          reason = excluded.reason,

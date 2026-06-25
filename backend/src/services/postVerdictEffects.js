@@ -41,7 +41,7 @@ const { buildGateContext } = require("./gateContext");
 const { deliverSlackVerdict } = require("./slackNotifier");
 
 async function runPostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence) {
-  const freshRelease = (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId])) || release;
+  const freshRelease = (await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId])) || release;
 
   // 1. Failure mode classification
   try {

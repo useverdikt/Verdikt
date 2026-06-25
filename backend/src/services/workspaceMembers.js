@@ -41,34 +41,34 @@ function isValidRole(role) {
 
 async function userHasWorkspaceAccess(userId, workspaceId) {
   const member = await queryOne(
-    "SELECT 1 AS ok FROM workspace_members WHERE user_id = ? AND workspace_id = ?",
+    "SELECT 1 AS ok FROM workspace_members WHERE user_id = $1 AND workspace_id = $2",
     [userId, workspaceId]
   );
   if (member) return true;
-  const user = await queryOne("SELECT workspace_id FROM users WHERE id = ?", [userId]);
+  const user = await queryOne("SELECT workspace_id FROM users WHERE id = $1", [userId]);
   return user?.workspace_id === workspaceId;
 }
 
 async function getEffectiveRoleForWorkspace(userId, workspaceId) {
   const member = await queryOne(
-    "SELECT role FROM workspace_members WHERE user_id = ? AND workspace_id = ?",
+    "SELECT role FROM workspace_members WHERE user_id = $1 AND workspace_id = $2",
     [userId, workspaceId]
   );
   if (member?.role) return member.role;
-  const user = await queryOne("SELECT role, workspace_id FROM users WHERE id = ?", [userId]);
+  const user = await queryOne("SELECT role, workspace_id FROM users WHERE id = $1", [userId]);
   if (user?.workspace_id === workspaceId) return user.role;
   return null;
 }
 
 async function syncHomeWorkspaceRoleCache(userId, workspaceId, role) {
-  await run("UPDATE users SET role = ? WHERE id = ? AND workspace_id = ?", [role, userId, workspaceId]);
+  await run("UPDATE users SET role = $1 WHERE id = $2 AND workspace_id = $3", [role, userId, workspaceId]);
 }
 
 async function ensureMemberRow({ workspaceId, userId, role, createdAt = null }) {
   const ts = createdAt || nowIso();
   await run(
     `INSERT INTO workspace_members (workspace_id, user_id, role, created_at)
-     VALUES (?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4)
      ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = excluded.role`,
     [workspaceId, userId, role, ts]
   );
@@ -80,7 +80,7 @@ async function listWorkspaceMembersAndInvites(workspaceId) {
     `SELECT u.id AS user_id, u.name, u.email, wm.role, wm.created_at
      FROM workspace_members wm
      JOIN users u ON u.id = wm.user_id
-     WHERE wm.workspace_id = ?
+     WHERE wm.workspace_id = $1
      ORDER BY wm.created_at ASC`,
     [workspaceId]
   );
@@ -88,7 +88,7 @@ async function listWorkspaceMembersAndInvites(workspaceId) {
   const invites = await queryAll(
     `SELECT id, email, role, expires_at, created_at
      FROM workspace_invites
-     WHERE workspace_id = ? AND accepted_at IS NULL AND expires_at > ?
+     WHERE workspace_id = $1 AND accepted_at IS NULL AND expires_at > $2
      ORDER BY created_at DESC`,
     [workspaceId, nowIso()]
   );
@@ -118,7 +118,7 @@ async function getInviteByToken(token) {
     `SELECT wi.*, u.name AS inviter_name
      FROM workspace_invites wi
      LEFT JOIN users u ON u.id = wi.created_by_user_id
-     WHERE wi.token = ?`,
+     WHERE wi.token = $1`,
     [token]
   );
   if (!row) return { ok: false, error: "not_found" };
@@ -142,10 +142,10 @@ async function createWorkspaceInvite({ workspaceId, email, role, invitedByUserId
   if (!normalized.includes("@")) return { ok: false, statusCode: 400, error: "valid email required" };
   if (!isValidRole(role)) return { ok: false, statusCode: 400, error: "invalid role" };
 
-  const existingUser = await queryOne("SELECT id FROM users WHERE email = ?", [normalized]);
+  const existingUser = await queryOne("SELECT id FROM users WHERE email = $1", [normalized]);
   if (existingUser) {
     const already = await queryOne(
-      "SELECT 1 AS ok FROM workspace_members WHERE workspace_id = ? AND user_id = ?",
+      "SELECT 1 AS ok FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
       [workspaceId, existingUser.id]
     );
     if (already) return { ok: false, statusCode: 409, error: "user_already_member" };
@@ -153,7 +153,7 @@ async function createWorkspaceInvite({ workspaceId, email, role, invitedByUserId
 
   await run(
     `DELETE FROM workspace_invites
-     WHERE workspace_id = ? AND LOWER(email) = ? AND accepted_at IS NULL`,
+     WHERE workspace_id = $1 AND LOWER(email) = $2 AND accepted_at IS NULL`,
     [workspaceId, normalized]
   );
 
@@ -165,7 +165,7 @@ async function createWorkspaceInvite({ workspaceId, email, role, invitedByUserId
   await run(
     `INSERT INTO workspace_invites (
       id, workspace_id, email, role, token, expires_at, created_at, created_by_user_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [id, workspaceId, normalized, role, token, expires, created, invitedByUserId || null]
   );
 
@@ -198,7 +198,7 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
     return { ok: false, statusCode: 403, error: "invite_email_mismatch" };
   }
 
-  const user = await queryOne("SELECT * FROM users WHERE id = ?", [userId]);
+  const user = await queryOne("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return { ok: false, statusCode: 404, error: "user_not_found" };
 
   if (user.workspace_id && user.workspace_id !== invite.workspace_id) {
@@ -208,10 +208,10 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
   }
 
   await ensureMemberRow({ workspaceId: invite.workspace_id, userId, role: invite.role });
-  await run("UPDATE users SET workspace_id = ? WHERE id = ?", [invite.workspace_id, userId]);
+  await run("UPDATE users SET workspace_id = $1 WHERE id = $2", [invite.workspace_id, userId]);
   await syncHomeWorkspaceRoleCache(userId, invite.workspace_id, invite.role);
   await run(
-    "UPDATE workspace_invites SET accepted_at = ?, accepted_user_id = ? WHERE id = ?",
+    "UPDATE workspace_invites SET accepted_at = $1, accepted_user_id = $2 WHERE id = $3",
     [nowIso(), userId, invite.id]
   );
 
@@ -224,7 +224,7 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
     details: { invite_id: invite.id, role: invite.role }
   });
 
-  const fresh = await queryOne("SELECT * FROM users WHERE id = ?", [userId]);
+  const fresh = await queryOne("SELECT * FROM users WHERE id = $1", [userId]);
   return { ok: true, user: fresh, workspace_id: invite.workspace_id, role: invite.role };
 }
 
@@ -237,17 +237,17 @@ async function registerUserWithInvite({ email, password, name, inviteToken, pass
     return { ok: false, statusCode: 400, error: "invite_email_mismatch" };
   }
 
-  const existing = await queryOne("SELECT id FROM users WHERE email = ?", [normalizeEmail(email)]);
+  const existing = await queryOne("SELECT id FROM users WHERE email = $1", [normalizeEmail(email)]);
   if (existing) return { ok: false, statusCode: 409, error: "email_already_registered" };
 
   const ts = nowIso();
   await run(
-    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
     [userId, normalizeEmail(email), passwordHash, displayName, invite.workspace_id, invite.role, ts]
   );
   await ensureMemberRow({ workspaceId: invite.workspace_id, userId, role: invite.role, createdAt: ts });
   await run(
-    "UPDATE workspace_invites SET accepted_at = ?, accepted_user_id = ? WHERE id = ?",
+    "UPDATE workspace_invites SET accepted_at = $1, accepted_user_id = $2 WHERE id = $3",
     [ts, userId, invite.id]
   );
 
@@ -266,12 +266,12 @@ async function registerUserWithInvite({ email, password, name, inviteToken, pass
 async function updateMemberRole({ workspaceId, targetUserId, role, actorEmail }) {
   if (!isValidRole(role)) return { ok: false, statusCode: 400, error: "invalid role" };
   const member = await queryOne(
-    "SELECT user_id FROM workspace_members WHERE workspace_id = ? AND user_id = ?",
+    "SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
     [workspaceId, targetUserId]
   );
   if (!member) return { ok: false, statusCode: 404, error: "member_not_found" };
 
-  await run("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?", [
+  await run("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3", [
     role,
     workspaceId,
     targetUserId
@@ -295,7 +295,7 @@ async function removeMember({ workspaceId, targetUserId, actorUserId, actorEmail
     return { ok: false, statusCode: 400, error: "cannot_remove_self" };
   }
   const count = await queryOne(
-    "SELECT COUNT(*) AS c FROM workspace_members WHERE workspace_id = ?",
+    "SELECT COUNT(*) AS c FROM workspace_members WHERE workspace_id = $1",
     [workspaceId]
   );
   if (Number(count?.c || 0) <= 1) {
@@ -303,7 +303,7 @@ async function removeMember({ workspaceId, targetUserId, actorUserId, actorEmail
   }
 
   const removed = await run(
-    "DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?",
+    "DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
     [workspaceId, targetUserId]
   );
   if (!removed?.changes) return { ok: false, statusCode: 404, error: "member_not_found" };
@@ -322,11 +322,11 @@ async function removeMember({ workspaceId, targetUserId, actorUserId, actorEmail
 
 async function revokeInvite({ workspaceId, inviteId, actorEmail }) {
   const row = await queryOne(
-    "SELECT id FROM workspace_invites WHERE id = ? AND workspace_id = ? AND accepted_at IS NULL",
+    "SELECT id FROM workspace_invites WHERE id = $1 AND workspace_id = $2 AND accepted_at IS NULL",
     [inviteId, workspaceId]
   );
   if (!row) return { ok: false, statusCode: 404, error: "invite_not_found" };
-  await run("DELETE FROM workspace_invites WHERE id = ?", [inviteId]);
+  await run("DELETE FROM workspace_invites WHERE id = $1", [inviteId]);
   await writeAudit({
     workspaceId,
     releaseId: null,
@@ -342,11 +342,11 @@ async function listWorkspacesForUser(userId) {
   const members = await queryAll(
     `SELECT wm.workspace_id, wm.role, wm.created_at
      FROM workspace_members wm
-     WHERE wm.user_id = ?
+     WHERE wm.user_id = $1
      ORDER BY wm.created_at ASC`,
     [userId]
   );
-  const user = await queryOne("SELECT workspace_id, role FROM users WHERE id = ?", [userId]);
+  const user = await queryOne("SELECT workspace_id, role FROM users WHERE id = $1", [userId]);
   const byId = new Map();
   for (const m of members) {
     byId.set(m.workspace_id, { workspace_id: m.workspace_id, role: m.role });

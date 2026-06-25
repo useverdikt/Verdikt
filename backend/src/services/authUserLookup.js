@@ -10,7 +10,7 @@ const { queryOne } = require("../database");
 async function getUserRowForAuthById(id) {
   const sid = String(id);
   return queryOne(
-    "SELECT id, email, name, workspace_id, role, created_at, password_changed_at FROM users WHERE id = ?",
+    "SELECT id, email, name, workspace_id, role, created_at, password_changed_at FROM users WHERE id = $1",
     [sid]
   );
 }
@@ -22,7 +22,7 @@ async function getUserRowForAuthById(id) {
 async function findApplicationUserForSupabaseSub(authSub) {
   const sid = String(authSub);
   return queryOne(
-    "SELECT id, email, name, workspace_id, role, created_at, password_changed_at FROM users WHERE auth_user_id = ? OR id = ?",
+    "SELECT id, email, name, workspace_id, role, created_at, password_changed_at FROM users WHERE auth_user_id = $1 OR id = $2",
     [sid, sid]
   );
 }

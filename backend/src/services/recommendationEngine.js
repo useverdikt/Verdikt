@@ -506,13 +506,13 @@ function buildSuggestedActions(verdict, level, atRisk, failed, modes, lowRel, ou
  */
 async function loadRecommendationContext(releaseId, workspaceId) {
   // Signals
-  const sigRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [releaseId]);
+  const sigRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [releaseId]);
   const signals = {};
   for (const s of sigRows) signals[s.signal_id] = s.value;
 
   // Thresholds
   const threshRows = await queryAll(
-    "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ?",
+    "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = $1",
     [workspaceId]
   );
   const thresholds = {};
@@ -528,7 +528,7 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   const lastEval = await queryOne(
     `
     SELECT details_json FROM audit_events
-    WHERE release_id = ? AND event_type = 'SIGNALS_INGESTED'
+    WHERE release_id = $1 AND event_type = 'SIGNALS_INGESTED'
     ORDER BY id DESC LIMIT 1
   `,
     [releaseId]
@@ -547,7 +547,7 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   const fmRows = await queryAll(
     `
     SELECT failure_mode, confidence, signals_json, computed_at
-    FROM failure_mode_classifications WHERE release_id = ? ORDER BY confidence DESC
+    FROM failure_mode_classifications WHERE release_id = $1 ORDER BY confidence DESC
   `,
     [releaseId]
   );
@@ -559,21 +559,21 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   }));
 
   // Early warning
-  const ewRow = await queryOne("SELECT * FROM release_early_warnings WHERE release_id = ?", [releaseId]);
+  const ewRow = await queryOne("SELECT * FROM release_early_warnings WHERE release_id = $1", [releaseId]);
   const earlyWarning = ewRow
     ? { overall_risk: ewRow.overall_risk, warnings: safeJsonParse(ewRow.warnings_json, []) }
     : null;
 
   // Signal reliability
   const relRows = await queryAll(
-    "SELECT signal_id, grade, on_time_rate, reliability FROM signal_reliability WHERE workspace_id = ?",
+    "SELECT signal_id, grade, on_time_rate, reliability FROM signal_reliability WHERE workspace_id = $1",
     [workspaceId]
   );
   const reliabilityMap = {};
   for (const r of relRows) reliabilityMap[r.signal_id] = r;
 
   // Override analytics (lightweight read from cache)
-  const oaRow = await queryOne("SELECT * FROM override_analytics_cache WHERE workspace_id = ?", [workspaceId]);
+  const oaRow = await queryOne("SELECT * FROM override_analytics_cache WHERE workspace_id = $1", [workspaceId]);
   let overrideAnalytics = null;
   if (oaRow) {
     try {
@@ -588,7 +588,7 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   const correlations = await queryAll(
     `
     SELECT signal_a, signal_b, correlation FROM signal_correlations
-    WHERE workspace_id = ? AND ABS(correlation) >= 0.5
+    WHERE workspace_id = $1 AND ABS(correlation) >= 0.5
     ORDER BY ABS(correlation) DESC LIMIT 30
   `,
     [workspaceId]
@@ -597,7 +597,7 @@ async function loadRecommendationContext(releaseId, workspaceId) {
   // Production adjustment — feeds back historical accuracy into confidence
   let productionAdjustment = null;
   try {
-    const paRow = await queryOne("SELECT * FROM production_adjustment_cache WHERE workspace_id = ?", [workspaceId]);
+    const paRow = await queryOne("SELECT * FROM production_adjustment_cache WHERE workspace_id = $1", [workspaceId]);
     if (paRow && paRow.sample_count >= 3) {
       productionAdjustment = {
         confidence_modifier: paRow.confidence_modifier,
@@ -644,7 +644,7 @@ async function getRecommendationForRelease(release) {
  */
 async function getRecommendation(releaseId) {
   const row = await queryOne(
-    "SELECT recommendation_json, decision_json FROM release_intelligence WHERE release_id = ?",
+    "SELECT recommendation_json, decision_json FROM release_intelligence WHERE release_id = $1",
     [releaseId]
   );
   if (!row) return null;

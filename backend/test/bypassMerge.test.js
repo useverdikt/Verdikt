@@ -53,7 +53,7 @@ describe("bypass merge prod tracking", () => {
       .send({ version: "Bypass flag test (#9191)", release_type: "model_update", pr_number: 9191 })
       .expect(201);
 
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "UNCERTIFIED",
       nowIso(),
       created.body.id
@@ -76,21 +76,21 @@ describe("bypass merge prod tracking", () => {
 
     assert.equal(hook.body.shipped_without_certification, 1);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [created.body.id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [created.body.id]);
     assert.equal(rel.environment, "prod");
     assert.equal(Number(rel.shipped_without_certification), 1);
     assert.ok(rel.shipped_without_certification_at);
 
     const bypassAudit = await queryOne(
-      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ?",
+      "SELECT * FROM audit_events WHERE release_id = $1 AND event_type = $2",
       [created.body.id, "RELEASE_SHIPPED_WITHOUT_CERTIFICATION"]
     );
     assert.ok(bypassAudit);
 
     // Status change must not clear the frozen bypass flag.
-    await run("UPDATE releases SET status = ? WHERE id = ?", ["CERTIFIED_WITH_OVERRIDE", created.body.id]);
+    await run("UPDATE releases SET status = $1 WHERE id = $2", ["CERTIFIED_WITH_OVERRIDE", created.body.id]);
     const afterOverride = await queryOne(
-      "SELECT shipped_without_certification, shipped_without_certification_at FROM releases WHERE id = ?",
+      "SELECT shipped_without_certification, shipped_without_certification_at FROM releases WHERE id = $1",
       [created.body.id]
     );
     assert.equal(Number(afterOverride.shipped_without_certification), 1);
@@ -116,20 +116,20 @@ describe("bypass merge prod tracking", () => {
       .send({ version: "Rec refresh (#9393)", release_type: "model_update", pr_number: 9393 })
       .expect(201);
 
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "UNCERTIFIED",
       nowIso(),
       created.body.id
     ]);
     await run(
-      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES (?, 'accuracy', 50, 't', ?)`,
+      `INSERT INTO signals (release_id, signal_id, value, source, created_at) VALUES ($1, 'accuracy', 50, 't', $2)`,
       [created.body.id, nowIso()]
     );
 
     const { computeAndPersistRecommendation } = require("../src/services/recommendationEngine");
-    const preProd = await queryOne("SELECT * FROM releases WHERE id = ?", [created.body.id]);
+    const preProd = await queryOne("SELECT * FROM releases WHERE id = $1", [created.body.id]);
     await computeAndPersistRecommendation(preProd);
-    const preRow = await queryOne("SELECT recommendation_json FROM release_intelligence WHERE release_id = ?", [
+    const preRow = await queryOne("SELECT recommendation_json FROM release_intelligence WHERE release_id = $1", [
       created.body.id
     ]);
     const preRec = JSON.parse(preRow.recommendation_json);
@@ -153,7 +153,7 @@ describe("bypass merge prod tracking", () => {
       .send(signed.raw)
       .expect(200);
 
-    const postRow = await queryOne("SELECT recommendation_json FROM release_intelligence WHERE release_id = ?", [
+    const postRow = await queryOne("SELECT recommendation_json FROM release_intelligence WHERE release_id = $1", [
       created.body.id
     ]);
     const postRec = JSON.parse(postRow.recommendation_json);
@@ -205,12 +205,12 @@ describe("bypass merge prod tracking", () => {
       .expect(200);
 
     const windowsAfterMerge = await queryAll(
-      "SELECT * FROM vcs_monitoring_windows WHERE release_id = ?",
+      "SELECT * FROM vcs_monitoring_windows WHERE release_id = $1",
       [releaseId]
     );
     assert.equal(windowsAfterMerge.length, 1, "merge should open exactly one monitoring window");
 
-    await run("UPDATE releases SET collection_deadline = ? WHERE id = ?", [
+    await run("UPDATE releases SET collection_deadline = $1 WHERE id = $2", [
       new Date(Date.now() - 60_000).toISOString(),
       releaseId
     ]);
@@ -224,7 +224,7 @@ describe("bypass merge prod tracking", () => {
       .expect(200);
 
     const windowsAfterVerdict = await queryAll(
-      "SELECT * FROM vcs_monitoring_windows WHERE release_id = ?",
+      "SELECT * FROM vcs_monitoring_windows WHERE release_id = $1",
       [releaseId]
     );
     assert.equal(
@@ -254,7 +254,7 @@ describe("bypass merge prod tracking", () => {
       .expect(201);
     const releaseId = created.body.id;
 
-    await run("UPDATE releases SET status = ? WHERE id = ?", ["UNCERTIFIED", releaseId]);
+    await run("UPDATE releases SET status = $1 WHERE id = $2", ["UNCERTIFIED", releaseId]);
 
     const mergePayload = {
       action: "closed",
@@ -271,7 +271,7 @@ describe("bypass merge prod tracking", () => {
       .send(signedMerge.raw)
       .expect(200);
 
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
     const out = await applyReleaseOverride(release, {
       approver_name: "VP Eng",
       approver_role: "VP_ENGINEERING",
@@ -285,18 +285,18 @@ describe("bypass merge prod tracking", () => {
     assert.equal(out.ok, true);
 
     const retroAudit = await queryOne(
-      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ?",
+      "SELECT * FROM audit_events WHERE release_id = $1 AND event_type = $2",
       [releaseId, "RETROACTIVE_OVERRIDE_AFTER_BYPASS_MERGE"]
     );
     assert.ok(retroAudit, "retroactive bypass override must emit dedicated audit event");
 
     const overrideAudit = await queryOne(
-      "SELECT * FROM audit_events WHERE release_id = ? AND event_type = ?",
+      "SELECT * FROM audit_events WHERE release_id = $1 AND event_type = $2",
       [releaseId, "OVERRIDE_APPROVED"]
     );
     assert.ok(overrideAudit);
 
-    const overrideRow = await queryOne("SELECT metadata_json FROM overrides WHERE release_id = ?", [releaseId]);
+    const overrideRow = await queryOne("SELECT metadata_json FROM overrides WHERE release_id = $1", [releaseId]);
     const meta = JSON.parse(overrideRow.metadata_json || "{}");
     assert.equal(meta.retroactive, true);
   });
@@ -334,7 +334,7 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Emergency merge (#9292)", release_type: "model_update", pr_number: 9292 })
       .expect(201);
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "UNCERTIFIED",
       nowIso(),
       bypassRelease.body.id
@@ -362,12 +362,12 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Follow-up override (#9293)", release_type: "model_update", pr_number: 9293 })
       .expect(201);
-    await run("UPDATE releases SET status = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1 WHERE id = $2", [
       "CERTIFIED_WITH_OVERRIDE",
       overrideRelease.body.id
     ]);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [overrideRelease.body.id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [overrideRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "default" });
     assert.equal(gate.remediation_debt.active, true);
     assert.equal(gate.can_merge, false);
@@ -396,7 +396,7 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Debt origin (#9401)", release_type: "model_update", pr_number: 9401 })
       .expect(201);
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "UNCERTIFIED",
       nowIso(),
       bypassRelease.body.id
@@ -423,12 +423,12 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Emergency hotfix (#9402)", release_type: "incident_hotfix", pr_number: 9402 })
       .expect(201);
-    await run("UPDATE releases SET status = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1 WHERE id = $2", [
       "CERTIFIED_WITH_OVERRIDE",
       emgRelease.body.id
     ]);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [emgRelease.body.id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [emgRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "default" });
     assert.equal(gate.remediation_debt.active, true);
     assert.equal(gate.can_merge, true, "emergency release must be mergeable under remediation debt");
@@ -456,7 +456,7 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Debt origin 2 (#9411)", release_type: "model_update", pr_number: 9411 })
       .expect(201);
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "UNCERTIFIED",
       nowIso(),
       bypassRelease.body.id
@@ -481,9 +481,9 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Routine follow-up (#9412)", release_type: "model_update", pr_number: 9412 })
       .expect(201);
-    await run("UPDATE releases SET status = ? WHERE id = ?", ["UNCERTIFIED", routineRelease.body.id]);
+    await run("UPDATE releases SET status = $1 WHERE id = $2", ["UNCERTIFIED", routineRelease.body.id]);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [routineRelease.body.id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [routineRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "default" });
     assert.equal(gate.remediation_debt.active, true);
     assert.equal(gate.can_merge, false, "non-emergency release under debt must be blocked");
@@ -512,7 +512,7 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Debt origin strict (#9510)", release_type: "model_update", pr_number: 9510 })
       .expect(201);
-    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
       "UNCERTIFIED",
       nowIso(),
       bypassRelease.body.id
@@ -535,9 +535,9 @@ describe("bypass merge prod tracking", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Emergency strict (#9511)", release_type: "incident_hotfix", pr_number: 9511 })
       .expect(201);
-    await run("UPDATE releases SET status = ? WHERE id = ?", ["CERTIFIED_WITH_OVERRIDE", emgRelease.body.id]);
+    await run("UPDATE releases SET status = $1 WHERE id = $2", ["CERTIFIED_WITH_OVERRIDE", emgRelease.body.id]);
 
-    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [emgRelease.body.id]);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [emgRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "strict" });
     assert.equal(gate.can_merge, true, "strict mode must allow corroborated emergency override under debt");
     assert.equal(gate.action, "merge");

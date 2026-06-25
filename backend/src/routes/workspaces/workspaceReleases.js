@@ -22,7 +22,7 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
   try {
     const ws = req.params.workspaceId;
     const [countRow, shipped_without_certification_count, governance] = await Promise.all([
-      queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [ws]),
+      queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = $1", [ws]),
       countShippedWithoutCertification(ws),
       getWorkspaceGovernanceStats(ws)
     ]);
@@ -32,13 +32,13 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
     const rows = before
       ? await queryAll(
           `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality, shipped_without_certification, shipped_without_certification_at
-           FROM releases WHERE workspace_id = ? AND created_at::timestamptz < ?::timestamptz
-           ORDER BY created_at::timestamptz DESC LIMIT ?`,
+           FROM releases WHERE workspace_id = $1 AND created_at < $2
+           ORDER BY created_at DESC LIMIT $3`,
           [ws, before, limit]
         )
       : await queryAll(
           `SELECT id, workspace_id, version, release_type, environment, status, created_at, updated_at, release_ref, trigger_source, collection_deadline, verdict_issued_at, evidence_quality, shipped_without_certification, shipped_without_certification_at
-           FROM releases WHERE workspace_id = ? ORDER BY created_at::timestamptz DESC LIMIT ?`,
+           FROM releases WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT $2`,
           [ws, limit]
         );
     const last = rows[rows.length - 1];
@@ -162,12 +162,12 @@ app.get("/api/workspaces/:workspaceId/audit", authMiddleware, requireWorkspaceMa
     const beforeId = beforeRaw != null && String(beforeRaw).trim() !== "" ? Number(beforeRaw) : null;
     const params = [req.params.workspaceId];
     let sql =
-      "SELECT id, event_type, actor_type, actor_name, release_id, details_json, created_at FROM audit_events WHERE workspace_id = ?";
+      "SELECT id, event_type, actor_type, actor_name, release_id, details_json, created_at FROM audit_events WHERE workspace_id = $1";
     if (Number.isFinite(beforeId)) {
-      sql += " AND id < ?";
+      sql += ` AND id < $${params.length + 1}`;
       params.push(beforeId);
     }
-    sql += " ORDER BY id DESC LIMIT ?";
+    sql += ` ORDER BY id DESC LIMIT $${params.length + 1}`;
     params.push(limit);
 
     const raw = await queryAll(sql, params);

@@ -29,7 +29,7 @@ function buildCanonicalPayload(release, verdict, signedAt, evidenceHash = null) 
 }
 
 async function signCertificationRecord(release, verdictIntelligence) {
-  const existing = await queryOne("SELECT * FROM cert_signatures WHERE release_id = ?", [release.id]);
+  const existing = await queryOne("SELECT * FROM cert_signatures WHERE release_id = $1", [release.id]);
   if (existing) {
     return {
       payload_hash: existing.payload_hash,
@@ -51,7 +51,7 @@ async function signCertificationRecord(release, verdictIntelligence) {
     `
     INSERT INTO cert_signatures
       (release_id, workspace_id, algorithm, payload_hash, signature, signed_at, signed_by, public_key_hint)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     ON CONFLICT(release_id) DO NOTHING
   `,
     [
@@ -67,7 +67,7 @@ async function signCertificationRecord(release, verdictIntelligence) {
   );
 
   const stored =
-    (await queryOne("SELECT * FROM cert_signatures WHERE release_id = ?", [release.id])) || null;
+    (await queryOne("SELECT * FROM cert_signatures WHERE release_id = $1", [release.id])) || null;
 
   return {
     payload_hash: stored?.payload_hash || payloadHash,
@@ -78,13 +78,13 @@ async function signCertificationRecord(release, verdictIntelligence) {
 }
 
 async function verifyCertificationRecord(releaseId) {
-  const sigRow = await queryOne("SELECT * FROM cert_signatures WHERE release_id = ?", [releaseId]);
+  const sigRow = await queryOne("SELECT * FROM cert_signatures WHERE release_id = $1", [releaseId]);
   if (!sigRow) return { valid: false, reason: "no_signature_on_record" };
 
-  const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
   if (!release) return { valid: false, reason: "release_not_found" };
 
-  const intel = await queryOne("SELECT verdict_json FROM release_intelligence WHERE release_id = ?", [releaseId]);
+  const intel = await queryOne("SELECT verdict_json FROM release_intelligence WHERE release_id = $1", [releaseId]);
   const verdict = intel?.verdict_json ? JSON.parse(intel.verdict_json) : null;
   const snapshot = await getCertificationSnapshot(releaseId);
 
@@ -112,7 +112,7 @@ async function verifyCertificationRecord(releaseId) {
 async function getCertSignaturePublic(releaseId) {
   const row =
     (await queryOne(
-      "SELECT release_id, workspace_id, algorithm, payload_hash, signature, signed_at, public_key_hint FROM cert_signatures WHERE release_id = ?",
+      "SELECT release_id, workspace_id, algorithm, payload_hash, signature, signed_at, public_key_hint FROM cert_signatures WHERE release_id = $1",
       [releaseId]
     )) || null;
   if (!row) return null;

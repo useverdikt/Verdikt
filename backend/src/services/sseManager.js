@@ -30,14 +30,14 @@ async function issueStreamToken(releaseId, workspaceId) {
   await run(
     `
     INSERT INTO sse_tokens (token, workspace_id, release_id, expires_at, created_at)
-    VALUES (?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT(token) DO NOTHING
   `,
     [token, workspaceId, releaseId, expiresAt, now]
   );
 
   try {
-    await run("DELETE FROM sse_tokens WHERE expires_at < ?", [now]);
+    await run("DELETE FROM sse_tokens WHERE expires_at < $1", [now]);
   } catch (_) {}
 
   return { token, expires_at: expiresAt };
@@ -48,7 +48,7 @@ async function issueStreamToken(releaseId, workspaceId) {
  */
 async function validateStreamToken(token, releaseId) {
   if (!token) return { valid: false };
-  const row = await queryOne("SELECT * FROM sse_tokens WHERE token = ?", [token]);
+  const row = await queryOne("SELECT * FROM sse_tokens WHERE token = $1", [token]);
   if (!row) return { valid: false, reason: "unknown_token" };
   if (row.release_id && row.release_id !== releaseId) return { valid: false, reason: "release_mismatch" };
   if (Date.parse(row.expires_at) < Date.now()) return { valid: false, reason: "token_expired" };
