@@ -183,7 +183,7 @@ export default function WorkspaceSignalsPanel({
   const [showModal, setShowModal] = useState(false);
   const libraryGroups = useMemo(() => groupLibraryByCategory(library), [library]);
 
-  const customDefs = definitions.filter((d) => !d.from_library || d.source_id === "custom" || d.source_id === "zizkadb");
+  const customDefs = definitions.filter((d) => !d.from_library || d.source_id === "custom");
   const standardDefs = definitions.filter((d) => d.from_library && !customDefs.includes(d));
 
   return (
@@ -226,7 +226,7 @@ export default function WorkspaceSignalsPanel({
           ) : (
             [...standardDefs, ...customDefs].map((def, i, arr) => {
               const sig = definitionToSignalMeta(def);
-              const isCustom = !def.from_library || def.source_id === "custom" || def.source_id === "zizkadb";
+              const isCustom = !def.from_library || def.source_id === "custom";
               return (
                 <div
                   key={def.signal_id}

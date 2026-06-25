@@ -52,7 +52,7 @@ async function buildSignalSourcesPanel(workspaceId) {
   const pushGroups = new Map();
   for (const def of definitions) {
     const sid = def.source_id || "custom";
-    const mode = modeBySource[sid] || (sid === "custom" || sid === "zizkadb" ? "push" : "pull");
+    const mode = modeBySource[sid] || (sid === "custom" ? "push" : "pull");
     if (mode === "push") {
       if (!pushGroups.has(sid)) pushGroups.set(sid, []);
       pushGroups.get(sid).push(def.signal_id);

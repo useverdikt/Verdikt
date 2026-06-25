@@ -35,11 +35,6 @@ export const PULL_CONNECTOR_META = {
 };
 
 export const PUSH_SOURCE_META = {
-  zizkadb: {
-    icon: "◇",
-    name: "ZizkaDB",
-    detail: "Behavioural drift and session anomalies pushed after each eval run"
-  },
   custom: {
     icon: "↗",
     name: "Custom API push",

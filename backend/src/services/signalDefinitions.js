@@ -129,25 +129,6 @@ function buildConnectorSeedRows() {
       });
     }
   }
-  // Partner push connector (ZizkaDB)
-  for (const entry of [
-    {
-      source_id: "zizkadb",
-      signal_id: "behavioural_drift",
-      display_name: "Behavioural Drift",
-      direction: "max",
-      ingest_mode: "push"
-    },
-    {
-      source_id: "zizkadb",
-      signal_id: "session_anomaly_rate",
-      display_name: "Session Anomaly Rate",
-      direction: "max",
-      ingest_mode: "push"
-    }
-  ]) {
-    rows.push(entry);
-  }
   rows.push({
     source_id: "custom",
     signal_id: "*",
@@ -408,7 +389,7 @@ async function deleteWorkspaceDefinition(workspaceId, signalId) {
   const existing = await getWorkspaceDefinition(workspaceId, signalId);
   if (!existing) return;
   const keepThreshold =
-    existing.from_library && existing.source_id !== "custom" && existing.source_id !== "zizkadb";
+    existing.from_library && existing.source_id !== "custom";
   if (keepThreshold) {
     await run(
       `UPDATE workspace_signal_definitions SET detached_at = $1::timestamptz

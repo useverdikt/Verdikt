@@ -32,7 +32,7 @@ Expect **HTTP 200** and JSON with `pull_connectors`, `push_sources`, `api_push`.
 | API key | Settings → Agent access | Generate key → use in GitHub secrets |
 | Thresholds | App → **Thresholds** (`/thresholds`) | Adopt signals from the library or add custom; set floors and required toggles |
 | Integrations | Settings → Signal sources | Optional for v1 dogfood — use **Signal Simulator** if none connected |
-| Signal sim workspaces | API env `INTERNAL_WORKSPACE_VIEWER_EMAILS` | Comma-separated operator emails (e.g. `joseph@useverdikt.com,founder@zizka.ai`) so `/signal-sim` lists all active workspaces for internal testing |
+| Signal sim workspaces | API env `INTERNAL_WORKSPACE_VIEWER_EMAILS` | Comma-separated operator emails (e.g. `joseph@useverdikt.com`) so `/signal-sim` lists all active workspaces for internal testing |
 
 ### 2. GitHub repo secrets (useverdikt/Verdikt)
 

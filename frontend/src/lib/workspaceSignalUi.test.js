@@ -102,7 +102,6 @@ describe("workspaceSignalUi", () => {
     ];
     const connectors = [
       { source_id: "braintrust", ingest_mode: "pull" },
-      { source_id: "zizkadb", ingest_mode: "push" },
       { source_id: "manual_qa", ingest_mode: "push" }
     ];
     const groups = buildCustomSignalSourceGroups(connectors, catalog, SIGNAL_SOURCE_SECTIONS);
@@ -110,11 +109,10 @@ describe("workspaceSignalUi", () => {
     const ids = options.map((o) => o.id);
     expect(ids).toContain("custom");
     expect(ids).toContain("braintrust");
-    expect(ids).toContain("zizkadb");
     expect(ids).toContain("langsmith");
     expect(options.find((o) => o.id === "braintrust")?.label).toMatch(/integration pull/i);
-    expect(options.find((o) => o.id === "zizkadb")?.label).toMatch(/API push/i);
+    expect(options.find((o) => o.id === "custom")?.label).toMatch(/API push/i);
     expect(groups.find((g) => g.id === "ai_eval")?.options.some((o) => o.id === "braintrust")).toBe(true);
-    expect(groups.find((g) => g.id === "partner")?.options.some((o) => o.id === "zizkadb")).toBe(true);
+    expect(groups.find((g) => g.id === "partner")?.options.some((o) => o.id === "custom")).toBe(true);
   });
 });

@@ -17,7 +17,7 @@ export const SIGNAL_SOURCE_SECTIONS = [
   { id: "reliability", label: "Runtime Reliability", sourceIds: ["sentry"] },
   { id: "performance", label: "Runtime Performance", sourceIds: ["datadog"] },
   { id: "manual_qa", label: "Risk Scenario Review", sourceIds: ["manual_qa"] },
-  { id: "partner", label: "Partner / API push", sourceIds: ["zizkadb", "custom"] }
+  { id: "partner", label: "Partner / API push", sourceIds: ["custom"] }
 ];
 
 const STATUS_META = {

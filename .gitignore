@@ -22,3 +22,4 @@ backend/data/backups/
 
 # Internal-only docs (not for repo / partners)
 docs/TECH_DEBT.md
+docs/partners/OUTBOUND_LIST.md

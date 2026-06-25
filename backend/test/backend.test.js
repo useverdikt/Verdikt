@@ -2246,7 +2246,6 @@ describe("Workspace signal definitions", () => {
     assert.ok(Array.isArray(catalog.body.library));
     assert.ok(catalog.body.library.length >= 5);
     assert.ok(Array.isArray(catalog.body.connectors));
-    assert.ok(catalog.body.connectors.some((c) => c.source_id === "zizkadb"));
 
     const adopt = await agent
       .post(`/api/workspaces/${ws}/signal-definitions/adopt`)
@@ -2261,7 +2260,7 @@ describe("Workspace signal definitions", () => {
         display_name: "Behavioural Drift",
         direction: "max",
         unit: "score",
-        source_id: "zizkadb",
+        source_id: "custom",
         threshold: { max: 0.15 },
         required_for_certification: true
       })
