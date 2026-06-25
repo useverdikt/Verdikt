@@ -325,7 +325,7 @@ async function sendEscalationRequestedEmail({
     commitSha ? `Commit: ${commitSha.slice(0, 12)}` : null,
     "",
     `Reason: ${reason}`,
-    blockingSignals?.length ? `Blocking signals: ${blockingSignals.join(", ")}` : null,
+    blockingSignals.length ? `Blocking signals: ${blockingSignals.join(", ")}` : null,
     slaDueAt ? `Review by: ${slaDueAt}` : null,
     inboxUrl ? `\nOpen inbox: ${inboxUrl}` : null
   ].filter(Boolean);
@@ -338,7 +338,7 @@ ${prNumber != null ? `<li><strong>PR:</strong> #${escapeHtml(String(prNumber))}<
 ${commitSha ? `<li><strong>Commit:</strong> <code>${escapeHtml(commitSha.slice(0, 12))}</code></li>` : ""}
 </ul>
 <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
-${blockingSignals?.length ? `<p><strong>Blocking signals:</strong> ${escapeHtml(blockingSignals.join(", "))}</p>` : ""}
+${blockingSignals.length ? `<p><strong>Blocking signals:</strong> ${escapeHtml(blockingSignals.join(", "))}</p>` : ""}
 ${slaDueAt ? `<p><strong>Review by:</strong> ${escapeHtml(slaDueAt)}</p>` : ""}
 ${inboxUrl ? `<p><a href="${escapeHtml(inboxUrl)}">Open escalation inbox</a></p>` : ""}`;
 
@@ -391,7 +391,7 @@ async function sendWorkspaceInviteEmail({ to, token, role, inviterName }) {
   ].join("\n");
   const html = `<p><strong>${escapeHtml(inviter)}</strong> to join their Verdikt workspace as <strong>${escapeHtml(role)}</strong>.</p>
 <p><a href="${escapeHtml(acceptUrl)}">Accept invite</a> (sign in if you already have an account)</p>
-<p>New to Verdikt? <a href="${escapeHtml(registerUrl)}">Create your account</a></p>
+<p>New to Verdikt$1 <a href="${escapeHtml(registerUrl)}">Create your account</a></p>
 <p style="color:#666;font-size:13px">This invite expires in 7 days.</p>`;
 
   const ac = new AbortController();

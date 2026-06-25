@@ -128,7 +128,7 @@ function deriveEvidenceQualityFlag(summary) {
 
 async function loadSignalRowsForRelease(releaseId) {
   return queryAll(
-    "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = ? ORDER BY id ASC",
+    "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = $1 ORDER BY id ASC",
     [releaseId]
   );
 }
@@ -143,7 +143,7 @@ async function persistReleaseEvidenceQuality(releaseId) {
   const evidence_summary = summarizeEvidence(rows);
   const evidence_quality = deriveEvidenceQualityFlag(evidence_summary);
 
-  await run("UPDATE releases SET evidence_quality = ?, evidence_summary_json = ?, updated_at = ? WHERE id = ?", [
+  await run("UPDATE releases SET evidence_quality = $1, evidence_summary_json = $2, updated_at = $3 WHERE id = $4", [
     evidence_quality,
     JSON.stringify(evidence_summary),
     nowIso(),

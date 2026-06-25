@@ -43,7 +43,7 @@ async function ensureWorkspaceSeeded(workspaceId) {
 }
 
 async function seedThresholds(workspaceId) {
-  const row = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = ?", [workspaceId]);
+  const row = await queryOne("SELECT COUNT(*) AS c FROM thresholds WHERE workspace_id = $1", [workspaceId]);
   const c = Number(row?.c ?? 0);
   if (c > 0) return;
   // New workspaces start with no threshold rows — signals are added when adopted from the library or created custom.
@@ -51,19 +51,19 @@ async function seedThresholds(workspaceId) {
 
 async function ensureMissingThresholdRows(workspaceId) {
   const definitionRows = await queryAll(
-    "SELECT signal_id FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
+    "SELECT signal_id FROM workspace_signal_definitions WHERE workspace_id = $1 AND detached_at IS NULL",
     [workspaceId]
   ).catch(() => []);
   const defaults = sharedPkg.getDefaultThresholdSeedRows();
   const existingRows = await queryAll(
-    "SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?",
+    "SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = $1",
     [workspaceId]
   );
   const existing = new Map(existingRows.map((r) => [r.signal_id, r]));
   const insertSql =
-    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES (?, ?, ?, ?, ?)";
+    "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5)";
   const updateSql =
-    "UPDATE thresholds SET min_value = ?, max_value = ? WHERE workspace_id = ? AND signal_id = ?";
+    "UPDATE thresholds SET min_value = $1, max_value = $2 WHERE workspace_id = $3 AND signal_id = $4";
 
   const seedRows =
     definitionRows.length > 0
@@ -87,14 +87,14 @@ async function ensureMissingThresholdRows(workspaceId) {
 }
 
 async function seedWorkspacePolicy(workspaceId) {
-  const existing = await queryOne("SELECT workspace_id FROM workspace_policies WHERE workspace_id = ?", [
+  const existing = await queryOne("SELECT workspace_id FROM workspace_policies WHERE workspace_id = $1", [
     workspaceId
   ]);
   if (existing) return;
   const now = nowIso();
   await run(
     `INSERT INTO workspace_policies (workspace_id, require_ai_eval, ai_missing_policy, created_at, updated_at)
-     VALUES (?, 1, ?, ?::timestamptz, ?::timestamptz)`,
+     VALUES ($1, 1, $2, $3::timestamptz, $4::timestamptz)`,
     [workspaceId, "block_uncertified", now, now]
   );
 }
@@ -104,11 +104,11 @@ async function getThresholdMap(workspaceId) {
   await ensureMissingThresholdRows(workspaceId);
   const [rows, defRows] = await Promise.all([
     queryAll(
-      "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = ?",
+      "SELECT signal_id, min_value, max_value, required_for_certification FROM thresholds WHERE workspace_id = $1",
       [workspaceId]
     ),
     queryAll(
-      "SELECT signal_id, direction FROM workspace_signal_definitions WHERE workspace_id = ? AND detached_at IS NULL",
+      "SELECT signal_id, direction FROM workspace_signal_definitions WHERE workspace_id = $1 AND detached_at IS NULL",
       [workspaceId]
     ).catch(() => [])
   ]);
@@ -136,7 +136,7 @@ async function getThresholdMap(workspaceId) {
 
 async function getWorkspacePolicy(workspaceId) {
   await ensureWorkspaceSeeded(workspaceId);
-  const row = await queryOne("SELECT * FROM workspace_policies WHERE workspace_id = ?", [workspaceId]);
+  const row = await queryOne("SELECT * FROM workspace_policies WHERE workspace_id = $1", [workspaceId]);
   return normalizePolicyRow(row);
 }
 

@@ -34,7 +34,7 @@ async function assessOverrideJustification({ justification, metadata, workspaceI
   const recentRow = await queryOne(
     `SELECT COUNT(*) as c
        FROM audit_events
-       WHERE workspace_id = ? AND event_type = 'OVERRIDE_APPROVED' AND created_at::timestamptz >= ?::timestamptz`,
+       WHERE workspace_id = $1 AND event_type = 'OVERRIDE_APPROVED' AND created_at::timestamptz >= $2::timestamptz`,
     [workspaceId, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()]
   );
   const recentOverrides = recentRow?.c ?? 0;

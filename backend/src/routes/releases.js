@@ -88,7 +88,7 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
   }
 
   const insertSql =
-    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?)";
+    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)";
   const rejected = [];
   let insertedCount = 0;
   await transaction(async (tx) => {
@@ -576,7 +576,7 @@ app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireRelease
   const { commit_sha, pr_number } = req.body || {};
   if (!commit_sha && !pr_number) return res.status(400).json({ error: "commit_sha or pr_number is required" });
   await run(
-    "UPDATE releases SET commit_sha = COALESCE(?, commit_sha), pr_number = COALESCE(?, pr_number), updated_at = ? WHERE id = ?",
+    "UPDATE releases SET commit_sha = COALESCE($1, commit_sha), pr_number = COALESCE($2, pr_number), updated_at = $3 WHERE id = $4",
     [commit_sha || null, pr_number || null, nowIso(), req.params.releaseId]
   );
   return res.json({ release_id: req.params.releaseId, commit_sha, pr_number });

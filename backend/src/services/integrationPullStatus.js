@@ -106,7 +106,7 @@ function summarizePullResult(pullResult, release) {
 async function getLatestIntegrationPullForRelease(releaseId) {
   const row = await queryOne(
     `SELECT details_json, created_at FROM audit_events
-     WHERE release_id = ? AND event_type = 'SIGNAL_SOURCES_PULL'
+     WHERE release_id = $1 AND event_type = 'SIGNAL_SOURCES_PULL'
      ORDER BY id DESC LIMIT 1`,
     [releaseId]
   );

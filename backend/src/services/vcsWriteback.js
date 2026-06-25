@@ -12,13 +12,13 @@ const { PUBLIC_APP_URL } = require("../config");
 const { writeAudit } = require("./audit");
 
 async function getVcsIntegration(workspaceId) {
-  const row = await queryOne("SELECT * FROM vcs_integrations WHERE workspace_id = ? AND enabled = 1", [workspaceId]);
+  const row = await queryOne("SELECT * FROM vcs_integrations WHERE workspace_id = $1 AND enabled = 1", [workspaceId]);
   if (!row) return null;
   let tok = row.access_token;
   if (!looksEncrypted(tok)) {
     const mig = migratePlaintextFieldIfNeeded(tok, "vcs_integrations.access_token");
     if (mig !== tok) {
-      await run("UPDATE vcs_integrations SET access_token = ?, updated_at = ? WHERE workspace_id = ?", [
+      await run("UPDATE vcs_integrations SET access_token = $1, updated_at = $2 WHERE workspace_id = $3", [
         mig,
         nowIso(),
         workspaceId
@@ -39,7 +39,7 @@ async function setVcsIntegration(workspaceId, { provider, access_token, owner, r
   await run(
     `
     INSERT INTO vcs_integrations (id, workspace_id, provider, access_token, owner, repo, enabled, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8)
     ON CONFLICT(workspace_id) DO UPDATE SET
       provider     = excluded.provider,
       access_token = excluded.access_token,
@@ -53,7 +53,7 @@ async function setVcsIntegration(workspaceId, { provider, access_token, owner, r
 }
 
 async function deleteVcsIntegration(workspaceId) {
-  await run("UPDATE vcs_integrations SET enabled = 0, updated_at = ? WHERE workspace_id = ?", [nowIso(), workspaceId]);
+  await run("UPDATE vcs_integrations SET enabled = 0, updated_at = $1 WHERE workspace_id = $2", [nowIso(), workspaceId]);
 }
 
 function buildReleaseTargetUrl(release) {
@@ -245,7 +245,7 @@ async function writeVcsStatus(release, failedSignals) {
     `
     INSERT INTO vcs_status_deliveries
       (workspace_id, release_id, provider, commit_sha, pr_number, status_sent, response_code, error_message, delivered_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
   `,
     [
       release.workspace_id,

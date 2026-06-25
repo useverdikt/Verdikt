@@ -17,6 +17,5 @@ module.exports = {
   run: query.run,
   transaction: query.transaction,
   query: query.query,
-  toPg: query.toPg,
   closePool: query.closePool
 };

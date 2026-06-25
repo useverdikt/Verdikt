@@ -121,7 +121,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
 
       // Find all releases for this workspace triggered by this PR number
       const matched = await queryAll(
-        `SELECT * FROM releases WHERE workspace_id = ? AND pr_number = ? ORDER BY created_at DESC`,
+        `SELECT * FROM releases WHERE workspace_id = $1 AND pr_number = $2 ORDER BY created_at DESC`,
         [workspaceId, prNumber]
       );
       if (!matched.length) return res.json({ ok: true, ignored: "no_matching_release", pr_number: prNumber });

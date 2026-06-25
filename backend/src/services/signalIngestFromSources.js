@@ -463,13 +463,13 @@ async function pullDatadogSignals(apiKey, appKey, site, extra, release = null) {
 }
 
 async function deleteSignalsForCsvImport(importId) {
-  await run("DELETE FROM signals WHERE source = ?", [`csv:${importId}`]);
+  await run("DELETE FROM signals WHERE source = $1", [`csv:${importId}`]);
 }
 
 async function applyPulledSignals(releaseId, sourceTag, version, signals, outKey) {
   const insertSql = `INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?)`;
-  await run("DELETE FROM signals WHERE release_id = ? AND source = ?", [releaseId, sourceTag]);
+     VALUES ($1, $2, $3, $4, $5, $6)`;
+  await run("DELETE FROM signals WHERE release_id = $1 AND source = $2", [releaseId, sourceTag]);
 
   let n = 0;
   await transaction(async (tx) => {
@@ -480,13 +480,13 @@ async function applyPulledSignals(releaseId, sourceTag, version, signals, outKey
     }
   });
 
-  const fresh = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
+  const fresh = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
   const evalResult = await evaluateReleaseAfterSignalIngest(fresh, releaseId, sourceTag, n);
   return { ok: true, signals: Object.keys(signals), evaluation: evalResult };
 }
 
 async function applyCsvImportToWorkspace(workspaceId, importId) {
-  const row = await queryOne("SELECT * FROM signal_csv_imports WHERE id = ? AND workspace_id = ?", [
+  const row = await queryOne("SELECT * FROM signal_csv_imports WHERE id = $1 AND workspace_id = $2", [
     importId,
     workspaceId
   ]);
@@ -504,7 +504,7 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
   await deleteSignalsForCsvImport(importId);
 
   const insertSignalSql = `INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?)`;
+     VALUES ($1, $2, $3, $4, $5, $6)`;
 
   const byRelease = new Map();
   const skipped = [];
@@ -600,7 +600,7 @@ async function pullConnectedSourcesForRelease(release) {
   }
 
   const integrationRows = await queryAll(
-    "SELECT source_id, api_key, extra_json FROM signal_integrations WHERE workspace_id = ?",
+    "SELECT source_id, api_key, extra_json FROM signal_integrations WHERE workspace_id = $1",
     [ws]
   );
 

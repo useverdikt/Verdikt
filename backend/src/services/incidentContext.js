@@ -24,10 +24,10 @@ async function getWorkspaceIncidentCorroboration(workspaceId) {
     `
     SELECT release_id, inferred_outcome
     FROM vcs_monitoring_windows
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
       AND UPPER(COALESCE(inferred_outcome, '')) IN ('INCIDENT', 'INVESTIGATING')
-      AND monitoring_end::timestamptz >= NOW() - INTERVAL '${INCIDENT_LOOKBACK_DAYS} days'
-    ORDER BY monitoring_end::timestamptz DESC
+      AND monitoring_end >= NOW() - INTERVAL '${INCIDENT_LOOKBACK_DAYS} days'
+    ORDER BY monitoring_end DESC
     LIMIT 1
   `,
     [workspaceId]
@@ -44,10 +44,10 @@ async function getWorkspaceIncidentCorroboration(workspaceId) {
     `
     SELECT release_id, actual_outcome
     FROM outcome_alignments
-    WHERE workspace_id = ?
+    WHERE workspace_id = $1
       AND UPPER(COALESCE(actual_outcome, '')) = 'INCIDENT'
-      AND computed_at::timestamptz >= NOW() - INTERVAL '${INCIDENT_LOOKBACK_DAYS} days'
-    ORDER BY computed_at::timestamptz DESC
+      AND computed_at >= NOW() - INTERVAL '${INCIDENT_LOOKBACK_DAYS} days'
+    ORDER BY computed_at DESC
     LIMIT 1
   `,
     [workspaceId]

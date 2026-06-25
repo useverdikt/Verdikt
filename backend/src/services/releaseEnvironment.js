@@ -25,21 +25,21 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
 
   await run(
     `UPDATE releases
-     SET environment = ?,
-         updated_at = ?,
+     SET environment = $1,
+         updated_at = $2,
          shipped_without_certification = CASE
-           WHEN ? = 1 AND shipped_without_certification = 0 THEN 1
+           WHEN $3 = 1 AND shipped_without_certification = 0 THEN 1
            ELSE shipped_without_certification
          END,
          shipped_without_certification_at = CASE
-           WHEN ? = 1 AND shipped_without_certification_at IS NULL THEN ?
+           WHEN $4 = 1 AND shipped_without_certification_at IS NULL THEN $5
            ELSE shipped_without_certification_at
          END
-     WHERE id = ?`,
+     WHERE id = $6`,
     [newEnv, now, bypassAtMerge ? 1 : 0, bypassAtMerge ? 1 : 0, now, release.id]
   );
 
-  const fresh = (await queryOne("SELECT * FROM releases WHERE id = ?", [release.id])) || release;
+  const fresh = (await queryOne("SELECT * FROM releases WHERE id = $1", [release.id])) || release;
 
   if (becomingProd && !isCertLikeStatus(relStatus)) {
     try {
@@ -102,7 +102,7 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
 
 async function countShippedWithoutCertification(workspaceId) {
   const row = await queryOne(
-    `SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ? AND shipped_without_certification = 1`,
+    `SELECT COUNT(*) AS c FROM releases WHERE workspace_id = $1 AND shipped_without_certification = 1`,
     [workspaceId]
   );
   return Number(row?.c ?? 0);

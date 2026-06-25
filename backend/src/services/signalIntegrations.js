@@ -46,7 +46,7 @@ function decryptStoredApiKey(stored, workspaceId, sourceId) {
   if (!looksEncrypted(k)) {
     const mig = migratePlaintextFieldIfNeeded(k, `signal_integrations.api_key:${sourceId}`);
     if (mig !== k) {
-      void run("UPDATE signal_integrations SET api_key = ?, updated_at = ? WHERE workspace_id = ? AND source_id = ?", [
+      void run("UPDATE signal_integrations SET api_key = $1, updated_at = $2 WHERE workspace_id = $3 AND source_id = $4", [
         mig,
         nowIso(),
         workspaceId,
@@ -195,7 +195,7 @@ async function upsertIntegration(workspaceId, sourceId, body) {
   await run(
     `
     INSERT INTO signal_integrations (workspace_id, source_id, api_key, extra_json, verified_at, last_verify_error, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, NULL, $6, $7)
     ON CONFLICT(workspace_id, source_id) DO UPDATE SET
       api_key = excluded.api_key,
       extra_json = excluded.extra_json,
@@ -231,7 +231,7 @@ function rowToPublic(row) {
 async function listIntegrations(workspaceId) {
   const rows = await queryAll(
     `SELECT workspace_id, source_id, api_key, extra_json, verified_at, last_verify_error, created_at, updated_at
-     FROM signal_integrations WHERE workspace_id = ?`,
+     FROM signal_integrations WHERE workspace_id = $1`,
     [workspaceId]
   );
   return rows.map(rowToPublic);
@@ -239,7 +239,7 @@ async function listIntegrations(workspaceId) {
 
 async function deleteIntegration(workspaceId, sourceId) {
   if (!ALLOWED.has(sourceId)) throw new Error("Invalid source_id");
-  const r = await run("DELETE FROM signal_integrations WHERE workspace_id = ? AND source_id = ?", [workspaceId, sourceId]);
+  const r = await run("DELETE FROM signal_integrations WHERE workspace_id = $1 AND source_id = $2", [workspaceId, sourceId]);
   return r.changes > 0;
 }
 
@@ -292,7 +292,7 @@ async function importCsv(workspaceId, buffer, filename) {
   await run(
     `
     INSERT INTO signal_csv_imports (id, workspace_id, filename, row_count, columns_json, preview_json, rows_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
   `,
     [
       id,
@@ -315,17 +315,17 @@ async function importCsv(workspaceId, buffer, filename) {
 }
 
 async function deleteCsvImports(workspaceId) {
-  const ids = await queryAll("SELECT id FROM signal_csv_imports WHERE workspace_id = ?", [workspaceId]);
+  const ids = await queryAll("SELECT id FROM signal_csv_imports WHERE workspace_id = $1", [workspaceId]);
   for (const { id } of ids) {
-    await run("DELETE FROM signals WHERE source = ?", [`csv:${id}`]);
+    await run("DELETE FROM signals WHERE source = $1", [`csv:${id}`]);
   }
-  await run("DELETE FROM signal_csv_imports WHERE workspace_id = ?", [workspaceId]);
+  await run("DELETE FROM signal_csv_imports WHERE workspace_id = $1", [workspaceId]);
 }
 
 async function getLatestCsvImport(workspaceId) {
   const row = await queryOne(
     `SELECT id, workspace_id, filename, row_count, columns_json, preview_json, rows_json, created_at
-     FROM signal_csv_imports WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 1`,
+     FROM signal_csv_imports WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 1`,
     [workspaceId]
   );
   if (!row) return null;

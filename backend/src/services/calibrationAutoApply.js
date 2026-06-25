@@ -44,7 +44,7 @@ async function maybeAutoApplyCalibrationSuggestions(workspaceId, releaseId, alig
     `SELECT oa.*, r.version
      FROM outcome_alignments oa
      JOIN releases r ON r.id = oa.release_id
-     WHERE oa.release_id = ? AND oa.workspace_id = ?`,
+     WHERE oa.release_id = $1 AND oa.workspace_id = $2`,
     [releaseId, workspaceId]
   );
   if (!alignmentRow) return { applied: [], skipped: "alignment_not_found" };

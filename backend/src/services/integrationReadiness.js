@@ -125,7 +125,7 @@ async function getIntegrationReadiness(workspaceId) {
 
 async function probeShaMatchForSource(sourceId, workspaceId, releaseStub) {
   const rows = await queryAll(
-    "SELECT source_id, api_key, extra_json, verified_at, last_verify_error FROM signal_integrations WHERE workspace_id = ? AND source_id = ?",
+    "SELECT source_id, api_key, extra_json, verified_at, last_verify_error FROM signal_integrations WHERE workspace_id = $1 AND source_id = $2",
     [workspaceId, sourceId]
   );
   const row = rows[0];

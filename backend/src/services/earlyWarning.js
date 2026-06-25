@@ -117,7 +117,7 @@ async function persistEarlyWarning(releaseId, workspaceId, earlyWarningResult) {
     `
     INSERT INTO release_early_warnings
       (release_id, workspace_id, computed_at, sample_pct, warnings_json, overall_risk, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT(release_id) DO UPDATE SET
       computed_at   = excluded.computed_at,
       sample_pct    = excluded.sample_pct,
@@ -138,7 +138,7 @@ async function persistEarlyWarning(releaseId, workspaceId, earlyWarningResult) {
 }
 
 async function getEarlyWarning(releaseId) {
-  const row = await queryOne("SELECT * FROM release_early_warnings WHERE release_id = ?", [releaseId]);
+  const row = await queryOne("SELECT * FROM release_early_warnings WHERE release_id = $1", [releaseId]);
   if (!row) return null;
   return {
     release_id: row.release_id,

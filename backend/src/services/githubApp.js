@@ -98,7 +98,7 @@ async function createInstallState(workspaceId, userId = null) {
   const createdAt = nowIso();
   const expiresAt = new Date(Date.now() + INSTALL_STATE_TTL_MS).toISOString();
   await run(
-    "INSERT INTO github_app_install_states (state, workspace_id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO github_app_install_states (state, workspace_id, user_id, expires_at, created_at) VALUES ($1, $2, $3, $4, $5)",
     [state, workspaceId, userId, expiresAt, createdAt]
   );
   return {
@@ -109,9 +109,9 @@ async function createInstallState(workspaceId, userId = null) {
 }
 
 async function consumeInstallState(state) {
-  const row = await queryOne("SELECT * FROM github_app_install_states WHERE state = ?", [state]);
+  const row = await queryOne("SELECT * FROM github_app_install_states WHERE state = $1", [state]);
   if (!row) return null;
-  await run("DELETE FROM github_app_install_states WHERE state = ?", [state]);
+  await run("DELETE FROM github_app_install_states WHERE state = $1", [state]);
   const expMs = Date.parse(row.expires_at);
   if (!Number.isFinite(expMs) || expMs < Date.now()) return null;
   return row;
@@ -122,7 +122,7 @@ async function setWorkspaceInstallation(workspaceId, installationId, { accountLo
   await run(
     `INSERT INTO github_app_installations
       (workspace_id, installation_id, account_login, account_type, installed_by_user_id, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, 1, $6, $7)
      ON CONFLICT(workspace_id) DO UPDATE SET
        installation_id = excluded.installation_id,
        account_login = excluded.account_login,
@@ -135,14 +135,14 @@ async function setWorkspaceInstallation(workspaceId, installationId, { accountLo
 }
 
 async function getWorkspaceInstallation(workspaceId) {
-  return queryOne("SELECT * FROM github_app_installations WHERE workspace_id = ? AND active = 1", [workspaceId]);
+  return queryOne("SELECT * FROM github_app_installations WHERE workspace_id = $1 AND active = 1", [workspaceId]);
 }
 
 async function listWorkspaceConnectedRepos(workspaceId) {
   return queryAll(
     `SELECT repository_id, owner, repo, full_name, enabled
      FROM github_repo_connections
-     WHERE workspace_id = ?
+     WHERE workspace_id = $1
      ORDER BY LOWER(full_name) ASC`,
     [workspaceId]
   );
@@ -159,12 +159,12 @@ async function replaceWorkspaceConnectedRepos(workspaceId, repos = []) {
     }))
     .filter((r) => Number.isFinite(r.repository_id) && r.owner && r.repo && r.full_name);
   await transaction(async (tx) => {
-    await tx.run("DELETE FROM github_repo_connections WHERE workspace_id = ?", [workspaceId]);
+    await tx.run("DELETE FROM github_repo_connections WHERE workspace_id = $1", [workspaceId]);
     for (const r of cleaned) {
       await tx.run(
         `INSERT INTO github_repo_connections
           (workspace_id, repository_id, owner, repo, full_name, enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, 1, $6, $7)`,
         [workspaceId, r.repository_id, r.owner, r.repo, r.full_name, ts, ts]
       );
     }
@@ -184,7 +184,7 @@ async function findWorkspaceByRepo(owner, repo) {
   const row = await queryOne(
     `SELECT workspace_id
      FROM github_repo_connections
-     WHERE enabled = 1 AND LOWER(owner) = LOWER(?) AND LOWER(repo) = LOWER(?)
+     WHERE enabled = 1 AND LOWER(owner) = LOWER($1) AND LOWER(repo) = LOWER($2)
      LIMIT 1`,
     [owner, repo]
   );
@@ -197,7 +197,7 @@ async function resolveWorkspaceForGithubRepo(owner, repo) {
   const fromVcs = await queryOne(
     `SELECT workspace_id FROM vcs_integrations
      WHERE enabled = 1 AND provider = 'github'
-       AND LOWER(owner) = LOWER(?) AND LOWER(repo) = LOWER(?)
+       AND LOWER(owner) = LOWER($1) AND LOWER(repo) = LOWER($2)
      ORDER BY updated_at DESC
      LIMIT 1`,
     [owner, repo]

@@ -180,7 +180,7 @@ async function requireWorkspaceMatch(req, res, next) {
 
 async function requireReleaseAccess(req, res, next) {
   try {
-    const release = await queryOne("SELECT * FROM releases WHERE id = ?", [req.params.releaseId]);
+    const release = await queryOne("SELECT * FROM releases WHERE id = $1", [req.params.releaseId]);
     if (!release) return res.status(404).json({ error: "release not found" });
     if (req.auth?.authType === "api_key") {
       if (req.auth.ws !== release.workspace_id) {

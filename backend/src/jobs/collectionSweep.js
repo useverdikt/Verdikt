@@ -6,7 +6,7 @@ const { evaluateReleaseAfterSignalIngest } = require("../services/domain");
 async function runCollectionDeadlineSweep() {
   const nowMs = Date.now();
   const rows = await queryAll(
-    "SELECT * FROM releases WHERE status = 'COLLECTING' AND collection_deadline IS NOT NULL AND TRIM(collection_deadline) != ''",
+    "SELECT * FROM releases WHERE status = 'COLLECTING' AND collection_deadline IS NOT NULL",
     []
   );
   for (const rel of rows) {

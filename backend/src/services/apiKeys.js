@@ -35,7 +35,7 @@ async function createWorkspaceApiKey({ workspaceId, name, createdByUserId }) {
   await run(
     `INSERT INTO workspace_api_keys
       (id, workspace_id, name, key_prefix, key_hash, created_by_user_id, created_at, last_used_at, revoked_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL)`,
     [id, workspaceId, trimmedName, keyPrefix, keyHash, createdByUserId || null, ts]
   );
 
@@ -53,7 +53,7 @@ async function listWorkspaceApiKeys(workspaceId) {
   const rows = await queryAll(
     `SELECT id, workspace_id, name, key_prefix, created_by_user_id, created_at, last_used_at, revoked_at
      FROM workspace_api_keys
-     WHERE workspace_id = ?
+     WHERE workspace_id = $1
      ORDER BY created_at::timestamptz DESC`,
     [workspaceId]
   );
@@ -73,13 +73,13 @@ async function listWorkspaceApiKeys(workspaceId) {
 
 async function revokeWorkspaceApiKey(workspaceId, keyId) {
   const row = await queryOne(
-    "SELECT id, revoked_at FROM workspace_api_keys WHERE id = ? AND workspace_id = ?",
+    "SELECT id, revoked_at FROM workspace_api_keys WHERE id = $1 AND workspace_id = $2",
     [keyId, workspaceId]
   );
   if (!row) return null;
   if (row.revoked_at) return { id: row.id, already_revoked: true };
   const ts = nowIso();
-  await run("UPDATE workspace_api_keys SET revoked_at = ? WHERE id = ? AND workspace_id = ?", [ts, keyId, workspaceId]);
+  await run("UPDATE workspace_api_keys SET revoked_at = $1 WHERE id = $2 AND workspace_id = $3", [ts, keyId, workspaceId]);
   return { id: keyId, revoked_at: ts };
 }
 
@@ -90,12 +90,12 @@ async function authenticateApiKey(rawKey) {
   const row = await queryOne(
     `SELECT id, workspace_id, name, key_prefix, created_by_user_id, created_at, last_used_at, revoked_at
      FROM workspace_api_keys
-     WHERE key_hash = ? AND revoked_at IS NULL`,
+     WHERE key_hash = $1 AND revoked_at IS NULL`,
     [keyHash]
   );
   if (!row) return null;
 
-  void run("UPDATE workspace_api_keys SET last_used_at = ? WHERE id = ?", [nowIso(), row.id]).catch(() => {});
+  void run("UPDATE workspace_api_keys SET last_used_at = $1 WHERE id = $2", [nowIso(), row.id]).catch(() => {});
 
   return {
     id: row.id,

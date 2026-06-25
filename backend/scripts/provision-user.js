@@ -36,7 +36,7 @@ async function main() {
     process.exit(1);
   }
 
-  const existing = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+  const existing = await queryOne("SELECT id FROM users WHERE email = $1", [email]);
   if (existing) {
     console.error("User already exists:", email);
     process.exit(1);
@@ -49,11 +49,11 @@ async function main() {
     name || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   if (existingWorkspaceId) {
-    const ws = await queryOne("SELECT workspace_id FROM workspace_members WHERE workspace_id = ? LIMIT 1", [
+    const ws = await queryOne("SELECT workspace_id FROM workspace_members WHERE workspace_id = $1 LIMIT 1", [
       existingWorkspaceId
     ]);
     if (!ws) {
-      const rel = await queryOne("SELECT workspace_id FROM releases WHERE workspace_id = ? LIMIT 1", [
+      const rel = await queryOne("SELECT workspace_id FROM releases WHERE workspace_id = $1 LIMIT 1", [
         existingWorkspaceId
       ]);
       if (!rel) {
@@ -64,7 +64,7 @@ async function main() {
   }
 
   await run(
-    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
     [id, email, password_hash, displayName, workspace_id, role, nowIso()]
   );
   if (!existingWorkspaceId) {

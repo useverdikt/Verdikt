@@ -18,7 +18,7 @@ const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNC
 async function loadLastSignalEvaluation(releaseId) {
   const lastEvalRow = await queryOne(
     `SELECT details_json FROM audit_events
-       WHERE release_id = ? AND event_type = 'SIGNALS_INGESTED'
+       WHERE release_id = $1 AND event_type = 'SIGNALS_INGESTED'
        ORDER BY id DESC LIMIT 1`,
     [releaseId]
   );
@@ -84,13 +84,13 @@ async function buildReleaseSummary(release) {
   const [signalRows, last_signal_evaluation, outcome_alignment, integration_pull, connectedIntegrations] =
     await Promise.all([
       queryAll(
-        "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = ? ORDER BY id DESC",
+        "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = $1 ORDER BY id DESC",
         [releaseId]
       ),
       loadLastSignalEvaluation(releaseId),
       getOutcomeAlignmentForRelease(releaseId),
       getLatestIntegrationPullForRelease(releaseId),
-      queryAll("SELECT source_id FROM signal_integrations WHERE workspace_id = ?", [release.workspace_id])
+      queryAll("SELECT source_id FROM signal_integrations WHERE workspace_id = $1", [release.workspace_id])
     ]);
 
   return {
@@ -124,12 +124,12 @@ async function buildReleaseDetail(release) {
     connectedIntegrations
   ] = await Promise.all([
     queryAll(
-      "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = ? ORDER BY id DESC",
+      "SELECT id, signal_id, value, source, created_at FROM signals WHERE release_id = $1 ORDER BY id DESC",
       [releaseId]
     ),
-    queryOne("SELECT * FROM overrides WHERE release_id = ?", [releaseId]),
+    queryOne("SELECT * FROM overrides WHERE release_id = $1", [releaseId]),
     queryAll(
-      "SELECT id, release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at FROM override_history WHERE release_id = ? ORDER BY id ASC",
+      "SELECT id, release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at FROM override_history WHERE release_id = $1 ORDER BY id ASC",
       [releaseId]
     ),
     loadLastSignalEvaluation(releaseId),
@@ -137,7 +137,7 @@ async function buildReleaseDetail(release) {
     listReleaseDeltas(releaseId),
     getOutcomeAlignmentForRelease(releaseId),
     getLatestIntegrationPullForRelease(releaseId),
-    queryAll("SELECT source_id FROM signal_integrations WHERE workspace_id = ?", [release.workspace_id])
+    queryAll("SELECT source_id FROM signal_integrations WHERE workspace_id = $1", [release.workspace_id])
   ]);
 
   const { release: releaseOut, evidence_quality, evidence_summary } = await maybePersistEvidenceQuality(

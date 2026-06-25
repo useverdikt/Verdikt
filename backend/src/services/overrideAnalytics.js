@@ -16,7 +16,7 @@ async function computeOverrideAnalytics(workspaceId) {
            r.version, r.release_type, r.environment, r.status
     FROM override_history oh
     LEFT JOIN releases r ON r.id = oh.release_id
-    WHERE r.workspace_id = ?
+    WHERE r.workspace_id = $1
     ORDER BY oh.created_at DESC
   `,
     [workspaceId]
@@ -24,7 +24,7 @@ async function computeOverrideAnalytics(workspaceId) {
 
   const total = overrides.length;
 
-  const totalRow = await queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = ?", [workspaceId]);
+  const totalRow = await queryOne("SELECT COUNT(*) AS c FROM releases WHERE workspace_id = $1", [workspaceId]);
   const totalReleases = Number(totalRow?.c ?? 0);
   const overrideRatePct = totalReleases > 0 ? Math.round((total / totalReleases) * 1000) / 10 : 0;
 
@@ -42,7 +42,7 @@ async function computeOverrideAnalytics(workspaceId) {
   for (const row of overrides) {
     const sigAudit = await queryOne(
       `SELECT details_json FROM audit_events
-      WHERE release_id = ? AND event_type = 'SIGNALS_INGESTED'
+      WHERE release_id = $1 AND event_type = 'SIGNALS_INGESTED'
       ORDER BY id DESC LIMIT 1`,
       [row.release_id]
     );
@@ -104,7 +104,7 @@ async function computeOverrideAnalytics(workspaceId) {
     `
     INSERT INTO override_analytics_cache
       (workspace_id, computed_at, total_overrides, override_rate_pct, top_approvers, top_signals, risk_distribution, trend_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     ON CONFLICT(workspace_id) DO UPDATE SET
       computed_at       = excluded.computed_at,
       total_overrides   = excluded.total_overrides,

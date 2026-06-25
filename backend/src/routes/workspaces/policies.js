@@ -109,7 +109,7 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         const taken = await queryOne(
           `SELECT workspace_id FROM workspace_policies
-           WHERE LOWER(public_slug) = LOWER(?) AND workspace_id <> ?`,
+           WHERE LOWER(public_slug) = LOWER($1) AND workspace_id <> $2`,
           [validated.slug, req.params.workspaceId]
         );
         if (taken) return res.status(409).json({ error: "public slug already in use" });
@@ -125,11 +125,11 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
           : current.public_display_name || null;
 
     await run(
-      `UPDATE workspace_policies SET require_ai_eval = ?, ai_missing_policy = ?, gate_mode = ?,
-       escalation_notify_email = ?, escalation_sla_hours = ?,
-       public_cert_records = ?, show_signal_detail = ?, show_override_justification = ?,
-       slack_webhook_url = ?, calibration_mode = ?, public_slug = ?, public_display_name = ?,
-       updated_at = ? WHERE workspace_id = ?`,
+      `UPDATE workspace_policies SET require_ai_eval = $1, ai_missing_policy = $2, gate_mode = $3,
+       escalation_notify_email = $4, escalation_sla_hours = $5,
+       public_cert_records = $6, show_signal_detail = $7, show_override_justification = $8,
+       slack_webhook_url = $9, calibration_mode = $10, public_slug = $11, public_display_name = $12,
+       updated_at = $13 WHERE workspace_id = $14`,
       [
         nextRequireAi,
         nextMissingPolicy,

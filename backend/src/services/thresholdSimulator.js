@@ -28,7 +28,7 @@ async function simulateThresholds(workspaceId, proposedThresholds, opts = {}) {
 
   // Load current live thresholds for comparison + direction mapping
   const currentThresholdRows = await queryAll(
-    "SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = ?",
+    "SELECT signal_id, min_value, max_value FROM thresholds WHERE workspace_id = $1",
     [workspaceId]
   );
   const currentThresholds = {};
@@ -44,19 +44,19 @@ async function simulateThresholds(workspaceId, proposedThresholds, opts = {}) {
   // Load releases to simulate
   let releases;
   if (releaseIds && releaseIds.length > 0) {
-    const placeholders = releaseIds.map(() => "?").join(",");
+    const placeholders = releaseIds.map((_, i) => `$${i + 2}`).join(",");
     releases = await queryAll(
-      `SELECT * FROM releases WHERE workspace_id = ? AND id IN (${placeholders}) ORDER BY created_at DESC`,
+      `SELECT * FROM releases WHERE workspace_id = $1 AND id IN (${placeholders}) ORDER BY created_at DESC`,
       [workspaceId, ...releaseIds]
     );
   } else {
     releases = await queryAll(
       `
         SELECT * FROM releases
-        WHERE workspace_id = ?
+        WHERE workspace_id = $1
           AND status IN ('CERTIFIED', 'UNCERTIFIED', 'CERTIFIED_WITH_OVERRIDE')
         ORDER BY created_at DESC
-        LIMIT ?
+        LIMIT $2
       `,
       [workspaceId, limit]
     );
@@ -71,7 +71,7 @@ async function simulateThresholds(workspaceId, proposedThresholds, opts = {}) {
 
   for (const release of releases) {
     // Build latest signal map for this release
-    const signalRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = ? ORDER BY id ASC", [
+    const signalRows = await queryAll("SELECT signal_id, value FROM signals WHERE release_id = $1 ORDER BY id ASC", [
       release.id
     ]);
     const signalMap = {};

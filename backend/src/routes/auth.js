@@ -65,7 +65,7 @@ module.exports = function registerAuthRoutes(app) {
     if (!(await checkRegisterRateLimit(req.ip))) {
       return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
     }
-    const existing = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+    const existing = await queryOne("SELECT id FROM users WHERE email = $1", [email]);
     if (existing) {
       try {
         const r = await sendAlreadyRegisteredEmail({ to: email });
@@ -106,7 +106,7 @@ module.exports = function registerAuthRoutes(app) {
 
     const workspace_id = `ws_${id.replace(/-/g, "").slice(0, 16)}`;
     await run(
-      "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
       [id, email, password_hash, displayName, workspace_id, "org_admin", nowIso()]
     );
     await ensureWorkspaceSeeded(workspace_id);
@@ -176,7 +176,7 @@ module.exports = function registerAuthRoutes(app) {
       });
       return res.status(429).json({ error: "Too many login attempts. Please try again shortly." });
     }
-    const userRow = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+    const userRow = await queryOne("SELECT * FROM users WHERE email = $1", [email]);
     const isValid = userRow ? await bcrypt.compare(password, userRow.password_hash) : false;
     if (!isValid) {
       await writeAudit({
@@ -255,7 +255,7 @@ module.exports = function registerAuthRoutes(app) {
     if (!(await checkForgotPasswordRateLimit(req.ip))) {
       return res.status(429).json({ error: "Too many requests. Please try again shortly." });
     }
-    const userRow = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+    const userRow = await queryOne("SELECT * FROM users WHERE email = $1", [email]);
     const payload = { ok: true, message: FORGOT_PASSWORD_GENERIC };
     const leakToken =
       process.env.NODE_ENV === "test" ||
@@ -263,7 +263,7 @@ module.exports = function registerAuthRoutes(app) {
     try {
       if (userRow) {
         const now = nowIso();
-        await run("UPDATE password_reset_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL", [
+        await run("UPDATE password_reset_tokens SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL", [
           now,
           userRow.id
         ]);
@@ -273,7 +273,7 @@ module.exports = function registerAuthRoutes(app) {
         const expiresAt = toIsoPlusMinutes(60);
         await run(
           `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at)
-         VALUES (?, ?, ?, ?, NULL, ?)`,
+         VALUES ($1, $2, $3, $4, NULL, $5)`,
           [tokenId, userRow.id, tokenHash, expiresAt, now]
         );
         await writeAudit({
@@ -366,7 +366,7 @@ module.exports = function registerAuthRoutes(app) {
         `INSERT INTO waitlist_requests (
            name, email, company, role, message, created_at, source_ip,
            q_role, q_team_size, q_release_process, q_pain_points, q_goal
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING id`,
         [
           name,
@@ -426,7 +426,7 @@ module.exports = function registerAuthRoutes(app) {
     const row = await queryOne(
       `SELECT pr.*, u.email, u.workspace_id FROM password_reset_tokens pr
        JOIN users u ON u.id = pr.user_id
-       WHERE pr.token_hash = ? AND pr.used_at IS NULL`,
+       WHERE pr.token_hash = $1 AND pr.used_at IS NULL`,
       [tokenHash]
     );
     if (!row) {
@@ -438,12 +438,12 @@ module.exports = function registerAuthRoutes(app) {
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const pwdChangedAt = nowIso();
     await transaction(async (tx) => {
-      await tx.run("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?", [
+      await tx.run("UPDATE users SET password_hash = $1, password_changed_at = $2 WHERE id = $3", [
         password_hash,
         pwdChangedAt,
         row.user_id
       ]);
-      await tx.run("UPDATE password_reset_tokens SET used_at = ? WHERE id = ?", [pwdChangedAt, row.id]);
+      await tx.run("UPDATE password_reset_tokens SET used_at = $1 WHERE id = $2", [pwdChangedAt, row.id]);
     });
     await writeAudit({
       workspaceId: row.workspace_id,

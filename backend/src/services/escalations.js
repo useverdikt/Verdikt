@@ -62,7 +62,7 @@ async function resolveEscalationNotifyEmails(workspaceId) {
   const approvers = await queryAll(
     `SELECT u.email FROM workspace_members wm
      JOIN users u ON u.id = wm.user_id
-     WHERE wm.workspace_id = ? AND wm.role IN ('vp_engineering', 'cto', 'org_admin', 'release_manager')`,
+     WHERE wm.workspace_id = $1 AND wm.role IN ('vp_engineering', 'cto', 'org_admin', 'release_manager')`,
     [workspaceId]
   );
   return approvers.map((r) => String(r.email || "").trim()).filter(Boolean);
@@ -79,14 +79,14 @@ async function createEscalationRequest({
   releaseStatus
 }) {
   const existing = await queryOne(
-    `SELECT * FROM escalation_requests WHERE workspace_id = ? AND release_id = ? AND state = ? ORDER BY created_at DESC LIMIT 1`,
+    `SELECT * FROM escalation_requests WHERE workspace_id = $1 AND release_id = $2 AND state = $3 ORDER BY created_at DESC LIMIT 1`,
     [workspaceId, releaseId, PENDING]
   );
   if (existing) {
     const now = nowIso();
     await run(
-      `UPDATE escalation_requests SET reason = ?, blocking_signals_json = ?, attempted_fixes_json = ?,
-       requested_by_type = ?, requested_by_name = ?, release_status = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE escalation_requests SET reason = $1, blocking_signals_json = $2, attempted_fixes_json = $3,
+       requested_by_type = $4, requested_by_name = $5, release_status = $6, updated_at = $7 WHERE id = $8`,
       [
         reason.slice(0, 2000),
         JSON.stringify(blockingSignals),
@@ -98,7 +98,7 @@ async function createEscalationRequest({
         existing.id
       ]
     );
-    const refreshed = await queryOne("SELECT * FROM escalation_requests WHERE id = ?", [existing.id]);
+    const refreshed = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [existing.id]);
     return { escalation: rowToEscalation(refreshed), reused: true };
   }
 
@@ -114,7 +114,7 @@ async function createEscalationRequest({
     `INSERT INTO escalation_requests (
       id, workspace_id, release_id, state, reason, blocking_signals_json, attempted_fixes_json,
       requested_by_type, requested_by_name, release_status, created_at, updated_at, sla_due_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       id,
       workspaceId,
@@ -132,7 +132,7 @@ async function createEscalationRequest({
     ]
   );
 
-  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = ?", [id]);
+  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [id]);
   return { escalation: rowToEscalation(row), reused: false };
 }
 
@@ -140,7 +140,7 @@ async function notifyEscalationCreated({ workspaceId, releaseId, escalation, rel
   const recipients = await resolveEscalationNotifyEmails(workspaceId);
   if (!recipients.length) return { skipped: true, reason: "no_recipients" };
 
-  const release = releaseRow || (await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]));
+  const release = releaseRow || (await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]));
   return sendEscalationRequestedEmail({
     to: recipients,
     workspaceId,
@@ -160,12 +160,12 @@ async function listEscalationsForWorkspace(workspaceId, { state = PENDING, limit
   let sql = `SELECT e.*, r.version AS release_version, r.status AS current_release_status, r.pr_number, r.commit_sha
     FROM escalation_requests e
     LEFT JOIN releases r ON r.id = e.release_id
-    WHERE e.workspace_id = ?`;
+    WHERE e.workspace_id = $1`;
   if (state && state !== "all") {
-    sql += ` AND e.state = ?`;
+    sql += ` AND e.state = $${params.length + 1}`;
     params.push(state);
   }
-  sql += ` ORDER BY e.created_at DESC LIMIT ?`;
+  sql += ` ORDER BY e.created_at DESC LIMIT $${params.length + 1}`;
   params.push(lim);
 
   const rows = await queryAll(sql, params);
@@ -179,7 +179,7 @@ async function listEscalationsForWorkspace(workspaceId, { state = PENDING, limit
 }
 
 async function acknowledgeEscalation({ workspaceId, escalationId, actorEmail, note = "" }) {
-  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = ? AND workspace_id = ?", [
+  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = $1 AND workspace_id = $2", [
     escalationId,
     workspaceId
   ]);
@@ -188,7 +188,7 @@ async function acknowledgeEscalation({ workspaceId, escalationId, actorEmail, no
 
   const now = nowIso();
   await run(
-    `UPDATE escalation_requests SET state = ?, acknowledged_at = ?, acknowledged_by = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE escalation_requests SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $4 WHERE id = $5`,
     [RESOLVED, now, actorEmail || "user", now, escalationId]
   );
 
@@ -201,7 +201,7 @@ async function acknowledgeEscalation({ workspaceId, escalationId, actorEmail, no
     details: { escalation_id: escalationId, note: String(note || "").slice(0, 500) }
   });
 
-  const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = ?", [escalationId]);
+  const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [escalationId]);
   return { ok: true, escalation: rowToEscalation(updated) };
 }
 
@@ -215,14 +215,14 @@ async function acknowledgeEscalationWithOverride({
   justification,
   metadata = {}
 }) {
-  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = ? AND workspace_id = ?", [
+  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = $1 AND workspace_id = $2", [
     escalationId,
     workspaceId
   ]);
   if (!row) return { ok: false, error: "not_found" };
   if (row.state !== PENDING) return { ok: false, error: "not_pending", state: row.state };
 
-  const release = await queryOne("SELECT * FROM releases WHERE id = ? AND workspace_id = ?", [
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1 AND workspace_id = $2", [
     row.release_id,
     workspaceId
   ]);
@@ -245,7 +245,7 @@ async function acknowledgeEscalationWithOverride({
 
   const now = nowIso();
   await run(
-    `UPDATE escalation_requests SET state = ?, acknowledged_at = ?, acknowledged_by = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE escalation_requests SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $4 WHERE id = $5`,
     [RESOLVED, now, actorEmail || actorName || "user", now, escalationId]
   );
 
@@ -262,7 +262,7 @@ async function acknowledgeEscalationWithOverride({
     }
   });
 
-  const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = ?", [escalationId]);
+  const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [escalationId]);
   return {
     ok: true,
     escalation: rowToEscalation(updated),
@@ -276,7 +276,7 @@ async function runEscalationSlaSweep() {
   const pending = await queryAll(
     `SELECT e.*, r.version AS release_version FROM escalation_requests e
      LEFT JOIN releases r ON r.id = e.release_id
-     WHERE e.state = ? AND e.sla_due_at IS NOT NULL AND TRIM(e.sla_due_at) != ''`,
+     WHERE e.state = $1 AND e.sla_due_at IS NOT NULL AND TRIM(e.sla_due_at) != ''`,
     [PENDING]
   );
 
@@ -285,7 +285,7 @@ async function runEscalationSlaSweep() {
     if (!Number.isFinite(dueMs) || dueMs >= nowMs) continue;
 
     if (!row.sla_breached) {
-      await run("UPDATE escalation_requests SET sla_breached = 1, updated_at = ? WHERE id = ?", [now, row.id]);
+      await run("UPDATE escalation_requests SET sla_breached = 1, updated_at = $1 WHERE id = $2", [now, row.id]);
       await writeAudit({
         workspaceId: row.workspace_id,
         releaseId: row.release_id,
@@ -308,7 +308,7 @@ async function runEscalationSlaSweep() {
           slaDueAt: row.sla_due_at
         });
       }
-      await run("UPDATE escalation_requests SET sla_reminder_sent_at = ?, updated_at = ? WHERE id = ?", [
+      await run("UPDATE escalation_requests SET sla_reminder_sent_at = $1, updated_at = $2 WHERE id = $3", [
         now,
         now,
         row.id

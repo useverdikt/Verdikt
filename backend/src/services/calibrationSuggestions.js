@@ -138,7 +138,7 @@ async function buildCalibrationThresholdSuggestions(workspaceId) {
       `SELECT oa.*, r.version
        FROM outcome_alignments oa
        JOIN releases r ON r.id = oa.release_id
-       WHERE oa.workspace_id = ? AND oa.alignment IN ('MISS', 'CAUTIOUS')
+       WHERE oa.workspace_id = $1 AND oa.alignment IN ('MISS', 'CAUTIOUS')
        ORDER BY oa.computed_at DESC
        LIMIT 40`,
       [workspaceId]

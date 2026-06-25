@@ -20,7 +20,7 @@ async function listIntegrationRequests(workspaceId) {
   const rows = await queryAll(
     `SELECT id, workspace_id, source_name, notes, status, created_at, created_by_email
      FROM integration_requests
-     WHERE workspace_id = ?
+     WHERE workspace_id = $1
      ORDER BY created_at DESC
      LIMIT 50`,
     [workspaceId]
@@ -39,7 +39,7 @@ async function createIntegrationRequest(workspaceId, input, actorEmail) {
   await run(
     `INSERT INTO integration_requests
       (id, workspace_id, source_name, notes, status, created_at, created_by_email)
-     VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+     VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
     [id, workspaceId, sourceName, notes, now, actorEmail || null]
   );
   return mapRow({
