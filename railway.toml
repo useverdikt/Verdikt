@@ -1,12 +1,11 @@
-# Railway service rootDirectory is `backend/`, so commands run from backend already.
-# Do not use `--prefix backend` here or npm will look for `backend/backend/`.
+# Railway deploys from the repository root (npm workspaces).
+# In the Railway service settings, set Root Directory to `.` (repo root), NOT `backend/`.
+# Backend depends on @useverdikt/shared at ../shared; an isolated backend/ root breaks `npm ci`.
 
 [build]
 builder = "nixpacks"
-# Dependencies are installed in the Nixpacks install phase already.
-# Running npm ci again in build can fail with EBUSY on /app/node_modules/.cache.
-buildCommand = "echo 'No build step (Node backend)'"
+buildCommand = "echo 'No build step (Node backend via workspace)'"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "npm run start:backend"
 restartPolicyType = "on_failure"
