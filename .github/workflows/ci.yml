@@ -103,9 +103,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    defaults:
-      run:
-        working-directory: frontend
     env:
       CI: true
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/verdikt_test
@@ -116,19 +113,16 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install frontend dependencies
-        run: npm ci --ignore-workspaces
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci --ignore-workspaces
+          cache-dependency-path: package-lock.json
+      - name: Install workspace dependencies
+        run: npm ci
       - name: Verify PostgreSQL connectivity for backend
         working-directory: backend
         run: |
           node -e "const { Client } = require('pg'); (async () => { const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); const r = await c.query('select 1 as ok'); console.log('postgres ok:', r.rows[0].ok); await c.end(); })().catch((e) => { console.error(e); process.exit(1); });"
       - name: Install Playwright Chromium (system deps + browser)
-        run: npx playwright install chromium --with-deps
+        run: npm exec -w verdikt-frontend -- playwright install chromium --with-deps
       - name: Run E2E
         env:
           DEBUG: pw:webserver
-        run: npm run test:e2e
+        run: npm run test:e2e -w verdikt-frontend

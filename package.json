@@ -19,7 +19,7 @@
     "build": "npm --prefix frontend run build",
     "prod:check": "npm run build && npm run test",
     "prod:check:e2e": "npm run build && npm run test && npm run test:e2e",
-    "test:e2e": "npm --prefix frontend run test:e2e",
+    "test:e2e": "npm run test:e2e -w verdikt-frontend",
     "test": "npm run test:backend && npm run test:frontend && npm run test:mcp",
     "test:mcp": "npm --prefix mcp test",
     "test:backend": "npm --prefix backend test",
