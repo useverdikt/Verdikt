@@ -57,25 +57,7 @@ function verifyGitHubWebhookSignature(req) {
   return timingSafeHexEq(expected, signature.slice("sha256=".length));
 }
 
-function classifyGithubReleaseType(payload, fallback = "model_update") {
-  const title = String(payload?.pull_request?.title || "").toLowerCase();
-  const labels = [
-    ...new Set(
-      (payload?.pull_request?.labels || [])
-        .map((l) => String(l?.name || "").toLowerCase().trim())
-        .filter(Boolean)
-    )
-  ];
-  const haystack = `${title} ${labels.join(" ")}`;
-
-  if (/\b(prompt|ux|ui|copy)\b/.test(haystack)) return "prompt_update";
-  if (/\b(safety|guardrail|security)\b/.test(haystack)) return "safety_patch";
-  if (/\b(routing|policy)\b/.test(haystack)) return "policy_change";
-  if (/\b(incident|p0|p1|sev-?1|sev-?2|outage|rollback|revert|hotfix)\b/.test(haystack)) return "incident_hotfix";
-  if (/\b(model\s*patch)\b/.test(haystack)) return "model_patch";
-  if (/\b(model|weights|checkpoint|llm|gpt|claude|gemini)\b/.test(haystack)) return "model_update";
-  return fallback;
-}
+const { classifyGithubReleaseType } = require("../services/githubReleaseClassification");
 
 module.exports = function registerWebhookRoutes(app) {
 app.get("/api/hooks/github/setup", async (req, res) => {

@@ -85,9 +85,9 @@ function buildGateBlockers({
       source_version: remediationDebt.source_version || null,
       since: remediationDebt.since || null,
       lookback_days: remediationDebt.lookback_days ?? null,
-      message: `Remediation debt active from emergency merge without certification (${version}). Non-emergency merges are blocked until the bypass ages out.`,
+      message: `Remediation debt active from emergency merge without certification (${version}). Non-emergency merges are blocked until a clean CERTIFIED prod release clears the debt.`,
       next_step:
-        "Ship the next non-emergency release as CERTIFIED (no override/bypass). Emergency (incident_hotfix) releases are still allowed to fight a live incident."
+        "Ship the next non-emergency release as CERTIFIED to prod (no override/bypass). Emergency (incident_hotfix) releases remain allowed during active incident context."
     });
   }
 

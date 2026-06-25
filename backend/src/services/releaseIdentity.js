@@ -363,10 +363,14 @@ function computeGateAction({
   blockingSignals,
   missingRequiredSignals,
   collectionAgeMs = null,
-  gracePeriodMs = COLLECTION_GRACE_MS
+  gracePeriodMs = COLLECTION_GRACE_MS,
+  blockedByRemediationDebt = false
 }) {
   if (gateAllowed && (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")) {
     return "merge";
+  }
+  if (blockedByRemediationDebt) {
+    return "recover_certification";
   }
   if (status === "COLLECTING") {
     const inGrace =

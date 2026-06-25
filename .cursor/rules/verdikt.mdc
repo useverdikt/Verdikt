@@ -16,6 +16,7 @@ Verdikt is the **trust layer between AI agents and production**. It certifies **
 5. Read **`action`**:
    - **`merge`** — merge/deploy allowed (`gate.exit_code === 0`)
    - **`self_heal`** — fix code, re-run evals/CI, post missing signals, check again
+   - **`recover_certification`** — remediation debt blocks non-emergency merge; ship clean CERTIFIED to prod or use corroborated `incident_hotfix`
    - **`escalate`** — call **`escalate`** with reason + `blocking_signals`; human reviews **Escalations** inbox
 
 ## MCP alternative (when not using label)

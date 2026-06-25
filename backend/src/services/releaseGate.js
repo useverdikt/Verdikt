@@ -11,6 +11,7 @@ const { buildGateRemediation } = require("./gateRemediation");
 const { buildGateCertification } = require("./gateCertification");
 const { buildGateCalibrationContext } = require("./gateCalibrationContext");
 const { getWorkspaceRemediationDebt } = require("./remediationDebt");
+const { getWorkspaceIncidentCorroboration } = require("./incidentContext");
 const sharedPkg = require("../lib/sharedPkg");
 
 /**
@@ -62,9 +63,27 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
   // releases (e.g. incident_hotfix) are exempt so teams can keep fighting a
   // live incident without being blocked by the circuit breaker.
   const isEmergencyRelease = sharedPkg.isEmergencyReleaseType(release.release_type);
+  const incidentCorroboration = isEmergencyRelease
+    ? await getWorkspaceIncidentCorroboration(release.workspace_id)
+    : null;
+
+  // Strict mode normally requires CERTIFIED without override; emergency hotfixes
+  // with corroborated incident context may still merge on override.
+  if (
+    mode === "strict" &&
+    release.status === "CERTIFIED_WITH_OVERRIDE" &&
+    isEmergencyRelease &&
+    incidentCorroboration?.eligible
+  ) {
+    gateAllowed = true;
+    gateReason = reason;
+  }
+
+  let blockedByRemediationDebt = false;
   if (remediationDebt.active && !isEmergencyRelease && release.status !== "CERTIFIED") {
     gateAllowed = false;
     gateReason = remediationDebt.message;
+    blockedByRemediationDebt = true;
   }
 
   const failedSignalsFromIntel = intelligence?.verdict?.failed_signals ?? [];
@@ -87,7 +106,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     gateAllowed,
     blockingSignals,
     missingRequiredSignals,
-    collectionAgeMs
+    collectionAgeMs,
+    blockedByRemediationDebt
   });
 
   const { blockers, next_step: nextStep } = buildGateBlockers({
@@ -153,11 +173,15 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     workspace_id: release.workspace_id,
     commit_sha: release.commit_sha || null,
     pr_number: release.pr_number ?? null,
+    release_type: release.release_type || null,
     status: release.status,
     mode,
     certified: allowed,
     can_merge: gateAllowed,
     action,
+    emergency_release: isEmergencyRelease,
+    remediation_debt_exempt: isEmergencyRelease && remediationDebt.active,
+    incident_corroborated: incidentCorroboration?.eligible ?? null,
     blocking_signals: blockingSignals,
     missing_required_signals: missingRequiredSignals,
     blockers,

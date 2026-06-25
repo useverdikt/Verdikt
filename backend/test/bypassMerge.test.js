@@ -487,7 +487,61 @@ describe("bypass merge prod tracking", () => {
     const gate = await buildReleaseGateResponse(rel, { mode: "default" });
     assert.equal(gate.remediation_debt.active, true);
     assert.equal(gate.can_merge, false, "non-emergency release under debt must be blocked");
+    assert.equal(gate.action, "recover_certification");
     const debtBlocker = gate.blockers.find((b) => b.type === "remediation_debt");
     assert.ok(debtBlocker, "non-emergency release under debt must surface remediation_debt blocker");
+  });
+
+  it("strict mode allows incident_hotfix override under remediation debt with corroboration", async () => {
+    const email = `bypstrict_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "BYP STRICT" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent.post(`/api/workspaces/${ws}/policies`).send({ gate_mode: "strict" }).expect(200);
+
+    const repo = `BypassStrict${crypto.randomBytes(3).toString("hex")}`;
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+
+    const bypassRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Debt origin strict (#9510)", release_type: "model_update", pr_number: 9510 })
+      .expect(201);
+    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+      "UNCERTIFIED",
+      nowIso(),
+      bypassRelease.body.id
+    ]);
+    const signed = signGithubPayload({
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 9510, base: { ref: "main" } }
+    });
+    await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+
+    const emgRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Emergency strict (#9511)", release_type: "incident_hotfix", pr_number: 9511 })
+      .expect(201);
+    await run("UPDATE releases SET status = ? WHERE id = ?", ["CERTIFIED_WITH_OVERRIDE", emgRelease.body.id]);
+
+    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [emgRelease.body.id]);
+    const gate = await buildReleaseGateResponse(rel, { mode: "strict" });
+    assert.equal(gate.can_merge, true, "strict mode must allow corroborated emergency override under debt");
+    assert.equal(gate.action, "merge");
+    assert.equal(gate.emergency_release, true);
+    assert.equal(gate.remediation_debt_exempt, true);
   });
 });

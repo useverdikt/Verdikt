@@ -5,6 +5,8 @@ const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
 const { openReleaseSession } = require("../../services/releaseIdentity");
 const { countShippedWithoutCertification } = require("../../services/releaseEnvironment");
 const { getWorkspaceGovernanceStats } = require("../../services/governanceStats");
+const { getWorkspaceIncidentCorroboration } = require("../../services/incidentContext");
+const sharedPkg = require("../../lib/sharedPkg");
 const {
   nowIso,
   writeAudit,
@@ -78,6 +80,18 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
       return res.status(400).json({
         error: `release_type must be one of: ${[...ALLOWED_RELEASE_TYPES].join(", ")}`
       });
+    }
+
+    if (sharedPkg.isEmergencyReleaseType(release_type)) {
+      const incidentCtx = await getWorkspaceIncidentCorroboration(req.params.workspaceId);
+      if (!incidentCtx.eligible) {
+        return res.status(400).json({
+          error: "incident_hotfix requires active incident context",
+          incident_context: incidentCtx,
+          next_step:
+            "Open incident_hotfix only during an active incident: remediation debt from a prior bypass, VCS monitor INVESTIGATING/INCIDENT, or a confirmed prod INCIDENT alignment."
+        });
+      }
     }
 
     let normalizedCallbackUrl = null;
