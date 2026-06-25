@@ -49,7 +49,7 @@ In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule
 | `check_gate` | Merge/deploy decision — read **`action`** (`merge` \| `self_heal` \| `escalate`), not `exit_code` alone |
 | `check_gate_by_sha` | Same gate by PR commit SHA (parity with GHA) |
 | `get_regression_history` | Regression streaks and prior release comparisons for the current gate |
-| `get_calibration_suggestions` | Pending prod calibration threshold suggestions (MISS / over-block) |
+| `get_calibration_suggestions` | Pending prod calibration threshold suggestions (MISS / cautious) |
 | `escalate` | Hand off to human when blocked and self-heal failed |
 | `record_outcome` | Post-prod calibration (`incident` / `no_incident`) |
 

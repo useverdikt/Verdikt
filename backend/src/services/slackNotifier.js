@@ -20,12 +20,12 @@ const { PUBLIC_APP_URL } = require("../config");
 
 const CALIBRATION_EMOJI = {
   MISS: ":rotating_light:",
-  OVER_BLOCK: ":balance_scale:"
+  CAUTIOUS: ":balance_scale:"
 };
 
 const CALIBRATION_COLOR = {
   MISS: "#dc2626",
-  OVER_BLOCK: "#d97706"
+  CAUTIOUS: "#d97706"
 };
 
 const STATUS_EMOJI = {
@@ -160,7 +160,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
 }
 
 /**
- * Build a Slack Block Kit payload for a production alignment MISS / OVER_BLOCK nudge.
+ * Build a Slack Block Kit payload for a production alignment MISS / CAUTIOUS nudge.
  *
  * @param {object} release
  * @param {object} alignmentResult – { alignment, actualOutcome, criteria_triggers? }
@@ -176,7 +176,7 @@ function buildCalibrationSlackPayload(release, alignmentResult, suggestions = []
   const headline =
     alignment === "MISS"
       ? `${emoji} *Production MISS* — \`${version}\` was certified but prod was *${actual}*`
-      : `${emoji} *Over-block* — \`${version}\` was blocked but prod was healthy`;
+      : `${emoji} *Cautious block* — \`${version}\` was blocked but prod was healthy`;
 
   const blocks = [
     { type: "section", text: { type: "mrkdwn", text: headline } },
@@ -245,11 +245,11 @@ function buildCalibrationSlackPayload(release, alignmentResult, suggestions = []
 }
 
 /**
- * Notify workspace Slack when prod alignment is MISS or OVER_BLOCK.
+ * Notify workspace Slack when prod alignment is MISS or CAUTIOUS.
  */
 async function deliverSlackCalibrationNudge(release, alignmentResult, suggestions = []) {
   const alignment = String(alignmentResult?.alignment || "").toUpperCase();
-  if (!["MISS", "OVER_BLOCK"].includes(alignment)) return;
+  if (!["MISS", "CAUTIOUS"].includes(alignment)) return;
 
   try {
     const policy = await getWorkspacePolicy(release.workspace_id);

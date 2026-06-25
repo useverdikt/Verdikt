@@ -160,7 +160,7 @@ server.registerTool(
   "get_calibration_suggestions",
   {
     description:
-      "List pending prod calibration threshold suggestions (MISS tighten / OVER_BLOCK loosen). Suggest-only — thresholds change only after a human applies on Thresholds. Use with check_gate calibration context before certifying borderline releases.",
+      "List pending prod calibration threshold suggestions (MISS tighten / CAUTIOUS loosen). Suggest-only — thresholds change only after a human applies on Thresholds. Use with check_gate calibration context before certifying borderline releases.",
     inputSchema: {}
   },
   async () => {

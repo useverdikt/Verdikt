@@ -193,7 +193,7 @@ async function computeOutcomeAlignment(releaseId, workspaceId) {
   const alignment = deriveAlignment(recommendedVerdict, actualOutcome);
 
   const overBlockSuggestions =
-    alignment === "OVER_BLOCK"
+    alignment === "CAUTIOUS"
       ? await deriveOverBlockSuggestions(releaseId, workspaceId, preMap, recommendedVerdict)
       : [];
 
@@ -235,7 +235,7 @@ async function computeOutcomeAlignment(releaseId, workspaceId) {
     overBlockSuggestions
   };
 
-  if (["MISS", "OVER_BLOCK"].includes(alignment)) {
+  if (["MISS", "CAUTIOUS"].includes(alignment)) {
     try {
       await runPostAlignmentEffects(releaseId, workspaceId, result);
     } catch (err) {
@@ -248,7 +248,7 @@ async function computeOutcomeAlignment(releaseId, workspaceId) {
 
 async function runPostAlignmentEffects(releaseId, workspaceId, alignmentResult) {
   const alignment = String(alignmentResult?.alignment || "").toUpperCase();
-  if (!["MISS", "OVER_BLOCK"].includes(alignment)) return;
+  if (!["MISS", "CAUTIOUS"].includes(alignment)) return;
 
   const release = await queryOne("SELECT * FROM releases WHERE id = ?", [releaseId]);
   if (!release) return;
@@ -288,7 +288,7 @@ function deriveAlignment(recommendedVerdict, actualOutcome) {
   if (predictedSafe && actualHealthy) return "CORRECT";
   if (predictedRisky && actualBad) return "CORRECT";
   if (predictedSafe && actualBad) return "MISS";
-  if (predictedRisky && actualHealthy) return "OVER_BLOCK";
+  if (predictedRisky && actualHealthy) return "CAUTIOUS";
   return "UNKNOWN";
 }
 
@@ -353,7 +353,7 @@ async function computeProductionAdjustment(workspaceId) {
   const total = alignments.length;
   const correct = alignments.filter((a) => a.alignment === "CORRECT").length;
   const misses = alignments.filter((a) => a.alignment === "MISS").length;
-  const overBlocks = alignments.filter((a) => a.alignment === "OVER_BLOCK").length;
+  const overBlocks = alignments.filter((a) => a.alignment === "CAUTIOUS").length;
 
   const missRate = total > 0 ? misses / total : 0;
   const overBlockRate = total > 0 ? overBlocks / total : 0;
@@ -433,7 +433,7 @@ async function getWorkspaceProductionHealth(workspaceId) {
   const total = alignments.length;
   const correct = alignments.filter((a) => a.alignment === "CORRECT").length;
   const misses = alignments.filter((a) => a.alignment === "MISS").length;
-  const overBlocks = alignments.filter((a) => a.alignment === "OVER_BLOCK").length;
+  const overBlocks = alignments.filter((a) => a.alignment === "CAUTIOUS").length;
   const unknown = alignments.filter((a) => a.alignment === "UNKNOWN").length;
 
   const predictionAccuracy = total > 0 ? Math.round((correct / total) * 100) : null;
@@ -456,7 +456,7 @@ async function getWorkspaceProductionHealth(workspaceId) {
 
   const allOverBlockSuggestions = [];
   for (const a of alignments) {
-    if (a.alignment !== "OVER_BLOCK" || !a.over_block_suggestions_json) continue;
+    if (a.alignment !== "CAUTIOUS" || !a.over_block_suggestions_json) continue;
     try {
       const sug = JSON.parse(a.over_block_suggestions_json);
       for (const s of sug) allOverBlockSuggestions.push({ ...s, release_id: a.release_id, version: a.version });

@@ -18,7 +18,7 @@ function suggestionsForAlignment(workspaceId, alignmentRow, threshMap) {
   if (alignmentRow.alignment === "MISS") {
     return missSuggestionsFromAlignment(workspaceId, alignmentRow, threshMap);
   }
-  if (alignmentRow.alignment === "OVER_BLOCK") {
+  if (alignmentRow.alignment === "CAUTIOUS") {
     const rawList = safeJsonParse(alignmentRow.over_block_suggestions_json, []);
     return rawList
       .map((raw) => mapOverBlockRawToSuggestion(workspaceId, alignmentRow, raw))
@@ -33,7 +33,7 @@ function suggestionsForAlignment(workspaceId, alignmentRow, threshMap) {
  */
 async function maybeAutoApplyCalibrationSuggestions(workspaceId, releaseId, alignment) {
   const mode = String(alignment || "").toUpperCase();
-  if (!["MISS", "OVER_BLOCK"].includes(mode)) return { applied: [], skipped: "not_actionable_alignment" };
+  if (!["MISS", "CAUTIOUS"].includes(mode)) return { applied: [], skipped: "not_actionable_alignment" };
 
   const policy = await getWorkspacePolicy(workspaceId);
   if (String(policy?.calibration_mode || "suggest_only") !== "auto_apply") {

@@ -72,12 +72,12 @@ describe("formatPreShipRecommendation", () => {
 });
 
 describe("resolveAlignmentDisplay", () => {
-  it("distinguishes bypass merges from true over-blocks", () => {
-    const bypass = resolveAlignmentDisplay("OVER_BLOCK", { shipped_without_certification: true });
+  it("distinguishes bypass merges from true cautious blocks", () => {
+    const bypass = resolveAlignmentDisplay("CAUTIOUS", { shipped_without_certification: true });
     expect(bypass.label).toBe("Bypass · healthy");
-    expect(bypass.label).not.toBe("Over-block");
+    expect(bypass.label).not.toBe("Cautious");
 
-    const overBlock = resolveAlignmentDisplay("OVER_BLOCK", { shipped_without_certification: false });
-    expect(overBlock.label).toBe("Over-block");
+    const cautious = resolveAlignmentDisplay("CAUTIOUS", { shipped_without_certification: false });
+    expect(cautious.label).toBe("Cautious");
   });
 });

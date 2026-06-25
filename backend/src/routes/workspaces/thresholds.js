@@ -99,7 +99,7 @@ app.get("/api/workspaces/:workspaceId/threshold-suggestions", authMiddleware, re
   });
 });
 
-/** Prod-alignment calibration suggestions only (MISS / OVER_BLOCK). Same apply/dismiss IDs as threshold-suggestions. */
+/** Prod-alignment calibration suggestions only (MISS / CAUTIOUS). Same apply/dismiss IDs as threshold-suggestions. */
 app.get("/api/workspaces/:workspaceId/calibration-suggestions", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     if (!ENABLE_THRESHOLD_SUGGESTIONS) {

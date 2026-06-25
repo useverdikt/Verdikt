@@ -38,7 +38,7 @@ function buildSummary({ pendingCount, missRecent, overBlockRecent, adjustment })
   }
   if (overBlockRecent) {
     parts.push(
-      `Latest over-block: ${overBlockRecent.version || overBlockRecent.release_id?.slice(0, 8)} was blocked but prod was healthy.`
+      `Latest cautious block: ${overBlockRecent.version || overBlockRecent.release_id?.slice(0, 8)} was blocked but prod was healthy.`
     );
   }
   if (adjustment && adjustment.sample_count >= 3) {
@@ -48,7 +48,7 @@ function buildSummary({ pendingCount, missRecent, overBlockRecent, adjustment })
       );
     } else if (adjustment.over_block_rate_pct >= 20) {
       parts.push(
-        `Production track record: ${adjustment.over_block_rate_pct.toFixed(0)}% over-block rate — thresholds may be stricter than production reality.`
+        `Production track record: ${adjustment.over_block_rate_pct.toFixed(0)}% cautious-block rate — thresholds may be stricter than production reality.`
       );
     }
   }
@@ -69,7 +69,7 @@ async function buildGateCalibrationContext(workspaceId) {
       `SELECT oa.release_id, oa.alignment, oa.actual_outcome, oa.computed_at, r.version
        FROM outcome_alignments oa
        JOIN releases r ON r.id = oa.release_id
-       WHERE oa.workspace_id = ? AND oa.alignment IN ('MISS', 'OVER_BLOCK')
+       WHERE oa.workspace_id = ? AND oa.alignment IN ('MISS', 'CAUTIOUS')
        ORDER BY oa.computed_at DESC
        LIMIT 5`,
       [workspaceId]
@@ -80,7 +80,7 @@ async function buildGateCalibrationContext(workspaceId) {
   if (!suggestions.length && !recentRows.length && !hasAdjustment) return null;
 
   const missRecent = recentRows.find((r) => r.alignment === "MISS") || null;
-  const overBlockRecent = recentRows.find((r) => r.alignment === "OVER_BLOCK") || null;
+  const overBlockRecent = recentRows.find((r) => r.alignment === "CAUTIOUS") || null;
 
   const pending = suggestions.map(slimSuggestion);
   const summary = buildSummary({
