@@ -11,16 +11,7 @@ const { writeAudit } = require("./audit");
 const { refreshMonitoringWindowForProd } = require("./vcsMonitor");
 const { deliverSlackBypassMerge } = require("./slackNotifier");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
-
-const CERT_LIKE = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
-
-function isProdEnvironment(env) {
-  return String(env || "").toLowerCase() === "prod";
-}
-
-function isCertLikeStatus(status) {
-  return CERT_LIKE.has(String(status || "").toUpperCase());
-}
+const { CERT_LIKE, isProdEnvironment, isCertLikeStatus } = require("../lib/releaseStatus");
 
 /**
  * Promote release environment on VCS merge. Sets shipped_without_certification once when

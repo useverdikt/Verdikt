@@ -4,7 +4,7 @@ const sharedPkg = require("./sharedPkg");
 
 /**
  * Resolve emergency release typing without assuming sharedPkg finished initializing
- * (postinstall sync-shared overwrites backend/shared from repo shared/).
+ * (resolved via @useverdikt/shared workspace package).
  */
 function isEmergencyReleaseType(releaseType) {
   if (typeof sharedPkg.isEmergencyReleaseType === "function") {

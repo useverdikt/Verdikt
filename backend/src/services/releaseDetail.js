@@ -10,7 +10,7 @@ const {
   persistReleaseEvidenceQuality
 } = require("./evidenceQuality");
 const { buildGateContext } = require("./gateContext");
-const { isProdEnvironment, isCertLikeStatus } = require("./releaseEnvironment");
+const { isProdEnvironment, isCertLikeStatus } = require("../lib/releaseStatus");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
 
 const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);

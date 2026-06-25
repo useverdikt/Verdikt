@@ -4,8 +4,6 @@
   "description": "Verdikt MVP backend",
   "main": "src/server.js",
   "scripts": {
-    "sync-shared": "node scripts/sync-shared.cjs",
-    "postinstall": "node scripts/sync-shared.cjs",
     "start": "node src/server.js",
     "worker": "node src/worker.js",
     "dev": "node src/server.js",
@@ -24,6 +22,7 @@
     "seed:demo:full": "bash scripts/seed-ws-demo-scenarios.sh"
   },
   "dependencies": {
+    "@useverdikt/shared": "file:../shared",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

@@ -1,7 +1,17 @@
 {
   "name": "verdikt-mvp-v1",
   "version": "1.0.0",
+  "private": true,
   "main": "index.js",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=20.12.0"
+  },
   "scripts": {
     "dev": "cd frontend && npx concurrently -k -n api,vite -c cyan,magenta \"npm run start --prefix ../backend\" \"npm run dev\"",
     "dev:frontend": "npm --prefix frontend run dev",
@@ -9,7 +19,7 @@
     "build": "npm --prefix frontend run build",
     "prod:check": "npm run build && npm run test",
     "prod:check:e2e": "npm run build && npm run test && npm run test:e2e",
-    "test:e2e": "npm --prefix frontend run test:e2e",
+    "test:e2e": "npm run test:e2e -w verdikt-frontend",
     "test": "npm run test:backend && npm run test:frontend && npm run test:mcp",
     "test:mcp": "npm --prefix mcp test",
     "test:backend": "npm --prefix backend test",

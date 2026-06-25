@@ -24,7 +24,7 @@ const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { safeJsonParse } = require("../lib/safeJson");
 const { upsertReleaseIntelligence, parseRecommendationBlob } = require("./intelligenceBuilder");
-const { isProdEnvironment, isCertLikeStatus } = require("./releaseEnvironment");
+const { isProdEnvironment, isCertLikeStatus } = require("../lib/releaseStatus");
 
 // ─── Grade weights for reliability penalty ────────────────────────────────────
 const RELIABILITY_PENALTY = { A: 0, B: 2, C: 6, D: 12, F: 20, unknown: 4 };

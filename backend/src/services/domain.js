@@ -42,7 +42,7 @@ const {
   releaseVerdictLockedAgainstIngest,
   releaseIngestLockError
 } = require("./verdictEngine");
-const { isProdEnvironment } = require("./releaseEnvironment");
+const { isProdEnvironment } = require("../lib/releaseStatus");
 const {
   computeRegressionHistoryInsights,
   buildDeterministicVerdictIntelligence,
