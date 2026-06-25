@@ -152,7 +152,7 @@ function mapIntegrationSignals(provider, payload) {
 }
 
 const { resolveReleaseForWorkspaceIngest } = require("./releaseIdentity");
-const { isProdEnvironment } = require("./releaseEnvironment");
+const { isProdEnvironment } = require("../lib/releaseStatus");
 
 function releaseVerdictLockedAgainstIngest(release) {
   if (!release) return false;
