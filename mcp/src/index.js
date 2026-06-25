@@ -24,9 +24,9 @@ server.registerTool(
     inputSchema: {
       version: z.string().describe("Release version or identifier (e.g. model-v2.1)"),
       release_type: z
-        .enum(["prompt_update", "model_patch", "safety_patch", "policy_change", "model_update"])
+        .enum(["prompt_update", "model_patch", "safety_patch", "policy_change", "model_update", "incident_hotfix"])
         .optional()
-        .describe("Type of AI release"),
+        .describe("Type of AI release. Use incident_hotfix for emergency hotfixes — exempt from remediation debt blocks so a live incident can be fought."),
       commit_sha: z.string().optional().describe("Git commit SHA (full or 7+ chars) — required for production"),
       pr_number: z.number().int().optional().describe("Pull request number"),
       github_owner: z.string().optional().describe("GitHub org or user (production anchor)"),

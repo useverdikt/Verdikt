@@ -71,7 +71,8 @@ function classifyGithubReleaseType(payload, fallback = "model_update") {
   if (/\b(prompt|ux|ui|copy)\b/.test(haystack)) return "prompt_update";
   if (/\b(safety|guardrail|security)\b/.test(haystack)) return "safety_patch";
   if (/\b(routing|policy)\b/.test(haystack)) return "policy_change";
-  if (/\b(model\s*patch|hotfix)\b/.test(haystack)) return "model_patch";
+  if (/\b(incident|p0|p1|sev-?1|sev-?2|outage|rollback|revert|hotfix)\b/.test(haystack)) return "incident_hotfix";
+  if (/\b(model\s*patch)\b/.test(haystack)) return "model_patch";
   if (/\b(model|weights|checkpoint|llm|gpt|claude|gemini)\b/.test(haystack)) return "model_update";
   return fallback;
 }

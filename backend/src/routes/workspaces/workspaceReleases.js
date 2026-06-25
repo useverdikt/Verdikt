@@ -76,7 +76,7 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
     }
     if (!ALLOWED_RELEASE_TYPES.has(release_type)) {
       return res.status(400).json({
-        error: "release_type must be one of: prompt_update, model_patch, safety_patch, policy_change, model_update"
+        error: `release_type must be one of: ${[...ALLOWED_RELEASE_TYPES].join(", ")}`
       });
     }
 

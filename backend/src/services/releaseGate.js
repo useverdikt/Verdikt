@@ -11,6 +11,8 @@ const { buildGateRemediation } = require("./gateRemediation");
 const { buildGateCertification } = require("./gateCertification");
 const { buildGateCalibrationContext } = require("./gateCalibrationContext");
 const { getWorkspaceRemediationDebt } = require("./remediationDebt");
+const sharedPkg = require("../../shared/config");
+const { isEmergencyReleaseType } = sharedPkg;
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -55,7 +57,13 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
       ? "strict mode requires CERTIFIED without override"
       : reason;
 
-  if (remediationDebt.active && release.status === "CERTIFIED_WITH_OVERRIDE") {
+  // Remediation debt: after an emergency merge without certification, the
+  // workspace must clear the debt with a clean CERTIFIED release before
+  // non-emergency merges can proceed via override or bypass. Emergency
+  // releases (e.g. incident_hotfix) are exempt so teams can keep fighting a
+  // live incident without being blocked by the circuit breaker.
+  const isEmergencyRelease = isEmergencyReleaseType(release.release_type);
+  if (remediationDebt.active && !isEmergencyRelease && release.status !== "CERTIFIED") {
     gateAllowed = false;
     gateReason = remediationDebt.message;
   }
@@ -91,7 +99,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     blockingSignals,
     missingRequiredSignals,
     failedSignals,
-    remediationDebt
+    remediationDebt,
+    isEmergencyRelease
   });
 
   const remediation =

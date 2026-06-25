@@ -61,4 +61,29 @@ describe("buildGateBlockers", () => {
     assert.match(debt.next_step, /CERTIFIED/i);
     assert.match(out.next_step, /CERTIFIED/i);
   });
+
+  it("omits remediation_debt blocker for emergency release types even under debt", () => {
+    const out = buildGateBlockers({
+      status: "CERTIFIED_WITH_OVERRIDE",
+      mode: "default",
+      gateAllowed: false,
+      gateReason: "release certified with override",
+      remediationDebt: { active: true, source_version: "hotfix (#99)" },
+      isEmergencyRelease: true
+    });
+    assert.ok(!out.blockers.some((b) => b.type === "remediation_debt"));
+  });
+
+  it("includes remediation_debt blocker for a non-emergency bypass under debt", () => {
+    const out = buildGateBlockers({
+      status: "UNCERTIFIED",
+      mode: "default",
+      gateAllowed: false,
+      gateReason: "Remediation debt active",
+      remediationDebt: { active: true, source_version: "hotfix (#99)" },
+      isEmergencyRelease: false
+    });
+    const debt = out.blockers.find((b) => b.type === "remediation_debt");
+    assert.ok(debt, "non-emergency release under debt must surface remediation_debt blocker");
+  });
 });

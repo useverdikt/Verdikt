@@ -376,4 +376,118 @@ describe("bypass merge prod tracking", () => {
     assert.ok(debtBlocker, "gate must include structured remediation_debt blocker");
     assert.equal(debtBlocker.source_version, "Emergency merge (#9292)");
   });
+
+  it("emergency release (incident_hotfix) is not blocked by remediation debt", async () => {
+    const email = `bypemg_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "BYP EMG" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const repo = `BypassEmg${crypto.randomBytes(3).toString("hex")}`;
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+
+    // Establish debt via a non-emergency bypass.
+    const bypassRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Debt origin (#9401)", release_type: "model_update", pr_number: 9401 })
+      .expect(201);
+    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+      "UNCERTIFIED",
+      nowIso(),
+      bypassRelease.body.id
+    ]);
+    const debtPayload = {
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 9401, base: { ref: "main" } }
+    };
+    const signedDebt = signGithubPayload(debtPayload);
+    await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signedDebt.sig)
+      .send(signedDebt.raw)
+      .expect(200);
+    const debt = await getWorkspaceRemediationDebt(ws);
+    assert.equal(debt.active, true);
+
+    // An emergency hotfix release under debt must still be mergeable via override.
+    const emgRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Emergency hotfix (#9402)", release_type: "incident_hotfix", pr_number: 9402 })
+      .expect(201);
+    await run("UPDATE releases SET status = ? WHERE id = ?", [
+      "CERTIFIED_WITH_OVERRIDE",
+      emgRelease.body.id
+    ]);
+
+    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [emgRelease.body.id]);
+    const gate = await buildReleaseGateResponse(rel, { mode: "default" });
+    assert.equal(gate.remediation_debt.active, true);
+    assert.equal(gate.can_merge, true, "emergency release must be mergeable under remediation debt");
+    assert.ok(
+      !gate.blockers.some((b) => b.type === "remediation_debt"),
+      "emergency release must not surface a remediation_debt blocker"
+    );
+  });
+
+  it("non-emergency bypass is blocked by remediation debt and surfaces structured blocker", async () => {
+    const email = `bypnonemg_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "BYP NONEMG" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const repo = `BypassNonEmg${crypto.randomBytes(3).toString("hex")}`;
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+
+    const bypassRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Debt origin 2 (#9411)", release_type: "model_update", pr_number: 9411 })
+      .expect(201);
+    await run("UPDATE releases SET status = ?, updated_at = ? WHERE id = ?", [
+      "UNCERTIFIED",
+      nowIso(),
+      bypassRelease.body.id
+    ]);
+    const debtPayload = {
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: { merged: true, number: 9411, base: { ref: "main" } }
+    };
+    const signedDebt = signGithubPayload(debtPayload);
+    await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signedDebt.sig)
+      .send(signedDebt.raw)
+      .expect(200);
+
+    // A routine (non-emergency) UNCERTIFIED release under debt must be blocked.
+    const routineRelease = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "Routine follow-up (#9412)", release_type: "model_update", pr_number: 9412 })
+      .expect(201);
+    await run("UPDATE releases SET status = ? WHERE id = ?", ["UNCERTIFIED", routineRelease.body.id]);
+
+    const rel = await queryOne("SELECT * FROM releases WHERE id = ?", [routineRelease.body.id]);
+    const gate = await buildReleaseGateResponse(rel, { mode: "default" });
+    assert.equal(gate.remediation_debt.active, true);
+    assert.equal(gate.can_merge, false, "non-emergency release under debt must be blocked");
+    const debtBlocker = gate.blockers.find((b) => b.type === "remediation_debt");
+    assert.ok(debtBlocker, "non-emergency release under debt must surface remediation_debt blocker");
+  });
 });
