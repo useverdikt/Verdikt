@@ -16,7 +16,7 @@ const { deliverReleaseCallback } = require("./releaseCallback");
 const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
 const { persistCertificationSnapshot } = require("./certificationSnapshots");
-const { isProdEnvironment } = require("./releaseEnvironment");
+const { isProdEnvironment } = require("../lib/releaseStatus");
 
 function validateOverridePayload({ justification, metadata = {} }) {
   if (!justification || !String(justification).trim()) {

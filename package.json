@@ -1,7 +1,17 @@
 {
   "name": "verdikt-mvp-v1",
   "version": "1.0.0",
+  "private": true,
   "main": "index.js",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=20.12.0"
+  },
   "scripts": {
     "dev": "cd frontend && npx concurrently -k -n api,vite -c cyan,magenta \"npm run start --prefix ../backend\" \"npm run dev\"",
     "dev:frontend": "npm --prefix frontend run dev",
