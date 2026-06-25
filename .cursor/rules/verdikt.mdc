@@ -41,4 +41,6 @@ Repeat with same SHA returns `reused: true` — same cert window.
 
 `create_release` → `post_signals` → `get_verdict` → `check_gate` → `escalate` | merge
 
+Pass **`session_id`** per agent execution for audit attribution, or use the **`agent_session_id`** returned from **`create_release`**. Parallel agents on a shared MCP server must pass distinct session IDs.
+
 Config: [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) and **Settings → Agent access**.

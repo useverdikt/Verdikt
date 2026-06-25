@@ -35,7 +35,7 @@ Model Context Protocol (MCP) tools so AI coding agents can certify releases thro
 
 In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule: [docs.useverdikt.com/agent/cursor-rule](https://docs.useverdikt.com/agent/cursor-rule).
 
-**Agent session ID:** MCP sends `X-Verdikt-Agent-Session` on every request (stable per process). Audit events for that run share the same session — retrieve the chain via `GET /api/workspaces/:id/agent-sessions/:sessionId/audit`. Optional header `X-Verdikt-Agent-Label` (e.g. `cursor-pr-42`).
+**Agent session ID:** Each certification flow gets its own audit session. Pass optional **`session_id`** on any tool (your agent's execution context), or omit on **`create_release`** to auto-generate — the response includes **`agent_session_id`**. Follow-up calls for the same **`release_id`** reuse the bound session in this MCP process. Fallback: env **`VERDIKT_AGENT_SESSION_ID`** for single-agent local dev. Retrieve audit chains via `GET /api/workspaces/:id/agent-sessions/:sessionId/audit`. Optional header **`X-Verdikt-Agent-Label`** via env or future tool arg (e.g. `cursor-pr-42`).
 
 ---
 

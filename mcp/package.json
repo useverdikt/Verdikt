@@ -1,6 +1,6 @@
 {
   "name": "@useverdikt/mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Verdikt MCP server — trust layer tools for AI coding agents",
   "type": "module",
   "main": "src/index.js",
@@ -24,7 +24,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --check src/index.js && node --check src/client.js && node --check src/gateFormat.js && node --test src/gateFormat.test.js",
+    "test": "node --check src/index.js && node --check src/client.js && node --check src/session.js && node --check src/gateFormat.js && node --test src/gateFormat.test.js src/session.test.js",
     "prepublishOnly": "npm test"
   },
   "keywords": [
