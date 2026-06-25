@@ -11,6 +11,7 @@ import AcceptInvitePage from "./pages/AcceptInvitePage.jsx";
 import ProtectedRoute from "./auth/ProtectedRoute.jsx";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 import RouteLoadingFallback from "./components/RouteLoadingFallback.jsx";
+import { AppQueryProvider } from "./providers/AppQueryProvider.jsx";
 import "./index.css";
 
 const App = lazy(() => import("./App.jsx"));
@@ -49,7 +50,8 @@ if (rootEl) {
   try {
     createRoot(rootEl).render(
       <ErrorBoundary>
-        <BrowserRouter>
+        <AppQueryProvider>
+          <BrowserRouter>
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
@@ -171,7 +173,8 @@ if (rootEl) {
               />
             </Routes>
           </Suspense>
-        </BrowserRouter>
+          </BrowserRouter>
+        </AppQueryProvider>
       </ErrorBoundary>
     );
   } catch (err) {
