@@ -1,9 +1,25 @@
 ---
-title: Cursor agent rule
-description: Copy this rule into your project so coding agents know when to certify through Verdikt.
+title: Agent rule
+description: Copy this playbook into any coding agent so it certifies through Verdikt correctly.
 ---
 
-Save the block below as **`.cursor/rules/verdikt.mdc`** in your repo (create the `.cursor/rules` folder if needed). Cursor will apply it when certifying PRs through Verdikt.
+Use this rule with **Cursor**, **Claude Code**, **Windsurf**, or any MCP-connected agent. It is host-agnostic — install it wherever your agent reads project instructions.
+
+## Where to install
+
+| Agent / IDE | Typical location |
+| --- | --- |
+| **Cursor** | `.cursor/rules/verdikt.mdc` (create `.cursor/rules/` if needed) |
+| **Claude Code** | `CLAUDE.md` or project-level instructions |
+| **Other agents** | `AGENTS.md`, custom system prompt, or team runbook |
+
+<Note>
+  **`@useverdikt/mcp`** already ships server `instructions` for connected agents. This project rule reinforces **`release_brief`** when the gate is blocked — especially in IDEs that also use `.cursor/rules` or similar.
+</Note>
+
+## Rule (copy below)
+
+For **Cursor**, save as **`.cursor/rules/verdikt.mdc`**. For other agents, copy the body (you may omit the YAML frontmatter between the `---` lines).
 
 ```md
 ---
@@ -56,4 +72,4 @@ Pass **`session_id`** per agent execution for audit attribution, or use the **`a
 Config: [MCP setup](/agent/mcp-setup) and **Settings → Agent access** in the Verdikt app.
 ```
 
-See also [MCP setup](/agent/mcp-setup) and the [@useverdikt/mcp](https://www.npmjs.com/package/@useverdikt/mcp) package on npm for tool reference.
+See also [MCP setup](/agent/mcp-setup) and [@useverdikt/mcp on npm](https://www.npmjs.com/package/@useverdikt/mcp).

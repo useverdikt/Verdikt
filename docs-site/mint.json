@@ -41,7 +41,13 @@
     },
     {
       "group": "Agent setup",
-      "pages": ["agent/api-keys", "agent/mcp-setup", "agent/cursor-rule"]
+      "pages": ["agent/api-keys", "agent/mcp-setup", "agent/agent-rule"]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/agent/cursor-rule",
+      "destination": "/agent/agent-rule"
     }
   ],
   "footerSocials": {

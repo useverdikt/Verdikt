@@ -59,7 +59,7 @@
       },
       {
         "group": "Agent setup",
-        "pages": ["agent/api-keys", "agent/mcp-setup", "agent/cursor-rule"]
+        "pages": ["agent/api-keys", "agent/mcp-setup", "agent/agent-rule"]
       }
     ]
   },
@@ -80,6 +80,12 @@
       "href": "mailto:hello@useverdikt.com"
     }
   },
+  "redirects": [
+    {
+      "source": "/agent/cursor-rule",
+      "destination": "/agent/agent-rule"
+    }
+  ],
   "footer": {
     "socials": {
       "github": "https://github.com/useverdikt"
