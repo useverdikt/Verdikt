@@ -20,5 +20,10 @@ backend/data/backups/
 # Local signal simulator CSV exports (repo root)
 /signals-*.csv
 
-# Internal-only docs (not for repo / partners)
+# Internal-only docs (GTM, strategy, ICP, partner ops — never commit)
 docs/TECH_DEBT.md
+docs/STRATEGIC_STATE.md
+docs/SYSTEM_OVERVIEW.md
+docs/CUSTOMER_ICP.md
+docs/ENGINEERING_DEBT.md
+docs/partners/

@@ -32,4 +32,4 @@ Document here when an alert is intentionally deferred:
 
 ## Related
 
-- Engineering debt: [ENGINEERING_DEBT.md](./ENGINEERING_DEBT.md)
+- Engineering debt tracker: maintained locally (`docs/ENGINEERING_DEBT.md`, gitignored).
