@@ -17,7 +17,7 @@ const { isEmergencyReleaseType } = require("../lib/emergencyReleaseType");
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
  */
-async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = {}) {
+async function buildReleaseGateResponse(release, { mode: modeOverride, auth, skipAudit = false } = {}) {
   const releaseId = release.id;
   const allowStatuses = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
   const allowed = allowStatuses.has(release.status);
@@ -151,22 +151,24 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth } = 
     console.error("[gate_calibration] context build failed:", release.workspace_id, err?.message);
   }
 
-  await writeAudit({
-    workspaceId: release.workspace_id,
-    releaseId,
-    eventType: "RELEASE_GATE_CHECKED",
-    actorType: auth?.authType === "api_key" ? "AGENT" : "SYSTEM",
-    actorName: auth?.authType === "api_key" ? auth.apiKeyName || "agent_runtime" : "ci_pipeline",
-    details: {
-      mode,
-      allowed: gateAllowed,
-      status: release.status,
-      reason: gateReason,
-      trajectory: trajectoryInfo.trajectory,
-      action,
-      commit_sha: release.commit_sha || null
-    }
-  });
+  if (!skipAudit) {
+    await writeAudit({
+      workspaceId: release.workspace_id,
+      releaseId,
+      eventType: "RELEASE_GATE_CHECKED",
+      actorType: auth?.authType === "api_key" ? "AGENT" : "SYSTEM",
+      actorName: auth?.authType === "api_key" ? auth.apiKeyName || "agent_runtime" : "ci_pipeline",
+      details: {
+        mode,
+        allowed: gateAllowed,
+        status: release.status,
+        reason: gateReason,
+        trajectory: trajectoryInfo.trajectory,
+        action,
+        commit_sha: release.commit_sha || null
+      }
+    });
+  }
 
   return {
     release_id: releaseId,

@@ -44,6 +44,7 @@ const {
   AI_SIGNAL_DEFINITIONS
 } = require("./deps");
 const { buildReleaseGateResponse } = require("../services/releaseGate");
+const { buildReleaseBriefWithAudit } = require("../services/releaseBrief");
 const { createEscalationRequest, notifyEscalationCreated } = require("../services/escalations");
 const { applyReleaseOverride } = require("../services/releaseOverride");
 const { summarizePullResult } = require("../services/integrationPullStatus");
@@ -485,6 +486,21 @@ app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, a
           ? "default"
           : undefined;
     const payload = await buildReleaseGateResponse(req.releaseRow, { mode, auth: req.auth });
+    return res.json(payload);
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get("/api/releases/:releaseId/release-brief", authMiddleware, requireReleaseAccess, async (req, res, next) => {
+  try {
+    const mode =
+      req.query.mode === "strict"
+        ? "strict"
+        : req.query.mode === "default"
+          ? "default"
+          : undefined;
+    const payload = await buildReleaseBriefWithAudit(req.releaseRow, { mode, auth: req.auth });
     return res.json(payload);
   } catch (e) {
     next(e);

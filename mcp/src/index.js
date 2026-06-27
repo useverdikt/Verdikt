@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { apiRequest, jsonResult, withAgentSession, WORKSPACE_ID } from "./client.js";
 import { bindReleaseSession, ensureSessionId, resolveSessionId } from "./session.js";
-import { formatGateForAgent } from "./gateFormat.js";
+import { formatGateForAgent, formatReleaseBriefForAgent } from "./gateFormat.js";
 
 const SESSION_ID_FIELD = z
   .string()
@@ -33,7 +33,7 @@ const server = new McpServer(
   },
   {
     instructions:
-      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | recover_certification | escalate. Poll while collecting; recover_certification when remediation debt blocks non-emergency merges; escalate when blocked and self-heal is not possible. Pass session_id per agent execution for audit attribution; create_release returns agent_session_id when auto-generated."
+      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | recover_certification | escalate. When action is not merge, call release_brief for blockers, regression story, remediation debt, and suggested_verb — do not poll check_gate alone without that context. Poll check_gate only for CI grace/collecting windows. Pass session_id per agent execution for audit attribution; create_release returns agent_session_id when auto-generated."
   }
 );
 
@@ -167,6 +167,34 @@ server.registerTool(
     );
     return jsonResult(
       withAgentSession(formatGateForAgent(out), resolveSessionId({ sessionId: session_id, releaseId: release_id }))
+    );
+  }
+);
+
+server.registerTool(
+  "release_brief",
+  {
+    description:
+      "Deterministic release governance brief — verdict, top blockers, regression story, remediation debt, suggested_verb (merge | poll | escalate), and Intelligence Hub links. Prefer this over polling check_gate alone when the gate is blocked or uncertified.",
+    inputSchema: {
+      session_id: SESSION_ID_FIELD,
+      release_id: z.string(),
+      mode: z.enum(["default", "strict"]).optional().describe("strict requires CERTIFIED without override")
+    }
+  },
+  async ({ session_id, release_id, mode }) => {
+    const qs = mode === "strict" ? "?mode=strict" : "";
+    const out = await apiRequest(
+      "GET",
+      `/api/releases/${release_id}/release-brief${qs}`,
+      null,
+      requestOpts({ session_id, release_id })
+    );
+    return jsonResult(
+      withAgentSession(
+        formatReleaseBriefForAgent(out),
+        resolveSessionId({ sessionId: session_id, releaseId: release_id })
+      )
     );
   }
 );

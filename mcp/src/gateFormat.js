@@ -34,3 +34,31 @@ export function formatGateForAgent(out) {
     recommended_next: out?.next_step || guidance[action] || null
   };
 }
+
+/** Agent-facing wrapper for release-brief API (deterministic governance context). */
+export function formatReleaseBriefForAgent(brief) {
+  const gateAction = brief?.gate_action || "unknown";
+  const suggestedVerb = brief?.suggested_verb || "poll";
+  return {
+    ...brief,
+    agent_guidance: {
+      read_fields: ["gate_action", "suggested_verb", "top_blockers", "regression_story", "next_step"],
+      gate_action: gateAction,
+      suggested_verb: suggestedVerb,
+      suggested_next_tool: brief?.suggested_next_tool || null,
+      top_blockers: brief?.top_blockers || [],
+      regression_story: brief?.regression_story || null,
+      remediation_debt: brief?.remediation_debt || null,
+      hub_links: brief?.hub_links || null,
+      next_step: brief?.next_step || brief?.agent_note || null,
+      when_to_use:
+        "Call release_brief when check_gate action is not merge — do not poll check_gate alone without reading this context.",
+      ci_note:
+        suggestedVerb === "poll"
+          ? "Poll check_gate in CI while collecting; use release_brief for narrative context when debugging blocks."
+          : suggestedVerb === "escalate"
+            ? "Do not merge. Call escalate after reviewing top_blockers."
+            : "Merge allowed when gate_action is merge."
+    }
+  };
+}
