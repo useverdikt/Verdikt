@@ -46,6 +46,7 @@ In-app copy: **Settings → Agent access** (playbook + MCP snippet). Cursor rule
 | `create_release` | Open certification window (anchor with `commit_sha`, `pr_number`, `github_owner`, `github_repo`; optional `callback_url` for push verdict) |
 | `post_signals` | Submit eval/QA/perf metrics (usually from CI output) |
 | `get_verdict` | Read status, blocking signals, intelligence |
+| `release_brief` | Deterministic governance brief — blockers, regression story, remediation debt, suggested_verb, hub links |
 | `check_gate` | Merge/deploy decision — read **`action`** (`merge` \| `self_heal` \| `escalate`), not `exit_code` alone |
 | `check_gate_by_sha` | Same gate by PR commit SHA (parity with GHA) |
 | `get_regression_history` | Regression streaks and prior release comparisons for the current gate |

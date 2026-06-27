@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatGateForAgent } from "./gateFormat.js";
+import { formatGateForAgent, formatReleaseBriefForAgent } from "./gateFormat.js";
 
 // ── merge action ──────────────────────────────────────────────────────────────
 
@@ -101,4 +101,23 @@ test("original fields from gate response are preserved", () => {
   assert.equal(out.release_id, "rel_abc");
   assert.equal(out.workspace_id, "ws_1");
   assert.equal(out.can_merge, true);
+});
+
+// ── release brief ─────────────────────────────────────────────────────────────
+
+test("formatReleaseBriefForAgent adds agent_guidance for blocked release", () => {
+  const brief = {
+    gate_action: "escalate",
+    suggested_verb: "escalate",
+    suggested_next_tool: "escalate",
+    top_blockers: [{ type: "threshold_failed", message: "accuracy failed" }],
+    regression_story: { has_regression: true, summary: "accuracy regressed" },
+    next_step: "Fix accuracy",
+    agent_note: "Do not merge"
+  };
+  const out = formatReleaseBriefForAgent(brief);
+  assert.equal(out.agent_guidance.gate_action, "escalate");
+  assert.equal(out.agent_guidance.suggested_verb, "escalate");
+  assert.ok(out.agent_guidance.when_to_use.includes("release_brief"));
+  assert.deepEqual(out.top_blockers, brief.top_blockers);
 });

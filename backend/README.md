@@ -252,6 +252,7 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 - `POST /api/releases/:releaseId/override`
 - `GET /api/releases/:releaseId`
 - `GET /api/releases/:releaseId/gate` (CI/CD release gate decision)
+- `GET /api/releases/:releaseId/release-brief` (deterministic agent/human governance brief)
 - `GET /api/workspaces/:workspaceId/audit`
 
 ## Quick flow example
