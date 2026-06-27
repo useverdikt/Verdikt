@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 
-const DOCS_CURSOR_RULE_URL = "https://docs.useverdikt.com/agent/cursor-rule";
+const DOCS_AGENT_RULE_URL = "https://docs.useverdikt.com/agent/agent-rule";
 const NPM_MCP_REFERENCE_URL = "https://www.npmjs.com/package/@useverdikt/mcp";
 
 const STEPS = [
@@ -82,8 +82,8 @@ export default function AgentPlaybookPanel({ wsId, toast }) {
           {promptTemplate}
         </pre>
         <p className="muted" style={{ marginTop: 12 }}>
-          <a href={DOCS_CURSOR_RULE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accentL)" }}>
-            Cursor rule (copy into your project) →
+          <a href={DOCS_AGENT_RULE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accentL)" }}>
+            Agent rule (copy into your project) →
           </a>
           {" · "}
           <a href={NPM_MCP_REFERENCE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accentL)" }}>

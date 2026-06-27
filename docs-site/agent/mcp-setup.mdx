@@ -39,9 +39,9 @@ Restart Cursor after saving. First run downloads `@useverdikt/mcp` from npm — 
   **Settings → Agent access** includes a pre-filled copy of this config with your workspace ID.
 </Note>
 
-## 2. Optional Cursor rule
+## 2. Optional agent rule
 
-Copy the [Cursor agent rule](/agent/cursor-rule) into your project as `.cursor/rules/verdikt.mdc` so the agent calls **`release_brief`** when the gate is blocked — not just **`check_gate`** in a loop.
+Copy the [agent rule](/agent/agent-rule) into your project (e.g. `.cursor/rules/verdikt.mdc` for Cursor, or `AGENTS.md` / `CLAUDE.md` for other agents) so the agent calls **`release_brief`** when the gate is blocked — not just **`check_gate`** in a loop.
 
 ## Tools available
 
