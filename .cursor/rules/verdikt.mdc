@@ -1,5 +1,5 @@
 ---
-description: Certify GitHub PRs through Verdikt before merge — label trigger, signals, check_gate.action, escalate
+description: Certify GitHub PRs through Verdikt before merge — label trigger, signals, check_gate.action, release_brief, escalate
 alwaysApply: false
 ---
 
@@ -18,6 +18,7 @@ Verdikt is the **trust layer between AI agents and production**. It certifies **
    - **`self_heal`** — fix code, re-run evals/CI, post missing signals, check again
    - **`recover_certification`** — remediation debt blocks non-emergency merge; ship clean CERTIFIED to prod or use corroborated `incident_hotfix`
    - **`escalate`** — call **`escalate`** with reason + `blocking_signals`; human reviews **Escalations** inbox
+6. When **`action` is not `merge`** and you need context (why blocked, what to do next), call **`release_brief(release_id)` once** — read `top_blockers`, `regression_story`, `gate_action`, and `suggested_verb`. Do **not** poll **`check_gate`** alone while debugging a block.
 
 ## MCP alternative (when not using label)
 
@@ -35,11 +36,12 @@ Repeat with same SHA returns `reused: true` — same cert window.
 - Open releases with bare version strings in production (demo only).
 - POST signals from GHA unless you have metrics with no integration source (`docs/examples/verdikt-ci-webhook.optional.md`).
 - Merge when `action` is not `merge`.
+- Poll **`check_gate`** repeatedly when blocked — use **`release_brief`** for narrative context, then act or escalate.
 - Use API keys for human control-plane actions (thresholds, overrides) — escalate instead.
 
 ## MCP tools
 
-`create_release` → `post_signals` → `get_verdict` → `check_gate` → `escalate` | merge
+`create_release` → `post_signals` → `check_gate` → if not `merge`: **`release_brief`** → fix | **`escalate`** | merge
 
 Pass **`session_id`** per agent execution for audit attribution, or use the **`agent_session_id`** returned from **`create_release`**. Parallel agents on a shared MCP server must pass distinct session IDs.
 

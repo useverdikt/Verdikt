@@ -20,7 +20,7 @@ Add to **`~/.cursor/mcp.json`** (global) or **`.cursor/mcp.json`** (project):
   "mcpServers": {
     "verdikt": {
       "command": "npx",
-      "args": ["-y", "@useverdikt/mcp"],
+      "args": ["-y", "@useverdikt/mcp@0.1.4"],
       "env": {
         "VERDIKT_API_URL": "https://api.useverdikt.com",
         "VERDIKT_API_KEY": "vdk_live_…",
@@ -41,7 +41,7 @@ Restart Cursor after saving. First run downloads `@useverdikt/mcp` from npm — 
 
 ## 2. Optional Cursor rule
 
-Copy the [Cursor agent rule](/agent/cursor-rule) into your project as `.cursor/rules/verdikt.mdc` so the agent knows when to call `check_gate` and `post_signals`.
+Copy the [Cursor agent rule](/agent/cursor-rule) into your project as `.cursor/rules/verdikt.mdc` so the agent calls **`release_brief`** when the gate is blocked — not just **`check_gate`** in a loop.
 
 ## Tools available
 
@@ -50,8 +50,11 @@ Copy the [Cursor agent rule](/agent/cursor-rule) into your project as `.cursor/r
 | `create_release` | Open cert window (pass `commit_sha`, `pr_number`, repo metadata) |
 | `post_signals` | Submit signal values for a release |
 | `get_verdict` | Read status, blocking signals, intelligence |
-| `check_gate` | Merge decision — read **`action`**: `merge` \| `self_heal` \| `escalate` |
+| `check_gate` | Merge decision — read **`action`**: `merge` \| `collecting` \| `self_heal` \| `recover_certification` \| `escalate` |
 | `check_gate_by_sha` | Same gate lookup by PR commit SHA |
+| `release_brief` | Deterministic brief when blocked — `top_blockers`, regression story, remediation debt, `gate_action`, `suggested_verb`, hub links |
+| `get_regression_history` | Regression streaks before escalate vs self-heal |
+| `get_calibration_suggestions` | Pending prod threshold suggestions (human applies on Thresholds) |
 | `escalate` | Hand off to human when blocked |
 | `record_outcome` | Post-deploy calibration |
 
@@ -60,8 +63,12 @@ Copy the [Cursor agent rule](/agent/cursor-rule) into your project as `.cursor/r
 | `action` | Behavior |
 | --- | --- |
 | `merge` | Certified — merge/deploy allowed |
-| `self_heal` | Missing signals or still collecting — fix and re-post |
-| `escalate` | Threshold failure — call `escalate`, wait for human override |
+| `collecting` | Signals in flight — poll **`check_gate`** during grace window only |
+| `self_heal` | Missing signals or post-grace collecting — fix and re-post |
+| `recover_certification` | Remediation debt — ship clean CERTIFIED or corroborated `incident_hotfix` |
+| `escalate` | Threshold failure — call **`release_brief`**, then **`escalate`** if still blocked |
+
+When **`action` is not `merge`** and a human (or you) asks why the release is blocked, call **`release_brief(release_id)` once** instead of polling **`check_gate`** alone. Read **`gate_action`** for exact gate semantics and **`suggested_verb`** for coarse next steps (`merge` \| `poll` \| `escalate`).
 
 Use **`mode: strict`** when only pure `CERTIFIED` (no override) should pass.
 
@@ -70,12 +77,13 @@ Use **`mode: strict`** when only pure `CERTIFIED` (no override) should pass.
 1. Agent opens or updates a PR.
 2. Apply label **`verdikt:rc`** (or `create_release` with commit SHA + repo metadata).
 3. Integrations auto-pull; agent **`post_signals`** only for metrics CI produces locally.
-4. **`check_gate`** or **`check_gate_by_sha`** — act on `action`.
-5. GHA [gate workflow](/github/gate-workflow) + branch protection enforce merge even if the agent misbehaves.
+4. **`check_gate`** or **`check_gate_by_sha`** — read **`action`**.
+5. If not **`merge`**, **`release_brief`** for blockers and next steps — then fix, poll during collecting, or **`escalate`**.
+6. GHA [gate workflow](/github/gate-workflow) + branch protection enforce merge even if the agent misbehaves.
 
 ## Session tracking
 
-MCP sends `X-Verdikt-Agent-Session` on every request. Audit events for one agent run share the same session ID in the Verdikt audit trail.
+MCP sends `X-Verdikt-Agent-Session` on every request. Audit events for one agent run share the same session ID in the Verdikt audit trail. **`release_brief`** writes a distinct **`RELEASE_BRIEF_READ`** audit event (separate from **`RELEASE_GATE_CHECKED`**).
 
 ## Full MCP reference
 
