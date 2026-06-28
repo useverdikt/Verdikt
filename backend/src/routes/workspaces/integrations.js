@@ -3,6 +3,7 @@
 const {
   writeAudit,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireWorkspaceMatch,
   validateSignalPayload,
@@ -74,7 +75,7 @@ app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, re
   }
 });
 
-app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
+app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
   try {
     const out = await upsertIntegration(req.params.workspaceId, req.params.sourceId, req.body || {});
     await writeAudit({
@@ -90,7 +91,7 @@ app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddle
   }
 });
 
-app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
+app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
   try {
     const ok = await deleteIntegration(req.params.workspaceId, req.params.sourceId);
     if (!ok) return res.status(404).json({ error: "integration not found" });
@@ -110,6 +111,7 @@ app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMid
 app.post(
   "/api/workspaces/:workspaceId/signal-csv-imports",
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireWorkspaceMatch,
   signalCsvUpload.single("file"),
@@ -134,7 +136,7 @@ app.post(
   }
 );
 
-app.delete("/api/workspaces/:workspaceId/signal-csv-imports", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.delete("/api/workspaces/:workspaceId/signal-csv-imports", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
   await deleteCsvImports(req.params.workspaceId);
   await writeAudit({

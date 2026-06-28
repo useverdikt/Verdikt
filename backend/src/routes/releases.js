@@ -8,6 +8,7 @@ const {
   writeAudit,
   auditActorFromAuth,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireReleaseAccess,
   requireOverrideApproverRole,
@@ -71,6 +72,12 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
   // Schema validation — surface warnings for unrecognised signal names
   const schemaCheck = validateSignalPayload(signals);
 
+  // A duplicate idempotency key replays as a read-only response regardless of
+  // the release's current verdict-lock state — it never re-evaluates or audits,
+  // so it must be served before the lock check below. The transactional
+  // INSERT ... ON CONFLICT DO NOTHING later in this handler is the race-proof
+  // backstop that catches the narrow window where two concurrent first-time
+  // requests both pass this pre-check.
   if (idempotencyKey) {
     const existingCount = await countSignalsForIdempotencyKey(req.params.releaseId, idempotencyKey);
     if (existingCount > 0) {
@@ -88,8 +95,11 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
     });
   }
 
+  // ON CONFLICT DO NOTHING is the race backstop: if two concurrent first-time
+  // requests with the same key both pass the pre-check above, only one set of
+  // signal rows actually lands at the DB level.
   const insertSql =
-    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)";
+    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING";
   const rejected = [];
   let insertedCount = 0;
   await transaction(async (tx) => {
@@ -98,13 +108,22 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
         rejected.push(signalId);
         continue;
       }
-      await tx.run(insertSql, [req.params.releaseId, signalId, value, source, nowIso(), idempotencyKey]);
-      insertedCount += 1;
+      const result = await tx.run(insertSql, [req.params.releaseId, signalId, value, source, nowIso(), idempotencyKey]);
+      if (result.changes > 0) insertedCount += 1;
     }
   });
 
   const keyCount = Object.keys(signals).length;
   if (keyCount > 0 && insertedCount === 0) {
+    // If every signal was rejected by validation, that's a real 400. But if
+    // some signals were valid yet nothing inserted, we lost a concurrent race
+    // for this idempotency key — the winner already wrote the rows. Treat it
+    // as a duplicate read-only replay instead of a spurious validation error.
+    if (idempotencyKey && rejected.length < keyCount) {
+      const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, source, idempotencyKey);
+      if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
+      return res.json(out);
+    }
     return res.status(400).json({
       error: "no valid signal values after validation (finite numbers, correct ranges per signal type)",
       rejected_signal_ids: rejected,
@@ -212,7 +231,7 @@ app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireRelease
   }
 });
 
-app.post("/api/releases/:releaseId/override", authMiddleware, requireReleaseAccess, requireOverrideApproverRole, async (req, res, next) => {
+app.post("/api/releases/:releaseId/override", authMiddleware, requireHumanSession, requireReleaseAccess, requireOverrideApproverRole, async (req, res, next) => {
   try {
   const {
     approver_type = "PERSON",

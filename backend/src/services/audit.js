@@ -1,6 +1,6 @@
 "use strict";
 
-const { run } = require("../database");
+const { run, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 const auditIntegrity = require("./auditIntegrity");
 const { getAgentSessionIdFromContext } = require("../lib/auditContext");
@@ -54,38 +54,49 @@ async function writeAudit({
     created_at: createdAt
   };
 
-  let prevHash;
-  let rowHash;
+  // The SELECT FOR UPDATE in computeAuditChainFields and the INSERT are wrapped
+  // in a single transaction so no concurrent writer can interleave between the
+  // chain-tip read and the new row being written.
   try {
-    ({ prev_hash: prevHash, row_hash: rowHash } = await auditIntegrity.computeAuditChainFields(
-      workspaceId,
-      draftRow
-    ));
+    await transaction(async (tx) => {
+      let prevHash;
+      let rowHash;
+      try {
+        ({ prev_hash: prevHash, row_hash: rowHash } = await auditIntegrity.computeAuditChainFields(
+          workspaceId,
+          draftRow,
+          tx
+        ));
+      } catch (err) {
+        throw new AuditChainComputeError(err);
+      }
+
+      if (prevHash == null || rowHash == null) {
+        throw new AuditChainComputeError(new Error("missing prev_hash or row_hash"));
+      }
+
+      await tx.run(
+        `INSERT INTO audit_events
+           (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id, prev_hash, row_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          workspaceId,
+          releaseId,
+          eventType,
+          actorType,
+          actorName,
+          detailsJson,
+          createdAt,
+          sessionId || null,
+          prevHash,
+          rowHash
+        ]
+      );
+    });
   } catch (err) {
+    if (err instanceof AuditChainComputeError) throw err;
     throw new AuditChainComputeError(err);
   }
-
-  if (prevHash == null || rowHash == null) {
-    throw new AuditChainComputeError(new Error("missing prev_hash or row_hash"));
-  }
-
-  await run(
-    `INSERT INTO audit_events
-       (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id, prev_hash, row_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [
-      workspaceId,
-      releaseId,
-      eventType,
-      actorType,
-      actorName,
-      detailsJson,
-      createdAt,
-      sessionId || null,
-      prevHash,
-      rowHash
-    ]
-  );
 }
 
 module.exports = { writeAudit, auditActorFromAuth, AuditChainComputeError };
