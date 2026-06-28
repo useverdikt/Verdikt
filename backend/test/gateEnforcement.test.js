@@ -168,4 +168,61 @@ describe("gate merge enforcement invariants", () => {
     assertGateBlocked(strictGate.body);
     assert.notEqual(strictGate.body.action, "merge");
   });
+
+  it("workspace gate by SHA succeeds when prior certified releases exist (trajectory SQL)", async () => {
+    const email = `gatetraj_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "GateTraj" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await seedDefaultThresholdsForTest(ws);
+
+    const passingSignals = {
+      accuracy: 95,
+      safety: 95,
+      tone: 90,
+      hallucination: 95,
+      relevance: 90,
+      smoke: 100,
+      e2e_regression: 100,
+      manual_qa_pct: 100
+    };
+
+    const prior = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "gate-traj-prior", release_type: "model_update" })
+      .expect(201);
+
+    await human.post(`/api/releases/${prior.body.id}/signals`).send({ source: "test", signals: passingSignals }).expect(200);
+    await human.get(`/api/releases/${prior.body.id}/gate?mode=default`).expect(200);
+
+    const keyRes = await human.post(`/api/workspaces/${ws}/api-keys`).send({ name: "trajectory-gate" }).expect(201);
+    const sha = crypto.randomBytes(20).toString("hex");
+    const agent = request(app);
+
+    const collecting = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .send({
+        version: "gate-traj-collecting",
+        release_type: "model_update",
+        commit_sha: sha,
+        pr_number: 99,
+        github_owner: "acme",
+        github_repo: "app"
+      })
+      .expect(201);
+
+    const gate = await agent
+      .get(`/api/workspaces/${ws}/gate`)
+      .query({ commit_sha: sha, github_owner: "acme", github_repo: "app", pr_number: 99, mode: "default" })
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .expect(200);
+
+    assert.equal(gate.body.release_id, collecting.body.id);
+    assert.equal(gate.body.status, "COLLECTING");
+    assert.ok(gate.body.gate.trajectory);
+  });
 });
