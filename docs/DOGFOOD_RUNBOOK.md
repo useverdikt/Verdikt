@@ -60,6 +60,8 @@ Merge enforcement on **useverdikt/Verdikt** uses a GitHub **repository ruleset**
 
 Workflow file: `.github/workflows/verdikt-gate.yml` (runs only when PR has label `verdikt:rc`).
 
+After the gate poll, the same workflow **captures a release brief** (`GET /api/releases/:id/release-brief`) and uploads it as a workflow artifact named `release-brief-<head-sha>` (90-day retention). The gate result is authoritative; brief capture is a convenience record for demos and audit — if capture fails, the PR check still reflects the gate.
+
 **Behavior:**
 
 | PR state | `verdikt-gate` check | Merge button |
@@ -132,6 +134,7 @@ If the gate job already finished **red** before signals landed, re-run **Verdikt
 | Check | Expected |
 |-------|----------|
 | **Verdikt gate** / `verdikt-gate` | Green (`gate.exit_code === 0`) |
+| **Release brief artifact** | Actions run → **Artifacts** → `release-brief-<sha>` (or workflow log **Capture release brief** step) |
 | GitHub commit status | **verdikt/certification** success on head SHA (VCS writeback) |
 | PR comment | Verdikt certification comment on PR (if writeback configured) |
 | Merge button | Enabled only when ruleset is active and gate is green (or gate skipped — no label) |
@@ -151,6 +154,19 @@ Merge the PR when gate is green.
 ### 7. Optional: alignment row
 
 After deploy/monitor window: Intelligence → check outcome alignment for that release (proves learning loop).
+
+### 8. Release brief artifact (demo proof)
+
+Every **Verdikt gate** run on a labeled PR saves a deterministic governance brief — no LLM, same payload as MCP `release_brief`.
+
+| Where | What |
+|-------|------|
+| PR → **Checks** → **Verdikt gate** → workflow run → **Artifacts** | Download `release-brief-<head-sha>` |
+| Same run → **Capture release brief** step log | `gate_action`, `top_blockers`, `hub_links` summary |
+
+Use for partner demos: *“Our own repo runs through Verdikt before merge — here is last week’s brief.”* A **failed** gate artifact is often more instructive than a green one (blockers + regression story visible).
+
+Re-run the gate job after certifying to refresh the artifact if the first run timed out red.
 
 ---
 
@@ -261,6 +277,7 @@ See also: [docs/INCIDENT_FLOW_DOGFOOD.md](INCIDENT_FLOW_DOGFOOD.md) (tracker che
 | Secrets error in GHA | Add `VERDIKT_API_KEY` + `VERDIKT_WORKSPACE_ID` |
 | Gate red but release is CERTIFIED in app | Re-run **Verdikt gate** on the PR — signal ingest does not re-trigger the workflow |
 | Gate red but merge still enabled | Ruleset **Disabled**, no target on `main`, or `verdikt-gate` not in required checks |
+| No release brief artifact | Gate may have failed before any API response (`gate-response.json` missing), or `release_id` absent — re-run after `verdikt:rc` + cert window exists; brief capture never blocks merge |
 
 ---
 
@@ -269,8 +286,9 @@ See also: [docs/INCIDENT_FLOW_DOGFOOD.md](INCIDENT_FLOW_DOGFOOD.md) (tracker che
 - [x] Repository ruleset on `main` requires `verdikt-gate` (enforcement active)
 - [ ] One PR certified via `verdikt:rc` + Signal Simulator
 - [ ] GHA **Verdikt gate** blocked then passed
+- [ ] **Release brief artifact** downloaded from a gate workflow run (`release-brief-<sha>`)
 - [ ] GitHub commit status visible on PR
-- [ ] Screenshot of audit trail + cert record for sales deck
+- [ ] Screenshot of audit trail + cert record (or brief artifact JSON) for sales deck
 - [ ] (Stretch) One alignment row after deploy
 - [ ] (Stretch) Incident flow dogfood — follow-up PR with `incident` label during VCS monitor window
 
@@ -294,6 +312,7 @@ Treat Verdikt-on-Verdikt as **always on**, not a one-off demo:
 | Gate failure → read **`blockers`** + **`next_step`** in GHA logs | Structured reason instead of guessing why COLLECTING |
 | Gate job **polls** (12 × 10s) — waits on `action: collecting` | Avoids racing integration auto-pull on label; if it times out red, **re-run the job** after signals land |
 | Keep repo secrets current (`VERDIKT_API_KEY`, `VERDIKT_WORKSPACE_ID`) | Gate job must resolve the same workspace as the app |
+| Download **release brief artifact** after each labeled gate run | Dated, linkable proof for demos — gate pass or fail |
 | Screenshot audit trail + cert record after each dogfood PR | Sales/demo proof that we eat our own cooking |
 
 PR template (`.github/pull_request_template.md`) reminds contributors to label PRs for certification.

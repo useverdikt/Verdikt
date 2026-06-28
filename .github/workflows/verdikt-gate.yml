@@ -10,6 +10,7 @@
 #   - Branch protection: require check "Verdikt gate / verdikt-gate"
 #
 # Polls the gate (12 × 10s) so integration auto-pull can finish before failing the check.
+# After the gate poll, captures GET /api/releases/:id/release-brief as a workflow artifact.
 # See docs/DOGFOOD_RUNBOOK.md
 
 name: Verdikt gate
@@ -31,6 +32,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Wait for Verdikt gate
+        id: gate
         env:
           VERDIKT_API_URL: ${{ secrets.VERDIKT_API_URL }}
           VERDIKT_API_KEY: ${{ secrets.VERDIKT_API_KEY }}
@@ -52,6 +54,12 @@ jobs:
           QUERY="commit_sha=${COMMIT_SHA}&pr_number=${PR_NUMBER}&github_owner=${REPO_OWNER}&github_repo=${REPO_NAME}&mode=default"
           echo "Polling ${URL}?${QUERY}"
 
+          write_gate_response() {
+            if [ -n "${LAST_RESP:-}" ]; then
+              echo "$LAST_RESP" > gate-response.json
+            fi
+          }
+
           LAST_RESP=""
           for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
             echo "--- Gate poll ${attempt}/${POLL_ATTEMPTS} ---"
@@ -63,6 +71,7 @@ jobs:
 
             if [ "$ACTION" = "merge" ]; then
               echo "$LAST_RESP" | jq .
+              write_gate_response
               echo "Verdikt gate passed."
               exit 0
             fi
@@ -72,6 +81,7 @@ jobs:
               echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
               NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
               [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+              write_gate_response
               echo "::error::Verdikt gate escalated — human override required."
               exit 1
             fi
@@ -91,6 +101,7 @@ jobs:
           [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
           ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
           STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
+          write_gate_response
           if [ "$STATUS" = "COLLECTING" ]; then
             echo "::error::Verdikt gate timed out waiting for signals. Check integration wiring and SHA tagging on your eval runs."
           elif [ "$STATUS" = "UNCERTIFIED" ]; then
@@ -99,3 +110,50 @@ jobs:
             echo "::error::Verdikt gate did not pass within timeout (last action=${ACTION}, status=${STATUS})."
           fi
           exit 1
+
+      - name: Capture release brief
+        if: always()
+        continue-on-error: true
+        env:
+          VERDIKT_API_URL: ${{ secrets.VERDIKT_API_URL }}
+          VERDIKT_API_KEY: ${{ secrets.VERDIKT_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ ! -f gate-response.json ]; then
+            echo "No gate-response.json — skipping brief capture"
+            exit 0
+          fi
+
+          RELEASE_ID=$(jq -r '.release_id // empty' gate-response.json)
+          if [ -z "$RELEASE_ID" ]; then
+            echo "No release_id in gate response — skipping brief capture"
+            exit 0
+          fi
+
+          BASE="${VERDIKT_API_URL:-https://api.useverdikt.com}"
+          curl -sSf \
+            -H "Authorization: Bearer ${VERDIKT_API_KEY}" \
+            "${BASE%/}/api/releases/${RELEASE_ID}/release-brief" \
+            | jq . > release-brief.json
+
+          echo "=== Release Brief ==="
+          jq '{
+            release_id,
+            status,
+            gate_action,
+            suggested_verb,
+            verdict: .verdict,
+            top_blockers,
+            regression_story: .regression_story.summary,
+            hub_links
+          }' release-brief.json
+
+      - name: Upload release brief artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-brief-${{ github.event.pull_request.head.sha }}
+          path: release-brief.json
+          retention-days: 90
+          if-no-files-found: ignore
