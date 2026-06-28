@@ -8,6 +8,7 @@ const {
   writeAudit,
   auditActorFromAuth,
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireReleaseAccess,
   requireOverrideApproverRole,
@@ -223,7 +224,7 @@ app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireRelease
   }
 });
 
-app.post("/api/releases/:releaseId/override", authMiddleware, requireReleaseAccess, requireOverrideApproverRole, async (req, res, next) => {
+app.post("/api/releases/:releaseId/override", authMiddleware, requireHumanSession, requireReleaseAccess, requireOverrideApproverRole, async (req, res, next) => {
   try {
   const {
     approver_type = "PERSON",
