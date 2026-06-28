@@ -49,9 +49,10 @@ async function computeReleaseTrajectory({ workspaceId, releaseId, releaseRow }) 
   }
 
   const releaseIds = [releaseId, ...recent.map((r) => r.id)];
+  const inClause = releaseIds.map((_, i) => `$${i + 1}`).join(", ");
   const signalRows = await queryAll(
     `SELECT release_id, signal_id, value FROM signals
-     WHERE release_id IN (${releaseIds.map(() => "$1").join(",")})
+     WHERE release_id IN (${inClause})
      ORDER BY id ASC`,
     releaseIds
   );
