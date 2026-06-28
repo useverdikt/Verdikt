@@ -6,7 +6,7 @@
  */
 
 const crypto = require("crypto");
-const { queryOne, queryAll } = require("../database");
+const { queryOne, queryAll, transaction } = require("../database");
 
 const GENESIS = "GENESIS";
 
@@ -29,17 +29,40 @@ function computeAuditRowHash(row, prevHash = GENESIS) {
 
 /**
  * Compute chain fields for a new audit row before INSERT.
+ *
+ * Pass a transaction client (`tx`) so the advisory lock and the subsequent
+ * INSERT share the same transaction — preventing concurrent writers from
+ * forking the hash chain even when no prior rows exist (genesis case).
+ *
+ * pg_advisory_xact_lock(hashtext(workspace_id)) serialises all concurrent
+ * audit writes for a given workspace within the transaction.  SELECT FOR
+ * UPDATE alone is insufficient when the table has no rows yet.
+ *
+ * When `tx` is omitted a standalone transaction is opened internally.
  */
-async function computeAuditChainFields(workspaceId, row) {
-  const last = await queryOne(
-    `SELECT row_hash FROM audit_events
-     WHERE workspace_id = $1 AND row_hash IS NOT NULL
-     ORDER BY id DESC LIMIT 1`,
-    [workspaceId]
-  );
-  const prevHash = last?.row_hash || GENESIS;
-  const rowHash = computeAuditRowHash(row, prevHash);
-  return { prev_hash: prevHash, row_hash: rowHash };
+async function computeAuditChainFields(workspaceId, row, tx = null) {
+  const doCompute = async (client) => {
+    // Acquire an exclusive advisory lock scoped to this workspace for the
+    // duration of the transaction, serialising concurrent writers.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [workspaceId]);
+    const last = await client.queryOne(
+      `SELECT row_hash FROM audit_events
+       WHERE workspace_id = $1 AND row_hash IS NOT NULL
+       ORDER BY id DESC LIMIT 1`,
+      [workspaceId]
+    );
+    const prevHash = last?.row_hash || GENESIS;
+    const rowHash = computeAuditRowHash(row, prevHash);
+    return { prev_hash: prevHash, row_hash: rowHash };
+  };
+
+  if (tx) return doCompute(tx);
+
+  let result;
+  await transaction(async (innerTx) => {
+    result = await doCompute(innerTx);
+  });
+  return result;
 }
 
 /**

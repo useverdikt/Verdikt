@@ -10,8 +10,10 @@ const {
   respondToDuplicateSignalIngest
 } = require("./signalIngestIdempotency");
 
+// ON CONFLICT DO NOTHING ensures duplicate signal rows from concurrent
+// requests with the same idempotency key are silently discarded at the DB level.
 const INSERT_SIGNALS_SQL =
-  "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)";
+  "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING";
 
 async function ingestIntegrationSignals({
   release,
@@ -25,19 +27,30 @@ async function ingestIntegrationSignals({
     throw new Error("no supported numeric signals found in payload");
   }
 
-  if (idempotencyKey) {
-    const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
-    if (existingCount > 0) {
-      const out = await respondToDuplicateSignalIngest(release, release.id, source, idempotencyKey);
-      return { ...out, inserted_count: 0, duplicate: true };
-    }
-  }
-
+  // Idempotency check and insert are inside one transaction: the SELECT inside
+  // the transaction sees a consistent snapshot, and ON CONFLICT DO NOTHING on
+  // the INSERT handles any remaining race window at the DB level.
+  let isDuplicate = false;
   await transaction(async (tx) => {
+    if (idempotencyKey) {
+      const existingRow = await tx.queryOne(
+        "SELECT 1 FROM signals WHERE release_id = $1 AND idempotency_key = $2 LIMIT 1",
+        [release.id, idempotencyKey]
+      );
+      if (existingRow) {
+        isDuplicate = true;
+        return;
+      }
+    }
     for (const [signalId, value] of Object.entries(mappedSignals)) {
       await tx.run(INSERT_SIGNALS_SQL, [release.id, signalId, value, source, nowIso(), idempotencyKey]);
     }
   });
+
+  if (isDuplicate) {
+    const out = await respondToDuplicateSignalIngest(release, release.id, source, idempotencyKey);
+    return { ...out, inserted_count: 0, duplicate: true };
+  }
 
   await writeAudit({
     workspaceId: release.workspace_id,

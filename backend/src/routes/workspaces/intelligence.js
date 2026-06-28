@@ -88,7 +88,7 @@ app.post("/api/workspaces/:workspaceId/recommendations/backfill", authMiddleware
   try {
     const VERDICTED = ["CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE"];
     const releases = await queryAll(
-      `SELECT * FROM releases WHERE workspace_id = $1 AND status IN (${VERDICTED.map(() => "$2").join(",")})`,
+      `SELECT * FROM releases WHERE workspace_id = $1 AND status IN (${VERDICTED.map((_, i) => `$${i + 2}`).join(",")})`,
       [req.params.workspaceId, ...VERDICTED]
     );
 

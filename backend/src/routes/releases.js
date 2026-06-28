@@ -71,15 +71,6 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
   // Schema validation — surface warnings for unrecognised signal names
   const schemaCheck = validateSignalPayload(signals);
 
-  if (idempotencyKey) {
-    const existingCount = await countSignalsForIdempotencyKey(req.params.releaseId, idempotencyKey);
-    if (existingCount > 0) {
-      const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, source, idempotencyKey);
-      if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
-      return res.json(out);
-    }
-  }
-
   if (releaseVerdictLockedAgainstIngest(release)) {
     return res.status(409).json({
       error: releaseIngestLockError(release),
@@ -88,11 +79,25 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
     });
   }
 
+  // Idempotency check + insert are atomic: ON CONFLICT DO NOTHING inside the
+  // transaction prevents duplicate inserts even under concurrent requests with
+  // the same key, eliminating the TOCTOU race of check-then-insert.
   const insertSql =
-    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)";
+    "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING";
   const rejected = [];
   let insertedCount = 0;
+  let isDuplicate = false;
   await transaction(async (tx) => {
+    if (idempotencyKey) {
+      const existingRow = await tx.queryOne(
+        "SELECT 1 FROM signals WHERE release_id = $1 AND idempotency_key = $2 LIMIT 1",
+        [req.params.releaseId, idempotencyKey]
+      );
+      if (existingRow) {
+        isDuplicate = true;
+        return;
+      }
+    }
     for (const [signalId, value] of Object.entries(signals)) {
       if (!isAllowedSignalValue(signalId, value)) {
         rejected.push(signalId);
@@ -102,6 +107,12 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
       insertedCount += 1;
     }
   });
+
+  if (isDuplicate) {
+    const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, source, idempotencyKey);
+    if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
+    return res.json(out);
+  }
 
   const keyCount = Object.keys(signals).length;
   if (keyCount > 0 && insertedCount === 0) {
