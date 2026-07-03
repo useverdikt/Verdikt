@@ -91,13 +91,26 @@ describe("releaseIdsNeedingDetail", () => {
 });
 
 describe("chartWindowPendingIds", () => {
-  it("returns only summary-pending ids from the chart window slice", () => {
+  it("returns pending ids from the same newest-first window as TrendView", () => {
+    // API list is newest-first (index 0 = newest).
     const releases = Array.from({ length: 5 }, (_, i) => ({
       backendReleaseId: `rel_${i}`,
-      summaryLoaded: i < 3,
-      detailLoaded: i < 3
+      summaryLoaded: false,
+      detailLoaded: false,
+      signals: {}
     }));
-    expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_3", "rel_4"]);
+    // Window of 2 → newest two releases (rel_0, rel_1).
+    expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_1", "rel_0"]);
+  });
+
+  it("skips already-hydrated rows in the chart window", () => {
+    const releases = Array.from({ length: 5 }, (_, i) => ({
+      backendReleaseId: `rel_${i}`,
+      summaryLoaded: i >= 2,
+      detailLoaded: i >= 2,
+      signals: i >= 2 ? { smoke: 1 } : {}
+    }));
+    expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_1", "rel_0"]);
     expect(allPendingReleaseIds(releases)).toEqual(["rel_3", "rel_4"]);
   });
 });

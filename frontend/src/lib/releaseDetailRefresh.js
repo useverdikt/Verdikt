@@ -6,6 +6,7 @@ import {
   setHydrationNavigate,
   setOnEach
 } from "./hydrationPool.js";
+import { trendChartWindowReleases } from "./trendChart.js";
 
 export const RELEASE_UPDATED_EVENT = "verdikt:release-updated";
 
@@ -82,10 +83,10 @@ export function initialReleaseTablePendingIds(releases, { limit = RELEASE_TABLE_
 
 /** Chart-window release ids that still need summary hydration (for trends priority enqueue). */
 export function chartWindowPendingIds(releases, windowSize) {
-  return [...releases]
-    .slice(-windowSize)
+  return trendChartWindowReleases(releases, windowSize)
     .filter(isSummaryPending)
-    .map((r) => r.backendReleaseId);
+    .map((r) => r.backendReleaseId)
+    .filter(Boolean);
 }
 
 /** @deprecated Use chartWindowPendingIds + enqueue priority instead. */

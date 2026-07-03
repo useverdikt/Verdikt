@@ -198,6 +198,14 @@ function drainPool() {
         }
 
         failCounts.delete(key);
+        // Stop spinning the trends chart — treat as hydrated with empty signals.
+        onEach?.({
+          backendReleaseId: id,
+          summaryLoaded: true,
+          detailLoaded: false,
+          signals: {},
+          signalRows: []
+        });
         settleWaiters(key, null);
       })
       .finally(() => {
