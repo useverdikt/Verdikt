@@ -327,7 +327,7 @@ describe("API integration", () => {
       .put(`/api/workspaces/${ws}/outbound-webhook`)
       .send({ url: "http://127.0.0.1/callback", secret: "s3cret" })
       .expect(400);
-    assert.match(blocked.body.error, /not allowed|private|link-local/i);
+    assert.match(blocked.body.message || blocked.body.error, /not allowed|private|link-local/i);
 
     const ok = await agent
       .put(`/api/workspaces/${ws}/outbound-webhook`)
@@ -420,7 +420,7 @@ describe("API integration", () => {
       .put(`/api/workspaces/${ws}/signal-integrations/datadog`)
       .send({ apiKey: "dd_test_api_key", appKey: "dd_test_app_key", site: "evil.example.com" })
       .expect(400);
-    assert.match(bad.body.error, /Unsupported Datadog site/i);
+    assert.match(bad.body.message || bad.body.error, /Unsupported Datadog site/i);
 
     const ok = await agent
       .put(`/api/workspaces/${ws}/signal-integrations/datadog`)
