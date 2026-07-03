@@ -54,7 +54,7 @@ const { enqueueVerdictAssistiveEnrichment } = require("./llmAssist");
 const { assessOverrideJustification } = require("./overrideAssessor");
 const { buildThresholdSuggestions } = require("./thresholdAdvisor");
 const { maybeEnrichSuggestionReason } = require("./llmAssist");
-const { runPostVerdictEffects } = require("./postVerdictEffects");
+const { enqueuePostVerdictEffects } = require("./postVerdictEffects");
 const { persistCertificationSnapshot } = require("./certificationSnapshots");
 
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
@@ -293,22 +293,26 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     return null;
   }
 
+  const snapshotArgs = {
+    releaseId,
+    workspaceId: release.workspace_id,
+    thresholdMap,
+    signalMap: latest,
+    status: nextStatus
+  };
   try {
-    await persistCertificationSnapshot({
-      releaseId,
-      workspaceId: release.workspace_id,
-      thresholdMap,
-      signalMap: latest,
-      status: nextStatus
-    });
+    await persistCertificationSnapshot(snapshotArgs);
   } catch (err) {
     console.error("[certification_snapshot] persist failed:", releaseId, err?.message);
+    setImmediate(() => {
+      void persistCertificationSnapshot(snapshotArgs).catch((retryErr) => {
+        console.error("[certification_snapshot] retry failed:", releaseId, retryErr?.message);
+      });
+    });
   }
 
-  // ── Post-verdict side effects ─────────────────────────────────────────────
-  const { recommendation } = await runPostVerdictEffects(
-    releaseId, release, nextStatus, failedSignals, deterministicIntelligence
-  );
+  // ── Post-verdict side effects (async — verdict response returns immediately) ─
+  enqueuePostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence);
 
   // ── Optional LLM enrichment (fire-and-forget, never blocks) ──────────────
   if (ENABLE_ASSISTIVE_LLM && !!AI_PROVIDER_API_KEY && typeof fetch === "function") {
@@ -333,7 +337,8 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     failed_signals: failedSignals,
     release_deltas: deltaResult.snapshot,
     intelligence: deterministicIntelligence,
-    recommendation,
+    recommendation: null,
+    post_verdict_effects_pending: true,
     assistive_enrichment_pending: ENABLE_ASSISTIVE_LLM && !!AI_PROVIDER_API_KEY
   };
 }

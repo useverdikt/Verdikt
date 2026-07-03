@@ -59,7 +59,7 @@ app.get("/api/workspaces/:workspaceId/signal-integrations", authMiddleware, requ
   }
 });
 
-app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
+app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const out = await createIntegrationRequest(req.params.workspaceId, req.body || {}, req.auth?.email);
     await writeAudit({
@@ -71,11 +71,12 @@ app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, re
     });
     return res.status(201).json(out);
   } catch (err) {
-    return res.status(400).json({ error: err.message || String(err) });
+    if (!err.status && !err.statusCode) err.status = 400;
+    next(err);
   }
 });
 
-app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
+app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const out = await upsertIntegration(req.params.workspaceId, req.params.sourceId, req.body || {});
     await writeAudit({
@@ -87,11 +88,12 @@ app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddle
     });
     return res.json(out);
   } catch (err) {
-    return res.status(400).json({ error: err.message || String(err) });
+    if (!err.status && !err.statusCode) err.status = 400;
+    next(err);
   }
 });
 
-app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res) => {
+app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const ok = await deleteIntegration(req.params.workspaceId, req.params.sourceId);
     if (!ok) return res.status(404).json({ error: "integration not found" });
@@ -104,7 +106,8 @@ app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMid
     });
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(400).json({ error: err.message || String(err) });
+    if (!err.status && !err.statusCode) err.status = 400;
+    next(err);
   }
 });
 
@@ -115,7 +118,7 @@ app.post(
   requireNonViewer,
   requireWorkspaceMatch,
   signalCsvUpload.single("file"),
-  async (req, res) => {
+  async (req, res, next) => {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ error: 'file is required (multipart field name "file")' });
     }
@@ -131,7 +134,8 @@ app.post(
       const applyResult = await applyCsvImportToWorkspace(req.params.workspaceId, out.import_id);
       return res.json({ ...out, apply_result: applyResult });
     } catch (err) {
-      return res.status(400).json({ error: err.message || String(err) });
+      if (!err.status && !err.statusCode) err.status = 400;
+      next(err);
     }
   }
 );

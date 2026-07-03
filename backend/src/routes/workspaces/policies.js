@@ -202,7 +202,8 @@ app.put("/api/workspaces/:workspaceId/baseline-policy", authMiddleware, requireH
   try {
     await setBaselinePolicy(req.params.workspaceId, { strategy, window_n, pinned_release_id });
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    if (!err.status && !err.statusCode) err.status = 400;
+    return next(err);
   }
   const policy = await getBaselinePolicy(req.params.workspaceId);
   await writeAudit({
@@ -241,7 +242,8 @@ app.put("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, require
       const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
       safeUrl = await validateOutboundWebhookUrl(url);
     } catch (err) {
-      return res.status(400).json({ error: err.message || "Invalid outbound webhook URL" });
+      if (!err.status && !err.statusCode) err.status = 400;
+      return next(err);
     }
     await setOutboundWebhook(req.params.workspaceId, { url: safeUrl, secret, events });
     await writeAudit({

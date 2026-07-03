@@ -38,7 +38,8 @@ app.put("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireH
   try {
     await setVcsIntegration(req.params.workspaceId, { provider, access_token, owner, repo });
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    if (!err.status && !err.statusCode) err.status = 400;
+    return next(err);
   }
   await writeAudit({ workspaceId: req.params.workspaceId, eventType: "VCS_INTEGRATION_CONFIGURED", actorType: "USER", actorName: req.auth?.email || "user", details: { provider, owner, repo } });
   const cfg = await getVcsIntegration(req.params.workspaceId);

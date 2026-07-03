@@ -87,7 +87,7 @@ app.get("/api/hooks/github/setup", async (req, res) => {
     }
     return res.redirect(302, redirectUrl);
   } catch (e) {
-    return res.status(500).json({ error: e.message || String(e) });
+    next(e);
   }
 });
 
