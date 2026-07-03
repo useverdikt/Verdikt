@@ -469,10 +469,10 @@ async function deleteSignalsForCsvImport(importId) {
 async function applyPulledSignals(releaseId, sourceTag, version, signals, outKey) {
   const insertSql = `INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key)
      VALUES ($1, $2, $3, $4, $5, $6)`;
-  await run("DELETE FROM signals WHERE release_id = $1 AND source = $2", [releaseId, sourceTag]);
 
   let n = 0;
   await transaction(async (tx) => {
+    await tx.run("DELETE FROM signals WHERE release_id = $1 AND source = $2", [releaseId, sourceTag]);
     for (const [signalId, value] of Object.entries(signals)) {
       const idem = `pull:${outKey}:${version}:${signalId}`;
       await tx.run(insertSql, [releaseId, signalId, value, sourceTag, nowIso(), idem]);
@@ -679,6 +679,7 @@ async function pullConnectedSourcesForRelease(release) {
 
 module.exports = {
   applyCsvImportToWorkspace,
+  applyPulledSignals,
   deleteSignalsForCsvImport,
   pullBraintrustExperimentSignals,
   pullBrowserStackSignals,

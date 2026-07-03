@@ -268,8 +268,10 @@ function buildIntelligenceTrace({ releaseId, workspaceId, releaseType, output })
   };
 }
 
-async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}) {
-  const row = await queryOne(
+async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}, tx = null) {
+  const queryOneFn = tx ? tx.queryOne.bind(tx) : queryOne;
+  const runFn = tx ? tx.run.bind(tx) : run;
+  const row = await queryOneFn(
     "SELECT verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at FROM release_intelligence WHERE release_id = $1",
     [releaseId]
   );
@@ -281,7 +283,7 @@ async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}) {
   const recommendationJson =
     patch.recommendation !== undefined ? JSON.stringify(patch.recommendation) : row?.recommendation_json || null;
   const outcomeJson = patch.outcome !== undefined ? JSON.stringify(patch.outcome) : row?.outcome_json || null;
-  await run(
+  await runFn(
     `INSERT INTO release_intelligence (release_id, workspace_id, verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT(release_id) DO UPDATE SET

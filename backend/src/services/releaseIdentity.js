@@ -1,11 +1,38 @@
 "use strict";
 
 const crypto = require("crypto");
-const { queryOne, queryAll, run } = require("../database");
+const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { writeVcsStatus } = require("./vcsWriteback");
 const { DEFAULT_COLLECTION_WINDOW_MINUTES } = require("../config");
+
+class IdempotencyContentionError extends Error {
+  constructor(idempotencyKey) {
+    super(`idempotency_key_contention:${idempotencyKey}`);
+    this.name = "IdempotencyContentionError";
+    this.idempotencyKey = idempotencyKey;
+  }
+}
+
+const IDEMPOTENCY_POLL_ATTEMPTS = 30;
+const IDEMPOTENCY_POLL_DELAY_MS = 50;
+
+async function pollReleaseForIdempotencyKey(idempotencyKey, { attempts = IDEMPOTENCY_POLL_ATTEMPTS, delayMs = IDEMPOTENCY_POLL_DELAY_MS } = {}) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = $1", [
+      idempotencyKey
+    ]);
+    if (existing?.release_id) {
+      const release = await queryOne("SELECT * FROM releases WHERE id = $1", [existing.release_id]);
+      if (release) return release;
+    }
+    if (attempt + 1 < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return null;
+}
 
 function scheduleCollectingVcsWriteback(release) {
   if (!release || release.status !== "COLLECTING") return;
@@ -170,21 +197,29 @@ async function resolveReleaseForWorkspaceIngest(
   return null;
 }
 
-async function claimReleaseIdempotency(idempotencyKey, provisionalReleaseId) {
+async function claimReleaseIdempotency(idempotencyKey, provisionalReleaseId, tx = null) {
+  const runFn = tx ? tx.run.bind(tx) : run;
+  const queryOneFn = tx ? tx.queryOne.bind(tx) : queryOne;
   const now = nowIso();
-  const gate = await run(
+  const gate = await runFn(
     "INSERT INTO webhook_events (idempotency_key, release_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (idempotency_key) DO NOTHING",
     [idempotencyKey, provisionalReleaseId, now]
   );
   if (gate.changes === 0) {
     let release = null;
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const existing = await queryOne("SELECT release_id FROM webhook_events WHERE idempotency_key = $1", [idempotencyKey]);
+    const maxAttempts = tx ? 1 : 8;
+    const delayMs = tx ? 0 : 15;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const existing = await queryOneFn("SELECT release_id FROM webhook_events WHERE idempotency_key = $1", [
+        idempotencyKey
+      ]);
       if (existing?.release_id) {
-        release = await queryOne("SELECT * FROM releases WHERE id = $1", [existing.release_id]);
+        release = await queryOneFn("SELECT * FROM releases WHERE id = $1", [existing.release_id]);
         if (release) break;
       }
-      await new Promise((resolve) => setTimeout(resolve, 15));
+      if (!tx && attempt + 1 < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
     return { reused: true, release };
   }
@@ -228,14 +263,6 @@ async function openReleaseSession({
   const releaseId = `rel_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
   const now = nowIso();
 
-  if (key) {
-    const claim = await claimReleaseIdempotency(key, releaseId);
-    if (claim.reused && claim.release) {
-      scheduleCollectingVcsWriteback(claim.release);
-      return { reused: true, release: claim.release, collection_deadline: claim.release.collection_deadline };
-    }
-  }
-
   const windowMins = Number.isFinite(+collectionWindowMinutes)
     ? Math.max(5, Math.min(24 * 60, +collectionWindowMinutes))
     : DEFAULT_COLLECTION_WINDOW_MINUTES;
@@ -245,6 +272,91 @@ async function openReleaseSession({
   const branch = githubBranch || mappings.branch || null;
   const sha = normalizeCommitSha(commitSha);
   const pr = Number.isFinite(Number(prNumber)) ? Number(prNumber) : null;
+
+  if (key) {
+    try {
+      const session = await transaction(async (tx) => {
+        const claim = await claimReleaseIdempotency(key, releaseId, tx);
+        if (claim.reused) {
+          if (claim.release) {
+            return {
+              reused: true,
+              release: claim.release,
+              collection_deadline: claim.release.collection_deadline
+            };
+          }
+          throw new IdempotencyContentionError(key);
+        }
+
+        await tx.run(
+          `INSERT INTO releases (
+            id, workspace_id, version, release_type, environment, status, created_at, updated_at,
+            release_ref, trigger_source, mappings_json, collection_deadline, verdict_issued_at,
+            ai_context_json, commit_sha, pr_number, callback_url, github_owner, github_repo, github_branch
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+          [
+            releaseId,
+            workspaceId,
+            version,
+            releaseType,
+            environment,
+            "COLLECTING",
+            now,
+            now,
+            releaseRef || version,
+            source,
+            JSON.stringify(mappings || {}),
+            deadline,
+            null,
+            JSON.stringify(aiContext || {}),
+            sha,
+            pr,
+            callbackUrl || null,
+            owner,
+            repo,
+            branch
+          ]
+        );
+
+        await writeAudit({
+          workspaceId,
+          releaseId,
+          eventType: auditEventType,
+          actorType: auditActorType,
+          actorName: auditActorName || source,
+          details: {
+            release_ref: releaseRef || version,
+            mappings,
+            ai_context: aiContext,
+            collection_window_minutes: windowMins,
+            commit_sha: sha,
+            pr_number: pr,
+            github_owner: owner,
+            github_repo: repo,
+            github_branch: branch,
+            identity_key: key
+          },
+          tx
+        });
+
+        const release = await tx.queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
+        return { reused: false, release, collection_deadline: deadline };
+      });
+
+      scheduleCollectingVcsWriteback(session.release);
+      return session;
+    } catch (err) {
+      if (err instanceof IdempotencyContentionError) {
+        const release = await pollReleaseForIdempotencyKey(key);
+        if (release) {
+          scheduleCollectingVcsWriteback(release);
+          return { reused: true, release, collection_deadline: release.collection_deadline };
+        }
+        throw new Error(`idempotency_key_busy:${key}`);
+      }
+      throw err;
+    }
+  }
 
   await run(
     `INSERT INTO releases (
@@ -403,6 +515,8 @@ module.exports = {
   resolveReleaseForWorkspaceIngest,
   openReleaseSession,
   claimReleaseIdempotency,
+  pollReleaseForIdempotencyKey,
+  IdempotencyContentionError,
   extractIdentityFromRow,
   COLLECTION_GRACE_MS,
   computeCollectionAgeMs,
