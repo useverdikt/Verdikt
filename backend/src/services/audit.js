@@ -37,7 +37,8 @@ async function writeAudit({
   actorType,
   actorName,
   details = {},
-  agentSessionId = undefined
+  agentSessionId = undefined,
+  tx = null
 }) {
   const createdAt = nowIso();
   const sessionId =
@@ -54,45 +55,52 @@ async function writeAudit({
     created_at: createdAt
   };
 
-  // The SELECT FOR UPDATE in computeAuditChainFields and the INSERT are wrapped
-  // in a single transaction so no concurrent writer can interleave between the
-  // chain-tip read and the new row being written.
+  const insertAudit = async (client) => {
+    let prevHash;
+    let rowHash;
+    try {
+      ({ prev_hash: prevHash, row_hash: rowHash } = await auditIntegrity.computeAuditChainFields(
+        workspaceId,
+        draftRow,
+        client
+      ));
+    } catch (err) {
+      throw new AuditChainComputeError(err);
+    }
+
+    if (prevHash == null || rowHash == null) {
+      throw new AuditChainComputeError(new Error("missing prev_hash or row_hash"));
+    }
+
+    await client.run(
+      `INSERT INTO audit_events
+         (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id, prev_hash, row_hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        workspaceId,
+        releaseId,
+        eventType,
+        actorType,
+        actorName,
+        detailsJson,
+        createdAt,
+        sessionId || null,
+        prevHash,
+        rowHash
+      ]
+    );
+  };
+
+  // When `tx` is passed, participate in the caller's transaction. Otherwise open
+  // a standalone transaction so the advisory lock and INSERT are atomic.
   try {
-    await transaction(async (tx) => {
-      let prevHash;
-      let rowHash;
-      try {
-        ({ prev_hash: prevHash, row_hash: rowHash } = await auditIntegrity.computeAuditChainFields(
-          workspaceId,
-          draftRow,
-          tx
-        ));
-      } catch (err) {
-        throw new AuditChainComputeError(err);
-      }
-
-      if (prevHash == null || rowHash == null) {
-        throw new AuditChainComputeError(new Error("missing prev_hash or row_hash"));
-      }
-
-      await tx.run(
-        `INSERT INTO audit_events
-           (workspace_id, release_id, event_type, actor_type, actor_name, details_json, created_at, agent_session_id, prev_hash, row_hash)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [
-          workspaceId,
-          releaseId,
-          eventType,
-          actorType,
-          actorName,
-          detailsJson,
-          createdAt,
-          sessionId || null,
-          prevHash,
-          rowHash
-        ]
-      );
-    });
+    if (tx) {
+      await insertAudit(tx);
+    } else {
+      await transaction(async (innerTx) => {
+        await insertAudit(innerTx);
+      });
+    }
   } catch (err) {
     if (err instanceof AuditChainComputeError) throw err;
     throw new AuditChainComputeError(err);

@@ -22,7 +22,7 @@
  * the modules above). No import paths change when splitting `routes/index.js`.
  */
 
-const { run, queryOne } = require("../database");
+const { run, queryOne, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { computeEarlyWarnings, persistEarlyWarning } = require("./earlyWarning");
@@ -184,8 +184,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   const failedSignals = [...thresholdFailedSignals, ...missingSignalFails];
   const nextStatus = failedSignals.length === 0 ? "CERTIFIED" : "UNCERTIFIED";
-  const prevRow = await queryOne("SELECT status FROM releases WHERE id = $1", [releaseId]);
-  const prevStatus = prevRow?.status ?? release.status;
+  const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
 
   // ── Build deterministic intelligence ─────────────────────────────────────
   const deltaCtx = verdict.deltaAnalysis != null
@@ -227,12 +226,72 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   trace.model = deterministicIntelligence?.model || trace.model;
   trace.prompt_version = deterministicIntelligence?.prompt_version || trace.prompt_version;
 
-  // ── Commit verdict to DB ──────────────────────────────────────────────────
-  await run(
-    "UPDATE releases SET status = $1, updated_at = $2, verdict_issued_at = COALESCE(verdict_issued_at, $3) WHERE id = $4",
-    [nextStatus, nowIso(), nowIso(), releaseId]
-  );
-  await upsertReleaseIntelligence(releaseId, release.workspace_id, { verdict: deterministicIntelligence, trace });
+  // ── Commit verdict atomically (row lock prevents concurrent double-commit) ─
+  const commitResult = await transaction(async (tx) => {
+    const locked = await tx.queryOne("SELECT status, environment FROM releases WHERE id = $1 FOR UPDATE", [
+      releaseId
+    ]);
+    if (!locked) return { skipped: true, reason: "missing" };
+    const lockedStatus = locked.status;
+    if (certLike.has(lockedStatus)) {
+      return { skipped: true, reason: "already_certified" };
+    }
+    if (lockedStatus === "UNCERTIFIED" && isProdEnvironment(locked.environment)) {
+      return { skipped: true, reason: "prod_locked" };
+    }
+
+    const prevStatus = lockedStatus;
+    await tx.run(
+      "UPDATE releases SET status = $1, updated_at = $2, verdict_issued_at = COALESCE(verdict_issued_at, $3) WHERE id = $4",
+      [nextStatus, nowIso(), nowIso(), releaseId]
+    );
+    await upsertReleaseIntelligence(
+      releaseId,
+      release.workspace_id,
+      { verdict: deterministicIntelligence, trace },
+      tx
+    );
+
+    if (prevStatus !== nextStatus && certLike.has(prevStatus) && nextStatus === "UNCERTIFIED") {
+      await writeAudit({
+        workspaceId: release.workspace_id,
+        releaseId,
+        eventType: "VERDICT_CHANGED",
+        actorType: "SYSTEM",
+        actorName: "verdict_engine",
+        details: {
+          from_status: prevStatus,
+          to_status: nextStatus,
+          summary: `Certification regressed from ${prevStatus} to ${nextStatus}.`
+        },
+        tx
+      });
+    }
+    await writeAudit({
+      workspaceId: release.workspace_id,
+      releaseId,
+      eventType: "SIGNALS_INGESTED",
+      actorType: "SYSTEM",
+      actorName: source,
+      details: {
+        signal_count: inputSignalCount,
+        computed_status: nextStatus,
+        failed_signals: failedSignals,
+        threshold_failed_signals: thresholdFailedSignals,
+        missing_signals: missingSignalFails,
+        missing_required_signals: missingRequiredSignals,
+        missing_ai_signals: missingAiSignals,
+        missing_non_ai_signals: missingNonAiSignals
+      },
+      tx
+    });
+
+    return { skipped: false, prevStatus };
+  });
+
+  if (commitResult.skipped) {
+    return null;
+  }
 
   try {
     await persistCertificationSnapshot({
@@ -245,40 +304,6 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   } catch (err) {
     console.error("[certification_snapshot] persist failed:", releaseId, err?.message);
   }
-
-  // ── Verdict change audit ──────────────────────────────────────────────────
-  const certLike = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
-  if (prevStatus !== nextStatus && certLike.has(prevStatus) && nextStatus === "UNCERTIFIED") {
-    await writeAudit({
-      workspaceId: release.workspace_id,
-      releaseId,
-      eventType: "VERDICT_CHANGED",
-      actorType: "SYSTEM",
-      actorName: "verdict_engine",
-      details: {
-        from_status: prevStatus,
-        to_status: nextStatus,
-        summary: `Certification regressed from ${prevStatus} to ${nextStatus}.`
-      }
-    });
-  }
-  await writeAudit({
-    workspaceId: release.workspace_id,
-    releaseId,
-    eventType: "SIGNALS_INGESTED",
-    actorType: "SYSTEM",
-    actorName: source,
-    details: {
-      signal_count: inputSignalCount,
-      computed_status: nextStatus,
-      failed_signals: failedSignals,
-      threshold_failed_signals: thresholdFailedSignals,
-      missing_signals: missingSignalFails,
-      missing_required_signals: missingRequiredSignals,
-      missing_ai_signals: missingAiSignals,
-      missing_non_ai_signals: missingNonAiSignals
-    }
-  });
 
   // ── Post-verdict side effects ─────────────────────────────────────────────
   const { recommendation } = await runPostVerdictEffects(

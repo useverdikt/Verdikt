@@ -74,8 +74,9 @@ async function transaction(fn) {
         };
       }
     };
-    await fn(tx);
+    const result = await fn(tx);
     await client.query("COMMIT");
+    return result;
   } catch (e) {
     try {
       await client.query("ROLLBACK");

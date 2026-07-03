@@ -1,12 +1,12 @@
 "use strict";
 
 const crypto = require("crypto");
-const { queryOne, queryAll, run } = require("../database");
+const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { getWorkspacePolicy } = require("./workspaceConfig");
 const { sendEscalationRequestedEmail, sendEscalationSlaReminderEmail } = require("./email");
-const { applyReleaseOverride } = require("./releaseOverride");
+const { applyReleaseOverride, runOverrideSideEffects } = require("./releaseOverride");
 
 const PENDING = "pending_human_review";
 const RESOLVED = "resolved";
@@ -228,39 +228,55 @@ async function acknowledgeEscalationWithOverride({
   ]);
   if (!release) return { ok: false, error: "release_not_found" };
 
-  const overrideOut = await applyReleaseOverride(release, {
-    approver_type: "PERSON",
-    approver_name: actorName || actorEmail || "user",
-    approver_role: actorRole || null,
-    justification,
-    metadata
-  });
-  if (!overrideOut.ok) {
+  let overrideOut;
+  try {
+    await transaction(async (tx) => {
+      overrideOut = await applyReleaseOverride(
+        release,
+        {
+          approver_type: "PERSON",
+          approver_name: actorName || actorEmail || "user",
+          approver_role: actorRole || null,
+          justification,
+          metadata
+        },
+        { tx, skipSideEffects: true }
+      );
+      if (!overrideOut.ok) {
+        const err = new Error(overrideOut.error || "override_failed");
+        err.statusCode = overrideOut.statusCode || 400;
+        throw err;
+      }
+
+      const now = nowIso();
+      await tx.run(
+        `UPDATE escalation_requests SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $4 WHERE id = $5`,
+        [RESOLVED, now, actorEmail || actorName || "user", now, escalationId]
+      );
+
+      await writeAudit({
+        workspaceId,
+        releaseId: row.release_id,
+        eventType: "ESCALATION_ACKNOWLEDGED_WITH_OVERRIDE",
+        actorType: "USER",
+        actorName: actorEmail || actorName || "user",
+        details: {
+          escalation_id: escalationId,
+          note: String(note || "").slice(0, 500),
+          override_status: overrideOut.status
+        },
+        tx
+      });
+    });
+  } catch (err) {
     return {
       ok: false,
-      error: overrideOut.error,
-      statusCode: overrideOut.statusCode || 400
+      error: err.message || "override_failed",
+      statusCode: err.statusCode || 400
     };
   }
 
-  const now = nowIso();
-  await run(
-    `UPDATE escalation_requests SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $4 WHERE id = $5`,
-    [RESOLVED, now, actorEmail || actorName || "user", now, escalationId]
-  );
-
-  await writeAudit({
-    workspaceId,
-    releaseId: row.release_id,
-    eventType: "ESCALATION_ACKNOWLEDGED_WITH_OVERRIDE",
-    actorType: "USER",
-    actorName: actorEmail || actorName || "user",
-    details: {
-      escalation_id: escalationId,
-      note: String(note || "").slice(0, 500),
-      override_status: overrideOut.status
-    }
-  });
+  await runOverrideSideEffects(release, overrideOut.assistive?.override_assessment);
 
   const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [escalationId]);
   return {
