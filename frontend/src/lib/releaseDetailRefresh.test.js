@@ -111,7 +111,7 @@ describe("chartWindowPendingIds", () => {
       signals: i >= 2 ? { smoke: 1 } : {}
     }));
     expect(chartWindowPendingIds(releases, 2)).toEqual(["rel_1", "rel_0"]);
-    expect(allPendingReleaseIds(releases)).toEqual(["rel_3", "rel_4"]);
+    expect(allPendingReleaseIds(releases)).toEqual(["rel_0", "rel_1"]);
   });
 });
 
