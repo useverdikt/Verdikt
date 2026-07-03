@@ -1,6 +1,7 @@
 import React from "react";
 import { isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
 import { verdictChartDotColor } from "../../../lib/verdictColors.js";
+import { trendChartWindowReleases } from "../../../lib/trendChart.js";
 import { C } from "../../../theme/tokens.js";
 import TrendViewLoadingSkeleton from "../TrendViewLoadingSkeleton.jsx";
 
@@ -19,11 +20,10 @@ export default function TrendView({
   formatReleaseDisplayName
 }) {
   const historyFull = [...releases].reverse();
-  const chartHistory = historyFull.slice(-trendChartMaxPoints);
+  const chartHistory = trendChartWindowReleases(releases, trendChartMaxPoints);
   const pendingCount = chartHistory.filter(isSummaryPending).length;
   const readyHistory = chartHistory.filter((r) => !isSummaryPending(r));
-  const showTrendSkeleton = !wsReady || readyHistory.length < 2;
-  // Chart operates only on hydrated releases so pass-rate is meaningful.
+  const showTrendSkeleton = !wsReady || (chartHistory.length >= 2 && pendingCount > 0);
   const chartData = readyHistory;
   const W = 580, H = 160, PL = 38, PB = 26, iW = W - PL - 14, iH = H - PB - 10;
   const passRate = (r) => {
@@ -66,7 +66,9 @@ export default function TrendView({
             </div>
           )}
         </div>
-        {historyFull.length < 2 ? (
+        {!wsReady ? (
+          <TrendViewLoadingSkeleton />
+        ) : historyFull.length < 2 ? (
           <div style={{ textAlign: "center", padding: "30px", color: C.muted }}>Add more releases to see the trend.</div>
         ) : showTrendSkeleton ? (
           <TrendViewLoadingSkeleton />
