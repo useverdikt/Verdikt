@@ -17,6 +17,7 @@ const {
   releaseVerdictLockedAgainstIngest
 } = require("./verdictEngine");
 const { summarizePullResult, buildIntegrationPullWarnings } = require("./integrationPullStatus");
+const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
 const {
   metadataMatchesRelease,
   commitShaMatches,
@@ -149,7 +150,7 @@ async function pullBraintrustExperimentSignals(apiKey, release) {
     };
   }
 
-  const res = await fetch("https://api.braintrust.dev/v1/experiment?limit=120", {
+  const res = await fetchWithTimeout("https://api.braintrust.dev/v1/experiment?limit=120", {
     headers: { Authorization: `Bearer ${apiKey}` }
   });
   if (res.status === 401 || res.status === 403) {
@@ -206,7 +207,7 @@ async function pullBrowserStackSignals(username, accessKey, release) {
   }
 
   const auth = browserStackBasicAuth(user, key);
-  const buildsRes = await fetch("https://api.browserstack.com/automate/builds.json?limit=40", {
+  const buildsRes = await fetchWithTimeout("https://api.browserstack.com/automate/builds.json?limit=40", {
     headers: { Authorization: auth }
   });
   if (buildsRes.status === 401 || buildsRes.status === 403) {
@@ -225,7 +226,7 @@ async function pullBrowserStackSignals(username, accessKey, release) {
     return { signals: {}, matched: false, error: "no_build_for_version" };
   }
 
-  const sessionsRes = await fetch(
+  const sessionsRes = await fetchWithTimeout(
     `https://api.browserstack.com/automate/builds/${encodeURIComponent(match.hashed_id)}/sessions.json`,
     { headers: { Authorization: auth } }
   );
@@ -278,7 +279,7 @@ async function pullLangSmithSignals(apiKey, release) {
   }
 
   const headers = { "Content-Type": "application/json", "x-api-key": apiKey };
-  let res = await fetch("https://api.smith.langchain.com/api/v1/runs/query", {
+  let res = await fetchWithTimeout("https://api.smith.langchain.com/api/v1/runs/query", {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -288,7 +289,7 @@ async function pullLangSmithSignals(apiKey, release) {
     })
   });
   if (res.status === 401 || res.status === 403) {
-    res = await fetch("https://api.smith.langchain.com/api/v1/runs/query", {
+    res = await fetchWithTimeout("https://api.smith.langchain.com/api/v1/runs/query", {
       method: "POST",
       headers: { ...headers, Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -334,7 +335,7 @@ async function pullSentrySignals(token, release) {
   }
 
   const auth = { Authorization: `Bearer ${token}` };
-  const orgsRes = await fetch("https://sentry.io/api/0/organizations/", { headers: auth });
+  const orgsRes = await fetchWithTimeout("https://sentry.io/api/0/organizations/", { headers: auth });
   if (!orgsRes.ok) return { signals: {}, matched: false, error: `sentry_orgs_${orgsRes.status}` };
   const orgs = await orgsRes.json();
   const slug = Array.isArray(orgs) && orgs[0]?.slug ? orgs[0].slug : null;
@@ -344,7 +345,7 @@ async function pullSentrySignals(token, release) {
   let matchedVersion = null;
   for (const lookup of candidates) {
     const enc = encodeURIComponent(lookup);
-    const relRes = await fetch(`https://sentry.io/api/0/organizations/${slug}/releases/${enc}/`, { headers: auth });
+    const relRes = await fetchWithTimeout(`https://sentry.io/api/0/organizations/${slug}/releases/${enc}/`, { headers: auth });
     if (relRes.ok) {
       rel = await relRes.json();
       matchedVersion = lookup;
@@ -356,7 +357,7 @@ async function pullSentrySignals(token, release) {
   }
 
   const enc = encodeURIComponent(matchedVersion);
-  let healthRes = await fetch(
+  let healthRes = await fetchWithTimeout(
     `https://sentry.io/api/0/organizations/${slug}/releases/${enc}/health/sessions/?statsPeriod=24h`,
     { headers: auth }
   );
@@ -418,7 +419,7 @@ async function pullDatadogSignals(apiKey, appKey, site, extra, release = null) {
   url.searchParams.set("to", String(to));
   url.searchParams.set("query", scopedQuery);
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: {
       "DD-API-KEY": apiKey,
       "DD-APPLICATION-KEY": appKey

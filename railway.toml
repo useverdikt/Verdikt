@@ -9,3 +9,5 @@ buildCommand = "echo 'No build step (Node backend via workspace)'"
 [deploy]
 startCommand = "npm run start:backend"
 restartPolicyType = "on_failure"
+healthcheckPath = "/health/ready"
+healthcheckTimeout = 120

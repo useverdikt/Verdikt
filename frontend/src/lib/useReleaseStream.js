@@ -10,6 +10,10 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetchInit, resolveApiOrigin } from "./apiClient.js";
 
+const MAX_RECONNECT_ATTEMPTS = 8;
+const BASE_RECONNECT_MS = 1000;
+const MAX_RECONNECT_MS = 30_000;
+
 export function useReleaseStream(releaseId, enabled = true) {
   const [events, setEvents] = useState([]);
   const [status, setStatus] = useState(null);
@@ -17,34 +21,63 @@ export function useReleaseStream(releaseId, enabled = true) {
   const [error, setError] = useState(null);
   const [collectionDeadline, setCollectionDeadline] = useState(null);
   const esRef = useRef(null);
+  const terminalRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef(null);
 
   useEffect(() => {
     if (!releaseId || !enabled) return;
 
     const apiBase = resolveApiOrigin();
     let cancelled = false;
+    terminalRef.current = false;
+    reconnectAttemptRef.current = 0;
 
-    async function openStream() {
-      // Step 1: get a stream token
+    function scheduleReconnect(connect) {
+      if (cancelled || terminalRef.current) return;
+      if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        setError("Stream disconnected");
+        return;
+      }
+      const delay = Math.min(BASE_RECONNECT_MS * 2 ** reconnectAttemptRef.current, MAX_RECONNECT_MS);
+      reconnectAttemptRef.current += 1;
+      setError("Reconnecting…");
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        void connect();
+      }, delay);
+    }
+
+    async function connect() {
+      if (cancelled || terminalRef.current) return;
+
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+
       let token;
       try {
         const res = await fetch(`${apiBase}/api/releases/${releaseId}/sse-token`, apiFetchInit({ method: "POST" }));
-        if (!res.ok) { setError("Could not open stream"); return; }
+        if (!res.ok) {
+          scheduleReconnect(connect);
+          return;
+        }
         const data = await res.json();
         token = data.token;
       } catch {
-        setError("Stream auth failed");
+        scheduleReconnect(connect);
         return;
       }
 
-      if (cancelled) return;
+      if (cancelled || terminalRef.current) return;
 
-      // Step 2: open EventSource
       const url = `${apiBase}/api/releases/${releaseId}/stream?token=${encodeURIComponent(token)}`;
       const es = new EventSource(url);
       esRef.current = es;
 
       es.addEventListener("connected", () => {
+        reconnectAttemptRef.current = 0;
         setStatus("connected");
         setError(null);
       });
@@ -69,27 +102,41 @@ export function useReleaseStream(releaseId, enabled = true) {
       es.addEventListener("verdict", (e) => {
         try {
           const d = JSON.parse(e.data);
+          terminalRef.current = true;
           setStatus("verdict_issued");
+          setError(null);
           setEvents((prev) => [...prev.slice(-49), { type: "verdict", ...d }]);
         } catch (_) {}
       });
 
       es.addEventListener("stream_end", () => {
+        terminalRef.current = true;
         setStatus("closed");
+        setError(null);
         es.close();
+        esRef.current = null;
       });
 
       es.onerror = () => {
-        if (!cancelled) setError("Stream disconnected");
         es.close();
+        esRef.current = null;
+        if (cancelled || terminalRef.current) return;
+        scheduleReconnect(connect);
       };
     }
 
-    openStream();
+    void connect();
 
     return () => {
       cancelled = true;
-      if (esRef.current) { esRef.current.close(); esRef.current = null; }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
     };
   }, [releaseId, enabled]);
 

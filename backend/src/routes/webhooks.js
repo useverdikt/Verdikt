@@ -30,6 +30,7 @@ const { openReleaseSession, buildGithubMappings } = require("../services/release
 const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
 const { promoteReleaseOnMerge } = require("../services/releaseEnvironment");
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
+const { ackGitHubWebhookFailure } = require("../lib/githubWebhookAck");
 
 const {
   AI_SIGNAL_DEFINITIONS,
@@ -231,7 +232,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
       trigger: "github_label"
     });
   } catch (e) {
-    next(e);
+    return ackGitHubWebhookFailure(req, res, e);
   }
 });
 
