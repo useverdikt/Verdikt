@@ -518,26 +518,22 @@ export default function SettingsWorkspace() {
     }
   }, [location.search, location.pathname, navigate, toast]);
 
-  useEffect(() => {
-    localStorage.setItem("vdk3_role_policy", JSON.stringify(rolePolicy));
-  }, [rolePolicy]);
-
   const saveGeneral = async () => {
     const cleanedSlug = slugifyWorkspaceSlug(generalSlug) || "workspace";
-    localStorage.setItem("vdk3_workspace_slug", cleanedSlug);
-    setGeneralSlug(cleanedSlug);
-    if (import.meta.env.DEV) {
-      const origin = normalizeApiBaseOrigin(apiBaseInput);
-      if (origin) {
-        localStorage.setItem("vdk3_api_base", origin);
-        setApiBaseInput(origin);
-      } else {
-        localStorage.removeItem("vdk3_api_base");
-        setApiBaseInput("");
-      }
-    }
     try {
       await persistPolicies({});
+      localStorage.setItem("vdk3_workspace_slug", cleanedSlug);
+      setGeneralSlug(cleanedSlug);
+      if (import.meta.env.DEV) {
+        const origin = normalizeApiBaseOrigin(apiBaseInput);
+        if (origin) {
+          localStorage.setItem("vdk3_api_base", origin);
+          setApiBaseInput(origin);
+        } else {
+          localStorage.removeItem("vdk3_api_base");
+          setApiBaseInput("");
+        }
+      }
       setPublicSlugSaved(true);
     } catch (err) {
       toast(err?.message || "Failed to save public certification URL");
@@ -550,7 +546,6 @@ export default function SettingsWorkspace() {
   };
 
   const saveTrigger = async () => {
-    localStorage.setItem("vdk3_trigger", JSON.stringify(triggerConfig));
     try {
       if (triggerConfig.mode === "label") {
         await apiPut(
@@ -579,6 +574,7 @@ export default function SettingsWorkspace() {
       } else {
         await apiDelete(`/api/workspaces/${wsId}/github-label-trigger`, { navigate });
       }
+      localStorage.setItem("vdk3_trigger", JSON.stringify(triggerConfig));
       await loadGithubAppStatus();
       setTriggerDirty(false);
       toast("Trigger settings saved");

@@ -55,6 +55,8 @@ export default function ThresholdsView({
   const [local, setLocal] = useState(() => ({ ...defaultThresholds, ...thresholds }));
   const [localRequired, setLocalRequired] = useState(() => ({ ...thresholdRequired }));
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [collapsedThr, setCollapsedThr] = useState(() => new Set());
   const lastPropSer = useRef(serializeThresholds(thresholds));
   const lastReqSer = useRef(serializeRequired(thresholdRequired));
@@ -78,12 +80,24 @@ export default function ThresholdsView({
   );
 
   const handleSave = async () => {
-    if (!isDirty) return;
-    await onSave(local, localRequired);
-    lastPropSer.current = serializeThresholds(local);
-    lastReqSer.current = serializeRequired(localRequired);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (!isDirty || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const ok = await onSave(local, localRequired);
+      if (ok === false) {
+        setSaveError("Save failed — your changes were not applied.");
+        return;
+      }
+      lastPropSer.current = serializeThresholds(local);
+      lastReqSer.current = serializeRequired(localRequired);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaveError("Save failed — your changes were not applied.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const suggestListNote =
@@ -211,10 +225,10 @@ export default function ThresholdsView({
             <Btn
               variant={saved ? "green" : "primary"}
               onClick={handleSave}
-              disabled={!isDirty}
+              disabled={!isDirty || saving}
               style={{ flexShrink: 0 }}
             >
-              {saved ? "✓ Saved" : "Save Thresholds"}
+              {saving ? "Saving…" : saved ? "✓ Saved" : "Save Thresholds"}
             </Btn>
           ) : (
             <span style={{ fontSize: 10, color: C.dim, background: C.border, padding: "4px 10px", borderRadius: 5, fontFamily: C.mono, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
@@ -225,6 +239,11 @@ export default function ThresholdsView({
         <p style={{ margin: "14px 0 0", color: C.muted, fontSize: 13, lineHeight: 1.65, maxWidth: 640 }}>
           Define which signals matter for your workspace, set thresholds, and mark signals as <strong style={{ color: C.text, fontWeight: 600 }}>required for certification</strong>. Adopt from the library or add custom metrics — remove anything you are not gating on to keep this workspace focused.
         </p>
+        {saveError ? (
+          <p style={{ margin: "10px 0 0", color: C.red, fontSize: 12, lineHeight: 1.5 }} role="alert">
+            {saveError}
+          </p>
+        ) : null}
       </div>
 
       <WorkspaceSignalsPanel
