@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { verdictChartDotColor } from "./verdictColors.js";
+import { verdictChartDotColor, VERDICT_PALETTE, verdictPassFailColor, verdictStatusColor } from "./verdictColors.js";
 import { C } from "../theme/tokens.js";
+import { UI_RELEASE_STATUS } from "./releaseStatus.js";
 
 describe("verdictChartDotColor", () => {
   it("uses amber for COLLECTING releases", () => {
@@ -16,5 +17,18 @@ describe("verdictChartDotColor", () => {
   it("uses red for uncertified and amber for override", () => {
     expect(verdictChartDotColor("uncertified")).toBe(C.red);
     expect(verdictChartDotColor("overridden")).toBe(C.amber);
+  });
+});
+
+describe("VERDICT_PALETTE", () => {
+  it("maps all UI release statuses to token colors", () => {
+    expect(VERDICT_PALETTE[UI_RELEASE_STATUS.CERTIFIED].fg).toBe(C.green);
+    expect(VERDICT_PALETTE[UI_RELEASE_STATUS.UNCERTIFIED].fg).toBe(C.red);
+    expect(verdictStatusColor("CERTIFIED")).toBe(C.green);
+  });
+
+  it("pass/fail helper uses green and red", () => {
+    expect(verdictPassFailColor(true)).toBe(C.green);
+    expect(verdictPassFailColor(false)).toBe(C.red);
   });
 });

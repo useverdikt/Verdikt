@@ -3,6 +3,7 @@ import { apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { thresholdNormalizedToApiPayload } from "../lib/thresholdBounds.js";
 import { UI_RELEASE_STATUS, normalizeReleaseStatus } from "../lib/releaseStatus.js";
+import { invalidateWorkspaceQueries } from "../queries/invalidateWorkspace.js";
 import {
   S,
   nowTs,
@@ -45,6 +46,15 @@ export function useReleaseActions({
     toastRed,
     toastAccent
   } = modalActions;
+
+  const refreshReleaseAfterMutation = useCallback(
+    async (backendId) => {
+      if (hasBackend()) await invalidateWorkspaceQueries(getWorkspaceId());
+      await refreshReleaseFromBackend(backendId);
+      await refreshAuditFromServer();
+    },
+    [refreshReleaseFromBackend, refreshAuditFromServer]
+  );
 
   const resolveBackendReleaseId = (release) =>
     release?.backendReleaseId ||
@@ -113,8 +123,7 @@ export function useReleaseActions({
       }
       try {
         await apiPost(`/api/releases/${backendId}/intelligence/decision`, { decision }, { navigate });
-        await refreshReleaseFromBackend(backendId);
-        await refreshAuditFromServer();
+        await refreshReleaseAfterMutation(backendId);
         showToast(`Decision recorded: ${decision}`, toastGreen);
       } catch (e) {
         setApiBanner(e.message || "Intelligence decision failed");
@@ -175,8 +184,7 @@ export function useReleaseActions({
       }
       try {
         await apiPost(`/api/releases/${backendId}/intelligence/outcome`, { label }, { navigate });
-        await refreshReleaseFromBackend(backendId);
-        await refreshAuditFromServer();
+        await refreshReleaseAfterMutation(backendId);
         showToast(`Outcome recorded: ${label}`, toastGreen);
       } catch (e) {
         setApiBanner(e.message || "Intelligence outcome failed");
@@ -225,8 +233,7 @@ export function useReleaseActions({
             },
             { navigate }
           );
-          await refreshReleaseFromBackend(backendId);
-          await refreshAuditFromServer();
+          await refreshReleaseAfterMutation(backendId);
         } catch (e) {
           setApiBanner(e.message || "Override request failed");
           showToast("Override not saved — fix errors and try again", toastRed);
@@ -444,8 +451,7 @@ export function useReleaseActions({
           },
           { navigate }
         );
-        await refreshReleaseFromBackend(backendId);
-        await refreshAuditFromServer();
+        await refreshReleaseAfterMutation(backendId);
         const miss = Array.isArray(out.missing_signals) ? out.missing_signals.length : 0;
         const th = Array.isArray(out.threshold_failed_signals) ? out.threshold_failed_signals.length : 0;
         if (miss || th) {
@@ -458,7 +464,7 @@ export function useReleaseActions({
         }
         if (out.assistive_enrichment_pending) {
           window.setTimeout(() => {
-            void refreshReleaseFromBackend(backendId);
+            void refreshReleaseAfterMutation(backendId);
           }, 4500);
         }
       } catch (e) {
@@ -546,7 +552,7 @@ export function useReleaseActions({
             `Collection deadline extended${out.extend_minutes ? ` by ${out.extend_minutes}m` : ""} · ends ${label}`,
             toastGreen
           );
-          await refreshReleaseFromBackend(backendId);
+          await refreshReleaseAfterMutation(backendId);
         } catch (e) {
           showToast(e?.message || "Could not extend collection deadline", toastRed);
         }
@@ -570,13 +576,13 @@ export function useReleaseActions({
             return `${k}: done`;
           });
           showToast(parts.length ? parts.join(" · ") : out.message || "Pull finished.", toastAccent);
-          await refreshReleaseFromBackend(backendId);
+          await refreshReleaseAfterMutation(backendId);
         } catch (e) {
           showToast(e?.message || "Pull failed", toastRed);
         }
       }
     },
-    [releases, selectedId, current, showToast, navigate, refreshReleaseFromBackend, setLiveStreamRelease, toastAccent, toastAmber, toastGreen, toastRed]
+    [releases, selectedId, current, showToast, navigate, refreshReleaseAfterMutation, setLiveStreamRelease, toastAccent, toastAmber, toastGreen, toastRed]
   );
 
   const handleThresholdSave = useCallback(
@@ -651,6 +657,7 @@ export function useReleaseActions({
           { reason: "user_dismissed" },
           { navigate }
         );
+        await invalidateWorkspaceQueries(getWorkspaceId());
         await loadThresholdSuggestions();
         setApiBanner(null);
       } catch (e) {

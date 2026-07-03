@@ -17,6 +17,7 @@ const { nowIso } = require("../lib/time");
 const TOKEN_TTL_MINUTES = 30;
 
 // In-memory subscriber map: releaseId -> Set<{ res, workspaceId }>
+// NOTE: Single-process only — deploy with one Railway replica or add Redis pub/sub (#12).
 const subscribers = new Map();
 
 /**

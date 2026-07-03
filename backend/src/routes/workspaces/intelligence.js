@@ -20,6 +20,7 @@ const {
   getWorkspaceMonitoringSummary
 } = require("../deps");
 const { getWorkspaceLoopReadinessCached } = require("../../services/loopReadinessCache");
+const { VERDICTED } = require("../../lib/releaseStatus");
 
 module.exports = function registerRoutes(app) {
 app.post("/api/workspaces/:workspaceId/correlations/compute", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
@@ -86,17 +87,17 @@ app.get("/api/workspaces/:workspaceId/signal-reliability", authMiddleware, requi
  */
 app.post("/api/workspaces/:workspaceId/recommendations/backfill", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
-    const VERDICTED = ["CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE"];
+    const VERDICTED_LIST = [...VERDICTED];
     const limit = Math.min(500, Math.max(1, Number(req.body?.limit) || 200));
     const releases = await queryAll(
       `SELECT r.* FROM releases r
        LEFT JOIN release_intelligence ri ON ri.release_id = r.id
        WHERE r.workspace_id = $1
-         AND r.status IN (${VERDICTED.map((_, i) => `$${i + 2}`).join(",")})
+         AND r.status IN (${VERDICTED_LIST.map((_, i) => `$${i + 2}`).join(",")})
          AND (ri.recommendation_json IS NULL OR TRIM(ri.recommendation_json) = '')
        ORDER BY r.created_at DESC
-       LIMIT $${VERDICTED.length + 2}`,
-      [req.params.workspaceId, ...VERDICTED, limit]
+       LIMIT $${VERDICTED_LIST.length + 2}`,
+      [req.params.workspaceId, ...VERDICTED_LIST, limit]
     );
 
     let computed = 0;
@@ -108,7 +109,7 @@ app.post("/api/workspaces/:workspaceId/recommendations/backfill", authMiddleware
         await computeAndPersistRecommendation(release);
         computed++;
       } catch (err) {
-        errors.push({ release_id: release.id, error: err.message });
+        errors.push({ release_id: release.id, error: "recommendation_compute_failed" });
         skipped++;
       }
     }
