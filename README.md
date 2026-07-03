@@ -61,7 +61,7 @@ Full setup: [docs.useverdikt.com/connecting-signals/overview](https://docs.useve
 
 Verdikt exposes MCP tools for Cursor, Claude Code, and any MCP-compatible agent runtime. Install via `npx -y @useverdikt/mcp` — no local repo path required.
 
-`create_release` · `post_signals` · `get_verdict` · `check_gate` · `check_gate_by_sha` · `escalate` · `record_outcome`
+`create_release` · `post_signals` · `get_verdict` · `check_gate` · `release_brief` · `check_gate_by_sha` · `escalate` · `get_calibration_suggestions` · `get_regression_history` · `record_outcome`
 
 Full guide: [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) · MCP reference: [@useverdikt/mcp on npm](https://www.npmjs.com/package/@useverdikt/mcp)
 
@@ -98,13 +98,14 @@ Add the polling gate workflow to enforce merge via branch protection.
 cp backend/.env.example backend/.env
 # Set DATABASE_URL and other required vars — see backend/.env.example
 
-# 2. Install and run
-npm install --prefix backend
-npm install --prefix frontend
+# 2. Install workspaces and run (resolves @useverdikt/shared for frontend)
+npm ci
 npm run dev
 ```
 
 API on `http://127.0.0.1:8787` · SPA on `http://127.0.0.1:5174`
+
+For Supabase auth locally, run `scripts/supabase-local-bootstrap.sh` first — it applies both Supabase and backend/postgres migrations.
 
 ## Testing
 

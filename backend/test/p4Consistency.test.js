@@ -9,7 +9,7 @@ const {
   passesShowstopperGate,
   severityToIndex
 } = require("../../shared/severity.js");
-const { CERT_LIKE, isCertLikeStatus, isProdEnvironment } = require("../../shared/releaseStatus.js");
+const { CERT_LIKE, VERDICTED, isCertLikeStatus, isVerdictedStatus, isProdEnvironment } = require("../../shared/releaseStatus.js");
 
 describe("shared severity helpers", () => {
   it("maps showstopper labels to max worst index", () => {
@@ -36,6 +36,8 @@ describe("shared release status helpers", () => {
 
   it("exports cert-like set", () => {
     assert.equal(CERT_LIKE.has("CERTIFIED"), true);
+    assert.equal(VERDICTED.has("UNCERTIFIED"), true);
+    assert.equal(isVerdictedStatus("CERTIFIED_WITH_OVERRIDE"), true);
   });
 
   it("normalizes prod environment aliases", () => {

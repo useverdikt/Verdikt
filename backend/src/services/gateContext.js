@@ -12,9 +12,7 @@ const { getLatestSignalMap, getMissingRequiredSignals } = require("./verdictEngi
 const { getCertificationSnapshot } = require("./certificationSnapshots");
 const { buildGateCertification } = require("./gateCertification");
 const { buildGateRemediation } = require("./gateRemediation");
-
-const CERT_LIKE = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
-const BLOCKED_OR_COLLECTING = new Set(["UNCERTIFIED", "COLLECTING"]);
+const { CERT_LIKE, BLOCKED_OR_COLLECTING } = require("../lib/releaseStatus");
 
 async function resolveGateEvidence(release) {
   const snapshot = await getCertificationSnapshot(release.id);

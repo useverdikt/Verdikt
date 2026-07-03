@@ -99,7 +99,9 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
       try {
         normalizedCallbackUrl = await validateOutboundWebhookUrl(String(callback_url).trim());
       } catch (e) {
-        return res.status(400).json({ error: `callback_url: ${e.message || "invalid"}` });
+        const err = new Error("invalid_callback_url");
+        err.status = 400;
+        return next(err);
       }
     }
 

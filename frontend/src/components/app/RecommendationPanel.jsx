@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { C } from "../../theme/tokens.js";
+import { UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
+import { VERDICT_PALETTE } from "../../lib/verdictColors.js";
 import { apiFetchInit, resolveApiOrigin } from "../../lib/apiClient.js";
 import { BoldMarkdownText } from "../../lib/safeRichText.jsx";
 
@@ -8,23 +10,23 @@ import { BoldMarkdownText } from "../../lib/safeRichText.jsx";
 const VERDICT_META = {
   CERTIFIED: {
     label: "CERTIFIED",
-    color: C.green,
+    color: VERDICT_PALETTE[UI_RELEASE_STATUS.CERTIFIED].fg,
     icon: "⊕",
-    bg: "rgba(16,185,129,0.07)",
+    bg: VERDICT_PALETTE[UI_RELEASE_STATUS.CERTIFIED].dim,
     border: "rgba(16,185,129,0.2)"
   },
   CERTIFIED_WITH_RISK: {
     label: "CERTIFIED · WITH RISK",
-    color: "#f59e0b",
+    color: VERDICT_PALETTE[UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE].fg,
     icon: "⚠",
-    bg: "rgba(245,158,11,0.07)",
+    bg: VERDICT_PALETTE[UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE].dim,
     border: "rgba(245,158,11,0.2)"
   },
   UNCERTIFIED: {
     label: "UNCERTIFIED",
-    color: "#ef4444",
+    color: VERDICT_PALETTE[UI_RELEASE_STATUS.UNCERTIFIED].fg,
     icon: "⊗",
-    bg: "rgba(239,68,68,0.07)",
+    bg: VERDICT_PALETTE[UI_RELEASE_STATUS.UNCERTIFIED].dim,
     border: "rgba(239,68,68,0.2)"
   },
   UNCERTIFIED_NOISY: {
@@ -36,14 +38,14 @@ const VERDICT_META = {
   },
   COLLECTING: {
     label: "COLLECTING",
-    color: "#6e87a2",
+    color: VERDICT_PALETTE[UI_RELEASE_STATUS.COLLECTING].fg,
     icon: "◎",
-    bg: "rgba(110,135,162,0.07)",
+    bg: VERDICT_PALETTE[UI_RELEASE_STATUS.COLLECTING].dim,
     border: "rgba(110,135,162,0.2)"
   }
 };
 
-const CONFIDENCE_COLOR = { HIGH: C.green, MEDIUM: "#f59e0b", LOW: "#ef4444" };
+const CONFIDENCE_COLOR = { HIGH: C.green, MEDIUM: C.amber, LOW: C.red };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 

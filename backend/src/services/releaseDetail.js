@@ -10,10 +10,8 @@ const {
   persistReleaseEvidenceQuality
 } = require("./evidenceQuality");
 const { buildGateContext } = require("./gateContext");
-const { isProdEnvironment, isCertLikeStatus } = require("../lib/releaseStatus");
+const { isProdEnvironment, isCertLikeStatus, isVerdictedStatus } = require("../lib/releaseStatus");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
-
-const CERT_LIKE_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
 
 async function loadLastSignalEvaluation(releaseId) {
   const lastEvalRow = await queryOne(
@@ -60,7 +58,7 @@ async function maybePersistEvidenceQuality(release, releaseId, signalRows) {
   let releaseOut = release;
   if (
     !release.evidence_quality &&
-    CERT_LIKE_STATUSES.has(String(release.status || "").toUpperCase()) &&
+    isVerdictedStatus(release.status) &&
     signalRows.length > 0
   ) {
     try {

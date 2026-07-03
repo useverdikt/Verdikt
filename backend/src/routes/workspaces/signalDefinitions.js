@@ -51,7 +51,7 @@ module.exports = function registerRoutes(app) {
         return res.status(201).json({ definition: def, ...catalog });
       } catch (e) {
         if (String(e.message || "").includes("signal_id")) {
-          return res.status(400).json({ error: e.message });
+          return res.status(400).json({ error: "invalid_signal_definition" });
         }
         next(e);
       }
@@ -83,7 +83,7 @@ module.exports = function registerRoutes(app) {
         return res.json({ definition: def, ...catalog });
       } catch (e) {
         if (String(e.message || "").includes("not found")) {
-          return res.status(404).json({ error: e.message });
+          return res.status(404).json({ error: "signal_definition_not_found" });
         }
         next(e);
       }
