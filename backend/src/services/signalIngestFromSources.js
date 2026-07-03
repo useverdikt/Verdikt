@@ -18,13 +18,8 @@ const {
 } = require("./verdictEngine");
 const { summarizePullResult, buildIntegrationPullWarnings } = require("./integrationPullStatus");
 const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
-const {
-  metadataMatchesRelease,
-  commitShaMatches,
-  extractIdentityFromRow,
-  normalizeCommitSha,
-  pickReleaseForIngestFromList
-} = require("../lib/releaseIngestPick");
+const { pickReleaseForIngestFromList, normalizeCommitSha, commitShaMatches } = require("../lib/releaseIngestPick");
+const { metadataMatchesRelease, extractIdentityFromRow } = require("./releaseIdentity");
 
 function sentryReleaseLookupCandidates(release) {
   const ver = String(release?.version || "").trim();
