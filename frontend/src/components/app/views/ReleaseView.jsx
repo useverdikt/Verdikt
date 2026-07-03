@@ -37,7 +37,11 @@ export default function ReleaseView({
 }) {
   const setupChecklist = useWorkspaceSetupStatus(navigate, wsId, { thresholds, signalDefinitions });
 
-  if (current && normalizeReleaseStatus(current.status) === UI_RELEASE_STATUS.COLLECTING) {
+  const isCollecting =
+    current && normalizeReleaseStatus(current.status) === UI_RELEASE_STATUS.COLLECTING;
+  // Full-page collecting UX only when this workspace has a single in-flight release.
+  // With multiple releases, the dashboard expanded row provides the inline collecting panel (#31).
+  if (isCollecting && releases.length <= 1) {
     return (
       <CollectingView
         release={current}
