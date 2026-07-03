@@ -5,7 +5,14 @@ import react from "@vitejs/plugin-react";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  if (mode === "production" && !String(process.env.VITE_API_BASE || "").trim()) {
+    throw new Error(
+      "VITE_API_BASE must be set for production builds (e.g. https://your-backend.up.railway.app)"
+    );
+  }
+
+  return {
   plugins: [react()],
   test: {
     environment: "jsdom",
@@ -36,4 +43,5 @@ export default defineConfig({
       "/health": { target: "http://127.0.0.1:8787", changeOrigin: true }
     }
   }
+};
 });

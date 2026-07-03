@@ -9,6 +9,7 @@ const crypto = require("crypto");
 const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeeded } = require("../lib/encryption");
+const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
 
 const ALLOWED = new Set(["braintrust", "langsmith", "browserstack", "sentry", "datadog"]);
 
@@ -80,7 +81,7 @@ async function verifyRemote(sourceId, creds) {
   if (!apiKey) throw new Error("API key is required");
 
   if (sourceId === "sentry") {
-    const res = await fetch("https://sentry.io/api/0/", {
+    const res = await fetchWithTimeout("https://sentry.io/api/0/", {
       headers: { Authorization: `Bearer ${apiKey}` }
     });
     if (res.status === 401 || res.status === 403) throw new Error("Invalid Sentry auth token");
@@ -89,11 +90,11 @@ async function verifyRemote(sourceId, creds) {
   }
 
   if (sourceId === "langsmith") {
-    let res = await fetch("https://api.smith.langchain.com/api/v1/sessions?limit=1", {
+    let res = await fetchWithTimeout("https://api.smith.langchain.com/api/v1/sessions?limit=1", {
       headers: { "x-api-key": apiKey }
     });
     if (res.status === 401 || res.status === 403) {
-      res = await fetch("https://api.smith.langchain.com/api/v1/sessions?limit=1", {
+      res = await fetchWithTimeout("https://api.smith.langchain.com/api/v1/sessions?limit=1", {
         headers: { Authorization: `Bearer ${apiKey}` }
       });
     }
@@ -103,7 +104,7 @@ async function verifyRemote(sourceId, creds) {
   }
 
   if (sourceId === "braintrust") {
-    const res = await fetch("https://api.braintrust.dev/v1/project", {
+    const res = await fetchWithTimeout("https://api.braintrust.dev/v1/project", {
       headers: { Authorization: `Bearer ${apiKey}` }
     });
     if (res.status === 401 || res.status === 403) throw new Error("Invalid Braintrust API key");
@@ -115,7 +116,7 @@ async function verifyRemote(sourceId, creds) {
     const username = String(creds.username || "").trim();
     if (!username) throw new Error("BrowserStack username is required");
     const auth = Buffer.from(`${username}:${apiKey}`).toString("base64");
-    const res = await fetch("https://api.browserstack.com/automate/plan.json", {
+    const res = await fetchWithTimeout("https://api.browserstack.com/automate/plan.json", {
       headers: { Authorization: `Basic ${auth}` }
     });
     if (res.status === 401 || res.status === 403) throw new Error("Invalid BrowserStack credentials");
@@ -131,7 +132,7 @@ async function verifyRemote(sourceId, creds) {
     const url = new URL(`${base}/api/v1/validate`);
     url.searchParams.set("api_key", apiKey);
     url.searchParams.set("application_key", appKey);
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (res.status === 403) throw new Error("Invalid Datadog API or application key");
     if (!res.ok) throw new Error(`Datadog API returned ${res.status}`);
     return { ok: true };

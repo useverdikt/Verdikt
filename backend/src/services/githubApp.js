@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
+const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
 const {
   GITHUB_APP_ID,
   GITHUB_APP_SLUG,
@@ -39,7 +40,7 @@ function getGithubAppJwt() {
 }
 
 async function githubApi(path, { method = "GET", token, body, accept = "application/vnd.github+json" } = {}) {
-  const res = await fetch(`https://api.github.com${path}`, {
+  const res = await fetchWithTimeout(`https://api.github.com${path}`, {
     method,
     headers: {
       Accept: accept,
