@@ -147,4 +147,13 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
   return { recommendation, certSigRow };
 }
 
-module.exports = { runPostVerdictEffects };
+/** Fire-and-forget post-verdict side effects — keeps signal-ingest responses fast. */
+function enqueuePostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence) {
+  setImmediate(() => {
+    void runPostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence).catch((err) => {
+      console.error("[post_verdict_effects] async run failed:", releaseId, err?.message || err);
+    });
+  });
+}
+
+module.exports = { runPostVerdictEffects, enqueuePostVerdictEffects };

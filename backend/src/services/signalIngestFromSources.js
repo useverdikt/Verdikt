@@ -586,6 +586,42 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
   };
 }
 
+async function fetchIntegrationSignals(integ, release, releaseIdentity) {
+  const sid = integ.source_id;
+  const extra = parseExtraJson(integ);
+  const apiKeyPlain = decryptStoredApiKey(integ.api_key, release.workspace_id, sid);
+
+  if (sid === "braintrust") {
+    const pull = await pullBraintrustExperimentSignals(apiKeyPlain, releaseIdentity);
+    return { sid, matched: pull.matched, signals: pull.signals, error: pull.error };
+  }
+
+  if (sid === "langsmith") {
+    const pull = await pullLangSmithSignals(apiKeyPlain, releaseIdentity);
+    return { sid, matched: pull.matched, signals: pull.signals, error: pull.error };
+  }
+
+  if (sid === "browserstack") {
+    const username = extra.username || "";
+    const pull = await pullBrowserStackSignals(username, apiKeyPlain, releaseIdentity);
+    return { sid, matched: pull.matched, signals: pull.signals, error: pull.error };
+  }
+
+  if (sid === "sentry") {
+    const pull = await pullSentrySignals(apiKeyPlain, releaseIdentity);
+    return { sid, matched: pull.matched, signals: pull.signals, error: pull.error };
+  }
+
+  if (sid === "datadog") {
+    const appKey = extra.app_key;
+    const site = extra.site || "datadoghq.com";
+    const pull = await pullDatadogSignals(apiKeyPlain, appKey, site, extra, releaseIdentity);
+    return { sid, matched: pull.matched, signals: pull.signals, error: pull.error };
+  }
+
+  return { sid, matched: false, signals: null, error: "unsupported_source" };
+}
+
 async function pullConnectedSourcesForRelease(release) {
   const out = {};
   const ws = release.workspace_id;
@@ -612,62 +648,21 @@ async function pullConnectedSourcesForRelease(release) {
     return empty;
   }
 
-  for (const integ of integrationRows) {
-    const sid = integ.source_id;
-    const extra = parseExtraJson(integ);
-    const apiKeyPlain = decryptStoredApiKey(integ.api_key, ws, sid);
+  const settled = await Promise.allSettled(
+    integrationRows.map((integ) => fetchIntegrationSignals(integ, release, releaseIdentity))
+  );
 
-    if (sid === "braintrust") {
-      const pull = await pullBraintrustExperimentSignals(apiKeyPlain, releaseIdentity);
-      if (!pull.matched || !Object.keys(pull.signals || {}).length) {
-        out.braintrust = { ok: false, error: pull.error || "no_signals" };
-        continue;
-      }
-      out.braintrust = await applyPulledSignals(rid, "pulled:braintrust", version, pull.signals, "braintrust");
+  for (const entry of settled) {
+    if (entry.status === "rejected") {
+      console.error("[sources/pull] integration fetch rejected:", entry.reason?.message || entry.reason);
       continue;
     }
-
-    if (sid === "langsmith") {
-      const pull = await pullLangSmithSignals(apiKeyPlain, releaseIdentity);
-      if (!pull.matched || !Object.keys(pull.signals || {}).length) {
-        out.langsmith = { ok: false, error: pull.error || "no_signals" };
-        continue;
-      }
-      out.langsmith = await applyPulledSignals(rid, "pulled:langsmith", version, pull.signals, "langsmith");
+    const { sid, matched, signals, error } = entry.value;
+    if (!matched || !Object.keys(signals || {}).length) {
+      out[sid] = { ok: false, error: error || "no_signals" };
       continue;
     }
-
-    if (sid === "browserstack") {
-      const username = extra.username || "";
-      const pull = await pullBrowserStackSignals(username, apiKeyPlain, releaseIdentity);
-      if (!pull.matched || !Object.keys(pull.signals || {}).length) {
-        out.browserstack = { ok: false, error: pull.error || "no_signals" };
-        continue;
-      }
-      out.browserstack = await applyPulledSignals(rid, "pulled:browserstack", version, pull.signals, "browserstack");
-      continue;
-    }
-
-    if (sid === "sentry") {
-      const pull = await pullSentrySignals(apiKeyPlain, releaseIdentity);
-      if (!pull.matched || !Object.keys(pull.signals || {}).length) {
-        out.sentry = { ok: false, error: pull.error || "no_signals" };
-        continue;
-      }
-      out.sentry = await applyPulledSignals(rid, "pulled:sentry", version, pull.signals, "sentry");
-      continue;
-    }
-
-    if (sid === "datadog") {
-      const appKey = extra.app_key;
-      const site = extra.site || "datadoghq.com";
-      const pull = await pullDatadogSignals(apiKeyPlain, appKey, site, extra, releaseIdentity);
-      if (!pull.matched || !Object.keys(pull.signals || {}).length) {
-        out.datadog = { ok: false, error: pull.error || "no_signals" };
-        continue;
-      }
-      out.datadog = await applyPulledSignals(rid, "pulled:datadog", version, pull.signals, "datadog");
-    }
+    out[sid] = await applyPulledSignals(rid, `pulled:${sid}`, version, signals, sid);
   }
 
   return {
@@ -685,5 +680,6 @@ module.exports = {
   deleteSignalsForCsvImport,
   pullBraintrustExperimentSignals,
   pullBrowserStackSignals,
-  pullConnectedSourcesForRelease
+  pullConnectedSourcesForRelease,
+  fetchIntegrationSignals
 };
