@@ -1,9 +1,9 @@
 import { useCallback } from "react";
 import { apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
-import { thresholdNormalizedToApiPayload } from "../lib/thresholdBounds.js";
 import { UI_RELEASE_STATUS, normalizeReleaseStatus } from "../lib/releaseStatus.js";
-import { invalidateWorkspaceQueries } from "../queries/invalidateWorkspace.js";
+import { invalidateReleaseDomain } from "../queries/workspaceMutations.js";
+import { useWorkspaceMutations } from "../queries/useWorkspaceMutations.js";
 import {
   S,
   nowTs,
@@ -47,9 +47,15 @@ export function useReleaseActions({
     toastAccent
   } = modalActions;
 
+  const {
+    saveThresholds,
+    applyThresholdSuggestion,
+    dismissThresholdSuggestion
+  } = useWorkspaceMutations(navigate);
+
   const refreshReleaseAfterMutation = useCallback(
     async (backendId) => {
-      if (hasBackend()) await invalidateWorkspaceQueries(getWorkspaceId());
+      if (hasBackend()) await invalidateReleaseDomain(getWorkspaceId());
       await refreshReleaseFromBackend(backendId);
       await refreshAuditFromServer();
     },
@@ -603,8 +609,7 @@ export function useReleaseActions({
         return true;
       }
       try {
-        const payload = thresholdNormalizedToApiPayload(local, localRequired);
-        await apiPost(`/api/workspaces/${getWorkspaceId()}/thresholds`, { thresholds: payload }, { navigate });
+        await saveThresholds.mutateAsync({ local, localRequired });
         setThresholds(local);
         setThresholdRequired(localRequired);
         S.set("thresholds", local);
@@ -623,9 +628,9 @@ export function useReleaseActions({
       setThresholdRequired,
       addAudit,
       loadThresholdSuggestions,
-      navigate,
       refreshWorkspaceFromServer,
-      setApiBanner
+      setApiBanner,
+      saveThresholds
     ]
   );
 
@@ -633,11 +638,7 @@ export function useReleaseActions({
     async (id) => {
       if (!hasBackend()) return;
       try {
-        await apiPost(
-          `/api/workspaces/${getWorkspaceId()}/threshold-suggestions/${encodeURIComponent(id)}/apply`,
-          {},
-          { navigate }
-        );
+        await applyThresholdSuggestion.mutateAsync(id);
         await refreshWorkspaceFromServer();
         await loadThresholdSuggestions();
         setApiBanner(null);
@@ -645,26 +646,21 @@ export function useReleaseActions({
         setApiBanner(e.message || "Failed to apply suggestion");
       }
     },
-    [navigate, refreshWorkspaceFromServer, loadThresholdSuggestions, setApiBanner]
+    [applyThresholdSuggestion, refreshWorkspaceFromServer, loadThresholdSuggestions, setApiBanner]
   );
 
   const handleDismissSuggestion = useCallback(
     async (id) => {
       if (!hasBackend()) return;
       try {
-        await apiPost(
-          `/api/workspaces/${getWorkspaceId()}/threshold-suggestions/${encodeURIComponent(id)}/dismiss`,
-          { reason: "user_dismissed" },
-          { navigate }
-        );
-        await invalidateWorkspaceQueries(getWorkspaceId());
+        await dismissThresholdSuggestion.mutateAsync(id);
         await loadThresholdSuggestions();
         setApiBanner(null);
       } catch (e) {
         setApiBanner(e.message || "Failed to dismiss suggestion");
       }
     },
-    [navigate, loadThresholdSuggestions, setApiBanner]
+    [dismissThresholdSuggestion, loadThresholdSuggestions, setApiBanner]
   );
 
   return {

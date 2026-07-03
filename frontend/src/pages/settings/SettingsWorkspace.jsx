@@ -18,6 +18,7 @@ import {
 } from "./settingsClient.js";
 import ConnectSignalSourceModal from "./ConnectSignalSourceModal.jsx";
 import { getSafeApiBase } from "../../lib/apiBase.js";
+import { invalidateThresholdDomain } from "../../queries/workspaceMutations.js";
 import { normalizeStoredProject, primaryCertEnvFromTiers } from "../../lib/projectEnv.js";
 import {
   readWorkspaceProdObservation,
@@ -319,6 +320,7 @@ export default function SettingsWorkspace() {
         Object.entries(THRESH_DEFAULTS).map(([k, v]) => [k, { min: v, max: null }])
       );
       await apiPost(`/api/workspaces/${wsId}/thresholds`, { thresholds }, { navigate });
+      await invalidateThresholdDomain(wsId);
       await loadWorkspaceThresholds();
       toast("Thresholds reset to defaults");
     } catch (err) {
