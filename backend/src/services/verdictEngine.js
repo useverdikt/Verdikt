@@ -152,6 +152,7 @@ function mapIntegrationSignals(provider, payload) {
 }
 
 const { resolveReleaseForWorkspaceIngest } = require("./releaseIdentity");
+const { pickReleaseForIngestFromList } = require("../lib/releaseIngestPick");
 const { isProdEnvironment } = require("../lib/releaseStatus");
 
 function releaseVerdictLockedAgainstIngest(release) {
@@ -237,6 +238,7 @@ module.exports = {
   computeVerdict,
   mapIntegrationSignals,
   resolveReleaseForWorkspaceIngest,
+  pickReleaseForIngestFromList,
   releaseVerdictLockedAgainstIngest,
   releaseIngestLockError,
   extractVersionFromRow,

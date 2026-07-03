@@ -22,8 +22,9 @@ const {
   metadataMatchesRelease,
   commitShaMatches,
   extractIdentityFromRow,
-  normalizeCommitSha
-} = require("./releaseIdentity");
+  normalizeCommitSha,
+  pickReleaseForIngestFromList
+} = require("../lib/releaseIngestPick");
 
 function sentryReleaseLookupCandidates(release) {
   const ver = String(release?.version || "").trim();
@@ -507,6 +508,11 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
   const insertSignalSql = `INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key)
      VALUES ($1, $2, $3, $4, $5, $6)`;
 
+  const workspaceReleases = await queryAll(
+    "SELECT * FROM releases WHERE workspace_id = $1 ORDER BY created_at DESC",
+    [workspaceId]
+  );
+
   const byRelease = new Map();
   const skipped = [];
 
@@ -518,7 +524,7 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
       skipped.push({ row: rowIndex, reason: "no_release_identity_column" });
       continue;
     }
-    const rel = await resolveReleaseForWorkspaceIngest(workspaceId, {
+    const rel = pickReleaseForIngestFromList(workspaceReleases, {
       commit_sha: identity.commit_sha,
       pr_number: identity.pr_number,
       version: ver
