@@ -4,27 +4,7 @@ import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
 import RemediationDebtBanner from "../RemediationDebtBanner.jsx";
 import { useRemediationDebt } from "../../../hooks/useRemediationDebt.js";
-
-function useModalLayer(onClose) {
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key !== "Escape" || !closeRef.current) return;
-      e.preventDefault();
-      closeRef.current();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-}
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 export default function OverrideModal({
   release,
@@ -41,7 +21,8 @@ export default function OverrideModal({
   scoreJustification
 }) {
   const titleId = React.useId();
-  useModalLayer(onClose);
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const navigate = useNavigate();
   const { debt: remediationDebt } = useRemediationDebt(navigate);
   const isMobile = window.innerWidth <= 900;
@@ -65,7 +46,7 @@ export default function OverrideModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000d8", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20, backdropFilter: "blur(4px)" }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <div className="scale-in" style={{ background: C.raise, border: `1px solid ${C.borderL}`, borderRadius: isMobile ? 12 : 18, padding: isMobile ? 16 : 32, maxWidth: regCtx.regressionRows.length ? 620 : 560, width: "100%", boxShadow: "0 32px 100px #00000090", maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto" }}>
+      <div ref={panelRef} className="scale-in" style={{ background: C.raise, border: `1px solid ${C.borderL}`, borderRadius: isMobile ? 12 : 18, padding: isMobile ? 16 : 32, maxWidth: regCtx.regressionRows.length ? 620 : 560, width: "100%", boxShadow: "0 32px 100px #00000090", maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto" }}>
         <div style={{ color: C.amber, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", fontFamily: C.mono, marginBottom: 8 }}>OVERRIDE REQUEST — {release.version}</div>
         <RemediationDebtBanner debt={remediationDebt} compact />
         <h3 id={titleId} style={{ margin: "0 0 10px", fontSize: 20, fontWeight: 800, color: C.text }}>Ship UNCERTIFIED — Override Required</h3>

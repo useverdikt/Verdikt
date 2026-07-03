@@ -1,23 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
-
-function useModalLayer(onClose) {
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-}
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 export default function EscalationOverrideModal({ row, currentUser, onClose, onConfirm, busy }) {
-  useModalLayer(onClose);
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const isMobile = typeof window !== "undefined" && window.innerWidth <= 900;
   const [justification, setJustification] = useState("");
   const [impactSummary, setImpactSummary] = useState("");
@@ -54,6 +41,7 @@ export default function EscalationOverrideModal({ row, currentUser, onClose, onC
       aria-modal="true"
     >
       <div
+        ref={panelRef}
         className="scale-in"
         style={{
           background: C.raise,

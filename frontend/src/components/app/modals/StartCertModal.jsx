@@ -1,33 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 const isMobileViewport = () => window.innerWidth <= 900;
 
-function useModalLayer(onClose) {
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key !== "Escape" || !closeRef.current) return;
-      e.preventDefault();
-      closeRef.current();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-}
-
 export default function StartCertModal({ onClose, onStart, releaseTypes }) {
   const titleId = React.useId();
-  useModalLayer(onClose);
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const isMobile = isMobileViewport();
   const [version, setVersion] = useState("");
   const [buildRef, setBuildRef] = useState("");
@@ -54,7 +34,7 @@ export default function StartCertModal({ onClose, onStart, releaseTypes }) {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: isMobile ? 12 : 16, padding: isMobile ? "16px 12px" : "32px 36px", width: "100%", maxWidth: 480, maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto", position: "relative" }}>
+      <div ref={panelRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: isMobile ? 12 : 16, padding: isMobile ? "16px 12px" : "32px 36px", width: "100%", maxWidth: 480, maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto", position: "relative" }}>
         <button type="button" onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 16, right: 18, background: "transparent", border: "none", color: C.muted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
         <div style={{ fontFamily: C.mono, fontSize: 10, color: C.accent, letterSpacing: "0.12em", marginBottom: 8 }}>NEW CERTIFICATION SESSION</div>
         <h3 id={titleId} style={{ margin: "0 0 6px", fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>Start certification</h3>

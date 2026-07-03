@@ -1,6 +1,6 @@
 import React from "react";
-import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
-import { isReleaseDetailPending, isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
+import { isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
+import { verdictChartDotColor } from "../../../lib/verdictColors.js";
 import { C } from "../../../theme/tokens.js";
 import TrendViewLoadingSkeleton from "../TrendViewLoadingSkeleton.jsx";
 
@@ -85,8 +85,7 @@ export default function TrendView({
               <path d={`${path} L ${pts[pts.length - 1].x} ${10 + iH} L ${pts[0].x} ${10 + iH} Z`} fill={C.accent} opacity={0.05} />
               <path d={path} fill="none" stroke={C.accent} strokeWidth={1.5} strokeLinejoin="round" opacity={0.8} />
               {pts.map((p, i) => {
-                const rs = normalizeReleaseStatus(p.r.status);
-                const dc = rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? C.amber : rs === UI_RELEASE_STATUS.UNCERTIFIED ? C.red : C.green;
+                const dc = verdictChartDotColor(p.r.status);
                 return (
                   <g key={i}>
                     <title>{p.r.version}</title>
