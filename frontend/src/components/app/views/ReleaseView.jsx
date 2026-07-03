@@ -1,5 +1,6 @@
 import React from "react";
 import CollectingView from "../CollectingView.jsx";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import { ReleaseDashboardRedesign } from "../../release/ReleaseDashboardRedesign.jsx";
 import { useWorkspaceSetupStatus } from "../../../hooks/useWorkspaceSetupStatus.js";
 
@@ -36,7 +37,7 @@ export default function ReleaseView({
 }) {
   const setupChecklist = useWorkspaceSetupStatus(navigate, wsId, { thresholds, signalDefinitions });
 
-  if (current && current.status === "collecting" && releases.length <= 1) {
+  if (current && normalizeReleaseStatus(current.status) === UI_RELEASE_STATUS.COLLECTING) {
     return (
       <CollectingView
         release={current}

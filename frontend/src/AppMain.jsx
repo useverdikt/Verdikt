@@ -507,6 +507,9 @@ function AppMainContent({ navigate, nav, isMobile }) {
         {toast && (
           <div
             className="fade-up"
+            role="status"
+            aria-live={toast.c === C.red ? "assertive" : "polite"}
+            aria-atomic="true"
             style={{
               position: "fixed",
               bottom: 24,
