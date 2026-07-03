@@ -300,13 +300,18 @@ async function runEscalationSlaSweep() {
     const dueMs = Date.parse(row.sla_due_at);
     return Number.isFinite(dueMs) && dueMs < nowMs;
   });
-  if (!dueRows.length) return;
+  if (!dueRows.length) return { processed: 0, breached: 0, reminders: 0 };
 
-  const recipientCache = new Map();
-
-  for (const row of dueRows) {
-    if (!row.sla_breached) {
-      await run("UPDATE escalation_requests SET sla_breached = 1, updated_at = $1 WHERE id = $2", [now, row.id]);
+  const newlyBreached = dueRows.filter((row) => !row.sla_breached);
+  if (newlyBreached.length) {
+    const breachIds = newlyBreached.map((row) => row.id);
+    const placeholders = breachIds.map((_, i) => `$${i + 2}`).join(", ");
+    await run(
+      `UPDATE escalation_requests SET sla_breached = 1, updated_at = $1
+       WHERE id IN (${placeholders}) AND sla_breached = 0`,
+      [now, ...breachIds]
+    );
+    for (const row of newlyBreached) {
       await writeAudit({
         workspaceId: row.workspace_id,
         releaseId: row.release_id,
@@ -316,15 +321,24 @@ async function runEscalationSlaSweep() {
         details: { escalation_id: row.id, sla_due_at: row.sla_due_at }
       });
     }
+  }
 
-    if (!row.sla_reminder_sent_at) {
-      let recipients = recipientCache.get(row.workspace_id);
-      if (recipients === undefined) {
-        recipients = await resolveEscalationNotifyEmails(row.workspace_id);
-        recipientCache.set(row.workspace_id, recipients);
-      }
-      if (recipients.length) {
-        await sendEscalationSlaReminderEmail({
+  const needsReminder = dueRows.filter((row) => !row.sla_reminder_sent_at);
+  if (needsReminder.length) {
+    const workspaceIds = [...new Set(needsReminder.map((row) => row.workspace_id))];
+    const recipientCache = new Map();
+    await Promise.all(
+      workspaceIds.map(async (workspaceId) => {
+        const recipients = await resolveEscalationNotifyEmails(workspaceId);
+        recipientCache.set(workspaceId, recipients);
+      })
+    );
+
+    await Promise.allSettled(
+      needsReminder.map((row) => {
+        const recipients = recipientCache.get(row.workspace_id) || [];
+        if (!recipients.length) return Promise.resolve();
+        return sendEscalationSlaReminderEmail({
           to: recipients,
           workspaceId: row.workspace_id,
           releaseId: row.release_id,
@@ -332,14 +346,23 @@ async function runEscalationSlaSweep() {
           escalationId: row.id,
           slaDueAt: row.sla_due_at
         });
-      }
-      await run("UPDATE escalation_requests SET sla_reminder_sent_at = $1, updated_at = $2 WHERE id = $3", [
-        now,
-        now,
-        row.id
-      ]);
-    }
+      })
+    );
+
+    const reminderIds = needsReminder.map((row) => row.id);
+    const reminderPlaceholders = reminderIds.map((_, i) => `$${i + 3}`).join(", ");
+    await run(
+      `UPDATE escalation_requests SET sla_reminder_sent_at = $1, updated_at = $2
+       WHERE id IN (${reminderPlaceholders}) AND sla_reminder_sent_at IS NULL`,
+      [now, now, ...reminderIds]
+    );
   }
+
+  return {
+    processed: dueRows.length,
+    breached: newlyBreached.length,
+    reminders: needsReminder.length
+  };
 }
 
 module.exports = {

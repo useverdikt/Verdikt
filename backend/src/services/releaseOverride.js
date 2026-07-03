@@ -15,7 +15,7 @@ const { deliverVerdictWebhook } = require("./outboundWebhook");
 const { deliverReleaseCallback } = require("./releaseCallback");
 const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
-const { persistCertificationSnapshot } = require("./certificationSnapshots");
+const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
 const { isProdEnvironment } = require("../lib/releaseStatus");
 
 function validateOverridePayload({ justification, metadata = {} }) {
@@ -45,7 +45,7 @@ async function runOverrideSideEffects(release, overrideAssessment) {
         getThresholdMap(freshRelease.workspace_id),
         getLatestSignalMap(freshRelease.id)
       ]);
-      await persistCertificationSnapshot({
+      await enqueueCertificationSnapshotPersist({
         releaseId: freshRelease.id,
         workspaceId: freshRelease.workspace_id,
         thresholdMap,

@@ -55,7 +55,7 @@ const { assessOverrideJustification } = require("./overrideAssessor");
 const { buildThresholdSuggestions } = require("./thresholdAdvisor");
 const { maybeEnrichSuggestionReason } = require("./llmAssist");
 const { enqueuePostVerdictEffects } = require("./postVerdictEffects");
-const { persistCertificationSnapshot } = require("./certificationSnapshots");
+const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
 
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
 
@@ -300,16 +300,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     signalMap: latest,
     status: nextStatus
   };
-  try {
-    await persistCertificationSnapshot(snapshotArgs);
-  } catch (err) {
-    console.error("[certification_snapshot] persist failed:", releaseId, err?.message);
-    setImmediate(() => {
-      void persistCertificationSnapshot(snapshotArgs).catch((retryErr) => {
-        console.error("[certification_snapshot] retry failed:", releaseId, retryErr?.message);
-      });
-    });
-  }
+  void enqueueCertificationSnapshotPersist(snapshotArgs);
 
   // ── Post-verdict side effects (async — verdict response returns immediately) ─
   enqueuePostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence);

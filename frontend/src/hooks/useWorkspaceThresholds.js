@@ -7,6 +7,7 @@ import { DEFAULT_THRESHOLDS } from "../lib/workspaceDefaults.js";
 import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
 import { fetchSignalDefinitions } from "../queries/workspaceFetchers.js";
+import { invalidateThresholdDomain } from "../queries/workspaceMutations.js";
 
 /** Threshold + workspace signal definition state. */
 export function useWorkspaceThresholds(navigate, nav) {
@@ -72,6 +73,7 @@ export function useWorkspaceThresholds(navigate, nav) {
         { navigate }
       );
       applySignalCatalogFromApi(data);
+      await invalidateThresholdDomain(getWorkspaceId());
       return data;
     },
     [navigate, applySignalCatalogFromApi]
@@ -85,6 +87,7 @@ export function useWorkspaceThresholds(navigate, nav) {
         { navigate }
       );
       applySignalCatalogFromApi(data);
+      await invalidateThresholdDomain(getWorkspaceId());
       return data;
     },
     [navigate, applySignalCatalogFromApi]
@@ -109,6 +112,7 @@ export function useWorkspaceThresholds(navigate, nav) {
         delete next[`${signalId}_delta`];
         return next;
       });
+      await invalidateThresholdDomain(getWorkspaceId());
       return data;
     },
     [navigate, applySignalCatalogFromApi]
