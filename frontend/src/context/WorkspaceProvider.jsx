@@ -74,9 +74,7 @@ export function WorkspaceProvider({ navigate, nav, children }) {
         if (sigCatalog && !sigCatalog._error) {
           applySignalCatalogFromApi(sigCatalog);
         }
-        applyReleaseListFromServer(relData, {
-          priorityChartWindow: releasesNavRef.current === "trend"
-        });
+        applyReleaseListFromServer(relData);
         applyAuditFromApi(auditData);
       } catch (e) {
         if (!isCancelled()) setApiBanner(e.message || "Failed to sync workspace from server");

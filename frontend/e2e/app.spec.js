@@ -60,11 +60,11 @@ test.describe("full-stack smoke — authenticated (storageState from global-setu
     expect(hasPreviewText || hasCopyBtn || hasLegacyIframe || hasServerErr || hasAnyContent).toBeTruthy();
   });
 
-  test("dashboard routes /releases and /trends", async ({ page }) => {
+  test("dashboard routes /releases; /trends redirects to Intelligence Hub", async ({ page }) => {
     await page.goto("/releases");
     await expect(page).toHaveURL(/\/releases$/);
     await page.goto("/trends");
-    await expect(page).toHaveURL(/\/trends$/);
+    await expect(page).toHaveURL(/\/intelligence\/trends$/);
   });
 
   test("document title loads on /releases", async ({ page }) => {

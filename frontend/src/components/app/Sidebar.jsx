@@ -449,8 +449,6 @@ export default function Sidebar({
           onClick={() => onNavigate("escalations")} />
         <NavBtn id="thresholds" label="Thresholds" active={nav === "thresholds"}
           onClick={() => onNavigate("thresholds")} />
-        <NavBtn id="trend" label="Trends" active={nav === "trend"}
-          onClick={() => onNavigate("trend")} />
 
         <SectionLabel>Settings</SectionLabel>
         <NavBtn id="settings" label="Settings" active={nav === "settings"}

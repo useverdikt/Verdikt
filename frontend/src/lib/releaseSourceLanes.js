@@ -1,4 +1,4 @@
-import shared from "../../../shared/config.json";
+import shared from "@shared/config.json";
 
 /** Catalog of signal source lanes (not live SDK integrations — connection is via Settings API keys + pull/webhook). */
 export const RELEASE_SOURCE_CATALOG = [

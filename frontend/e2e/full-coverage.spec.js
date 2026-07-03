@@ -73,7 +73,7 @@ test.describe("authenticated app shell", () => {
   test("dashboard primary nav destinations load", async ({ page }) => {
     const routes = [
       ["/releases", AUTHENTICATED_SHELL_RE],
-      ["/trends", /Signal Trend/i],
+      ["/intelligence/trends", /Signal Trend/i],
       ["/thresholds", /Thresholds/i],
       ["/audit", /Audit Trail/i]
     ];

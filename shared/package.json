@@ -1,5 +1,13 @@
 {
   "name": "@useverdikt/shared",
   "version": "1.0.0",
-  "main": "config.js"
+  "main": "config.js",
+  "exports": {
+    ".": "./config.js",
+    "./config.js": "./config.js",
+    "./severity.js": "./severity.js",
+    "./severity.mjs": "./severity.mjs",
+    "./releaseStatus.js": "./releaseStatus.js",
+    "./config.json": "./config.json"
+  }
 }

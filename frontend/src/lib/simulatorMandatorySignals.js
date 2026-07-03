@@ -1,4 +1,4 @@
-import shared from "../../../shared/config.json";
+import shared from "@shared/config.json";
 import { applyThresholdApiMap, defaultRequiredFlags } from "./thresholdBounds.js";
 import { readLocalThresholdUiState } from "./simulatorSignalDefinitions.js";
 import { showstopperLabelToMaxWorstIndex } from "./severityThresholds.js";

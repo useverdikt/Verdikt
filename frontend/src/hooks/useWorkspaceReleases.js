@@ -100,13 +100,6 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   }, [releases]);
 
   useEffect(() => {
-    if (!hasBackend() || nav !== "trend") return;
-    syncHydratedFromReleases(releasesRef.current, isSummaryPending);
-    const chartIds = chartWindowPendingIds(releasesRef.current, TREND_CHART_MAX_POINTS);
-    if (chartIds.length) enqueueReleaseHydration(chartIds, { priority: true });
-  }, [nav]);
-
-  useEffect(() => {
     const onReleaseUpdated = (event) => {
       const mapped = event?.detail;
       if (!mapped?.backendReleaseId) return;

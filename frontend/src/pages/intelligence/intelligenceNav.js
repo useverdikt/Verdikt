@@ -2,6 +2,7 @@
 
 export const INTELLIGENCE_ROUTE_TITLES = {
   "": "Intelligence Overview",
+  trends: "Signal Trends",
   readiness: "Loop Readiness",
   alignment: "Production Alignment",
   vcs: "VCS Production Monitor",
@@ -32,6 +33,7 @@ export const INTELLIGENCE_NAV_GROUPS = [
   {
     header: "Signal health",
     items: [
+      { to: "/intelligence/trends", label: "Signal trends" },
       { to: "/intelligence/correlations", label: "Correlations & failure modes" },
       { to: "/intelligence/reliability", label: "Signal reliability" }
     ]
@@ -47,6 +49,11 @@ export const INTELLIGENCE_NAV_GROUPS = [
 ];
 
 export const OVERVIEW_QUICK_LINKS = [
+  {
+    to: "/intelligence/trends",
+    title: "Signal Trends",
+    desc: "Pass-rate history across releases — spot drift before it blocks certification."
+  },
   {
     to: "/intelligence/alignment",
     title: "Production Alignment",
