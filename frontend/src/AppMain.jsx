@@ -14,7 +14,6 @@ import AppContentSwitch from "./components/app/AppContentSwitch.jsx";
 import ThresholdsViewPanel from "./components/app/views/ThresholdsView.jsx";
 import AuditViewPanel from "./components/app/views/AuditView.jsx";
 import EscalationsViewPanel from "./components/app/views/EscalationsView.jsx";
-import TrendViewPanel from "./components/app/views/TrendView.jsx";
 import ReleaseViewPanel from "./components/app/views/ReleaseView.jsx";
 import {
   S,
@@ -29,8 +28,6 @@ import {
   evaluateSignal,
   formatReleaseDisplayName,
   releaseVersionPrimarySecondary,
-  trendChartXLabel,
-  TREND_CHART_MAX_POINTS,
   calcVerdict,
   calcCategoryStatus,
   fmtVal,
@@ -224,7 +221,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
 
   const navItems = [
     { id: "release", label: "Release Signals", icon: "◈" },
-    { id: "trend", label: "Trend", icon: "∿" },
     { id: "thresholds", label: "Thresholds", icon: "⌗" },
     { id: "audit", label: "Audit Trail", icon: "≡" },
     { id: "escalations", label: "Escalations", icon: "!" },
@@ -340,21 +336,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
               productionIncidentsCount={productionIncidentsCount}
               remediationDebtActive={remediationDebtActive}
               navigate={navigate}
-            />
-          }
-          trendContent={
-            <TrendViewPanel
-              releases={releases}
-              wsReady={wsReady}
-              signalCategories={SIGNAL_CATEGORIES}
-              thresholds={thresholds}
-              trendChartMaxPoints={TREND_CHART_MAX_POINTS}
-              getRegressionRequired={getRegressionRequired}
-              evaluateSignal={evaluateSignal}
-              calcCategoryStatus={calcCategoryStatus}
-              catStatusColor={catStatusColor}
-              trendChartXLabel={trendChartXLabel}
-              formatReleaseDisplayName={formatReleaseDisplayName}
             />
           }
           thresholdsContent={

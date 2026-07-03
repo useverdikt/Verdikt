@@ -6,6 +6,10 @@ import { z } from "zod";
 import { apiRequest, jsonResult, withAgentSession, WORKSPACE_ID } from "./client.js";
 import { bindReleaseSession, ensureSessionId, resolveSessionId } from "./session.js";
 import { formatGateForAgent, formatReleaseBriefForAgent } from "./gateFormat.js";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { isCertLikeStatus } = require("../../shared/releaseStatus.js");
 
 const SESSION_ID_FIELD = z
   .string()
@@ -14,11 +18,12 @@ const SESSION_ID_FIELD = z
     "Agent execution session for audit attribution. On create_release, omit to auto-generate; pass the returned agent_session_id on follow-up calls (or rely on release_id binding in this MCP process). Overrides VERDIKT_AGENT_SESSION_ID when set."
   );
 
-function requestOpts({ session_id, release_id, createSessionIfMissing = false } = {}) {
+function requestOpts({ session_id, release_id, createSessionIfMissing = false, idempotency_key } = {}) {
   return {
     sessionId: session_id,
     releaseId: release_id,
-    createSessionIfMissing
+    createSessionIfMissing,
+    idempotencyKey: idempotency_key
   };
 }
 
@@ -100,18 +105,23 @@ server.registerTool(
       session_id: SESSION_ID_FIELD,
       release_id: z.string(),
       signals: z.record(z.number()).describe("Map of signal_id → numeric value"),
-      source: z.string().optional().describe("Signal source label, default agent")
+      source: z.string().optional().describe("Signal source label, default agent"),
+      idempotency_key: z
+        .string()
+        .optional()
+        .describe("Dedup key for retries — forwarded as X-Idempotency-Key to the API")
     }
   },
-  async ({ session_id, release_id, signals, source }) => {
+  async ({ session_id, release_id, signals, source, idempotency_key }) => {
     const out = await apiRequest(
       "POST",
       `/api/releases/${release_id}/signals`,
       {
         source: source || "agent",
-        signals
+        signals,
+        ...(idempotency_key ? { idempotency_key } : {})
       },
-      requestOpts({ session_id, release_id })
+      requestOpts({ session_id, release_id, idempotency_key })
     );
     return jsonResult(withAgentSession(out, resolveSessionId({ sessionId: session_id, releaseId: release_id })));
   }
@@ -128,17 +138,17 @@ server.registerTool(
   },
   async ({ session_id, release_id }) => {
     const out = await apiRequest("GET", `/api/releases/${release_id}`, null, requestOpts({ session_id, release_id }));
-    const verdict = out.intelligence?.verdict;
+    const releaseStatus = out.release?.status;
     return jsonResult(
       withAgentSession(
         {
+          ...out,
           release_id,
-          status: out.release?.status,
-          certified: ["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(out.release?.status),
-          blocking_signals: (verdict?.failed_signals || []).map((f) => f.signal_id).filter(Boolean),
-          failed_signals: verdict?.failed_signals || [],
-          signals: out.signals,
-          intelligence: out.intelligence
+          status: releaseStatus,
+          certified: isCertLikeStatus(releaseStatus),
+          blocking_signals: (out.intelligence?.verdict?.failed_signals || [])
+            .map((f) => f.signal_id)
+            .filter(Boolean)
         },
         resolveSessionId({ sessionId: session_id, releaseId: release_id })
       )

@@ -1,4 +1,4 @@
-import shared from "../../../shared/config.json";
+import shared from "@shared/config.json";
 
 export const DEFAULT_THRESHOLDS = {
   ...shared.defaultThresholds,

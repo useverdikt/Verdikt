@@ -1,4 +1,4 @@
-import shared from "../../../shared/config.json";
+import shared from "@shared/config.json";
 import { showstopperLabelToMaxWorstIndex } from "./severityThresholds.js";
 
 const DIRECTIONS = shared.signalThresholdDirections || {};

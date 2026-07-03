@@ -31,12 +31,12 @@ export default function SettingsWorkspaceShell({
           </svg>
           <div className="tooltip">Releases</div>
         </Link>
-        <Link to="/trends" className="rail-btn" title="Intelligence" aria-label="Intelligence">
+        <Link to="/intelligence" className="rail-btn" title="Intelligence Hub" aria-label="Intelligence Hub">
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.2" />
             <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
-          <div className="tooltip">Trends</div>
+          <div className="tooltip">Intelligence Hub</div>
         </Link>
         <Link to="/audit" className="rail-btn" title="Audit" aria-label="Audit">
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">

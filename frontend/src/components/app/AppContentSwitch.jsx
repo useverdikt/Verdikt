@@ -4,7 +4,6 @@ export default function AppContentSwitch({
   isMobile,
   nav,
   releaseContent,
-  trendContent,
   thresholdsContent,
   auditContent,
   escalationsContent
@@ -24,7 +23,6 @@ export default function AppContentSwitch({
       padding: isMobile ? "16px 12px 18px" : "24px 28px",
       minWidth: 0,
     }}>
-      {nav === "trend" && trendContent}
       {nav === "thresholds" && thresholdsContent}
       {nav === "audit" && auditContent}
       {nav === "escalations" && escalationsContent}

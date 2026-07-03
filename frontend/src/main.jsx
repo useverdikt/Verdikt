@@ -42,6 +42,9 @@ const ProductionHealthPanel = lazy(() =>
 const ThresholdSimulatorPanel = lazy(() =>
   import("./pages/intelligence/panels/ThresholdSimulatorPanel.jsx").then((m) => ({ default: m.ThresholdSimulatorPanel }))
 );
+const TrendsPanel = lazy(() =>
+  import("./pages/intelligence/panels/TrendsPanel.jsx").then((m) => ({ default: m.TrendsPanel }))
+);
 const BadgePage = lazy(() => import("./pages/BadgePage.jsx"));
 const SignalSimulatorPage = lazy(() => import("./pages/SignalSimulatorPage.jsx"));
 
@@ -91,6 +94,14 @@ if (rootEl) {
                   element={
                     <Suspense fallback={<RouteLoadingFallback />}>
                       <IntelligenceOverview />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="trends"
+                  element={
+                    <Suspense fallback={<RouteLoadingFallback />}>
+                      <TrendsPanel />
                     </Suspense>
                   }
                 />
@@ -152,6 +163,7 @@ if (rootEl) {
                 />
                 <Route path="*" element={<Navigate to="/intelligence" replace />} />
               </Route>
+              <Route path="/trends" element={<Navigate to="/intelligence/trends" replace />} />
               <Route
                 path="/signal-sim"
                 element={

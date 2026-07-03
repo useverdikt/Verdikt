@@ -11,16 +11,32 @@ function requireConfig() {
   if (!WORKSPACE_ID) throw new Error("VERDIKT_WORKSPACE_ID is required");
 }
 
+/** Structured API error — preserves status + JSON body for agent branching. */
+export class VerdiktApiError extends Error {
+  /**
+   * @param {number} status
+   * @param {Record<string, unknown> | null} data
+   */
+  constructor(status, data) {
+    const msg = data?.error || data?.message || "Request failed";
+    super(`${status} ${msg}`);
+    this.name = "VerdiktApiError";
+    this.status = status;
+    this.data = data && typeof data === "object" ? { ...data } : { raw: data };
+  }
+}
+
 /**
  * @param {object} [opts]
  * @param {string} [opts.sessionId] - Explicit agent session (tool arg session_id)
  * @param {string} [opts.releaseId] - Bind lookup for follow-up calls without session_id
  * @param {string} [opts.agentLabel] - Optional X-Verdikt-Agent-Label header
  * @param {boolean} [opts.createSessionIfMissing] - Mint session when none resolved (create_release)
+ * @param {string} [opts.idempotencyKey] - Forward as X-Idempotency-Key
  */
 export async function apiRequest(method, path, body, opts = {}) {
   requireConfig();
-  const { sessionId, releaseId, agentLabel, createSessionIfMissing = false } = opts;
+  const { sessionId, releaseId, agentLabel, createSessionIfMissing = false, idempotencyKey } = opts;
   const resolvedSession = ensureSessionId({
     sessionId,
     releaseId,
@@ -34,6 +50,7 @@ export async function apiRequest(method, path, body, opts = {}) {
   };
   if (resolvedSession) headers["X-Verdikt-Agent-Session"] = resolvedSession;
   if (agentLabel) headers["X-Verdikt-Agent-Label"] = String(agentLabel).trim().slice(0, 120);
+  if (idempotencyKey) headers["X-Idempotency-Key"] = String(idempotencyKey).trim().slice(0, 200);
 
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -48,8 +65,7 @@ export async function apiRequest(method, path, body, opts = {}) {
     data = { raw: text };
   }
   if (!res.ok) {
-    const msg = data?.error || data?.message || res.statusText;
-    throw new Error(`${res.status} ${msg}`);
+    throw new VerdiktApiError(res.status, data);
   }
   return data;
 }

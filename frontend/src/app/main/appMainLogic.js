@@ -1,4 +1,4 @@
-import shared from "../../../../shared/config.json";
+import shared from "@shared/config.json";
 import { C } from "../../theme/tokens.js";
 import { mapBackendStatusToUi, normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 
@@ -28,7 +28,7 @@ import {
 /** App tab id → pathname (also used for legacy ?tab= redirects). */
 const NAV_TO_PATH = {
   release: "/releases",
-  trend: "/trends",
+  trend: "/intelligence/trends",
   thresholds: "/thresholds",
   audit: "/audit",
   escalations: "/escalations"
