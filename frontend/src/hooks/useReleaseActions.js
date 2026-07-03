@@ -290,8 +290,14 @@ export function useReleaseActions({
             { navigate }
           );
           backendReleaseId = created?.id || null;
-        } catch {
-          showToast("Backend unavailable — using local mode", toastAmber);
+          if (!backendReleaseId) {
+            showToast("Could not open certification session — try again", toastRed);
+            return;
+          }
+        } catch (e) {
+          setApiBanner(e?.message || "Failed to open certification session");
+          showToast("Could not open certification session — try again", toastRed);
+          return;
         }
       }
       const rel = {
@@ -311,7 +317,7 @@ export function useReleaseActions({
       navigate("/releases", { replace: true });
       showToast(`Certification session opened for ${version}`, toastAmber);
     },
-    [navigate, setReleases, setSelectedId, setShowStartCert, showToast, toastAmber]
+    [navigate, setReleases, setSelectedId, setShowStartCert, showToast, toastRed, setApiBanner]
   );
 
   const handleManualAddSingle = useCallback(
@@ -330,8 +336,14 @@ export function useReleaseActions({
             { navigate }
           );
           backendReleaseId = created?.id || null;
-        } catch {
-          showToast("Backend unavailable — using local mode", toastAmber);
+          if (!backendReleaseId) {
+            showToast("Could not add release — try again", toastRed);
+            return;
+          }
+        } catch (e) {
+          setApiBanner(e?.message || "Failed to add release");
+          showToast("Could not add release — try again", toastRed);
+          return;
         }
       }
       const rel = {
@@ -357,7 +369,7 @@ export function useReleaseActions({
       });
       showToast(`${version} added. Run verdict or record override when ready.`, toastGreen);
     },
-    [navigate, setReleases, setSelectedId, setShowManualAdd, addAudit, showToast, toastAmber, toastGreen]
+    [navigate, setReleases, setSelectedId, setShowManualAdd, addAudit, showToast, toastGreen, toastRed, setApiBanner]
   );
 
   const handleManualImportCSV = useCallback(
@@ -569,11 +581,11 @@ export function useReleaseActions({
 
   const handleThresholdSave = useCallback(
     async (local, localRequired) => {
-      setThresholds(local);
-      setThresholdRequired(localRequired);
-      S.set("thresholds", local);
-      S.set("thresholdRequired", localRequired);
       if (!hasBackend()) {
+        setThresholds(local);
+        setThresholdRequired(localRequired);
+        S.set("thresholds", local);
+        S.set("thresholdRequired", localRequired);
         addAudit({
           ts: nowTs(),
           event: "Thresholds updated",
@@ -582,16 +594,22 @@ export function useReleaseActions({
           detail: "Signal thresholds updated."
         });
         await loadThresholdSuggestions();
-        return;
+        return true;
       }
       try {
         const payload = thresholdNormalizedToApiPayload(local, localRequired);
         await apiPost(`/api/workspaces/${getWorkspaceId()}/thresholds`, { thresholds: payload }, { navigate });
+        setThresholds(local);
+        setThresholdRequired(localRequired);
+        S.set("thresholds", local);
+        S.set("thresholdRequired", localRequired);
         setApiBanner(null);
         await refreshWorkspaceFromServer();
         await loadThresholdSuggestions();
+        return true;
       } catch (e) {
         setApiBanner(e.message || "Failed to save thresholds");
+        return false;
       }
     },
     [
