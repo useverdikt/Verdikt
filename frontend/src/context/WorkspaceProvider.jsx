@@ -13,6 +13,7 @@ import {
   fetchWorkspaceReleases,
   fetchWorkspaceThresholds
 } from "../queries/workspaceFetchers.js";
+import { invalidateWorkspaceQueries } from "../queries/invalidateWorkspace.js";
 import {
   WorkspaceAuditContext,
   WorkspaceAuthContext,
@@ -47,6 +48,7 @@ export function WorkspaceProvider({ navigate, nav, children }) {
       const wsId = getWorkspaceId();
       try {
         if (!isCancelled()) setApiBanner(null);
+        await invalidateWorkspaceQueries(wsId);
         const [thData, relData, auditData, sigCatalog] = await Promise.all([
           appQueryClient.fetchQuery({
             queryKey: workspaceKeys.thresholds(wsId),

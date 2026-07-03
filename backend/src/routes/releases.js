@@ -206,7 +206,7 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
 });
 
 /** Pull metrics from workspace-connected sources (Braintrust experiment match by release.version; others may be skipped). */
-app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
+app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
     const out = await pullConnectedSourcesForRelease(req.releaseRow);
     const summary = summarizePullResult(out, req.releaseRow);
@@ -227,7 +227,7 @@ app.post("/api/releases/:releaseId/sources/pull", authMiddleware, requireRelease
     });
     return res.json({ ...out, integration_pull: summary });
   } catch (err) {
-    return res.status(500).json({ error: err.message || String(err) });
+    next(err);
   }
 });
 
@@ -752,28 +752,31 @@ app.get("/api/releases/:releaseId/vcs-monitor", authMiddleware, requireReleaseAc
  * POST /api/releases/:releaseId/vcs-monitor/scan
  * Manually trigger an immediate VCS scan for a release (useful for testing).
  */
-app.post("/api/releases/:releaseId/vcs-monitor/scan", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
-  let window = await getMonitoringWindow(req.params.releaseId);
-
-  // If no window exists yet, open one from the release's current state
-  if (!window) {
-    const release = req.releaseRow;
-    await openMonitoringWindow(release, 120);
-    window = await getMonitoringWindow(req.params.releaseId);
-  }
-
-  if (!window || window.status === "no_sha") {
-    return res.status(422).json({ error: "Release has no commit_sha — VCS monitoring requires a commit SHA." });
-  }
-  if (window.status === "no_vcs") {
-    return res.status(422).json({ error: "No VCS integration configured for this workspace. Connect GitHub or GitLab in settings." });
-  }
-
+app.post("/api/releases/:releaseId/vcs-monitor/scan", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
+    let window = await getMonitoringWindow(req.params.releaseId);
+
+    if (!window) {
+      const release = req.releaseRow;
+      await openMonitoringWindow(release, 120);
+      window = await getMonitoringWindow(req.params.releaseId);
+    }
+
+    if (!window || window.status === "no_sha") {
+      return res.status(422).json({ error: "Release has no commit_sha — VCS monitoring requires a commit SHA." });
+    }
+    if (window.status === "no_vcs") {
+      return res.status(422).json({ error: "No VCS integration configured for this workspace. Connect GitHub or GitLab in settings." });
+    }
+
     const newStatus = await scanWindow(window);
-    return res.json({ release_id: req.params.releaseId, status: newStatus, window: await getMonitoringWindow(req.params.releaseId) });
+    return res.json({
+      release_id: req.params.releaseId,
+      status: newStatus,
+      window: await getMonitoringWindow(req.params.releaseId)
+    });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 };

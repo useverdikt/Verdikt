@@ -847,3 +847,49 @@
 .sk-pulse {
   animation: sk-pulse 1.4s ease-in-out infinite;
 }
+
+/* ── MOBILE: stack main + side panel (audit #10) ───────────────────────────── */
+@media (max-width: 900px) {
+  .release-redesign .body-split {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .release-redesign .content {
+    flex: none;
+    overflow: visible;
+    padding: 16px;
+  }
+
+  .release-redesign .right-panel {
+    width: 100%;
+    max-height: none;
+    border-left: none;
+    border-top: 1px solid #18243a;
+    flex-shrink: 0;
+    padding: 16px;
+  }
+
+  .rr-header {
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .rr-header .header-search {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .rr-header .header-search input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .release-detail-loading-grid {
+    grid-template-columns: 1fr;
+  }
+}

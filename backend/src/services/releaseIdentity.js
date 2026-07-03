@@ -197,6 +197,8 @@ async function resolveReleaseForWorkspaceIngest(
   return null;
 }
 
+const { pickReleaseForIngestFromList } = require("../lib/releaseIngestPick");
+
 async function claimReleaseIdempotency(idempotencyKey, provisionalReleaseId, tx = null) {
   const runFn = tx ? tx.run.bind(tx) : run;
   const queryOneFn = tx ? tx.queryOne.bind(tx) : queryOne;
@@ -513,6 +515,7 @@ module.exports = {
   parseGithubFromMappings,
   buildGithubMappings,
   resolveReleaseForWorkspaceIngest,
+  pickReleaseForIngestFromList,
   openReleaseSession,
   claimReleaseIdempotency,
   pollReleaseForIdempotencyKey,

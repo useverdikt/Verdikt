@@ -296,10 +296,15 @@ async function runEscalationSlaSweep() {
     [PENDING]
   );
 
-  for (const row of pending) {
+  const dueRows = pending.filter((row) => {
     const dueMs = Date.parse(row.sla_due_at);
-    if (!Number.isFinite(dueMs) || dueMs >= nowMs) continue;
+    return Number.isFinite(dueMs) && dueMs < nowMs;
+  });
+  if (!dueRows.length) return;
 
+  const recipientCache = new Map();
+
+  for (const row of dueRows) {
     if (!row.sla_breached) {
       await run("UPDATE escalation_requests SET sla_breached = 1, updated_at = $1 WHERE id = $2", [now, row.id]);
       await writeAudit({
@@ -313,7 +318,11 @@ async function runEscalationSlaSweep() {
     }
 
     if (!row.sla_reminder_sent_at) {
-      const recipients = await resolveEscalationNotifyEmails(row.workspace_id);
+      let recipients = recipientCache.get(row.workspace_id);
+      if (recipients === undefined) {
+        recipients = await resolveEscalationNotifyEmails(row.workspace_id);
+        recipientCache.set(row.workspace_id, recipients);
+      }
       if (recipients.length) {
         await sendEscalationSlaReminderEmail({
           to: recipients,
