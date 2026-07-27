@@ -1,3 +1,8 @@
+/**
+ * Shared severity helpers — single ESM source for frontend + backend.
+ * Import via `@useverdikt/shared/severity` (see package.json exports).
+ */
+
 /** Severity ordering for manual QA showstopper gates (least → most severe). */
 export const SEVERITY_LEVELS = ["none", "P4", "P3", "P2", "P1", "P0"];
 
@@ -15,6 +20,7 @@ export function indexToSeverity(index) {
 
 /**
  * Showstopper policy label → max allowed worst-severity index (lower is better).
+ * P0 policy blocks P0 defects; P1 policy blocks P0 and P1, etc.
  * @param {string} showstopperLabel
  */
 export function showstopperLabelToMaxWorstIndex(showstopperLabel) {

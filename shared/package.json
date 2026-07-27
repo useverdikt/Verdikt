@@ -5,7 +5,11 @@
   "exports": {
     ".": "./config.js",
     "./config.js": "./config.js",
-    "./severity.js": "./severity.js",
+    "./severity": {
+      "import": "./severity.mjs",
+      "default": "./severity.mjs"
+    },
+    "./severity.js": "./severity.mjs",
     "./severity.mjs": "./severity.mjs",
     "./releaseStatus.js": "./releaseStatus.js",
     "./config.json": "./config.json"
