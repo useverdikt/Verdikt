@@ -39,5 +39,10 @@
     "globals": "^17.7.0",
     "start-server-and-test": "^2.0.8",
     "supertest": "^7.1.4"
+  },
+  "overrides": {
+    "body-parser": "^2.3.0",
+    "brace-expansion": "^5.0.8",
+    "js-yaml": "^4.3.0"
   }
 }
