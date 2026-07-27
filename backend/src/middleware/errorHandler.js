@@ -2,8 +2,12 @@
 
 const { IS_PROD_LIKE } = require("../config");
 
-function notFoundHandler(_req, res) {
-  res.status(404).json({ error: "not_found", message: "Route not found" });
+function notFoundHandler(req, res) {
+  res.status(404).json({
+    error: "not_found",
+    message: "Route not found",
+    request_id: req.requestId || null
+  });
 }
 
 function errorHandler(err, req, res, _next) {
