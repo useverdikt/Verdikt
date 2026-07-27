@@ -4,4 +4,4 @@ export {
   indexToSeverity,
   showstopperLabelToMaxWorstIndex,
   passesShowstopperGate
-} from "@useverdikt/shared/severity.mjs";
+} from "@useverdikt/shared/severity";

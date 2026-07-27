@@ -3,15 +3,16 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 
-const {
-  SEVERITY_LEVELS,
-  showstopperLabelToMaxWorstIndex,
-  passesShowstopperGate,
-  severityToIndex
-} = require("../../shared/severity.js");
 const { CERT_LIKE, VERDICTED, isCertLikeStatus, isVerdictedStatus, isProdEnvironment } = require("../../shared/releaseStatus.js");
 
-describe("shared severity helpers", () => {
+describe("shared severity helpers", async () => {
+  const {
+    SEVERITY_LEVELS,
+    showstopperLabelToMaxWorstIndex,
+    passesShowstopperGate,
+    severityToIndex
+  } = await import("../../shared/severity.mjs");
+
   it("maps showstopper labels to max worst index", () => {
     assert.equal(showstopperLabelToMaxWorstIndex("P0"), 4);
     assert.equal(showstopperLabelToMaxWorstIndex("P1"), 3);
@@ -24,6 +25,14 @@ describe("shared severity helpers", () => {
 
   it("exports severity levels", () => {
     assert.ok(SEVERITY_LEVELS.includes("P0"));
+  });
+
+  it("has a single ESM implementation (no CJS duplicate)", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const sharedDir = path.join(__dirname, "../../shared");
+    assert.equal(fs.existsSync(path.join(sharedDir, "severity.mjs")), true);
+    assert.equal(fs.existsSync(path.join(sharedDir, "severity.js")), false);
   });
 });
 
