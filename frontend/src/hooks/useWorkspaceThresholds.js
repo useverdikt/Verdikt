@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { applyThresholdApiMap, defaultRequiredFlags } from "../lib/thresholdBounds.js";
-import { S } from "../lib/workspaceStorage.js";
+import { readInitialThresholdUiState } from "../lib/thresholdLocalState.js";
 import { DEFAULT_THRESHOLDS } from "../lib/workspaceDefaults.js";
 import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
@@ -11,13 +11,14 @@ import { invalidateThresholdDomain } from "../queries/workspaceMutations.js";
 
 /** Threshold + workspace signal definition state. */
 export function useWorkspaceThresholds(navigate, nav) {
-  const [thresholds, setThresholds] = useState(() => ({
-    ...DEFAULT_THRESHOLDS,
-    ...S.get("thresholds", {})
-  }));
-  const [thresholdRequired, setThresholdRequired] = useState(() =>
-    S.get("thresholdRequired", defaultRequiredFlags())
-  );
+  const [thresholds, setThresholds] = useState(() => {
+    const initial = readInitialThresholdUiState();
+    return initial.thresholds;
+  });
+  const [thresholdRequired, setThresholdRequired] = useState(() => {
+    const initial = readInitialThresholdUiState();
+    return initial.required;
+  });
   const [thresholdSuggestions, setThresholdSuggestions] = useState([]);
   const [thresholdSuggestNote, setThresholdSuggestNote] = useState("");
   const [calibrationMode, setCalibrationMode] = useState("suggest_only");

@@ -1,11 +1,11 @@
 import { useCallback } from "react";
 import { apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
+import { persistThresholdUiState } from "../lib/thresholdLocalState.js";
 import { UI_RELEASE_STATUS, normalizeReleaseStatus } from "../lib/releaseStatus.js";
 import { invalidateReleaseDomain } from "../queries/workspaceMutations.js";
 import { useWorkspaceMutations } from "../queries/useWorkspaceMutations.js";
 import {
-  S,
   nowTs,
   calcVerdict,
   SIGNAL_SOURCES,
@@ -605,8 +605,7 @@ export function useReleaseActions({
       if (!hasBackend()) {
         setThresholds(local);
         setThresholdRequired(localRequired);
-        S.set("thresholds", local);
-        S.set("thresholdRequired", localRequired);
+        persistThresholdUiState(local, localRequired);
         addAudit({
           ts: nowTs(),
           event: "Thresholds updated",
@@ -621,8 +620,7 @@ export function useReleaseActions({
         await saveThresholds.mutateAsync({ local, localRequired });
         setThresholds(local);
         setThresholdRequired(localRequired);
-        S.set("thresholds", local);
-        S.set("thresholdRequired", localRequired);
+        // Backend mode: API + React state only — do not dual-write vdk3_* localStorage.
         setApiBanner(null);
         await refreshWorkspaceFromServer();
         await loadThresholdSuggestions();
