@@ -4,6 +4,7 @@ const { run, queryAll, transaction } = require("../database");
 const certificationSnapshots = require("./certificationSnapshots");
 const { writeAudit } = require("./audit");
 const { isCertLikeStatus } = require("../lib/releaseStatus");
+const { log, inc } = require("../lib/observability");
 
 const MAX_ATTEMPTS = 4;
 /** Delay before retry attempt N (index = attempt after the initial sync failure). */
@@ -19,7 +20,14 @@ function nextAttemptAtIso(attempt) {
 }
 
 async function onFinalFailure(args, err) {
-  console.error("[certification_snapshot] exhausted retries:", args.releaseId, err?.message);
+  inc("cert_snapshot_exhausted");
+  log("error", "cert_snapshot_exhausted", {
+    releaseId: args.releaseId,
+    workspaceId: args.workspaceId,
+    status: args.status,
+    attempts: MAX_ATTEMPTS,
+    error: String(err?.message || "persist_failed").slice(0, 200)
+  });
   if (!isCertLikeStatus(args.status)) return;
   try {
     await writeAudit({
@@ -35,7 +43,10 @@ async function onFinalFailure(args, err) {
       }
     });
   } catch (auditErr) {
-    console.error("[certification_snapshot] audit on failure failed:", args.releaseId, auditErr?.message);
+    log("error", "cert_snapshot_audit_failed", {
+      releaseId: args.releaseId,
+      error: String(auditErr?.message || auditErr).slice(0, 200)
+    });
   }
 }
 
@@ -107,15 +118,20 @@ async function enqueueCertificationSnapshotPersist(args) {
   try {
     return await certificationSnapshots.persistCertificationSnapshot(args);
   } catch (err) {
-    console.error("[certification_snapshot] persist failed:", args.releaseId, err?.message);
+    inc("cert_snapshot_persist_fail");
+    log("error", "cert_snapshot_persist_fail", {
+      releaseId: args.releaseId,
+      workspaceId: args.workspaceId,
+      status: args.status,
+      error: String(err?.message || err).slice(0, 200)
+    });
     try {
       await enqueueRetryJob(args, 1, err);
     } catch (enqueueErr) {
-      console.error(
-        "[certification_snapshot] failed to enqueue retry:",
-        args.releaseId,
-        enqueueErr?.message
-      );
+      log("error", "cert_snapshot_enqueue_fail", {
+        releaseId: args.releaseId,
+        error: String(enqueueErr?.message || enqueueErr).slice(0, 200)
+      });
     }
     return null;
   }
