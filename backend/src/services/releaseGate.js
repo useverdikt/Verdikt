@@ -13,6 +13,7 @@ const { buildGateCalibrationContext } = require("./gateCalibrationContext");
 const { getWorkspaceRemediationDebt } = require("./remediationDebt");
 const { getWorkspaceIncidentCorroboration } = require("./incidentContext");
 const { isEmergencyReleaseType } = require("../lib/emergencyReleaseType");
+const { log, inc } = require("../lib/observability");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -109,6 +110,20 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     collectionAgeMs,
     blockedByRemediationDebt
   });
+  const actionKey = String(action || "unknown").toLowerCase();
+  inc(`gate_action_${actionKey}`);
+  // Collecting is high-volume during CI grace polls — counter only; log other actions.
+  if (actionKey !== "collecting") {
+    log("info", "gate_action", {
+      action: actionKey,
+      releaseId,
+      workspaceId: release.workspace_id,
+      status: release.status,
+      mode,
+      allowed: gateAllowed,
+      commitSha: release.commit_sha || null
+    });
+  }
 
   const { blockers, next_step: nextStep } = buildGateBlockers({
     status: release.status,
@@ -148,7 +163,10 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
   try {
     calibration = await buildGateCalibrationContext(release.workspace_id);
   } catch (err) {
-    console.error("[gate_calibration] context build failed:", release.workspace_id, err?.message);
+    log("error", "gate_calibration_failed", {
+      workspaceId: release.workspace_id,
+      error: String(err?.message || err).slice(0, 200)
+    });
   }
 
   if (!skipAudit) {

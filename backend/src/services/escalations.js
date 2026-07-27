@@ -7,6 +7,7 @@ const { writeAudit } = require("./audit");
 const { getWorkspacePolicy } = require("./workspaceConfig");
 const { sendEscalationRequestedEmail, sendEscalationSlaReminderEmail } = require("./email");
 const { applyReleaseOverride, runOverrideSideEffects } = require("./releaseOverride");
+const { log, inc } = require("../lib/observability");
 
 const PENDING = "pending_human_review";
 const RESOLVED = "resolved";
@@ -312,6 +313,13 @@ async function runEscalationSlaSweep() {
       [now, ...breachIds]
     );
     for (const row of newlyBreached) {
+      inc("escalation_sla_breach");
+      log("warn", "escalation_sla_breach", {
+        escalationId: row.id,
+        workspaceId: row.workspace_id,
+        releaseId: row.release_id,
+        slaDueAt: row.sla_due_at
+      });
       await writeAudit({
         workspaceId: row.workspace_id,
         releaseId: row.release_id,

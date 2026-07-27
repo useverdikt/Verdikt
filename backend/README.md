@@ -93,6 +93,7 @@ Writes timestamped **`.sql`** files under **`data/backups/`** (override with `BA
 - **`GET /health`** — Liveness: returns `{ ok: true }` if the process is running. Use for “is the process up?” probes.
 - **`GET /health/ready`** — Readiness: runs `SELECT 1` against PostgreSQL. Returns **503** if the database is unusable. Point orchestrators / load balancers at this for “can this instance take traffic?”
 - **Request logging** — After each response, one line is logged: `[request-id] METHOD path status duration`. Disable with **`LOG_REQUESTS=0`**. For JSON lines (Datadog, CloudWatch, etc.) set **`LOG_JSON=1`**.
+- **Service events** — Certification snapshot failures, escalation SLA breaches, and gate actions also emit structured lines via `src/lib/observability.js` (same `LOG_JSON=1` switch). Process-local counters (`cert_snapshot_*`, `escalation_sla_breach`, `gate_action_*`) are for debugging; rely on log aggregation across API/worker processes.
 - **Graceful shutdown** — **`SIGTERM`** / **`SIGINT`** stop the HTTP server, clear the collection sweep interval, and end the PostgreSQL pool. **`SHUTDOWN_GRACE_MS`** (default **10000**) caps how long to wait before `exit(1)` if connections linger.
 
 ## CORS, release list pagination, and assistive verdict responses
