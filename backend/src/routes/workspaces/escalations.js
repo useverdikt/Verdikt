@@ -3,6 +3,7 @@
 const {
   authMiddleware,
   requireWorkspaceMatch,
+  requireHumanSession,
   requireOverrideApproverRole
 } = require("../deps");
 const { getUserRowForAuthById } = require("../../services/authUserLookup");
@@ -32,6 +33,7 @@ module.exports = function registerEscalationRoutes(app) {
   app.post(
     "/api/workspaces/:workspaceId/escalations/:escalationId/acknowledge",
     authMiddleware,
+    requireHumanSession,
     requireWorkspaceMatch,
     requireOverrideApproverRole,
     async (req, res, next) => {
@@ -57,6 +59,7 @@ module.exports = function registerEscalationRoutes(app) {
   app.post(
     "/api/workspaces/:workspaceId/escalations/:escalationId/acknowledge-and-override",
     authMiddleware,
+    requireHumanSession,
     requireWorkspaceMatch,
     requireOverrideApproverRole,
     async (req, res, next) => {

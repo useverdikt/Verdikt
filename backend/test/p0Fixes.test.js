@@ -104,6 +104,33 @@ describe("integration credential routes require human session", () => {
 
     assert.equal(res.status, 403, `Agent key should be rejected with 403, got ${res.status}: ${JSON.stringify(res.body)}`);
   });
+
+  it("POST /thresholds/simulate rejects agent API key with 403", async () => {
+    const res = await request(app)
+      .post(`/api/workspaces/${wsId}/thresholds/simulate`)
+      .set("Authorization", `Bearer ${agentApiKey}`)
+      .send({ proposed_thresholds: { accuracy: { min: 80 } } });
+
+    assert.equal(res.status, 403, `Agent key should be rejected with 403, got ${res.status}: ${JSON.stringify(res.body)}`);
+  });
+
+  it("POST /integration-requests rejects agent API key with 403", async () => {
+    const res = await request(app)
+      .post(`/api/workspaces/${wsId}/integration-requests`)
+      .set("Authorization", `Bearer ${agentApiKey}`)
+      .send({ source_name: "example-saas" });
+
+    assert.equal(res.status, 403, `Agent key should be rejected with 403, got ${res.status}: ${JSON.stringify(res.body)}`);
+  });
+
+  it("POST /signal-schema/validate rejects agent API key with 403", async () => {
+    const res = await request(app)
+      .post(`/api/workspaces/${wsId}/signal-schema/validate`)
+      .set("Authorization", `Bearer ${agentApiKey}`)
+      .send({ schema: {} });
+
+    assert.equal(res.status, 403, `Agent key should be rejected with 403, got ${res.status}: ${JSON.stringify(res.body)}`);
+  });
 });
 
 // ---------------------------------------------------------------------------

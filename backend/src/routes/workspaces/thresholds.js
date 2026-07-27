@@ -172,7 +172,7 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/dismi
     next(e);
   }
 });
-app.post("/api/workspaces/:workspaceId/thresholds/simulate", authMiddleware, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/thresholds/simulate", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { proposed_thresholds, release_ids, limit } = req.body || {};
 

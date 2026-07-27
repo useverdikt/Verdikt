@@ -3,7 +3,12 @@
 
 /**
  * Verifies paired Supabase ↔ backend migrations share the same logical slug.
- * Supabase-only auth/RLS bootstrap files are exempt — see SUPABASE_ONLY_SLUGS.
+ *
+ * - Supabase-only auth/RLS bootstrap files: SUPABASE_ONLY_SLUGS
+ * - Backend migrations covered by the bundled initial dump or a differently
+ *   named supabase-only file: BACKEND_COVERED_ELSEWHERE
+ *
+ * Both directions are checked so hosted-track lag cannot silently grow.
  */
 
 const fs = require("fs");
@@ -21,6 +26,16 @@ const SUPABASE_ONLY_SLUGS = new Set([
   "rls",
   "workspace_members_auth_backfill",
   "workspace_github_rls"
+]);
+
+/**
+ * Backend migrations intentionally without a same-slug supabase counterpart.
+ * - baseline: folded into verdikt_initial
+ * - enable_rls_on_workspace_github_tables: covered by workspace_github_rls
+ */
+const BACKEND_COVERED_ELSEWHERE = new Set([
+  "baseline",
+  "enable_rls_on_workspace_github_tables"
 ]);
 
 function logicalSlug(filename) {
@@ -41,6 +56,7 @@ function checkMigrationParity() {
   const backend = listMigrationSlugs(BACKEND_DIR);
   const supabase = listMigrationSlugs(SUPABASE_DIR);
   const backendSlugs = new Set(backend.map((m) => m.slug));
+  const supabaseSlugs = new Set(supabase.map((m) => m.slug));
 
   const pairedSupabase = supabase.filter((m) => !SUPABASE_ONLY_SLUGS.has(m.slug));
   const missingInBackend = pairedSupabase.filter((m) => !backendSlugs.has(m.slug));
@@ -53,11 +69,25 @@ function checkMigrationParity() {
     );
   }
 
+  const missingInSupabase = backend.filter(
+    (m) => !BACKEND_COVERED_ELSEWHERE.has(m.slug) && !supabaseSlugs.has(m.slug)
+  );
+
+  if (missingInSupabase.length) {
+    const lines = missingInSupabase.map((m) => `  - ${m.file} (slug: ${m.slug})`).join("\n");
+    throw new Error(
+      `Backend migrations missing supabase counterparts:\n${lines}\n` +
+        `Add supabase/migrations/<timestamp>_${missingInSupabase[0].slug}.sql ` +
+        `or update BACKEND_COVERED_ELSEWHERE if intentionally covered elsewhere.`
+    );
+  }
+
   return {
     backend_count: backend.length,
     supabase_count: supabase.length,
     paired_count: pairedSupabase.length,
-    supabase_only_count: supabase.length - pairedSupabase.length
+    supabase_only_count: supabase.length - pairedSupabase.length,
+    backend_covered_elsewhere_count: BACKEND_COVERED_ELSEWHERE.size
   };
 }
 
@@ -65,7 +95,8 @@ if (require.main === module) {
   try {
     const summary = checkMigrationParity();
     console.log(
-      `[migration-parity] OK — ${summary.paired_count} paired, ${summary.supabase_only_count} supabase-only, ${summary.backend_count} backend total`
+      `[migration-parity] OK — ${summary.paired_count} paired, ${summary.supabase_only_count} supabase-only, ` +
+        `${summary.backend_covered_elsewhere_count} backend-covered-elsewhere, ${summary.backend_count} backend total`
     );
   } catch (err) {
     console.error("[migration-parity]", err.message);
@@ -73,4 +104,9 @@ if (require.main === module) {
   }
 }
 
-module.exports = { logicalSlug, checkMigrationParity, SUPABASE_ONLY_SLUGS };
+module.exports = {
+  logicalSlug,
+  checkMigrationParity,
+  SUPABASE_ONLY_SLUGS,
+  BACKEND_COVERED_ELSEWHERE
+};
