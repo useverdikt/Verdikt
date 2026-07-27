@@ -11,7 +11,7 @@ const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
 async function main() {
   await initDatabase();
   const jobs = startBackgroundJobs();
-  console.log("[worker] background jobs started (collection, VCS monitor, escalation SLA)");
+  console.log("[worker] background jobs started (collection, VCS monitor, escalation SLA, cert snapshot retries)");
 
   const shutdown = async (signal) => {
     console.warn(`[worker] received ${signal}, stopping…`);
