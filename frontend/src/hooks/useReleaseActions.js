@@ -67,6 +67,15 @@ export function useReleaseActions({
     (typeof release?.id === "string" && release.id.startsWith("rel_") ? release.id : null);
 
   const handleShip = useCallback(() => {
+    // Backend-connected workspaces record ship/bypass via VCS monitor + gate — do not
+    // invent a local "shipped" status that diverges from the server.
+    if (hasBackend()) {
+      showToast(
+        "Ship is recorded by merge/gate on the server — local demo ship is disabled when connected.",
+        toastAmber
+      );
+      return;
+    }
     const actor = currentUser
       ? `${currentUser.name}, ${ROLES[currentUser.role]?.title || "User"}`
       : "You";
@@ -89,7 +98,7 @@ export function useReleaseActions({
       detail: "All thresholds met. Release certified and on permanent record."
     });
     showToast("✓ Certified. Release is on record.", toastGreen);
-  }, [currentUser, current, selectedId, setReleases, addAudit, showToast, toastGreen]);
+  }, [currentUser, current, selectedId, setReleases, addAudit, showToast, toastGreen, toastAmber]);
 
   const handleIntelligenceDecision = useCallback(
     async (decision) => {

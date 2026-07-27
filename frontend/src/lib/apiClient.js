@@ -77,14 +77,29 @@ export function onApiUnauthorized(navigate) {
 }
 
 async function readErrorMessage(res, path, method) {
+  const requestId = res.headers.get("x-request-id");
   let msg = `${method} ${path} failed (${res.status})`;
+  let code = null;
   try {
     const j = await res.json();
-    if (j && typeof j.error === "string") msg = j.error;
+    if (j && typeof j === "object") {
+      if (typeof j.message === "string" && j.message.trim()) msg = j.message.trim();
+      else if (typeof j.error === "string" && j.error.trim()) msg = j.error.trim();
+      if (typeof j.error === "string" && j.error.trim()) code = j.error.trim();
+      if (!requestId && typeof j.request_id === "string" && j.request_id.trim()) {
+        msg = `${msg} (request_id: ${j.request_id.trim()})`;
+      }
+    }
   } catch {
     /* non-JSON body */
   }
-  return msg;
+  if (requestId) msg = `${msg} (request_id: ${requestId})`;
+  const err = new Error(msg);
+  err.name = "ApiError";
+  err.status = res.status;
+  err.code = code;
+  err.requestId = requestId || null;
+  return err;
 }
 
 /**
@@ -96,7 +111,7 @@ export async function apiGet(path, options = {}) {
   const { navigate } = options;
   const res = await fetch(buildUrl(path), apiFetchInit());
   if (res.status === 401) handleUnauthorized(navigate);
-  if (!res.ok) throw new Error(await readErrorMessage(res, path, "GET"));
+  if (!res.ok) throw await readErrorMessage(res, path, "GET");
   return res.json();
 }
 
@@ -116,7 +131,7 @@ export async function apiPost(path, body, options = {}) {
     })
   );
   if (res.status === 401) handleUnauthorized(navigate);
-  if (!res.ok) throw new Error(await readErrorMessage(res, path, "POST"));
+  if (!res.ok) throw await readErrorMessage(res, path, "POST");
   return res.json();
 }
 
@@ -136,7 +151,7 @@ export async function apiPut(path, body, options = {}) {
     })
   );
   if (res.status === 401) handleUnauthorized(navigate);
-  if (!res.ok) throw new Error(await readErrorMessage(res, path, "PUT"));
+  if (!res.ok) throw await readErrorMessage(res, path, "PUT");
   return res.json();
 }
 
@@ -156,7 +171,7 @@ export async function apiPatch(path, body, options = {}) {
     })
   );
   if (res.status === 401) handleUnauthorized(navigate);
-  if (!res.ok) throw new Error(await readErrorMessage(res, path, "PATCH"));
+  if (!res.ok) throw await readErrorMessage(res, path, "PATCH");
   return res.json();
 }
 
@@ -168,7 +183,7 @@ export async function apiDelete(path, options = {}) {
   const { navigate } = options;
   const res = await fetch(buildUrl(path), apiFetchInit({ method: "DELETE" }));
   if (res.status === 401) handleUnauthorized(navigate);
-  if (!res.ok) throw new Error(await readErrorMessage(res, path, "DELETE"));
+  if (!res.ok) throw await readErrorMessage(res, path, "DELETE");
   if (res.status === 204) return {};
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return res.json();
@@ -185,6 +200,6 @@ export async function apiPostFormData(path, formData, options = {}) {
   const { navigate } = options;
   const res = await fetch(buildUrl(path), apiFetchInit({ method: "POST", body: formData }));
   if (res.status === 401) handleUnauthorized(navigate);
-  if (!res.ok) throw new Error(await readErrorMessage(res, path, "POST"));
+  if (!res.ok) throw await readErrorMessage(res, path, "POST");
   return res.json();
 }
