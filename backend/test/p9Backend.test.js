@@ -6,14 +6,15 @@ const fs = require("fs");
 const path = require("path");
 
 describe("certification snapshot retry policy", () => {
-  it("schedules exponential backoff with audit on cert-like exhaustion", () => {
+  it("uses durable DB queue with exhaustion audit", () => {
     const src = fs.readFileSync(
       path.join(__dirname, "../src/services/certificationSnapshotRetry.js"),
       "utf8"
     );
     assert.match(src, /MAX_ATTEMPTS = 4/);
     assert.match(src, /CERTIFICATION_SNAPSHOT_FAILED/);
-    assert.match(src, /BACKOFF_MS/);
+    assert.match(src, /certification_snapshot_retries/);
+    assert.match(src, /FOR UPDATE SKIP LOCKED/);
   });
 });
 

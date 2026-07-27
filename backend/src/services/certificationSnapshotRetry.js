@@ -1,14 +1,22 @@
 "use strict";
 
-const { persistCertificationSnapshot } = require("./certificationSnapshots");
+const { run, queryAll, transaction } = require("../database");
+const certificationSnapshots = require("./certificationSnapshots");
 const { writeAudit } = require("./audit");
 const { isCertLikeStatus } = require("../lib/releaseStatus");
 
 const MAX_ATTEMPTS = 4;
+/** Delay before retry attempt N (index = attempt after the initial sync failure). */
 const BACKOFF_MS = [0, 2000, 10000, 30000];
+const CLAIM_LEASE_MS = 120_000;
 
-/** @type {Map<string, { args: object, attempt: number, timer: NodeJS.Timeout }>} */
-const inFlight = new Map();
+function backoffMsForAttempt(attempt) {
+  return BACKOFF_MS[Math.min(Math.max(attempt, 0), BACKOFF_MS.length - 1)];
+}
+
+function nextAttemptAtIso(attempt) {
+  return new Date(Date.now() + backoffMsForAttempt(attempt)).toISOString();
+}
 
 async function onFinalFailure(args, err) {
   console.error("[certification_snapshot] exhausted retries:", args.releaseId, err?.message);
@@ -31,53 +39,155 @@ async function onFinalFailure(args, err) {
   }
 }
 
-function scheduleRetry(args, attempt) {
-  const existing = inFlight.get(args.releaseId);
-  if (existing?.timer) clearTimeout(existing.timer);
-
-  const delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
-  const timer = setTimeout(async () => {
-    try {
-      await persistCertificationSnapshot(args);
-      inFlight.delete(args.releaseId);
-    } catch (err) {
-      const nextAttempt = attempt + 1;
-      if (nextAttempt >= MAX_ATTEMPTS) {
-        inFlight.delete(args.releaseId);
-        await onFinalFailure(args, err);
-      } else {
-        scheduleRetry(args, nextAttempt);
-      }
-    }
-  }, delay);
-
-  inFlight.set(args.releaseId, { args, attempt, timer });
+function rowToArgs(row) {
+  let thresholdMap = {};
+  let signalMap = {};
+  try {
+    thresholdMap = JSON.parse(row.threshold_snapshot_json || "{}");
+  } catch {
+    thresholdMap = {};
+  }
+  try {
+    signalMap = JSON.parse(row.signal_snapshot_json || "{}");
+  } catch {
+    signalMap = {};
+  }
+  return {
+    releaseId: row.release_id,
+    workspaceId: row.workspace_id,
+    thresholdMap,
+    signalMap,
+    status: row.status_at_verdict,
+    allowUpdate: Number(row.allow_update) === 1
+  };
 }
 
 /**
- * Persist certification snapshot; on failure schedule exponential backoff retries.
+ * Persist a failed snapshot job for durable retry (survives restart / multi-instance).
+ */
+async function enqueueRetryJob(args, attempt, err) {
+  const statusAtVerdict = String(args.status || "").toUpperCase();
+  const nextAt = nextAttemptAtIso(attempt);
+  const lastError = String(err?.message || "persist_failed").slice(0, 500);
+  await run(
+    `INSERT INTO certification_snapshot_retries (
+       release_id, workspace_id, status_at_verdict,
+       threshold_snapshot_json, signal_snapshot_json, allow_update,
+       attempt, next_attempt_at, last_error, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9, NOW(), NOW())
+     ON CONFLICT (release_id) DO UPDATE SET
+       workspace_id = EXCLUDED.workspace_id,
+       status_at_verdict = EXCLUDED.status_at_verdict,
+       threshold_snapshot_json = EXCLUDED.threshold_snapshot_json,
+       signal_snapshot_json = EXCLUDED.signal_snapshot_json,
+       allow_update = EXCLUDED.allow_update,
+       attempt = EXCLUDED.attempt,
+       next_attempt_at = EXCLUDED.next_attempt_at,
+       last_error = EXCLUDED.last_error,
+       updated_at = NOW()`,
+    [
+      args.releaseId,
+      args.workspaceId,
+      statusAtVerdict,
+      JSON.stringify(args.thresholdMap || {}),
+      JSON.stringify(args.signalMap || {}),
+      args.allowUpdate ? 1 : 0,
+      attempt,
+      nextAt,
+      lastError
+    ]
+  );
+}
+
+/**
+ * Persist certification snapshot; on failure enqueue a durable retry job.
  * Cert-like statuses get a CERTIFICATION_SNAPSHOT_FAILED audit after all attempts.
  */
 async function enqueueCertificationSnapshotPersist(args) {
   try {
-    return await persistCertificationSnapshot(args);
+    return await certificationSnapshots.persistCertificationSnapshot(args);
   } catch (err) {
     console.error("[certification_snapshot] persist failed:", args.releaseId, err?.message);
-    scheduleRetry(args, 1);
+    try {
+      await enqueueRetryJob(args, 1, err);
+    } catch (enqueueErr) {
+      console.error(
+        "[certification_snapshot] failed to enqueue retry:",
+        args.releaseId,
+        enqueueErr?.message
+      );
+    }
     return null;
   }
 }
 
-/** Test helper — clears pending retry timers. */
-function _resetCertificationSnapshotRetryState() {
-  for (const entry of inFlight.values()) {
-    if (entry.timer) clearTimeout(entry.timer);
+/**
+ * Claim and process due retry rows. Safe across multiple workers (SKIP LOCKED).
+ * @returns {{ processed: number, succeeded: number, failed: number, exhausted: number }}
+ */
+async function processDueCertificationSnapshotRetries({ limit = 25 } = {}) {
+  const claimed = await transaction(async (tx) => {
+    const due = await tx.queryAll(
+      `SELECT *
+         FROM certification_snapshot_retries
+        WHERE next_attempt_at <= NOW()
+        ORDER BY next_attempt_at ASC
+        LIMIT $1
+        FOR UPDATE SKIP LOCKED`,
+      [limit]
+    );
+    const leaseUntil = new Date(Date.now() + CLAIM_LEASE_MS).toISOString();
+    for (const row of due) {
+      await tx.run(
+        `UPDATE certification_snapshot_retries
+            SET next_attempt_at = $2::timestamptz, updated_at = NOW()
+          WHERE release_id = $1`,
+        [row.release_id, leaseUntil]
+      );
+    }
+    return due;
+  });
+
+  let succeeded = 0;
+  let failed = 0;
+  let exhausted = 0;
+
+  for (const row of claimed) {
+    const args = rowToArgs(row);
+    try {
+      await certificationSnapshots.persistCertificationSnapshot(args);
+      await run(`DELETE FROM certification_snapshot_retries WHERE release_id = $1`, [row.release_id]);
+      succeeded += 1;
+    } catch (err) {
+      const nextAttempt = Number(row.attempt) + 1;
+      if (nextAttempt >= MAX_ATTEMPTS) {
+        await run(`DELETE FROM certification_snapshot_retries WHERE release_id = $1`, [row.release_id]);
+        await onFinalFailure(args, err);
+        exhausted += 1;
+      } else {
+        await enqueueRetryJob(args, nextAttempt, err);
+        failed += 1;
+      }
+    }
   }
-  inFlight.clear();
+
+  return {
+    processed: claimed.length,
+    succeeded,
+    failed,
+    exhausted
+  };
+}
+
+/** Test helper — clears pending retry rows. */
+async function _resetCertificationSnapshotRetryState() {
+  await run(`DELETE FROM certification_snapshot_retries`);
 }
 
 module.exports = {
   enqueueCertificationSnapshotPersist,
+  processDueCertificationSnapshotRetries,
+  enqueueRetryJob,
   _resetCertificationSnapshotRetryState,
   MAX_ATTEMPTS,
   BACKOFF_MS
