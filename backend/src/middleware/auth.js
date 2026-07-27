@@ -218,6 +218,9 @@ function requireNonViewer(req, res, next) {
 }
 
 function requireOverrideApproverRole(req, res, next) {
+  if (req.auth?.authType === "api_key") {
+    return res.status(403).json({ error: "This action requires a human session, not an API key" });
+  }
   if (!OVERRIDE_APPROVER_ROLES.has(req.auth.role)) {
     return res.status(403).json({ error: "Override approval requires VP Engineering, CTO, or org admin role" });
   }

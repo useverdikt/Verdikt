@@ -29,7 +29,7 @@ app.get("/api/workspaces/:workspaceId/signal-schema", authMiddleware, requireWor
 });
 
 /** Validate a signal payload without ingesting it (dry-run). */
-app.post("/api/workspaces/:workspaceId/signal-schema/validate", authMiddleware, requireNonViewer, requireWorkspaceMatch, (req, res) => {
+app.post("/api/workspaces/:workspaceId/signal-schema/validate", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, (req, res) => {
   const { signals } = req.body || {};
   const result = validateSignalPayload(signals);
   return res.json(result);
@@ -59,7 +59,7 @@ app.get("/api/workspaces/:workspaceId/signal-integrations", authMiddleware, requ
   }
 });
 
-app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
+app.post("/api/workspaces/:workspaceId/integration-requests", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const out = await createIntegrationRequest(req.params.workspaceId, req.body || {}, req.auth?.email);
     await writeAudit({
