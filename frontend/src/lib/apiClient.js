@@ -8,6 +8,7 @@ import { signOutSupabase } from "../auth/supabaseAuth.js";
 import { reset as resetHydrationPool } from "./hydrationPool.js";
 import { resetLoopReadinessCache } from "./loopReadinessCache.js";
 import { resetSignalReliabilityCache } from "./signalReliabilityCache.js";
+import { clearThresholdLocalCache } from "./thresholdLocalState.js";
 
 const CURRENT_USER_KEY = "vdk3_currentUser";
 
@@ -41,6 +42,7 @@ export function setWorkspaceId(workspaceId) {
     localStorage.removeItem("vdk3_releases");
     localStorage.removeItem("vdk3_audit");
     localStorage.removeItem("vdk3_infra");
+    clearThresholdLocalCache();
   }
   localStorage.setItem("vdk3_workspace_id", next);
 }

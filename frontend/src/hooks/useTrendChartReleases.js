@@ -6,6 +6,7 @@ import { TREND_CHART_MAX_POINTS } from "../lib/trendChart.js";
 import { mapBackendListRowToUi } from "../lib/releaseMappers.js";
 import { DEFAULT_THRESHOLDS } from "../lib/workspaceDefaults.js";
 import { S } from "../lib/workspaceStorage.js";
+import { readInitialThresholdUiState } from "../lib/thresholdLocalState.js";
 import { applyThresholdApiMap } from "../lib/thresholdBounds.js";
 import {
   chartWindowPendingIds,
@@ -28,10 +29,7 @@ export function useTrendChartReleases() {
     return Array.isArray(s) ? s : [];
   });
   const [wsReady, setWsReady] = useState(!hasBackend());
-  const [thresholds, setThresholds] = useState(() => ({
-    ...DEFAULT_THRESHOLDS,
-    ...S.get("thresholds", {})
-  }));
+  const [thresholds, setThresholds] = useState(() => readInitialThresholdUiState().thresholds);
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
 
