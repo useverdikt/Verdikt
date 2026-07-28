@@ -1,4 +1,7 @@
 import { fetchAndMapReleaseDetail, fetchAndMapReleaseSummary } from "./releaseDetailApi.js";
+import { getWorkspaceId } from "./apiClient.js";
+import { appQueryClient } from "../queries/queryClient.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
 
 const MAX_WORKERS = 6;
 const MAX_FETCH_ATTEMPTS = 3;
@@ -26,6 +29,29 @@ function cacheKey(id, full) {
 
 function waiterKey(id, full) {
   return cacheKey(id, full);
+}
+
+function queryKeyFor(id, full) {
+  const wsId = getWorkspaceId();
+  return full ? workspaceKeys.releaseDetail(wsId, id) : workspaceKeys.releaseSummary(wsId, id);
+}
+
+async function fetchViaQuery(id, full) {
+  const queryKey = queryKeyFor(id, full);
+  const queryFn = () =>
+    full ? fetchAndMapReleaseDetail(id, navigate) : fetchAndMapReleaseSummary(id, navigate);
+  return appQueryClient.fetchQuery({
+    queryKey,
+    queryFn,
+    staleTime: full ? 30_000 : 60_000
+  });
+}
+
+function dropQueryCache(id, full) {
+  const wsId = getWorkspaceId();
+  if (!wsId || !id) return;
+  const key = full ? workspaceKeys.releaseDetail(wsId, id) : workspaceKeys.releaseSummary(wsId, id);
+  appQueryClient.removeQueries({ queryKey: key });
 }
 
 export function setHydrationNavigate(nav) {
@@ -63,6 +89,9 @@ export function syncHydratedFromReleases(releases, isPending) {
       hydrated.delete(cacheKey(id, false));
       hydrated.delete(cacheKey(id, true));
       resultCache.delete(id);
+      // Drop warm TanStack entries so enqueue/await do not skip a needed refetch.
+      dropQueryCache(id, false);
+      dropQueryCache(id, true);
       continue;
     }
     hydrated.add(cacheKey(id, false));
@@ -101,6 +130,8 @@ export function enqueue(ids, { priority = false, force = false, full = false } =
       clearHydrated(id);
       resultCache.delete(id);
       failCounts.delete(cacheKey(id, full));
+      dropQueryCache(id, full);
+      if (full) dropQueryCache(id, false);
     }
   }
 
@@ -139,6 +170,19 @@ export async function awaitReleaseDetail(id, { priority = false, force = false, 
     const cached = resultCache.get(id);
     if (full && cached?.detailLoaded) return cached;
     if (!full && cached?.summaryLoaded && hydrated.has(cacheKey(id, false))) return cached;
+
+    // Prefer TanStack cache when pool memory was cleared but query still warm.
+    const wsId = getWorkspaceId();
+    if (wsId) {
+      const qKey = full ? workspaceKeys.releaseDetail(wsId, id) : workspaceKeys.releaseSummary(wsId, id);
+      const fromQuery = appQueryClient.getQueryData(qKey);
+      if (fromQuery) {
+        resultCache.set(id, fromQuery);
+        hydrated.add(cacheKey(id, false));
+        if (full && fromQuery.detailLoaded) hydrated.add(cacheKey(id, true));
+        return fromQuery;
+      }
+    }
   }
 
   if (!force && inFlight.has(key)) {
@@ -172,9 +216,8 @@ function drainPool() {
     workers += 1;
 
     const { id, full } = item;
-    const fetchFn = full ? fetchAndMapReleaseDetail : fetchAndMapReleaseSummary;
 
-    fetchFn(id, navigate)
+    fetchViaQuery(id, full)
       .then((mapped) => mapped, () => null)
       .then((mapped) => {
         if (gen !== generation) return;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
+import { getWorkspaceId } from "../lib/apiClient.js";
 import {
   mergeReleaseIntoList,
   refreshReleaseDetail,
@@ -21,6 +21,11 @@ import { hasBackend } from "../lib/hasBackend.js";
 import { S } from "../lib/workspaceStorage.js";
 import { TREND_CHART_MAX_POINTS } from "../lib/trendChart.js";
 import { mapBackendListRowToUi } from "../lib/releaseMappers.js";
+import { appQueryClient } from "../queries/queryClient.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
+import { fetchWorkspaceReleases } from "../queries/workspaceFetchers.js";
+
+const RELEASE_PAGE_SIZE = 50;
 
 /** Release list, hydration pool, pagination, and detail fetch helpers. */
 export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
@@ -180,10 +185,12 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     setReleasesLoadingMore(true);
     try {
       setApiBanner?.(null);
-      const data = await apiGet(
-        `/api/workspaces/${getWorkspaceId()}/releases?limit=50&before=${encodeURIComponent(releasesNextBefore)}`,
-        { navigate }
-      );
+      const wsId = getWorkspaceId();
+      const data = await appQueryClient.fetchQuery({
+        queryKey: workspaceKeys.releases(wsId, { limit: RELEASE_PAGE_SIZE, before: releasesNextBefore }),
+        queryFn: () =>
+          fetchWorkspaceReleases(wsId, navigate, { limit: RELEASE_PAGE_SIZE, before: releasesNextBefore })
+      });
       const rows = data?.releases || [];
       setReleasesNextBefore(data?.next_before || null);
       const stubs = rows.map(mapBackendListRowToUi);
@@ -205,7 +212,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     } finally {
       setReleasesLoadingMore(false);
     }
-  }, [navigate, releasesNextBefore, releasesLoadingMore, scheduleReleaseHydration, setApiBanner]);
+  }, [navigate, releasesNextBefore, releasesLoadingMore, setApiBanner]);
 
   const openAuditRecord = useCallback(
     async (linkedRelease, backendReleaseId, { showToast, toastColor }) => {

@@ -37,10 +37,12 @@ describe("scoped workspace invalidators", () => {
     });
   });
 
-  it("invalidateWorkspaceReleases matches releases subkeys", async () => {
+  it("invalidateWorkspaceReleases matches list and per-release caches", async () => {
     await invalidateWorkspaceReleases("ws_demo");
     const { predicate } = appQueryClient.invalidateQueries.mock.calls[0][0];
     expect(predicate({ queryKey: workspaceKeys.releases("ws_demo", { limit: 50 }) })).toBe(true);
+    expect(predicate({ queryKey: workspaceKeys.releaseDetail("ws_demo", "rel_1") })).toBe(true);
+    expect(predicate({ queryKey: workspaceKeys.releaseSummary("ws_demo", "rel_1") })).toBe(true);
     expect(predicate({ queryKey: workspaceKeys.thresholds("ws_demo") })).toBe(false);
   });
 

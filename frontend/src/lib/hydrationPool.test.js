@@ -9,11 +9,20 @@ import {
   _peekQueueIdsForTests,
   _resetHydrationPoolForTests
 } from "./hydrationPool.js";
+import { appQueryClient } from "../queries/queryClient.js";
 
 vi.mock("./releaseDetailApi.js", () => ({
   fetchAndMapReleaseDetail: vi.fn(),
   fetchAndMapReleaseSummary: vi.fn()
 }));
+
+vi.mock("./apiClient.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getWorkspaceId: () => "ws_test"
+  };
+});
 
 import { fetchAndMapReleaseDetail, fetchAndMapReleaseSummary } from "./releaseDetailApi.js";
 
@@ -27,6 +36,7 @@ const mapped = (id, { full = true } = {}) => ({
 describe("hydrationPool", () => {
   beforeEach(() => {
     _resetHydrationPoolForTests();
+    appQueryClient.clear();
     vi.mocked(fetchAndMapReleaseDetail).mockReset();
     vi.mocked(fetchAndMapReleaseSummary).mockReset();
     setHydrationNavigate(vi.fn());
@@ -124,10 +134,25 @@ describe("hydrationPool", () => {
     expect(fetchAndMapReleaseDetail).toHaveBeenCalledTimes(1);
 
     _resetHydrationPoolForTests();
+    appQueryClient.clear();
     setHydrationNavigate(vi.fn());
 
     await awaitReleaseDetail("rel_1");
     expect(fetchAndMapReleaseDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("serves warm TanStack cache after pool memory reset without refetch", async () => {
+    vi.mocked(fetchAndMapReleaseDetail).mockResolvedValue(mapped("rel_warm"));
+
+    await awaitReleaseDetail("rel_warm");
+    expect(fetchAndMapReleaseDetail).toHaveBeenCalledTimes(1);
+
+    _resetHydrationPoolForTests();
+    setHydrationNavigate(vi.fn());
+
+    const again = await awaitReleaseDetail("rel_warm");
+    expect(fetchAndMapReleaseDetail).toHaveBeenCalledTimes(1);
+    expect(again?.backendReleaseId).toBe("rel_warm");
   });
 
   it("retries failed fetches up to three attempts before settling null", async () => {
