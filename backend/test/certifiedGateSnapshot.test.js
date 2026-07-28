@@ -17,6 +17,10 @@ const { createApp } = require("../src/app");
 const { getThresholdMap } = require("../src/services/domain");
 const { getLatestSignalMap } = require("../src/services/verdictEngine");
 const certificationSnapshots = require("../src/services/certificationSnapshots");
+const {
+  backfillMissingCertificationSnapshots,
+  processDueCertificationSnapshotRetries
+} = require("../src/services/certificationSnapshotRetry");
 
 let app;
 
@@ -125,5 +129,25 @@ describe("certified release gate uses frozen snapshot", () => {
     const gate = await human.get(`/api/releases/${releaseId}/gate`).expect(200);
     assert.equal(gate.body.can_merge, true, "certified release should merge using frozen snapshot, not live thresholds");
     assert.equal(gate.body.action, "merge");
+  });
+
+  it("backfills missing snapshots for legacy certified releases and restores merge", async () => {
+    const { human, workspaceId } = await humanSession();
+    const { releaseId } = await createAndCertifyRelease(human, workspaceId);
+
+    await run("DELETE FROM certification_snapshots WHERE release_id = $1", [releaseId]);
+    const before = await human.get(`/api/releases/${releaseId}/gate`).expect(200);
+    assert.equal(before.body.action, "recover_certification");
+    assert.equal(before.body.snapshot_pending, true);
+
+    // Target the specific release so the test is not affected by leftover rows in the test DB.
+    const backfill = await backfillMissingCertificationSnapshots({ releaseId, limit: 10 });
+    assert.equal(backfill.processed, 1, "backfill should discover exactly this missing snapshot");
+    await processDueCertificationSnapshotRetries();
+
+    const after = await human.get(`/api/releases/${releaseId}/gate`).expect(200);
+    assert.equal(after.body.can_merge, true, JSON.stringify(after.body));
+    assert.equal(after.body.action, "merge");
+    assert.equal(after.body.snapshot_pending, false);
   });
 });

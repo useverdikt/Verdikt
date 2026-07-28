@@ -11,6 +11,7 @@ const {
 } = require("./escalationSlaSweep");
 const {
   runCertificationSnapshotRetrySweepOnce,
+  runCertificationSnapshotBackfillOnce,
   startCertificationSnapshotRetrySweepJob
 } = require("./certificationSnapshotRetrySweep");
 
@@ -34,6 +35,7 @@ function startBackgroundJobs() {
   handles.escalationSlaInterval = startEscalationSlaSweepJob();
   handles.certSnapshotRetryInterval = startCertificationSnapshotRetrySweepJob();
   void runEscalationSlaSweepJobOnce();
+  void runCertificationSnapshotBackfillOnce();
   void runCertificationSnapshotRetrySweepOnce();
   handles.vcsInitialTimeout = setTimeout(() => void runVcsMonitorSweep().catch(() => {}), 8_000);
 

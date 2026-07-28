@@ -1,7 +1,8 @@
 "use strict";
 
 const {
-  processDueCertificationSnapshotRetries
+  processDueCertificationSnapshotRetries,
+  backfillMissingCertificationSnapshots
 } = require("../services/certificationSnapshotRetry");
 
 async function runCertificationSnapshotRetrySweepOnce() {
@@ -20,6 +21,33 @@ async function runCertificationSnapshotRetrySweepOnce() {
   }
 }
 
+async function runCertificationSnapshotBackfillOnce() {
+  try {
+    let totalProcessed = 0;
+    let totalSucceeded = 0;
+    let totalFailed = 0;
+    // Backfill in batches until no more missing snapshots are found, so legacy
+    // deployments with hundreds of pre-existing certified releases are fully covered.
+    for (let i = 0; i < 50; i += 1) {
+      const result = await backfillMissingCertificationSnapshots({ limit: 100 });
+      if (!result || result.processed === 0) break;
+      totalProcessed += result.processed;
+      totalSucceeded += result.succeeded;
+      totalFailed += result.failed;
+    }
+    if (totalProcessed > 0) {
+      console.info(
+        "[cert_snapshot_backfill]",
+        `processed=${totalProcessed} succeeded=${totalSucceeded} failed=${totalFailed}`
+      );
+    }
+    return { processed: totalProcessed, succeeded: totalSucceeded, failed: totalFailed };
+  } catch (err) {
+    console.error("[cert_snapshot_backfill]", err);
+    return null;
+  }
+}
+
 function startCertificationSnapshotRetrySweepJob() {
   const intervalMs = Math.max(
     1_000,
@@ -34,5 +62,6 @@ function startCertificationSnapshotRetrySweepJob() {
 
 module.exports = {
   runCertificationSnapshotRetrySweepOnce,
+  runCertificationSnapshotBackfillOnce,
   startCertificationSnapshotRetrySweepJob
 };

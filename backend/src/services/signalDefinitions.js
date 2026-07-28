@@ -324,7 +324,9 @@ async function createWorkspaceDefinition(workspaceId, input, opts = {}) {
   await run(
     `INSERT INTO workspace_signal_definitions
       (id, workspace_id, signal_id, display_name, description, direction, unit, source_id, from_library, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     ON CONFLICT (workspace_id, signal_id) DO UPDATE SET
+       detached_at = NULL`,
     [
       id,
       workspaceId,
