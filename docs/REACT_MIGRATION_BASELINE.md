@@ -8,10 +8,13 @@
 
 ## Auth model
 
-- **JWT** is stored in **`localStorage`** under **`vdk3_auth_token`** (see `frontend/src/auth/session.js`).
-- **`ProtectedRoute`** (`frontend/src/auth/ProtectedRoute.jsx`) wraps routes that require a session. If there is no JWT, the user is sent to **`/login`** with **`location.state.from`** set to the path they tried to open (path + query), so after sign-in **`LoginPage`** can return them there (defaults to **`/releases`**).
-- **Public routes** (no JWT): **`/`** (marketing — `LandingPage.jsx`), `/pricing` (`PricingPage.jsx`), `/login`, `/forgot-password` (`ForgotPasswordPage.jsx` → `POST /api/auth/forgot-password`), `/reset-password` (`ResetPasswordPage.jsx` → `POST /api/auth/reset-password` with `?token=` from email or dev), `/onboarding` (register — `OnboardingPage.jsx` → `POST /api/auth/register`), `/badge` (`BadgePage.jsx` — public certification record demo).
+- **Session JWT** is an **HttpOnly cookie** named **`vdk_auth`** (see `backend/src/config` / `setAuthCookies`). The SPA never stores the JWT in `localStorage`.
+- **Client snapshot only:** `persistAuthSession` (`frontend/src/auth/persistSession.js`) writes **`vdk3_currentUser`** + **`vdk3_workspace_id`** for UI chrome. Legacy key **`vdk3_auth_token`** is cleared if present; `getStoredJwt()` always returns `null`.
+- **CSRF:** mutating cookie-authenticated requests send **`X-CSRF-Token`** matching the readable CSRF cookie (see `csrfCookie.js` / backend `csrfProtection`).
+- **`ProtectedRoute`** (`frontend/src/auth/ProtectedRoute.jsx`) requires a client session snapshot, then verifies with **`GET /api/auth/me`** (cookies via `credentials: "include"`). Invalid sessions clear local snapshot and send the user to **`/login`** with **`location.state.from`** (path + query) so **`LoginPage`** can return them (defaults to **`/releases`**).
+- **Public routes** (no session): **`/`** (marketing — `LandingPage.jsx`), `/pricing` (`PricingPage.jsx`), `/login`, `/forgot-password` (`ForgotPasswordPage.jsx` → `POST /api/auth/forgot-password`), `/reset-password` (`ResetPasswordPage.jsx` → `POST /api/auth/reset-password` with `?token=` from email or dev), `/onboarding` (register — `OnboardingPage.jsx` → `POST /api/auth/register`), `/badge` (`BadgePage.jsx` — public certification record demo).
 - **Already signed in** and opening `/login`: redirected to `from` or `/releases` (`LoginPage`).
+- **Agents / curl:** may still use **`Authorization: Bearer`** (API key `vdk_live_…` or a JWT). The browser SPA does not.
 
 ## HTML inventory (user-reachable)
 
@@ -65,12 +68,12 @@ There are **no** standalone `*.html` (or pitch PDFs) at the repository root. Pro
 
 - **Canonical sign-in** is **`/login`** only (`LoginPage.jsx`). **`frontend/public/verdikt-login.html`** was removed; use **`/login`** (configure host-level redirects from old `.html` URLs in production if needed).
 - **Hardening**: remember-email checkbox (`vdk3_saved_login_email` / `vdk3_remember_login_email`), **`?email=`** query support, forgot-password link → **`/forgot-password`**, show/hide password, `aria-live` for errors, document title.
-- **JWT** storage unchanged (`vdk3_auth_token`).
+- **Session**: login sets HttpOnly **`vdk_auth`** (+ CSRF cookie); SPA persists **user snapshot** only via **`persistAuthSession`** (not `vdk3_auth_token`).
 
 ## Phase 3 — Onboarding (register)
 
 - **`OnboardingPage.jsx`** submits to **`POST /api/auth/register`** (same payload shape as the backend: `email`, `password`, optional `name`).
-- On **201**, **`persistAuthSession`** stores JWT + user (including new **`workspace_id`**) and navigates to **`/releases`**. New workspaces are **`ensureWorkspaceSeeded`** on the server.
+- On success, the user signs in (cookie session) and **`persistAuthSession`** stores the **user snapshot** + **`workspace_id`**, then navigates to **`/releases`**. New workspaces are **`ensureWorkspaceSeeded`** on the server.
 - **Authenticated** users hitting **`/onboarding`** are redirected to **`/releases`**.
 - **`persistAuthSession`** lives in **`frontend/src/auth/persistSession.js`** and is shared with **`LoginPage`**.
 

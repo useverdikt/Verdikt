@@ -141,7 +141,7 @@ Requests **without** an `Origin` header (e.g. curl, server-to-server) are still 
 
 ### Session verification (SPA)
 
-The frontend treats **`GET /api/auth/me`** as the source of truth after login: protected routes verify the JWT on load so **expired or revoked tokens** are cleared without waiting for another API call.
+The frontend treats **`GET /api/auth/me`** (cookie session via `credentials: "include"`) as the source of truth after login: protected routes verify the session on load so **expired or revoked cookies** are cleared without waiting for another API call. The SPA does **not** keep the JWT in `localStorage`.
 
 ### `GET /api/workspaces/:workspaceId/releases` pagination
 
@@ -169,14 +169,16 @@ If assistive LLM is off or no key is set, the field is **`false`** and no backgr
 
 ## Authentication
 
+Human sessions use an **HttpOnly** cookie **`vdk_auth`** (plus a readable CSRF cookie). Login/register/session-exchange **set cookies** and return **`{ user }`** (no JWT in the JSON body for the SPA). Agents and scripts may authenticate with **`Authorization: Bearer`** (API key `vdk_live_…` or a JWT).
+
 - `GET /api/public/registration` — returns `{ "allow_public_registration": boolean }`. The SPA uses this so `/onboarding` can show either the full wizard (last step calls register) or a **design-partner** message when registration is closed.
 
-- `POST /api/auth/register` — body: `{ "email", "password", "name?" }` — password min 8 characters. Returns `{ token, user }` with `user.workspace_id` for your tenant. Rate-limited per client IP (default **15 new accounts per rolling hour**, override with **`REGISTER_RATE_LIMIT_PER_HOUR`**). Returns **403** when public registration is disabled — see **`ALLOW_PUBLIC_REGISTRATION`** below.
+- `POST /api/auth/register` — body: `{ "email", "password", "name?" }` — password min 8 characters. Returns a generic success payload (and may join via invite). Rate-limited per client IP (default **15 new accounts per rolling hour**, override with **`REGISTER_RATE_LIMIT_PER_HOUR`**). Returns **403** when public registration is disabled — see **`ALLOW_PUBLIC_REGISTRATION`** below.
 
-- `POST /api/auth/login` — body: `{ "email", "password" }` — returns `{ token, user }`.
+- `POST /api/auth/login` — body: `{ "email", "password" }` — sets session cookies and returns `{ user }`.
 - `POST /api/auth/forgot-password` — body: `{ "email" }` — generic success message whether or not the user exists (no enumeration). If the user exists, a reset token is stored (hashed) and **an email is sent** when **`RESEND_API_KEY`** and **`PUBLIC_APP_URL`** (or **`FRONTEND_URL`**) are set — see **Password reset email** below. On startup in production-like mode, the server **warns** if email is not configured. For local testing or automated tests, set **`PASSWORD_RESET_RETURN_TOKEN=1`** or use **`NODE_ENV=test`** so the response may include **`reset_token`** and **`reset_expires_at`** (never enable token return in production).
 - `POST /api/auth/reset-password` — body: `{ "token", "password" }` — one-time use, expires after 60 minutes.
-- `GET /api/auth/me` — header: `Authorization: Bearer <token>`.
+- `GET /api/auth/me` — cookie session and/or `Authorization: Bearer <token|api_key>`.
 - `POST /api/hooks/github` — GitHub webhook receiver (PR label trigger; requires `GITHUB_WEBHOOK_SECRET`).
 
 ### `ALLOW_PUBLIC_REGISTRATION` (design-partner / invite-only)
@@ -578,7 +580,7 @@ npm run test:e2e
 
 ### Browser E2E (full stack)
 
-From **`frontend/`**, Playwright starts the backend and Vite (via `concurrently`), then runs UI tests. Tests log in as the seeded demo user by calling **`POST /api/auth/login`** and storing the JWT in `localStorage` before loading the SPA (so startup API calls do not 401 and bounce to **`/login`**).
+From **`frontend/`**, Playwright starts the backend and Vite (via `concurrently`), then runs UI tests. **`e2e/global-setup.js`** logs in as the seeded demo user via **`POST /api/auth/login`**, captures the **HttpOnly session cookies** (+ client user snapshot) into Playwright **`storageState`**, and reuses that for the suite (no JWT written to `localStorage`).
 
 ```bash
 cd ../frontend
