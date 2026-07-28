@@ -99,9 +99,45 @@ export const CERT_GATE_PASSING_SIGNALS = {
   manual_qa_pct: 100
 };
 
+/** Fresh workspaces start with empty definitions — adopt library signals so cert + thresholds UI are real. */
+export async function ensureLibrarySignalsAdopted({ apiBase, cookies, workspaceId, signalIds }) {
+  if (!workspaceId) return;
+  const headers = authHeaders(cookies);
+  const catalogRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/signal-definitions`, { headers });
+  if (!catalogRes.ok) {
+    const text = await catalogRes.text();
+    throw new Error(`E2E adopt: catalog failed ${catalogRes.status} ${text}`);
+  }
+  const catalog = await catalogRes.json();
+  const adopted = new Set((catalog.definitions || []).map((d) => d.signal_id));
+  const libraryIds = new Set((catalog.library || []).map((d) => d.signal_id));
+  for (const signalId of signalIds) {
+    if (adopted.has(signalId)) continue;
+    if (!libraryIds.has(signalId)) continue;
+    const adoptRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/signal-definitions/adopt`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ signal_id: signalId, required_for_certification: true })
+    });
+    if (!adoptRes.ok) {
+      const text = await adoptRes.text();
+      throw new Error(`E2E adopt: ${signalId} failed ${adoptRes.status} ${text}`);
+    }
+  }
+  const after = await fetch(`${apiBase}/api/workspaces/${workspaceId}/signal-definitions`, { headers });
+  if (!after.ok) {
+    const text = await after.text();
+    throw new Error(`E2E adopt: re-list failed ${after.status} ${text}`);
+  }
+  const afterBody = await after.json();
+  if (!(afterBody.definitions || []).length) {
+    throw new Error("E2E adopt: workspace still has no signal definitions");
+  }
+}
+
 /**
  * Full cert→signal→gate path for Playwright smoke:
- * create release (commit_sha) → ingest → CERTIFIED → ready for gate / brief UI.
+ * adopt signals → create release (commit_sha) → ingest → CERTIFIED → ready for gate / brief UI.
  */
 export async function seedCertGateSmokeRelease({ apiBase, cookies, workspaceId }) {
   if (!workspaceId) throw new Error("E2E cert-gate seed: workspaceId required");
@@ -109,6 +145,13 @@ export async function seedCertGateSmokeRelease({ apiBase, cookies, workspaceId }
   const stamp = Date.now().toString(36);
   const version = `e2e-cert-gate-${stamp}`;
   const commitSha = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+  await ensureLibrarySignalsAdopted({
+    apiBase,
+    cookies,
+    workspaceId,
+    signalIds: Object.keys(CERT_GATE_PASSING_SIGNALS)
+  });
 
   const createRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/releases`, {
     method: "POST",
@@ -168,14 +211,17 @@ export async function ensureE2eCollectingRelease({ apiBase, cookies, workspaceId
     throw new Error(`E2E seed: list releases failed ${listRes.status} ${text}`);
   }
   const list = await listRes.json();
-  const existing = (list.releases || []).find((r) => r.version === COLLECTING_FIXTURE_VERSION);
-  if (existing?.id) return existing.id;
+  const collecting = (list.releases || []).find((r) => String(r.status || "").toUpperCase() === "COLLECTING");
+  if (collecting?.id) {
+    return { id: collecting.id, version: collecting.version || COLLECTING_FIXTURE_VERSION };
+  }
 
+  const version = `${COLLECTING_FIXTURE_VERSION}-${Date.now().toString(36)}`;
   const createRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/releases`, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      version: COLLECTING_FIXTURE_VERSION,
+      version,
       release_type: "model_update",
       environment: "pre-prod"
     })
@@ -188,5 +234,5 @@ export async function ensureE2eCollectingRelease({ apiBase, cookies, workspaceId
   if (created.status !== "COLLECTING") {
     throw new Error(`E2E seed: expected COLLECTING status, got ${created.status}`);
   }
-  return created.id;
+  return { id: created.id, version };
 }

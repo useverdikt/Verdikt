@@ -72,23 +72,24 @@ test.describe("cert → signal → gate smoke", () => {
     await expect(briefPanel).toContainText(/gate/i);
     await expect(briefPanel).toContainText(/merge/i);
 
-    // Threshold save (human control-plane) — change one numeric field then save.
+    // Threshold save (human control-plane) — wait for adopted signal number inputs.
     await page.goto("/thresholds");
     await waitForSessionGate(page);
     await expect(page.getByRole("heading", { name: /Signals & thresholds/i })).toBeVisible({
       timeout: 20_000
     });
+    await expect(page.getByText("Workspace signals")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/No workspace signals yet/i)).toHaveCount(0);
 
     const saveBtn = page.getByRole("button", { name: /Save Thresholds/i });
     await expect(saveBtn).toBeVisible();
     const firstNumber = page.locator('input[type="number"]').first();
-    await expect(firstNumber).toBeVisible({ timeout: 15_000 });
+    await expect(firstNumber).toBeVisible({ timeout: 20_000 });
     const before = await firstNumber.inputValue();
     const next = String(Number(before || "90") === 91 ? 90 : 91);
     await firstNumber.fill(next);
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
-    await expect(page.getByRole("button", { name: /✓ Saved|Save Thresholds/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /✓ Saved/i })).toBeVisible({ timeout: 15_000 });
 
     // Frozen cert: live threshold edit must not flip a certified release off merge.

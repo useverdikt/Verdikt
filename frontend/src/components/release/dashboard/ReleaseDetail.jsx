@@ -243,7 +243,7 @@ export default function ReleaseDetail({
                   className="dab"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCollectingAction?.("live");
+                    onCollectingAction?.("live", release);
                   }}
                 >
                   View live stream
@@ -253,7 +253,7 @@ export default function ReleaseDetail({
                   className="dab"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCollectingAction?.("extend");
+                    onCollectingAction?.("extend", release);
                   }}
                 >
                   Extend deadline
@@ -263,7 +263,7 @@ export default function ReleaseDetail({
                   className="dab"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCollectingAction?.("pull");
+                    onCollectingAction?.("pull", release);
                   }}
                 >
                   Pull from connected sources
