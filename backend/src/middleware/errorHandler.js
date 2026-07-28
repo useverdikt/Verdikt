@@ -1,26 +1,37 @@
 "use strict";
 
 const { IS_PROD_LIKE } = require("../config");
+const { errorBody, defaultCodeForStatus } = require("../lib/apiError");
 
 function notFoundHandler(req, res) {
-  res.status(404).json({
-    error: "not_found",
-    message: "Route not found",
-    request_id: req.requestId || null
-  });
+  res.status(404).json(
+    errorBody(req, {
+      status: 404,
+      code: "not_found",
+      message: "Route not found"
+    })
+  );
 }
 
 function errorHandler(err, req, res, _next) {
   const status = Number(err?.status || err?.statusCode) || 500;
-  const message = err?.message || "Internal server error";
+  const code =
+    typeof err?.code === "string" && err.code.trim()
+      ? err.code.trim()
+      : status >= 500
+        ? "internal_error"
+        : defaultCodeForStatus(status);
+  const rawMessage = err?.message || "Internal server error";
   if (status >= 500) {
-    console.error(`[error] ${req.method} ${req.originalUrl || req.url}:`, message);
+    console.error(`[error] ${req.method} ${req.originalUrl || req.url}:`, rawMessage);
   }
-  res.status(status).json({
-    error: status >= 500 ? "internal_error" : "request_failed",
-    message: IS_PROD_LIKE && status >= 500 ? "Internal server error" : message,
-    request_id: req.requestId || null
+  const body = errorBody(req, {
+    status,
+    code: status >= 500 && IS_PROD_LIKE ? "internal_error" : code,
+    message: IS_PROD_LIKE && status >= 500 ? "Internal server error" : rawMessage,
+    details: err?.details
   });
+  res.status(status).json(body);
 }
 
 function registerErrorHandlers(app) {

@@ -1,6 +1,6 @@
 "use strict";
 
-const {
+const { sendError,
   writeAudit,
   authMiddleware,
   requireHumanSession,
@@ -25,7 +25,7 @@ module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/vcs-integration", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const cfg = await getVcsIntegration(req.params.workspaceId);
-    if (!cfg) return res.status(404).json({ error: "no VCS integration configured" });
+    if (!cfg) return sendError(res, req, 404, "no VCS integration configured");
     return res.json({ ...cfg, access_token: "***" });
   } catch (e) {
     next(e);
@@ -129,7 +129,7 @@ app.get("/api/workspaces/:workspaceId/github-app/status", authMiddleware, requir
 app.post("/api/workspaces/:workspaceId/github-app/connect", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     if (!hasGithubAppConfig()) {
-      return res.status(503).json({ error: "GitHub App is not configured on server" });
+      return sendError(res, req, 503, "GitHub App is not configured on server");
     }
     const out = await createInstallState(req.params.workspaceId, req.auth?.sub || null);
     return res.json(out);
@@ -142,7 +142,7 @@ app.get("/api/workspaces/:workspaceId/github-app/repos", authMiddleware, require
   try {
     const installation = await getWorkspaceInstallation(req.params.workspaceId);
     if (!installation) {
-      return res.status(404).json({ error: "GitHub App is not connected for this workspace" });
+      return sendError(res, req, 404, "GitHub App is not connected for this workspace");
     }
     const [availableRepos, connectedRepos] = await Promise.all([
       listInstallationRepos(Number(installation.installation_id)),

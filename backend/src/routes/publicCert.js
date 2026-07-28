@@ -1,5 +1,7 @@
 "use strict";
 
+const { sendError } = require("../lib/apiError");
+
 const { getPublicCertRecord } = require("../services/publicCertRecord");
 
 module.exports = function registerRoutes(app) {
@@ -7,7 +9,7 @@ module.exports = function registerRoutes(app) {
   app.get("/api/public/cert/:workspaceSlug/:version", async (req, res, next) => {
     try {
       const out = await getPublicCertRecord(req.params.workspaceSlug, req.params.version);
-      if (out.error) return res.status(out.status || 404).json({ error: "certification record not found" });
+      if (out.error) return sendError(res, req, out.status || 404, "certification record not found");
       return res.json(out.record);
     } catch (e) {
       next(e);

@@ -291,6 +291,8 @@ describe("API auth / health / workspaces", () => {
       .post("/api/auth/reset-password")
       .send({ token: "invalid-token-xxxxxxxx", password: "newpass123" })
       .expect(400);
-    assert.match(String(res.body.error || ""), /invalid|expired/i);
+    assert.match(String(res.body.message || res.body.error || ""), /invalid|expired/i);
+    assert.equal(res.body.error, "bad_request");
+    assert.ok(res.body.request_id);
   });
 });

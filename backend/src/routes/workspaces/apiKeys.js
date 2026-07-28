@@ -1,5 +1,7 @@
 "use strict";
 
+const { sendError } = require("../../lib/apiError");
+
 const {
   authMiddleware,
   requireNonViewer,
@@ -56,7 +58,7 @@ module.exports = function registerApiKeyRoutes(app) {
         });
       } catch (e) {
         if (e?.message === "name is required") {
-          return res.status(400).json({ error: e.message });
+          return sendError(res, req, 400, e.message);
         }
         next(e);
       }
@@ -72,7 +74,7 @@ module.exports = function registerApiKeyRoutes(app) {
     async (req, res, next) => {
       try {
         const result = await revokeWorkspaceApiKey(req.params.workspaceId, req.params.keyId);
-        if (!result) return res.status(404).json({ error: "API key not found" });
+        if (!result) return sendError(res, req, 404, "API key not found");
         await writeAudit({
           workspaceId: req.params.workspaceId,
           releaseId: null,

@@ -1,5 +1,7 @@
 "use strict";
 
+const { sendError } = require("../lib/apiError");
+
 const crypto = require("crypto");
 
 const { queryOne, queryAll, run, transaction } = require("../database");
@@ -66,11 +68,11 @@ app.get("/api/hooks/github/setup", async (req, res) => {
     const state = typeof req.query.state === "string" ? req.query.state.trim() : "";
     const installationId = Number(req.query.installation_id || 0);
     if (!state || !Number.isFinite(installationId) || installationId <= 0) {
-      return res.status(400).json({ error: "state and installation_id are required" });
+      return sendError(res, req, 400, "state and installation_id are required");
     }
     const installState = await consumeInstallState(state);
     if (!installState) {
-      return res.status(400).json({ error: "invalid or expired state" });
+      return sendError(res, req, 400, "invalid or expired state");
     }
     let meta = null;
     try {
@@ -94,10 +96,10 @@ app.get("/api/hooks/github/setup", async (req, res) => {
 app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
   try {
     if (!GITHUB_WEBHOOK_SECRET) {
-      return res.status(503).json({ error: "GitHub webhook not configured on server" });
+      return sendError(res, req, 503, "GitHub webhook not configured on server");
     }
     if (!verifyGitHubWebhookSignature(req)) {
-      return res.status(401).json({ error: "Invalid GitHub webhook signature" });
+      return sendError(res, req, 401, "Invalid GitHub webhook signature");
     }
 
     const event = String(req.headers["x-github-event"] || "");
@@ -166,7 +168,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
     const commitSha = String(payload?.pull_request?.head?.sha || "").trim();
     const branch = String(payload?.pull_request?.head?.ref || "").trim();
     if (!owner || !repo || !labelName || !prNumber || !commitSha) {
-      return res.status(400).json({ error: "Missing required pull_request payload fields" });
+      return sendError(res, req, 400, "Missing required pull_request payload fields");
     }
 
     let workspaceId = await resolveWorkspaceForGithubRepo(owner, repo);
@@ -239,7 +241,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
 app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, async (req, res, next) => {
   try {
   if (!(await verifyInboundWebhookSignature(req, req.params.workspaceId))) {
-    return res.status(401).json({ error: "Invalid webhook signature" });
+    return sendError(res, req, 401, "Invalid webhook signature");
   }
   const {
     provider = "generic",
@@ -263,24 +265,27 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
     github_repo
   });
   if (!release) {
-    return res.status(404).json({
-      error: "release not found for workspace",
-      hint: "provide release_id, commit_sha (+ optional pr_number/repo), release_ref, or version"
+    return sendError(res, req, 404, "release not found for workspace", {
+      details: {
+        hint: "provide release_id, commit_sha (+ optional pr_number/repo), release_ref, or version"
+      }
     });
   }
   if (releaseVerdictLockedAgainstIngest(release)) {
-    return res.status(409).json({
-      error: releaseIngestLockError(release),
-      status: release.status,
-      release_id: release.id,
-      environment: release.environment || null
+    return sendError(res, req, 409, releaseIngestLockError(release), {
+      details: {
+        status: release.status,
+        release_id: release.id,
+        environment: release.environment || null
+      }
     });
   }
   const mapped = mapIntegrationSignals(provider, payload);
   if (!Object.keys(mapped.signals).length) {
-    return res.status(400).json({
-      error: "no supported numeric signals found in payload",
-      supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency"])
+    return sendError(res, req, 400, "no supported numeric signals found in payload", {
+      details: {
+        supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency"])
+      }
     });
   }
   const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
@@ -307,7 +312,7 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
 app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async (req, res, next) => {
   try {
     if (!(await verifyInboundWebhookSignature(req, req.params.workspaceId))) {
-      return res.status(401).json({ error: "Invalid webhook signature" });
+      return sendError(res, req, 401, "Invalid webhook signature");
     }
 
     const {
@@ -325,10 +330,10 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
 
     const sha = typeof commit_sha === "string" ? commit_sha.trim() : null;
     if (!release_id && !sha) {
-      return res.status(400).json({ error: "commit_sha or release_id is required" });
+      return sendError(res, req, 400, "commit_sha or release_id is required");
     }
     if (!signals || typeof signals !== "object" || Array.isArray(signals)) {
-      return res.status(400).json({ error: "signals must be an object of signal_id -> numeric value" });
+      return sendError(res, req, 400, "signals must be an object of signal_id -> numeric value");
     }
 
     let release = await resolveReleaseForWorkspaceIngest(req.params.workspaceId, {
@@ -368,25 +373,33 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
     }
 
     if (!release) {
-      return res.status(404).json({
-        error: "release not found for workspace",
-        hint: "apply verdikt:rc label first or provide matching commit_sha/pr_number/repo"
+      return sendError(res, req, 404, "release not found for workspace", {
+        details: {
+          hint: "apply verdikt:rc label first or provide matching commit_sha/pr_number/repo"
+        }
       });
     }
     if (releaseVerdictLockedAgainstIngest(release)) {
-      return res.status(409).json({
-        error: releaseIngestLockError(release),
-        status: release.status,
-        release_id: release.id,
-        environment: release.environment || null
+      return sendError(res, req, 409, releaseIngestLockError(release), {
+        details: {
+          status: release.status,
+          release_id: release.id,
+          environment: release.environment || null
+        }
       });
     }
 
     const mapped = mapIntegrationSignals("ci", { signals });
     if (!Object.keys(mapped.signals).length) {
-      return res.status(400).json({
-        error: "no supported numeric signals found in payload",
-        supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency", "smoke", "e2e_regression"])
+      return sendError(res, req, 400, "no supported numeric signals found in payload", {
+        details: {
+          supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat([
+            "p95latency",
+            "p99latency",
+            "smoke",
+            "e2e_regression"
+          ])
+        }
       });
     }
 

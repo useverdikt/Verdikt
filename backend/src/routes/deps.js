@@ -54,7 +54,7 @@ const { getEarlyWarning } = require("../services/earlyWarning");
 const { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook } = require("../services/outboundWebhook");
 const { validateSignalPayload, getSignalSchema } = require("../services/signalValidator");
 const { computeAndPersistCorrelations, getCorrelations, getFailureModes, getFailureModeTrends } = require("../services/correlationEngine");
-const { computeAndPersistRecommendation, getRecommendation } = require("../services/recommendationEngine");
+const { computeAndPersistRecommendation, getRecommendation, getRecommendationForRelease } = require("../services/recommendationEngine");
 const { issueStreamToken, validateStreamToken, attachStream } = require("../services/sseManager");
 const { extendCollectionDeadline } = require("../services/collectionDeadline");
 const { getVcsIntegration, setVcsIntegration, deleteVcsIntegration } = require("../services/vcsWriteback");
@@ -93,6 +93,7 @@ const signalCsvUpload = multer({
 });
 
 const { applyCsvImportToWorkspace, pullConnectedSourcesForRelease } = require("../services/signalIngestFromSources");
+const { sendError, ApiError } = require("../lib/apiError");
 
 const {
   AI_SIGNAL_DEFINITIONS,
@@ -162,6 +163,7 @@ module.exports = {
   getFailureModeTrends,
   computeAndPersistRecommendation,
   getRecommendation,
+  getRecommendationForRelease,
   issueStreamToken,
   validateStreamToken,
   attachStream,
@@ -204,6 +206,8 @@ module.exports = {
   signalCsvUpload,
   applyCsvImportToWorkspace,
   pullConnectedSourcesForRelease,
+  sendError,
+  ApiError,
   AI_SIGNAL_DEFINITIONS,
   ALLOWED_RELEASE_TYPES,
   DEFAULT_COLLECTION_WINDOW_MINUTES,

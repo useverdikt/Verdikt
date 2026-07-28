@@ -83,9 +83,10 @@ describe("prod uncertified ingest lock", () => {
       .send({ source: "test", signals: { accuracy: 92 } })
       .expect(409);
 
-    assert.match(res.body.error, /live in production/i);
-    assert.equal(res.body.status, "UNCERTIFIED");
-    assert.equal(res.body.environment, "prod");
+    assert.match(res.body.message || res.body.error, /live in production/i);
+    assert.equal(res.body.details?.status, "UNCERTIFIED");
+    assert.equal(res.body.details?.environment, "prod");
+    assert.ok(res.body.request_id);
 
     const count = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = $1", [created.body.id]);
     assert.equal(Number(count.c), 0);

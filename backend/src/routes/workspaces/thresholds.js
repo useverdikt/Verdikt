@@ -1,7 +1,7 @@
 "use strict";
 
 const { run, transaction } = require("../../database");
-const {
+const { sendError,
   writeAudit,
   authMiddleware,
   requireHumanSession,
@@ -32,7 +32,7 @@ app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireHuman
   try {
     const { thresholds } = req.body || {};
     if (!thresholds || typeof thresholds !== "object") {
-      return res.status(400).json({ error: "thresholds object is required" });
+      return sendError(res, req, 400, "thresholds object is required");
     }
     const upsertSql =
       "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification";
@@ -57,7 +57,7 @@ app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireHuman
 
 app.get("/api/workspaces/:workspaceId/threshold-suggestions", authMiddleware, requireWorkspaceMatch, async (req, res) => {
   if (!ENABLE_THRESHOLD_SUGGESTIONS) {
-    return res.status(404).json({ error: "threshold suggestions disabled" });
+    return sendError(res, req, 404, "threshold suggestions disabled");
   }
   const out = await buildThresholdSuggestions(req.params.workspaceId);
   const enrichResults = await Promise.allSettled(
@@ -103,7 +103,7 @@ app.get("/api/workspaces/:workspaceId/threshold-suggestions", authMiddleware, re
 app.get("/api/workspaces/:workspaceId/calibration-suggestions", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     if (!ENABLE_THRESHOLD_SUGGESTIONS) {
-      return res.status(404).json({ error: "threshold suggestions disabled" });
+      return sendError(res, req, 404, "threshold suggestions disabled");
     }
     const suggestions = await buildCalibrationThresholdSuggestions(req.params.workspaceId);
     const context = await buildGateCalibrationContext(req.params.workspaceId);
@@ -122,12 +122,12 @@ app.get("/api/workspaces/:workspaceId/calibration-suggestions", authMiddleware, 
 app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     if (!ENABLE_THRESHOLD_SUGGESTIONS) {
-      return res.status(404).json({ error: "threshold suggestions disabled" });
+      return sendError(res, req, 404, "threshold suggestions disabled");
     }
     const { suggestionId } = req.params;
     const out = await buildThresholdSuggestions(req.params.workspaceId);
     const sug = out.suggestions.find((s) => s.id === suggestionId);
-    if (!sug) return res.status(404).json({ error: "suggestion not found" });
+    if (!sug) return sendError(res, req, 404, "suggestion not found");
 
     await applyThresholdSuggestion(req.params.workspaceId, sug, {
       actorType: "USER",
@@ -143,13 +143,13 @@ app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/apply
 app.post("/api/workspaces/:workspaceId/threshold-suggestions/:suggestionId/dismiss", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     if (!ENABLE_THRESHOLD_SUGGESTIONS) {
-      return res.status(404).json({ error: "threshold suggestions disabled" });
+      return sendError(res, req, 404, "threshold suggestions disabled");
     }
     const { suggestionId } = req.params;
     const { reason = "not_now" } = req.body || {};
     const out = await buildThresholdSuggestions(req.params.workspaceId);
     const sug = out.suggestions.find((s) => s.id === suggestionId);
-    if (!sug) return res.status(404).json({ error: "suggestion not found" });
+    if (!sug) return sendError(res, req, 404, "suggestion not found");
 
     await recordSuggestionDismissal(req.params.workspaceId, sug, reason);
 
@@ -177,10 +177,10 @@ app.post("/api/workspaces/:workspaceId/thresholds/simulate", authMiddleware, req
     const { proposed_thresholds, release_ids, limit } = req.body || {};
 
     if (!proposed_thresholds || typeof proposed_thresholds !== "object" || Array.isArray(proposed_thresholds)) {
-      return res.status(400).json({ error: "proposed_thresholds object is required" });
+      return sendError(res, req, 400, "proposed_thresholds object is required");
     }
     if (Object.keys(proposed_thresholds).length === 0) {
-      return res.status(400).json({ error: "proposed_thresholds must contain at least one signal rule" });
+      return sendError(res, req, 400, "proposed_thresholds must contain at least one signal rule");
     }
 
     const result = await simulateThresholds(req.params.workspaceId, proposed_thresholds, {

@@ -1,6 +1,6 @@
 "use strict";
 
-const {
+const { sendError,
   writeAudit,
   authMiddleware,
   requireHumanSession,
@@ -96,7 +96,7 @@ app.put("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddle
 app.delete("/api/workspaces/:workspaceId/signal-integrations/:sourceId", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const ok = await deleteIntegration(req.params.workspaceId, req.params.sourceId);
-    if (!ok) return res.status(404).json({ error: "integration not found" });
+    if (!ok) return sendError(res, req, 404, "integration not found");
     await writeAudit({
       workspaceId: req.params.workspaceId,
       eventType: "SIGNAL_SOURCE_DISCONNECTED",
@@ -120,7 +120,7 @@ app.post(
   signalCsvUpload.single("file"),
   async (req, res, next) => {
     if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ error: 'file is required (multipart field name "file")' });
+      return sendError(res, req, 400, 'file is required (multipart field name "file")');
     }
     try {
       const out = await importCsv(req.params.workspaceId, req.file.buffer, req.file.originalname);
@@ -185,7 +185,7 @@ app.post(
     try {
       const { commit_sha, version } = req.body || {};
       const out = await probeIntegrationReadiness(req.params.workspaceId, commit_sha, { version });
-      if (out.error) return res.status(400).json({ error: out.error });
+      if (out.error) return sendError(res, req, 400, out.error);
       return res.json(out);
     } catch (e) {
       next(e);

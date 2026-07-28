@@ -7,7 +7,7 @@ const { countShippedWithoutCertification } = require("../../services/releaseEnvi
 const { getWorkspaceGovernanceStats } = require("../../services/governanceStats");
 const { getWorkspaceIncidentCorroboration } = require("../../services/incidentContext");
 const { isEmergencyReleaseType } = require("../../lib/emergencyReleaseType");
-const {
+const { sendError,
   nowIso,
   writeAudit,
   authMiddleware,
@@ -72,24 +72,28 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
       github_branch = null,
       callback_url = null
     } = req.body || {};
-    if (!version) return res.status(400).json({ error: "version is required" });
+    if (!version) return sendError(res, req, 400, "version is required");
     if (typeof ai_context !== "object" || Array.isArray(ai_context)) {
-      return res.status(400).json({ error: "ai_context must be an object" });
+      return sendError(res, req, 400, "ai_context must be an object");
     }
     if (!ALLOWED_RELEASE_TYPES.has(release_type)) {
-      return res.status(400).json({
-        error: `release_type must be one of: ${[...ALLOWED_RELEASE_TYPES].join(", ")}`
-      });
+      return sendError(
+        res,
+        req,
+        400,
+        `release_type must be one of: ${[...ALLOWED_RELEASE_TYPES].join(", ")}`
+      );
     }
 
     if (isEmergencyReleaseType(release_type)) {
       const incidentCtx = await getWorkspaceIncidentCorroboration(req.params.workspaceId);
       if (!incidentCtx.eligible) {
-        return res.status(400).json({
-          error: "incident_hotfix requires active incident context",
-          incident_context: incidentCtx,
-          next_step:
-            "Open incident_hotfix only during an active incident: remediation debt from a prior bypass, VCS monitor INVESTIGATING/INCIDENT, or a confirmed prod INCIDENT alignment."
+        return sendError(res, req, 400, "incident_hotfix requires active incident context", {
+          details: {
+            incident_context: incidentCtx,
+            next_step:
+              "Open incident_hotfix only during an active incident: remediation debt from a prior bypass, VCS monitor INVESTIGATING/INCIDENT, or a confirmed prod INCIDENT alignment."
+          }
         });
       }
     }

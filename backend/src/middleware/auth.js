@@ -16,6 +16,7 @@ const { authenticateApiKey, KEY_PREFIX } = require("../services/apiKeys");
 const { userHasWorkspaceAccess, getEffectiveRoleForWorkspace } = require("../services/workspaceMembers");
 const { runWithAuditContext } = require("../lib/auditContext");
 const { resolveAgentSessionForApiKey } = require("../services/agentSession");
+const { sendError } = require("../lib/apiError");
 const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "").trim();
 
 /** Roles allowed to approve certification overrides (server-side; product UI aligns with VP Engineering). */
@@ -97,7 +98,9 @@ async function authMiddleware(req, res, next) {
   if (bearer && bearer.startsWith(KEY_PREFIX)) {
     try {
       const keyRow = await authenticateApiKey(bearer);
-      if (!keyRow) return res.status(401).json({ error: "Invalid or revoked API key" });
+      if (!keyRow) {
+        return sendError(res, req, 401, "invalid_api_key", { message: "Invalid or revoked API key" });
+      }
       req.auth = {
         sub: `apikey:${keyRow.id}`,
         ws: keyRow.workspace_id,
@@ -112,21 +115,21 @@ async function authMiddleware(req, res, next) {
       return continueAuthenticated(req, res, next);
     } catch (e) {
       console.error("authMiddleware api_key", e);
-      return res.status(500).json({ error: "Authentication failed" });
+      return sendError(res, req, 500, "authentication_failed", { message: "Authentication failed" });
     }
   }
 
   const cookieTok = req.cookies && req.cookies[AUTH_COOKIE_NAME];
   const token = bearer || cookieTok;
   if (!token) {
-    return res.status(401).json({ error: "Authentication required" });
+    return sendError(res, req, 401, "authentication_required", { message: "Authentication required" });
   }
   try {
     const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     const row = await getUserRowForAuthById(payload.sub);
-    if (!row) return res.status(401).json({ error: "User not found" });
+    if (!row) return sendError(res, req, 401, "user_not_found", { message: "User not found" });
     if (row.password_changed_at && payload.pwd_at !== row.password_changed_at) {
-      return res.status(401).json({ error: "Session expired — sign in again" });
+      return sendError(res, req, 401, "session_expired", { message: "Session expired — sign in again" });
     }
     const effectiveRole =
       (await getEffectiveRoleForWorkspace(row.id, row.workspace_id)) || row.role;
@@ -140,17 +143,19 @@ async function authMiddleware(req, res, next) {
     continueAuthenticated(req, res, next);
   } catch (e) {
     if (e && (e.name === "JsonWebTokenError" || e.name === "TokenExpiredError")) {
-      return res.status(401).json({ error: "Invalid or expired token" });
+      return sendError(res, req, 401, "invalid_token", { message: "Invalid or expired token" });
     }
     console.error("authMiddleware", e);
-    return res.status(500).json({ error: "Authentication failed" });
+    return sendError(res, req, 500, "authentication_failed", { message: "Authentication failed" });
   }
 }
 
 /** JWT session only — blocks agent API keys from control-plane routes. */
 function requireHumanSession(req, res, next) {
   if (req.auth?.authType === "api_key") {
-    return res.status(403).json({ error: "This action requires a human session, not an API key" });
+    return sendError(res, req, 403, "human_session_required", {
+      message: "This action requires a human session, not an API key"
+    });
   }
   next();
 }
@@ -159,7 +164,7 @@ async function requireWorkspaceMatch(req, res, next) {
   try {
     if (req.auth?.authType === "api_key") {
       if (req.params.workspaceId !== req.auth.ws) {
-        return res.status(403).json({ error: "Workspace access denied" });
+        return sendError(res, req, 403, "workspace_access_denied", { message: "Workspace access denied" });
       }
       return next();
     }
@@ -168,7 +173,7 @@ async function requireWorkspaceMatch(req, res, next) {
       return next();
     }
     if (!allowed) {
-      return res.status(403).json({ error: "Workspace access denied" });
+      return sendError(res, req, 403, "workspace_access_denied", { message: "Workspace access denied" });
     }
     const role = await getEffectiveRoleForWorkspace(req.auth.sub, req.params.workspaceId);
     if (role) req.auth.role = role;
@@ -181,10 +186,10 @@ async function requireWorkspaceMatch(req, res, next) {
 async function requireReleaseAccess(req, res, next) {
   try {
     const release = await queryOne("SELECT * FROM releases WHERE id = $1", [req.params.releaseId]);
-    if (!release) return res.status(404).json({ error: "release not found" });
+    if (!release) return sendError(res, req, 404, "release_not_found", { message: "release not found" });
     if (req.auth?.authType === "api_key") {
       if (req.auth.ws !== release.workspace_id) {
-        return res.status(403).json({ error: "Release access denied" });
+        return sendError(res, req, 403, "release_access_denied", { message: "Release access denied" });
       }
       req.releaseRow = release;
       return next();
@@ -195,7 +200,7 @@ async function requireReleaseAccess(req, res, next) {
       return next();
     }
     if (!allowed) {
-      return res.status(403).json({ error: "Release access denied" });
+      return sendError(res, req, 403, "release_access_denied", { message: "Release access denied" });
     }
     const role = await getEffectiveRoleForWorkspace(req.auth.sub, release.workspace_id);
     if (role) req.auth.role = role;
@@ -212,17 +217,23 @@ const READ_ONLY_ROLES = new Set(["viewer", "engineer"]);
 /** Blocks read-only workspace roles from mutating routes (role is DB-authoritative from authMiddleware). */
 function requireNonViewer(req, res, next) {
   if (READ_ONLY_ROLES.has(req.auth.role)) {
-    return res.status(403).json({ error: "Insufficient permissions (read-only role)" });
+    return sendError(res, req, 403, "read_only_role", {
+      message: "Insufficient permissions (read-only role)"
+    });
   }
   next();
 }
 
 function requireOverrideApproverRole(req, res, next) {
   if (req.auth?.authType === "api_key") {
-    return res.status(403).json({ error: "This action requires a human session, not an API key" });
+    return sendError(res, req, 403, "human_session_required", {
+      message: "This action requires a human session, not an API key"
+    });
   }
   if (!OVERRIDE_APPROVER_ROLES.has(req.auth.role)) {
-    return res.status(403).json({ error: "Override approval requires VP Engineering, CTO, or org admin role" });
+    return sendError(res, req, 403, "override_approver_required", {
+      message: "Override approval requires VP Engineering, CTO, or org admin role"
+    });
   }
   next();
 }
@@ -230,7 +241,9 @@ function requireOverrideApproverRole(req, res, next) {
 /** Restrict workspace membership mutations to org admins. */
 function requireOrgAdmin(req, res, next) {
   if (req.auth.role !== "org_admin") {
-    return res.status(403).json({ error: "Organization admin role required for member management" });
+    return sendError(res, req, 403, "org_admin_required", {
+      message: "Organization admin role required for member management"
+    });
   }
   next();
 }

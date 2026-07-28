@@ -1,6 +1,6 @@
 "use strict";
 
-const {
+const { sendError,
   writeAudit,
   authMiddleware,
   requireHumanSession,
@@ -51,7 +51,7 @@ module.exports = function registerRoutes(app) {
         return res.status(201).json({ definition: def, ...catalog });
       } catch (e) {
         if (String(e.message || "").includes("signal_id")) {
-          return res.status(400).json({ error: "invalid_signal_definition" });
+          return sendError(res, req, 400, "invalid_signal_definition");
         }
         next(e);
       }
@@ -67,7 +67,7 @@ module.exports = function registerRoutes(app) {
     async (req, res, next) => {
       try {
         const { signal_id: signalId, threshold, required_for_certification } = req.body || {};
-        if (!signalId) return res.status(400).json({ error: "signal_id is required" });
+        if (!signalId) return sendError(res, req, 400, "signal_id is required");
         const def = await adoptLibrarySignal(req.params.workspaceId, signalId, {
           threshold,
           required_for_certification
@@ -83,7 +83,7 @@ module.exports = function registerRoutes(app) {
         return res.json({ definition: def, ...catalog });
       } catch (e) {
         if (String(e.message || "").includes("not found")) {
-          return res.status(404).json({ error: "signal_definition_not_found" });
+          return sendError(res, req, 404, "signal_definition_not_found");
         }
         next(e);
       }
@@ -99,7 +99,7 @@ module.exports = function registerRoutes(app) {
     async (req, res, next) => {
       try {
         const existing = await getWorkspaceDefinition(req.params.workspaceId, req.params.signalId);
-        if (!existing) return res.status(404).json({ error: "signal definition not found" });
+        if (!existing) return sendError(res, req, 404, "signal definition not found");
         await deleteWorkspaceDefinition(req.params.workspaceId, req.params.signalId);
         await writeAudit({
           workspaceId: req.params.workspaceId,
