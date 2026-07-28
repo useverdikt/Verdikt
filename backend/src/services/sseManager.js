@@ -8,16 +8,20 @@
  *   1. Client requests a short-lived SSE token: POST /api/releases/:id/sse-token
  *   2. Client opens: GET /api/releases/:id/stream?token=<tok>
  *   3. Backend pushes events whenever signal ingests or verdict updates happen.
+ *
+ * In single-replica deployments, events are delivered through an in-memory map.
+ * In multi-replica deployments, set REDIS_URL so events are published to a Redis
+ * backplane and every replica forwards them to its local listeners.
  */
 
 const crypto = require("crypto");
 const { run, queryOne } = require("../database");
 const { nowIso } = require("../lib/time");
+const ssePubSub = require("./ssePubSub");
 
 const TOKEN_TTL_MINUTES = 30;
 
-// In-memory subscriber map: releaseId -> Set<{ res, workspaceId }>
-// NOTE: Single-process only — deploy with one Railway replica or add Redis pub/sub (#12).
+// In-memory subscriber map: releaseId -> Set<{ res, ts }>
 const subscribers = new Map();
 
 /**
@@ -56,11 +60,47 @@ async function validateStreamToken(token, releaseId) {
   return { valid: true, workspaceId: row.workspace_id, releaseId: row.release_id || releaseId };
 }
 
+function sseWrite(res, event, data) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function broadcastLocal(releaseId, eventName, data) {
+  const subs = subscribers.get(releaseId);
+  if (!subs || !subs.size) return;
+  for (const { res } of [...subs]) {
+    try {
+      sseWrite(res, eventName, data);
+    } catch (_) {}
+  }
+}
+
+function broadcastVerdictAndCloseLocal(releaseId, verdict) {
+  broadcastLocal(releaseId, "verdict", verdict);
+  const subs = subscribers.get(releaseId);
+  if (!subs) return;
+  for (const { res } of [...subs]) {
+    try {
+      sseWrite(res, "stream_end", { reason: "verdict_issued" });
+      res.end();
+    } catch (_) {}
+  }
+  subscribers.delete(releaseId);
+}
+
+async function handleRemoteMessage(releaseId, eventName, data) {
+  if (eventName === "verdict_and_close") {
+    broadcastVerdictAndCloseLocal(releaseId, data);
+    await ssePubSub.unsubscribe(releaseId);
+    return;
+  }
+  broadcastLocal(releaseId, eventName, data);
+}
+
 /**
  * Attach an HTTP response to the SSE subscription for a release.
  * Handles heartbeat and client disconnect cleanup.
  */
-function attachStream(releaseId, res) {
+async function attachStream(releaseId, res) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -73,6 +113,13 @@ function attachStream(releaseId, res) {
   const entry = { res, ts: Date.now() };
   subscribers.get(releaseId).add(entry);
 
+  // Subscribe this replica to the Redis backplane for this release.
+  if (subscribers.get(releaseId).size === 1) {
+    await ssePubSub.subscribe(releaseId, (eventName, data) => {
+      void handleRemoteMessage(releaseId, eventName, data);
+    });
+  }
+
   const heartbeat = setInterval(() => {
     try {
       res.write(": heartbeat\n\n");
@@ -81,41 +128,41 @@ function attachStream(releaseId, res) {
     }
   }, 25_000);
 
-  res.on("close", () => {
+  res.on("close", async () => {
     clearInterval(heartbeat);
     const subs = subscribers.get(releaseId);
     if (subs) {
       subs.delete(entry);
-      if (!subs.size) subscribers.delete(releaseId);
+      if (!subs.size) {
+        subscribers.delete(releaseId);
+        await ssePubSub.unsubscribe(releaseId);
+      }
     }
   });
 }
 
+/**
+ * Broadcast an event to all listeners for a release. If a Redis backplane is
+ * configured, the event is published there so every replica can forward it to
+ * its local listeners. Otherwise, it is delivered to the local in-memory map only.
+ */
 function broadcastToRelease(releaseId, eventName, data) {
-  const subs = subscribers.get(releaseId);
-  if (!subs || !subs.size) return;
-  for (const { res } of [...subs]) {
-    try {
-      sseWrite(res, eventName, data);
-    } catch (_) {}
+  if (ssePubSub.isEnabled()) {
+    void ssePubSub.publish(releaseId, eventName, data);
+    return;
   }
+  broadcastLocal(releaseId, eventName, data);
 }
 
+/**
+ * Broadcast the final verdict and close all listeners for a release.
+ */
 function broadcastVerdictAndClose(releaseId, verdict) {
-  broadcastToRelease(releaseId, "verdict", verdict);
-  const subs = subscribers.get(releaseId);
-  if (!subs) return;
-  for (const { res } of [...subs]) {
-    try {
-      sseWrite(res, "stream_end", { reason: "verdict_issued" });
-      res.end();
-    } catch (_) {}
+  if (ssePubSub.isEnabled()) {
+    void ssePubSub.publish(releaseId, "verdict_and_close", verdict);
+    return;
   }
-  subscribers.delete(releaseId);
-}
-
-function sseWrite(res, event, data) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  broadcastVerdictAndCloseLocal(releaseId, verdict);
 }
 
 function activeSubscriberCount(releaseId) {
