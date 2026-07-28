@@ -25,6 +25,7 @@
 
 const { queryOne } = require("../database");
 const { nowIso } = require("../lib/time");
+const { log, inc } = require("../lib/observability");
 const { writeAudit } = require("./audit");
 const { classifyFailureModes } = require("./correlationEngine");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
@@ -48,7 +49,12 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     const failedIds = failedSignals.map((f) => f.signal_id).filter(Boolean);
     if (failedIds.length > 0) await classifyFailureModes(releaseId, release.workspace_id, failedIds);
   } catch (err) {
-    console.error("[failure_modes] classify failed:", releaseId, err?.message);
+    inc("post_verdict_failure_modes_classify_failed");
+    log("error", "post_verdict_failure_modes_classify_failed", {
+      releaseId,
+      workspaceId: release.workspace_id,
+      error: err?.message
+    });
   }
 
   // 2. Recommendation engine
@@ -56,7 +62,8 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
   try {
     recommendation = await computeAndPersistRecommendation(freshRelease);
   } catch (err) {
-    console.error("[recommendation_engine] failed:", releaseId, err?.message);
+    inc("post_verdict_recommendation_failed");
+    log("error", "post_verdict_recommendation_failed", { releaseId, error: err?.message });
   }
 
   // 3. Certification record signing
@@ -66,7 +73,8 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     try {
       certSigRow = await signCertificationRecord(freshRelease, deterministicIntelligence);
     } catch (err) {
-      console.error("[cert_signer] signing failed:", releaseId, err?.message);
+      inc("post_verdict_cert_signing_failed");
+      log("error", "post_verdict_cert_signing_failed", { releaseId, error: err?.message });
     }
   }
 
@@ -75,23 +83,27 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
   try {
     await openMonitoringWindow(freshRelease, 120);
   } catch (err) {
-    console.error("[vcs_monitor] open window failed:", releaseId, err?.message);
+    inc("post_verdict_open_monitoring_window_failed");
+    log("error", "post_verdict_open_monitoring_window_failed", { releaseId, error: err?.message });
   }
 
   // 5. Persist evidence quality (signal provenance summary for cert record).
   try {
     await persistReleaseEvidenceQuality(releaseId);
   } catch (err) {
-    console.error("[evidence_quality] persist failed:", releaseId, err?.message);
+    inc("post_verdict_evidence_quality_persist_failed");
+    log("error", "post_verdict_evidence_quality_persist_failed", { releaseId, error: err?.message });
   }
 
   // 6. VCS status write-back (async — does not block)
   try {
-    void writeVcsStatus(freshRelease, failedSignals).catch((err) =>
-      console.error("[vcs_writeback] async error:", releaseId, err?.message)
-    );
+    void writeVcsStatus(freshRelease, failedSignals).catch((err) => {
+      inc("post_verdict_vcs_writeback_async_error");
+      log("error", "post_verdict_vcs_writeback_async_error", { releaseId, error: err?.message });
+    });
   } catch (err) {
-    console.error("[vcs_writeback] sync setup failed:", releaseId, err?.message);
+    inc("post_verdict_vcs_writeback_sync_setup_failed");
+    log("error", "post_verdict_vcs_writeback_sync_setup_failed", { releaseId, error: err?.message });
   }
 
   // 7. Outbound verdict webhook + Slack (async — does not block)
@@ -101,9 +113,10 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       deterministicIntelligence ? { verdict: deterministicIntelligence } : null
     );
 
-    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals, certificationContext).catch((err) =>
-      console.error("[outbound_webhook] async delivery error:", releaseId, err?.message)
-    );
+    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals, certificationContext).catch((err) => {
+      inc("post_verdict_outbound_webhook_delivery_error");
+      log("error", "post_verdict_outbound_webhook_delivery_error", { releaseId, error: err?.message });
+    });
     const trajectory = await computeReleaseTrajectory({
       workspaceId: freshRelease.workspace_id,
       releaseId,
@@ -113,22 +126,28 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       trajectory: trajectory?.trajectory ?? "UNKNOWN",
       degrading_signals: trajectory?.degrading_signals ?? [],
       trend_note: trajectory?.trend_note ?? null
-    }, failedSignals, certificationContext).catch((err) => console.error("[release_callback] async delivery error:", releaseId, err?.message));
+    }, failedSignals, certificationContext).catch((err) => {
+      inc("post_verdict_release_callback_delivery_error");
+      log("error", "post_verdict_release_callback_delivery_error", { releaseId, error: err?.message });
+    });
 
-    void deliverSlackVerdict(freshRelease, failedSignals, certificationContext).catch((err) =>
-      console.error("[slack_notifier] async error:", releaseId, err?.message)
-    );
+    void deliverSlackVerdict(freshRelease, failedSignals, certificationContext).catch((err) => {
+      inc("post_verdict_slack_notifier_error");
+      log("error", "post_verdict_slack_notifier_error", { releaseId, error: err?.message });
+    });
   } catch (err) {
-    console.error("[outbound_effects] webhook/callback setup failed:", releaseId, err?.message);
+    inc("post_verdict_outbound_effects_setup_failed");
+    log("error", "post_verdict_outbound_effects_setup_failed", { releaseId, error: err?.message });
   }
 
   // 8. Signal reliability recompute (async — does not block)
   const verdictIssued = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
   if (verdictIssued.has(nextStatus)) {
     try {
-      void computeSignalReliability(release.workspace_id).catch((err) =>
-        console.error("[signal_reliability] async recompute failed:", releaseId, err?.message)
-      );
+      void computeSignalReliability(release.workspace_id).catch((err) => {
+        inc("post_verdict_signal_reliability_recompute_error");
+        log("error", "post_verdict_signal_reliability_recompute_error", { releaseId, error: err?.message });
+      });
     } catch (_) {}
   }
 
@@ -141,7 +160,8 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
       verdict_issued_at: nowIso()
     });
   } catch (err) {
-    console.error("[sse_broadcast] failed:", releaseId, err?.message);
+    inc("post_verdict_sse_broadcast_failed");
+    log("error", "post_verdict_sse_broadcast_failed", { releaseId, error: err?.message });
   }
 
   return { recommendation, certSigRow };
@@ -151,7 +171,11 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
 function enqueuePostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence) {
   setImmediate(() => {
     void runPostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence).catch((err) => {
-      console.error("[post_verdict_effects] async run failed:", releaseId, err?.message || err);
+      inc("post_verdict_effects_async_run_failed");
+      log("error", "post_verdict_effects_async_run_failed", {
+        releaseId,
+        error: err?.message || String(err)
+      });
     });
   });
 }

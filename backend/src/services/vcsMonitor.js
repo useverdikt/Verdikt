@@ -16,6 +16,7 @@
 
 const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
+const { log, inc } = require("../lib/observability");
 const { getVcsIntegration } = require("./vcsWriteback");
 const { ingestProductionSignals } = require("./productionFeedback");
 const {
@@ -193,7 +194,8 @@ async function scanWindow(window) {
         ? await scanGitHub(cfg, commit_sha, pr_number, monitoring_start, monitoring_end)
         : await scanGitLab(cfg, commit_sha, pr_number, monitoring_start, monitoring_end);
   } catch (err) {
-    console.error("[vcs_monitor] scan failed:", release_id, err.message);
+    inc("vcs_monitor_scan_failed");
+    log("error", "vcs_monitor_scan_failed", { releaseId: release_id, error: err.message });
     await run(
       "UPDATE vcs_monitoring_windows SET status = 'error', error_message = $1, last_scanned_at = $2, scan_count = scan_count + 1 WHERE release_id = $3",
       [err.message.slice(0, 200), nowIso(), release_id]
