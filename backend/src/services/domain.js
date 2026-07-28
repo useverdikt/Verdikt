@@ -300,7 +300,9 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     signalMap: latest,
     status: nextStatus
   };
-  void enqueueCertificationSnapshotPersist(snapshotArgs);
+  // Persist the frozen verdict evidence synchronously before returning so the
+  // gate never evaluates a certified release against live thresholds.
+  await enqueueCertificationSnapshotPersist(snapshotArgs);
 
   // ── Post-verdict side effects (async — verdict response returns immediately) ─
   enqueuePostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence);
