@@ -32,7 +32,7 @@ npm run test:local-pg
 
 (`createdb verdikt_test` + default `DATABASE_URL=postgresql://127.0.0.1:5432/verdikt_test`.)
 
-Runs **`node --test`** against PostgreSQL. Set **`TEST_DATABASE_URL`** or **`DATABASE_URL`**, or create **`verdikt_test`** locally (`createdb verdikt_test`; default URL `postgresql://127.0.0.1:5432/verdikt_test`). Covers `computeVerdict`, delta regression analysis, override scoring, and a few HTTP endpoints (`/health`, auth, thresholds).
+Runs **`node --test`** against PostgreSQL. Set **`TEST_DATABASE_URL`** or **`DATABASE_URL`**, or create **`verdikt_test`** locally (`createdb verdikt_test`; default URL `postgresql://127.0.0.1:5432/verdikt_test`). Covers `computeVerdict`, delta regression analysis, override scoring, and HTTP endpoints (`/health`, auth, thresholds, gate, ingest). Integration suites live under `test/api.*.test.js`; unit suites under `test/unit.*.test.js`; shared helpers in `test/helpers/backendFixtures.js`.
 
 Runs on `http://localhost:8787`.
 
