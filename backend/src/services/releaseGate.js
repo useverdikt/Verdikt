@@ -2,9 +2,9 @@
 
 const { writeAudit } = require("./audit");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
-const { getMissingRequiredSignals, getLatestSignalMap } = require("./verdictEngine");
+const { getMissingRequiredSignals } = require("./verdictEngine");
 const { computeGateAction, computeCollectionAgeMs } = require("./releaseIdentity");
-const { getWorkspacePolicy, getThresholdMap } = require("./workspaceConfig");
+const { getWorkspacePolicy } = require("./workspaceConfig");
 const { getReleaseIntelligence, computeVerdict } = require("./domain");
 const { buildGateBlockers } = require("./gateBlockers");
 const { buildGateRemediation } = require("./gateRemediation");
@@ -14,7 +14,11 @@ const { getWorkspaceRemediationDebt } = require("./remediationDebt");
 const { getWorkspaceIncidentCorroboration } = require("./incidentContext");
 const { isEmergencyReleaseType } = require("../lib/emergencyReleaseType");
 const { log, inc } = require("../lib/observability");
-const { getCertificationSnapshot } = require("./certificationSnapshots");
+const {
+  resolveGateEvidence,
+  isCertifiedSnapshotMissing,
+  attachSnapshotMeta
+} = require("./gateContext");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -30,10 +34,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     CERTIFIED_WITH_OVERRIDE: "release certified with override"
   };
   const reason = reasonByStatus[release.status] || `release status is ${release.status}`;
-  const status = String(release.status || "").toUpperCase();
-  const isCertified = status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE";
 
-  const [policy, intelligence, trajectoryInfo, remediationDebt] = await Promise.all([
+  const [policy, intelligence, trajectoryInfo, remediationDebt, evidence] = await Promise.all([
     getWorkspacePolicy(release.workspace_id),
     getReleaseIntelligence(releaseId),
     computeReleaseTrajectory({
@@ -41,31 +43,14 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
       releaseId,
       releaseRow: release
     }),
-    getWorkspaceRemediationDebt(release.workspace_id)
+    getWorkspaceRemediationDebt(release.workspace_id),
+    resolveGateEvidence(release)
   ]);
 
-  let thresholdMap = {};
-  let latest = {};
-  let snapshotMissing = false;
-  if (isCertified) {
-    const snapshot = await getCertificationSnapshot(releaseId);
-    if (snapshot) {
-      thresholdMap = snapshot.threshold_map || {};
-      latest = snapshot.signal_map || {};
-    } else {
-      snapshotMissing = true;
-      // Load live maps only so blockers/remediation context stays useful while the gate is blocked.
-      [thresholdMap, latest] = await Promise.all([
-        getThresholdMap(release.workspace_id),
-        getLatestSignalMap(releaseId)
-      ]);
-    }
-  } else {
-    [thresholdMap, latest] = await Promise.all([
-      getThresholdMap(release.workspace_id),
-      getLatestSignalMap(releaseId)
-    ]);
-  }
+  const { thresholdMap, latest, snapshot } = evidence;
+  // Live maps are still returned when a cert snapshot is missing so blockers /
+  // remediation stay useful while merge is blocked with recover_certification.
+  const snapshotMissing = isCertifiedSnapshotMissing(release, evidence);
 
   const mode =
     modeOverride === "strict"
@@ -174,24 +159,30 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
 
   const remediation =
     !gateAllowed || release.status === "COLLECTING"
-      ? await buildGateRemediation({
-          release,
-          intelligence,
-          failedSignals,
-          thresholdMap,
-          latest,
-          missingRequiredSignals
-        })
+      ? attachSnapshotMeta(
+          await buildGateRemediation({
+            release,
+            intelligence,
+            failedSignals,
+            thresholdMap,
+            latest,
+            missingRequiredSignals
+          }),
+          snapshot
+        )
       : null;
 
   const certification = gateAllowed
-    ? await buildGateCertification({
-        release,
-        intelligence,
-        thresholdMap,
-        latest,
-        missingRequiredSignals
-      })
+    ? attachSnapshotMeta(
+        await buildGateCertification({
+          release,
+          intelligence,
+          thresholdMap,
+          latest,
+          missingRequiredSignals
+        }),
+        snapshot
+      )
     : null;
 
   let calibration = null;
