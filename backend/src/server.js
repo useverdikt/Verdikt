@@ -6,6 +6,7 @@ const { createApp } = require("./app");
 const { initDatabase, closePool } = require("./database");
 const { seedDemoUser } = require("./bootstrap/seed");
 const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
+const { shouldStartBackgroundJobs } = require("./lib/startupMode");
 
 const SHUTDOWN_MS = Math.max(1000, Number(process.env.SHUTDOWN_GRACE_MS || 10_000));
 
@@ -33,10 +34,10 @@ async function startServer() {
   }
   const app = createApp();
   let jobHandles = null;
-  if (process.env.RUN_BACKGROUND_JOBS !== "0") {
+  if (shouldStartBackgroundJobs()) {
     jobHandles = startBackgroundJobs();
   } else {
-    console.info("INFO: Background jobs disabled (RUN_BACKGROUND_JOBS=0). Use worker.js for sweeps.");
+    console.info("INFO: Background jobs disabled on API service. Use worker.js for sweeps.");
   }
 
   const server = app.listen(PORT, () => {
@@ -76,3 +77,4 @@ startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
+
