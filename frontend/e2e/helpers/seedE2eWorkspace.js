@@ -87,6 +87,76 @@ export async function ensureE2eFixtureRelease({ apiBase, cookies, workspaceId })
   return relId;
 }
 
+/** Passing signals that certify against default workspace thresholds. */
+export const CERT_GATE_PASSING_SIGNALS = {
+  accuracy: 95,
+  safety: 95,
+  tone: 90,
+  hallucination: 95,
+  relevance: 90,
+  smoke: 100,
+  e2e_regression: 100,
+  manual_qa_pct: 100
+};
+
+/**
+ * Full cert→signal→gate path for Playwright smoke:
+ * create release (commit_sha) → ingest → CERTIFIED → ready for gate / brief UI.
+ */
+export async function seedCertGateSmokeRelease({ apiBase, cookies, workspaceId }) {
+  if (!workspaceId) throw new Error("E2E cert-gate seed: workspaceId required");
+  const headers = authHeaders(cookies);
+  const stamp = Date.now().toString(36);
+  const version = `e2e-cert-gate-${stamp}`;
+  const commitSha = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+  const createRes = await fetch(`${apiBase}/api/workspaces/${workspaceId}/releases`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      version,
+      release_type: "model_update",
+      environment: "pre-prod",
+      commit_sha: commitSha,
+      pr_number: 1601,
+      github_owner: "useverdikt",
+      github_repo: "e2e-smoke"
+    })
+  });
+  if (!createRes.ok) {
+    const text = await createRes.text();
+    throw new Error(`E2E cert-gate seed: create failed ${createRes.status} ${text}`);
+  }
+  const created = await createRes.json();
+  const releaseId = created?.id;
+  if (!releaseId) throw new Error("E2E cert-gate seed: create returned no id");
+
+  const signalsRes = await fetch(`${apiBase}/api/releases/${releaseId}/signals`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      source: "e2e_cert_gate_smoke",
+      signals: CERT_GATE_PASSING_SIGNALS
+    })
+  });
+  if (!signalsRes.ok) {
+    const text = await signalsRes.text();
+    throw new Error(`E2E cert-gate seed: signals failed ${signalsRes.status} ${text}`);
+  }
+  const ingest = await signalsRes.json();
+  if (ingest.status !== "CERTIFIED" && ingest.status !== "CERTIFIED_WITH_OVERRIDE") {
+    throw new Error(`E2E cert-gate seed: expected CERTIFIED*, got ${ingest.status}`);
+  }
+
+  return {
+    releaseId,
+    version,
+    commitSha,
+    workspaceId,
+    status: ingest.status
+  };
+}
+
 /** COLLECTING release for live-stream / extend-deadline UI tests (no signal ingest). */
 export async function ensureE2eCollectingRelease({ apiBase, cookies, workspaceId }) {
   if (!workspaceId) return null;
