@@ -3,19 +3,62 @@
 /**
  * Background worker process — runs interval sweeps without the HTTP API.
  * Usage: RUN_BACKGROUND_JOBS=1 node src/worker.js
+ *
+ * Exposes a small health/readiness server on WORKER_PORT (default 3001) so
+ * orchestrators can verify the worker is alive and has started its jobs.
  */
 
-const { initDatabase, closePool } = require("./database");
+const http = require("http");
+const { queryOne, initDatabase, closePool } = require("./database");
 const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
+
+const WORKER_PORT = Math.max(0, Number(process.env.WORKER_PORT || 3001));
+let jobsStarted = false;
+let listeningPort = null;
+
+function buildHealthResponse(ok, checks = {}) {
+  return JSON.stringify({ ok, service: "verdikt-worker", checks });
+}
+
+function createWorkerHealthServer() {
+  const server = http.createServer(async (req, res) => {
+    if (req.url !== "/health" && req.url !== "/health/ready") {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: "not_found" }));
+      return;
+    }
+
+    try {
+      await queryOne("SELECT 1 AS ok");
+      res.statusCode = 200;
+      res.end(buildHealthResponse(true, { database: true, jobs_started: jobsStarted }));
+    } catch {
+      res.statusCode = 503;
+      res.end(buildHealthResponse(false, { database: false, jobs_started: jobsStarted }));
+    }
+  });
+
+  server.listen(WORKER_PORT, () => {
+    listeningPort = server.address().port;
+    console.log(`[worker] health server listening on http://localhost:${listeningPort}/health/ready`);
+  });
+
+  return server;
+}
 
 async function main() {
   await initDatabase();
   const jobs = startBackgroundJobs();
+  jobsStarted = true;
   console.log("[worker] background jobs started (collection, VCS monitor, escalation SLA, cert snapshot retries)");
+
+  const healthServer = createWorkerHealthServer();
 
   const shutdown = async (signal) => {
     console.warn(`[worker] received ${signal}, stopping…`);
+    jobsStarted = false;
     stopBackgroundJobs(jobs);
+    healthServer.close();
     try {
       await closePool();
     } catch (err) {
