@@ -95,6 +95,7 @@ Writes timestamped **`.sql`** files under **`data/backups/`** (override with `BA
 - **Request logging** — After each response, one line is logged: `[request-id] METHOD path status duration`. Disable with **`LOG_REQUESTS=0`**. For JSON lines (Datadog, CloudWatch, etc.) set **`LOG_JSON=1`**.
 - **Service events** — Certification snapshot failures, escalation SLA breaches, and gate actions also emit structured lines via `src/lib/observability.js` (same `LOG_JSON=1` switch). Process-local counters (`cert_snapshot_*`, `escalation_sla_breach`, `gate_action_*`) are for debugging; rely on log aggregation across API/worker processes.
 - **Graceful shutdown** — **`SIGTERM`** / **`SIGINT`** stop the HTTP server, clear the collection sweep interval, and end the PostgreSQL pool. **`SHUTDOWN_GRACE_MS`** (default **10000**) caps how long to wait before `exit(1)` if connections linger.
+- **Real-time SSE** — `GET /api/releases/:releaseId/stream` delivers Server-Sent Events for signal ingests and verdict updates. Single-replica deployments work out of the box. For multiple API replicas, set **`REDIS_URL`** so events are published to a Redis backplane and every replica forwards them to its local listeners.
 
 ## CORS, release list pagination, and assistive verdict responses
 

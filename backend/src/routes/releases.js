@@ -605,7 +605,7 @@ app.get("/api/releases/:releaseId/stream", async (req, res) => {
   const { token } = req.query;
   const { valid, reason } = await validateStreamToken(token, req.params.releaseId);
   if (!valid) return res.status(401).json({ error: `Unauthorized: ${reason || "invalid_token"}` });
-  attachStream(req.params.releaseId, res);
+  await attachStream(req.params.releaseId, res);
 });
 /** Allow setting commit_sha and pr_number on a release (for VCS write-back). */
 app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
