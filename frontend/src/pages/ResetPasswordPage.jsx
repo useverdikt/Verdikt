@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { getSafeApiBase } from "../lib/apiBase.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
+import { messageFromApiBody } from "../lib/apiErrorCopy.js";
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export default function ResetPasswordPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setStatus("");
-        setError(typeof data.error === "string" ? data.error : "Could not reset password");
+        setError(messageFromApiBody(data, "Could not reset password"));
         setBusy(false);
         return;
       }

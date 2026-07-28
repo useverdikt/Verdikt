@@ -6,6 +6,7 @@ import { isAuthenticated } from "../auth/session.js";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient.js";
 import { signInWithSupabase } from "../auth/supabaseAuth.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
+import { messageFromApiBody } from "../lib/apiErrorCopy.js";
 
 const SAVED_EMAIL_KEY    = "vdk3_saved_login_email";
 const REMEMBER_EMAIL_KEY = "vdk3_remember_login_email";
@@ -155,7 +156,7 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setStatus("");
-        setError(typeof data.error === "string" ? data.error : "Sign in failed");
+        setError(messageFromApiBody(data, "Sign in failed"));
         setBusy(false);
         return;
       }

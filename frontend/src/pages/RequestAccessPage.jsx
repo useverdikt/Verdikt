@@ -102,13 +102,13 @@ function looksLikeEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-/** Prefer API { error }; handle HTML/empty bodies (proxy 502, 404 SPA fallback). */
+/** Prefer API { message, error }; handle HTML/empty bodies (proxy 502, 404 SPA fallback). */
 function messageForFailedRequest(res, data) {
   const dev = import.meta.env.DEV;
   const friendly = `We couldn’t send your request right now. Try again in a moment, or email ${SUPPORT_EMAIL}.`;
 
-  if (typeof data?.error === "string" && data.error.trim()) return data.error;
-  if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  if (typeof data?.message === "string" && data.message.trim()) return data.message.trim();
+  if (typeof data?.error === "string" && data.error.trim()) return data.error.trim();
   if (res.status === 502 || res.status === 503 || res.status === 504) {
     return dev
       ? "Couldn’t reach the API. Start the backend on port 8787 (e.g. cd backend && npm start), then try again."

@@ -6,6 +6,7 @@ import { createInitialOnboardingState, RTYPES, STEPS, THRESHOLD_PRESETS } from "
 import { applyAISuggestionsToThresh, calcV } from "./onboardingUtils.js";
 import { ChevronBack, ChevronNext, InvitationClosed } from "./wizardChrome.jsx";
 import { VerdiktMark } from "../../components/brand/VerdiktMark.jsx";
+import { messageFromApiBody } from "../../lib/apiErrorCopy.js";
 import WelcomeStep from "./steps/WelcomeStep.jsx";
 import WorkspaceStep from "./steps/WorkspaceStep.jsx";
 import ReleaseTypesStep from "./steps/ReleaseTypesStep.jsx";
@@ -155,7 +156,7 @@ export default function OnboardingWizard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setRegError(typeof data.error === "string" ? data.error : "Registration failed");
+        setRegError(messageFromApiBody(data, "Registration failed"));
         setBusy(false);
         return;
       }

@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient.js";
 import { getSafeApiBase } from "../lib/apiBase.js";
 import { persistAuthSession } from "./persistSession.js";
+import { messageFromApiBody } from "../lib/apiErrorCopy.js";
 
 /**
  * Set Express HttpOnly session cookies from Supabase access_token (POST /api/auth/session-from-supabase).
@@ -19,8 +20,7 @@ export async function exchangeSupabaseSessionForExpressCookies(session) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = typeof data.error === "string" ? data.error : `Session exchange failed (${res.status})`;
-    throw new Error(msg);
+    throw new Error(messageFromApiBody(data, `Session exchange failed (${res.status})`));
   }
   if (!data.user) throw new Error("Session exchange returned no user");
   return data;
