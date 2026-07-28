@@ -55,7 +55,7 @@ export function useReleaseActions({
 
   const refreshReleaseAfterMutation = useCallback(
     async (backendId) => {
-      if (hasBackend()) await invalidateReleaseDomain(getWorkspaceId());
+      if (hasBackend()) await invalidateReleaseDomain(getWorkspaceId(), backendId);
       await refreshReleaseFromBackend(backendId);
       await refreshAuditFromServer();
     },

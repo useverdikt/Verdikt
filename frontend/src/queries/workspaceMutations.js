@@ -3,6 +3,7 @@ import {
   invalidateWorkspaceAudit,
   invalidateWorkspaceQueries,
   invalidateWorkspaceReleases,
+  invalidateWorkspaceRelease,
   invalidateWorkspaceSignalDefinitions,
   invalidateWorkspaceThresholds
 } from "./invalidateWorkspace.js";
@@ -17,8 +18,16 @@ export async function invalidateThresholdDomain(wsId) {
 }
 
 /** After release-scoped mutations (override, ingest, pull, etc.). */
-export async function invalidateReleaseDomain(wsId) {
+export async function invalidateReleaseDomain(wsId, releaseId) {
   if (!wsId) return;
+  if (releaseId) {
+    await Promise.all([
+      invalidateWorkspaceReleases(wsId),
+      invalidateWorkspaceRelease(wsId, releaseId),
+      invalidateWorkspaceAudit(wsId)
+    ]);
+    return;
+  }
   await Promise.all([invalidateWorkspaceReleases(wsId), invalidateWorkspaceAudit(wsId)]);
 }
 
