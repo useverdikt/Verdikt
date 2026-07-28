@@ -38,24 +38,17 @@ async function resolveGateEvidence(release) {
 async function buildGateContext(release, intelligence) {
   const status = String(release.status || "").toUpperCase();
 
-  let thresholdMap = {};
-  let latest = {};
-  let snapshot = null;
-  let missingRequiredSignals = [];
-
-  try {
-    ({ thresholdMap, latest, snapshot } = await resolveGateEvidence(release));
-    missingRequiredSignals = await getMissingRequiredSignals(
-      release.workspace_id,
-      release.id,
-      latest,
-      release,
-      thresholdMap
-    );
-  } catch (err) {
-    inc("gate_context_input_fetch_failed");
-    log("error", "gate_context_input_fetch_failed", { releaseId: release.id, error: err?.message });
-  }
+  // Fetch evidence first. Any failure here must propagate so callers fail closed
+  // rather than acting on an empty context (e.g., showing a certified release as
+  // clean because thresholds and signals could not be loaded).
+  const { thresholdMap, latest, snapshot } = await resolveGateEvidence(release);
+  const missingRequiredSignals = await getMissingRequiredSignals(
+    release.workspace_id,
+    release.id,
+    latest,
+    release,
+    thresholdMap
+  );
 
   const shared = { release, intelligence, thresholdMap, latest, missingRequiredSignals };
 
@@ -69,7 +62,10 @@ async function buildGateContext(release, intelligence) {
       }
     } catch (err) {
       inc("gate_context_certification_build_failed");
-      log("error", "gate_context_certification_build_failed", { releaseId: release.id, error: err?.message });
+      log("error", "gate_context_certification_build_failed", {
+        releaseId: release.id,
+        error: err?.message
+      });
     }
   }
 
@@ -86,7 +82,10 @@ async function buildGateContext(release, intelligence) {
       }
     } catch (err) {
       inc("gate_context_remediation_build_failed");
-      log("error", "gate_context_remediation_build_failed", { releaseId: release.id, error: err?.message });
+      log("error", "gate_context_remediation_build_failed", {
+        releaseId: release.id,
+        error: err?.message
+      });
     }
   }
 
