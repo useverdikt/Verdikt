@@ -1,7 +1,8 @@
 "use strict";
 
 const {
-  processDueCertificationSnapshotRetries
+  processDueCertificationSnapshotRetries,
+  backfillMissingCertificationSnapshots
 } = require("../services/certificationSnapshotRetry");
 
 async function runCertificationSnapshotRetrySweepOnce() {
@@ -20,6 +21,22 @@ async function runCertificationSnapshotRetrySweepOnce() {
   }
 }
 
+async function runCertificationSnapshotBackfillOnce() {
+  try {
+    const result = await backfillMissingCertificationSnapshots();
+    if (result.processed > 0) {
+      console.info(
+        "[cert_snapshot_backfill]",
+        `processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed}`
+      );
+    }
+    return result;
+  } catch (err) {
+    console.error("[cert_snapshot_backfill]", err);
+    return null;
+  }
+}
+
 function startCertificationSnapshotRetrySweepJob() {
   const intervalMs = Math.max(
     1_000,
@@ -34,5 +51,6 @@ function startCertificationSnapshotRetrySweepJob() {
 
 module.exports = {
   runCertificationSnapshotRetrySweepOnce,
+  runCertificationSnapshotBackfillOnce,
   startCertificationSnapshotRetrySweepJob
 };

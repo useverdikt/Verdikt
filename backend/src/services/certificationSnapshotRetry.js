@@ -4,6 +4,8 @@ const { run, queryAll, transaction } = require("../database");
 const certificationSnapshots = require("./certificationSnapshots");
 const { writeAudit } = require("./audit");
 const { isCertLikeStatus } = require("../lib/releaseStatus");
+const { getThresholdMap } = require("./workspaceConfig");
+const { getLatestSignalMap } = require("./verdictEngine");
 const { log, inc } = require("../lib/observability");
 
 const MAX_ATTEMPTS = 4;
@@ -195,6 +197,66 @@ async function processDueCertificationSnapshotRetries({ limit = 25 } = {}) {
   };
 }
 
+/**
+ * One-time backfill for certified releases created before certification snapshots existed.
+ * For each certified release with no snapshot and no pending retry, compute the current
+ * threshold map + latest signal map and enqueue a persist (or retry on failure).
+ * Optional releaseId/workspaceId filters make it safe to call from tests against a
+ * specific release without being affected by leftover rows in the test DB.
+ * @returns {{ processed: number, succeeded: number, failed: number }}
+ */
+async function backfillMissingCertificationSnapshots({ limit = 100, releaseId = null, workspaceId = null } = {}) {
+  const conditions = [
+    "r.status IN ('CERTIFIED', 'CERTIFIED_WITH_OVERRIDE')",
+    "cs.release_id IS NULL",
+    "crr.release_id IS NULL"
+  ];
+  const params = [];
+  let idx = 1;
+  if (releaseId) {
+    conditions.push(`r.id = $${idx++}`);
+    params.push(releaseId);
+  }
+  if (workspaceId) {
+    conditions.push(`r.workspace_id = $${idx++}`);
+    params.push(workspaceId);
+  }
+  params.push(limit);
+  const sql = `SELECT r.id AS release_id, r.workspace_id, r.status
+       FROM releases r
+       LEFT JOIN certification_snapshots cs ON cs.release_id = r.id
+       LEFT JOIN certification_snapshot_retries crr ON crr.release_id = r.id
+      WHERE ${conditions.join(" AND ")}
+      LIMIT $${idx}`;
+  const rows = await queryAll(sql, params);
+  let succeeded = 0;
+  let failed = 0;
+  for (const row of rows) {
+    try {
+      const [thresholdMap, latest] = await Promise.all([
+        getThresholdMap(row.workspace_id),
+        getLatestSignalMap(row.release_id)
+      ]);
+      await enqueueCertificationSnapshotPersist({
+        releaseId: row.release_id,
+        workspaceId: row.workspace_id,
+        thresholdMap,
+        signalMap: latest,
+        status: row.status
+      });
+      succeeded += 1;
+    } catch (err) {
+      failed += 1;
+      log("error", "cert_snapshot_backfill_failed", {
+        releaseId: row.release_id,
+        workspaceId: row.workspace_id,
+        error: String(err?.message || err).slice(0, 200)
+      });
+    }
+  }
+  return { processed: rows.length, succeeded, failed };
+}
+
 /** Test helper — clears pending retry rows. */
 async function _resetCertificationSnapshotRetryState() {
   await run(`DELETE FROM certification_snapshot_retries`);
@@ -203,6 +265,7 @@ async function _resetCertificationSnapshotRetryState() {
 module.exports = {
   enqueueCertificationSnapshotPersist,
   processDueCertificationSnapshotRetries,
+  backfillMissingCertificationSnapshots,
   enqueueRetryJob,
   _resetCertificationSnapshotRetryState,
   MAX_ATTEMPTS,
