@@ -51,36 +51,6 @@ export const formatAiPct = (n) => {
   return `${Math.round(Number(n))}%`;
 };
 
-export const formatDeltaBaselineVersionPill = (v) => {
-  if (v == null || v === "") return null;
-  const t = String(v).trim();
-  if (!t) return null;
-  return t.startsWith("v") ? t : `v${t}`;
-};
-
-// ── Intelligence source label ──────────────────────────────────────────────────
-
-export const verdictIntelligenceSourceLine = (verdictIntel) => {
-  const src = String(verdictIntel?.source || "");
-  const model = String(verdictIntel?.model || "");
-  const looksGemini =
-    /gemini/i.test(src) ||
-    /gemini/i.test(model) ||
-    (/^assistive_/i.test(src) && !/deterministic/i.test(src));
-  if (looksGemini) {
-    return {
-      label: "Source: Gemini-enriched",
-      hint: "Verdict from rules; summary wording refined by the model.",
-      shortLine: "Verdict from rules; summary wording may be model-polished."
-    };
-  }
-  return {
-    label: "Source: Deterministic",
-    hint: "Verdict and brief from rules only (no LLM rewrite).",
-    shortLine: "Rules-only verdict and brief (no LLM rewrite)."
-  };
-};
-
 // ── Override justification scoring ────────────────────────────────────────────
 
 export const scoreJustification = (text) => {

@@ -1,9 +1,7 @@
 "use strict";
 
 const {
-  run,
   sendError,
-  nowIso,
   authMiddleware,
   requireHumanSession,
   requireNonViewer,
@@ -18,19 +16,6 @@ const {
 } = require("./_shared");
 
 module.exports = function registerRoutes(app) {
-  app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
-    try {
-    const { commit_sha, pr_number } = req.body || {};
-    if (!commit_sha && !pr_number) return sendError(res, req, 400, "commit_sha or pr_number is required");
-    await run(
-      "UPDATE releases SET commit_sha = COALESCE($1, commit_sha), pr_number = COALESCE($2, pr_number), updated_at = $3 WHERE id = $4",
-      [commit_sha || null, pr_number || null, nowIso(), req.params.releaseId]
-    );
-    return res.json({ release_id: req.params.releaseId, commit_sha, pr_number });
-    } catch (e) {
-      next(e);
-    }
-  });
   // ─── Recommendation Engine ────────────────────────────────────────────────────
 
   /** Get the structured recommendation for a release (cached from last verdict). */

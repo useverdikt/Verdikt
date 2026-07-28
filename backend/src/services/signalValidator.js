@@ -80,9 +80,4 @@ async function ensureSignalSchema(workspaceId) {
   });
 }
 
-async function getSignalSchema(workspaceId) {
-  await ensureSignalSchema(workspaceId);
-  return queryAll("SELECT * FROM signal_schema WHERE workspace_id = $1", [workspaceId]);
-}
-
-module.exports = { validateSignalPayload, ensureSignalSchema, getSignalSchema };
+module.exports = { validateSignalPayload, ensureSignalSchema };

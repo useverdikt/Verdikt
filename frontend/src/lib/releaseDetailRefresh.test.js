@@ -4,7 +4,6 @@ import {
   mergeListStubsWithExisting,
   isReleaseDetailPending,
   isSummaryPending,
-  releaseIdsNeedingDetail,
   chartWindowPendingIds,
   allPendingReleaseIds,
   pendingSummaryIdsForReleases,
@@ -76,17 +75,6 @@ describe("isSummaryPending", () => {
 
   it("treats stubs without signals as pending", () => {
     expect(isSummaryPending({ backendReleaseId: "rel_1", detailLoaded: false, signals: {} })).toBe(true);
-  });
-});
-
-describe("releaseIdsNeedingDetail", () => {
-  it("prioritizes newest pending ids first", () => {
-    const releases = [
-      { backendReleaseId: "rel_old", detailLoaded: false },
-      { backendReleaseId: "rel_mid", detailLoaded: true },
-      { backendReleaseId: "rel_new", detailLoaded: false }
-    ];
-    expect(releaseIdsNeedingDetail(releases, { priorityCount: 1 })).toEqual(["rel_new", "rel_old"]);
   });
 });
 

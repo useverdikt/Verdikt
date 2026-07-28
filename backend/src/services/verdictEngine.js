@@ -38,11 +38,6 @@ async function getLatestSignalMap(releaseId) {
   return latest;
 }
 
-async function resolveReleaseRow(releaseId, releaseRow) {
-  if (releaseRow && typeof releaseRow === "object") return releaseRow;
-  return queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
-}
-
 async function getMissingRequiredSignals(
   workspaceId,
   releaseId,

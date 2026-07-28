@@ -3,7 +3,6 @@ import {
   buildCertRecordFailing,
   buildCertRecordSignalEntries,
   buildCustomSignalSourceGroups,
-  buildCustomSignalSourceOptions,
   buildDetailSignalRows,
   definitionToSignalMeta,
   resolveSignalMeta
@@ -106,7 +105,7 @@ describe("workspaceSignalUi", () => {
       { source_id: "manual_qa", ingest_mode: "push" }
     ];
     const groups = buildCustomSignalSourceGroups(connectors, catalog, SIGNAL_SOURCE_SECTIONS);
-    const options = buildCustomSignalSourceOptions(connectors, catalog, SIGNAL_SOURCE_SECTIONS);
+    const options = groups.flatMap((g) => g.options);
     const ids = options.map((o) => o.id);
     expect(ids).toContain("custom");
     expect(ids).toContain("braintrust");

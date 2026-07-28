@@ -138,16 +138,10 @@ async function verifyAuditIntegrity(workspaceId = null) {
   };
 }
 
-/** @deprecated use computeAuditChainFields at insert time */
-async function stampAuditRowHash(_rowId) {
-  return null;
-}
-
 module.exports = {
   GENESIS,
   computeAuditRowHash,
   computeAuditChainFields,
   verifyAuditIntegrity,
-  stampAuditRowHash,
   canonicalAuditPayload
 };

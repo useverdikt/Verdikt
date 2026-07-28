@@ -59,11 +59,6 @@ export function uiStatusLabel(uiStatus) {
   return String(uiStatus || "—").toUpperCase();
 }
 
-export function isVerdictIssued(uiStatus) {
-  const s = normalizeReleaseStatus(uiStatus);
-  return s !== UI_RELEASE_STATUS.COLLECTING;
-}
-
 export function isCertifiedLike(uiStatus) {
   const s = normalizeReleaseStatus(uiStatus);
   return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;

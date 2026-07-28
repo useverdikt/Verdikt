@@ -21,10 +21,6 @@ function getKeyBuffer() {
   return Buffer.from(hex, "hex");
 }
 
-function isEncryptionEnabled() {
-  return getKeyBuffer() != null;
-}
-
 /**
  * @param {string} plaintext
  * @returns {string} Encrypted blob or plaintext if encryption disabled
@@ -82,6 +78,5 @@ module.exports = {
   encryptToken,
   decryptToken,
   looksEncrypted,
-  isEncryptionEnabled,
   migratePlaintextFieldIfNeeded
 };

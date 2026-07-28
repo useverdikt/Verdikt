@@ -143,12 +143,6 @@ async function persistReleaseDeltas(releaseId, pendingInserts) {
   });
 }
 
-async function evaluateReleaseDeltas(args) {
-  const analyzed = await analyzeReleaseDeltas(args);
-  await persistReleaseDeltas(args.releaseId, analyzed.pendingInserts);
-  return analyzed;
-}
-
 async function listReleaseDeltas(releaseId) {
   const rows = await queryAll(
     `SELECT rd.signal_id, rd.baseline_release_id, rd.baseline_value, rd.current_value, rd.max_allowed_drop,
@@ -176,7 +170,6 @@ async function listReleaseDeltas(releaseId) {
 module.exports = {
   analyzeReleaseDeltas,
   persistReleaseDeltas,
-  evaluateReleaseDeltas,
   listReleaseDeltas,
   findBaselineRelease,
   maxAllowedDrop

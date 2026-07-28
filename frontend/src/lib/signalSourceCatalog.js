@@ -34,24 +34,6 @@ export const PULL_CONNECTOR_META = {
   }
 };
 
-export const PUSH_SOURCE_META = {
-  zizkadb: {
-    icon: "◇",
-    name: "ZizkaDB",
-    detail: "Behavioural drift and session anomalies pushed after each eval run"
-  },
-  custom: {
-    icon: "↗",
-    name: "Custom API push",
-    detail: "Signals POSTed from your pipeline with arbitrary signal_id keys"
-  },
-  manual_qa: {
-    icon: "✓",
-    name: "Manual QA",
-    detail: "QA scores pushed via API or CSV upload"
-  }
-};
-
 export function pullConnectorUi(sourceId) {
   const meta = PULL_CONNECTOR_META[sourceId] || {};
   return {
@@ -60,15 +42,5 @@ export function pullConnectorUi(sourceId) {
     icon: meta.icon || "◆",
     name: meta.name || humanizeSourceId(sourceId),
     detail: meta.detail || "API pull — metrics keyed by commit SHA"
-  };
-}
-
-export function pushSourceUi(sourceId) {
-  const meta = PUSH_SOURCE_META[sourceId] || {};
-  return {
-    sourceId,
-    icon: meta.icon || "↗",
-    name: meta.name || humanizeSourceId(sourceId),
-    detail: meta.detail || "API push — POST signal values per release"
   };
 }

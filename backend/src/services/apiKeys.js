@@ -15,12 +15,6 @@ function generateRawApiKey() {
   return `${KEY_PREFIX}${secret}`;
 }
 
-function maskApiKey(rawKey) {
-  const s = String(rawKey || "");
-  if (s.length <= 12) return "vdk_****";
-  return `${s.slice(0, 12)}…${s.slice(-4)}`;
-}
-
 async function createWorkspaceApiKey({ workspaceId, name, createdByUserId }) {
   const trimmedName = String(name || "").trim();
   if (!trimmedName) throw new Error("name is required");
@@ -111,6 +105,5 @@ module.exports = {
   createWorkspaceApiKey,
   listWorkspaceApiKeys,
   revokeWorkspaceApiKey,
-  authenticateApiKey,
-  maskApiKey
+  authenticateApiKey
 };

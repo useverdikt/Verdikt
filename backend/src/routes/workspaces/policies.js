@@ -12,8 +12,6 @@ const { sendError,
   requireNonViewer,
   requireWorkspaceMatch,
   getWorkspacePolicy,
-  getBaselinePolicy,
-  setBaselinePolicy,
   getOutboundWebhook,
   setOutboundWebhook,
   deleteOutboundWebhook
@@ -187,38 +185,6 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
     next(e);
   }
 });
-app.get("/api/workspaces/:workspaceId/baseline-policy", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
-  try {
-    const policy = await getBaselinePolicy(req.params.workspaceId);
-    return res.json(policy);
-  } catch (e) {
-    next(e);
-  }
-});
-
-app.put("/api/workspaces/:workspaceId/baseline-policy", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
-  try {
-  const { strategy, window_n, pinned_release_id } = req.body || {};
-  try {
-    await setBaselinePolicy(req.params.workspaceId, { strategy, window_n, pinned_release_id });
-  } catch (err) {
-    if (!err.status && !err.statusCode) err.status = 400;
-    return next(err);
-  }
-  const policy = await getBaselinePolicy(req.params.workspaceId);
-  await writeAudit({
-    workspaceId: req.params.workspaceId,
-    eventType: "BASELINE_POLICY_UPDATED",
-    actorType: "USER",
-    actorName: req.auth?.email || "user",
-    details: { strategy, window_n, pinned_release_id }
-  });
-  return res.json(policy);
-  } catch (e) {
-    next(e);
-  }
-});
-
 // ─── Outbound Webhook ─────────────────────────────────────────────────────────
 
 app.get("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {

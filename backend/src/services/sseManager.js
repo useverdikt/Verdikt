@@ -165,15 +165,10 @@ function broadcastVerdictAndClose(releaseId, verdict) {
   broadcastVerdictAndCloseLocal(releaseId, verdict);
 }
 
-function activeSubscriberCount(releaseId) {
-  return subscribers.get(releaseId)?.size ?? 0;
-}
-
 module.exports = {
   issueStreamToken,
   validateStreamToken,
   attachStream,
   broadcastToRelease,
-  broadcastVerdictAndClose,
-  activeSubscriberCount
+  broadcastVerdictAndClose
 };
