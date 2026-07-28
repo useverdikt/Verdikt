@@ -1,5 +1,11 @@
 "use strict";
 
+/**
+ * CJS facade for sync require(). Implementation is the ESM module loaded via
+ * a frozen mirror below so Node < require(esm) consumers keep working.
+ * Keep in sync with releaseStatus.mjs (asserted in p4Consistency.test.js).
+ */
+
 const BACKEND_RELEASE_STATUSES = ["COLLECTING", "CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE"];
 
 const CERT_LIKE = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);

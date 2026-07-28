@@ -2,6 +2,7 @@
 
 // Node / CommonJS entry: loads config.json, adds helpers. The Vite app imports config.json
 // directly (same data); keep JSON as the single source of truth for serialized values.
+// Dual package: require → this file; import → config.mjs (createRequire facade).
 
 const fs = require("fs");
 const path = require("path");

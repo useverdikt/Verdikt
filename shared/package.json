@@ -1,17 +1,54 @@
 {
   "name": "@useverdikt/shared",
   "version": "1.0.0",
-  "main": "config.js",
+  "description": "Shared Verdikt config, severity, and release-status helpers",
+  "main": "./config.cjs",
   "exports": {
-    ".": "./config.js",
-    "./config.js": "./config.js",
+    ".": {
+      "import": "./config.mjs",
+      "require": "./config.cjs",
+      "default": "./config.cjs"
+    },
+    "./config.js": {
+      "import": "./config.mjs",
+      "require": "./config.cjs"
+    },
+    "./config.cjs": "./config.cjs",
+    "./config.mjs": "./config.mjs",
     "./severity": {
       "import": "./severity.mjs",
+      "require": "./severity.cjs",
       "default": "./severity.mjs"
     },
-    "./severity.js": "./severity.mjs",
+    "./severity.js": {
+      "import": "./severity.mjs",
+      "require": "./severity.cjs"
+    },
     "./severity.mjs": "./severity.mjs",
-    "./releaseStatus.js": "./releaseStatus.js",
+    "./severity.cjs": "./severity.cjs",
+    "./releaseStatus": {
+      "import": "./releaseStatus.mjs",
+      "require": "./releaseStatus.cjs",
+      "default": "./releaseStatus.mjs"
+    },
+    "./releaseStatus.js": {
+      "import": "./releaseStatus.mjs",
+      "require": "./releaseStatus.cjs"
+    },
+    "./releaseStatus.mjs": "./releaseStatus.mjs",
+    "./releaseStatus.cjs": "./releaseStatus.cjs",
     "./config.json": "./config.json"
+  },
+  "files": [
+    "config.cjs",
+    "config.mjs",
+    "config.json",
+    "severity.mjs",
+    "severity.cjs",
+    "releaseStatus.mjs",
+    "releaseStatus.cjs"
+  ],
+  "engines": {
+    "node": ">=20.12.0"
   }
 }
