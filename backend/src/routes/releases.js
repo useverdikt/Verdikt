@@ -371,17 +371,18 @@ app.get("/api/releases/:releaseId/regression-history", authMiddleware, requireRe
   }
 });
 
-app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
+app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requireHumanSession, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
-  const { decision, notes = "", actor = "user" } = req.body || {};
+  const { decision, notes = "" } = req.body || {};
   const allowed = new Set(["applied", "dismissed", "overridden", "shipped"]);
   if (!allowed.has(String(decision))) {
     return res.status(400).json({ error: "decision must be one of: applied, dismissed, overridden, shipped" });
   }
+  const actor = auditActorFromAuth(req.auth);
   const payload = {
     decision: String(decision),
     notes: String(notes || "").slice(0, 2000),
-    actor: String(actor || "user"),
+    actor: actor.actorName,
     decided_at: nowIso()
   };
   await upsertReleaseIntelligence(req.params.releaseId, req.releaseRow.workspace_id, { decision: payload });
@@ -389,8 +390,8 @@ app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requi
     workspaceId: req.releaseRow.workspace_id,
     releaseId: req.params.releaseId,
     eventType: "INTELLIGENCE_DECISION_RECORDED",
-    actorType: "USER",
-    actorName: req.auth.email || "user",
+    actorType: actor.actorType,
+    actorName: actor.actorName,
     details: payload
   });
   return res.json({ release_id: req.params.releaseId, decision: payload });
@@ -572,6 +573,7 @@ app.get("/api/releases/:releaseId/failure-modes", authMiddleware, requireRelease
 app.post(
   "/api/releases/:releaseId/collection-deadline/extend",
   authMiddleware,
+  requireHumanSession,
   requireNonViewer,
   requireReleaseAccess,
   async (req, res, next) => {
@@ -705,7 +707,7 @@ app.get("/api/releases/:releaseId/production-signals", authMiddleware, requireRe
  * POST /api/releases/:releaseId/production-signals/align
  * Manually trigger outcome alignment computation for a release.
  */
-app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
+app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, requireHumanSession, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const result = await computeOutcomeAlignment(req.params.releaseId, req.releaseRow.workspace_id);
   if (!result) return res.status(422).json({ error: "No production observations found for this release yet." });
@@ -720,7 +722,7 @@ app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, re
  * Link a post-mortem incident reference to a release's outcome alignment.
  * Body: { incident_ref: string }  — any string (Jira, PagerDuty, URL, etc.)
  */
-app.put("/api/releases/:releaseId/production-signals/incident", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
+app.put("/api/releases/:releaseId/production-signals/incident", authMiddleware, requireHumanSession, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { incident_ref } = req.body || {};
   if (!incident_ref || typeof incident_ref !== "string" || !incident_ref.trim()) {
