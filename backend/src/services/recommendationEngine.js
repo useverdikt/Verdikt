@@ -120,8 +120,8 @@ function computeUncertifiedGateConfidence({
  *   thresholds: {signal_id: {min,max}},
  *   failedSignals: [],                // from verdict engine
  *   missingRequiredSignals: [],
- *   failureModes: [],                 // from correlationEngine.getFailureModes()
- *   earlyWarning: object|null,        // from earlyWarning.getEarlyWarning()
+ *   failureModes: [],                 // from failure_mode_classifications rows
+ *   earlyWarning: object|null,        // from release_early_warnings row
  *   reliabilityMap: {signal_id: row}, // from signalReliability
  *   overrideAnalytics: object|null,   // from overrideAnalytics
  *   correlations: [],                 // from correlationEngine.getCorrelations()

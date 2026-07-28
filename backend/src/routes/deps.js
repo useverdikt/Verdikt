@@ -7,7 +7,6 @@
 const config = require("../config");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit, auditActorFromAuth } = require("../services/audit");
-const { listReleaseDeltas } = require("../services/delta");
 const {
   authMiddleware,
   requireWorkspaceMatch,
@@ -49,11 +48,9 @@ const {
 const { normalizeCommitSha } = require("../services/releaseIdentity");
 const { verifyCertificationRecord, getCertSignaturePublic, signCertificationRecord } = require("../services/certSigner");
 const { verifyAuditIntegrity } = require("../services/auditIntegrity");
-const { getBaselinePolicy, setBaselinePolicy } = require("../services/baselineEngine");
-const { getEarlyWarning } = require("../services/earlyWarning");
 const { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook } = require("../services/outboundWebhook");
-const { validateSignalPayload, getSignalSchema } = require("../services/signalValidator");
-const { computeAndPersistCorrelations, getCorrelations, getFailureModes, getFailureModeTrends } = require("../services/correlationEngine");
+const { validateSignalPayload } = require("../services/signalValidator");
+const { computeAndPersistCorrelations, getCorrelations, getFailureModeTrends } = require("../services/correlationEngine");
 const { computeAndPersistRecommendation, getRecommendation, getRecommendationForRelease } = require("../services/recommendationEngine");
 const { issueStreamToken, validateStreamToken, attachStream } = require("../services/sseManager");
 const { extendCollectionDeadline } = require("../services/collectionDeadline");
@@ -74,7 +71,7 @@ const {
 } = require("../services/githubApp");
 const { computeOverrideAnalytics } = require("../services/overrideAnalytics");
 const { computeSignalReliability, getSignalReliability, getReliabilitySummary } = require("../services/signalReliability");
-const { ingestProductionSignals, getWorkspaceProductionHealth, getProductionObservations, getOutcomeAlignmentForRelease, computeOutcomeAlignment, setIncidentRef, OUTCOME_CRITERIA } = require("../services/productionFeedback");
+const { ingestProductionSignals, getWorkspaceProductionHealth, getProductionObservations, computeOutcomeAlignment, setIncidentRef } = require("../services/productionFeedback");
 const { simulateThresholds } = require("../services/thresholdSimulator");
 const { openMonitoringWindow, scanWindow, getMonitoringWindow, getWorkspaceMonitoringSummary } = require("../services/vcsMonitor");
 const multer = require("multer");
@@ -110,7 +107,6 @@ module.exports = {
   toIsoPlusMinutes,
   writeAudit,
   auditActorFromAuth,
-  listReleaseDeltas,
   authMiddleware,
   requireWorkspaceMatch,
   requireReleaseAccess,
@@ -149,17 +145,12 @@ module.exports = {
   getCertSignaturePublic,
   signCertificationRecord,
   verifyAuditIntegrity,
-  getBaselinePolicy,
-  setBaselinePolicy,
-  getEarlyWarning,
   getOutboundWebhook,
   setOutboundWebhook,
   deleteOutboundWebhook,
   validateSignalPayload,
-  getSignalSchema,
   computeAndPersistCorrelations,
   getCorrelations,
-  getFailureModes,
   getFailureModeTrends,
   computeAndPersistRecommendation,
   getRecommendation,
@@ -188,10 +179,8 @@ module.exports = {
   ingestProductionSignals,
   getWorkspaceProductionHealth,
   getProductionObservations,
-  getOutcomeAlignmentForRelease,
   computeOutcomeAlignment,
   setIncidentRef,
-  OUTCOME_CRITERIA,
   simulateThresholds,
   openMonitoringWindow,
   scanWindow,

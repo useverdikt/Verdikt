@@ -1,5 +1,3 @@
-import { getSignalThresholdDirection, thresholdBoundsToScalar } from "./thresholdBounds.js";
-
 /** Map workspace definition → UI signal meta for evaluateSignal / fmtVal. */
 export function definitionToSignalMeta(def) {
   if (!def) return null;
@@ -152,19 +150,6 @@ export function buildCertRecordFailing({
     }));
 }
 
-export function scalarThresholdForDefinition(def, thresholdRow) {
-  if (!thresholdRow) return undefined;
-  return thresholdBoundsToScalar(def?.signal_id || "", thresholdRow);
-}
-
-export function formatDefinitionThresholdLine(def, thresholdRow) {
-  const scalar = scalarThresholdForDefinition(def, thresholdRow);
-  if (scalar == null) return null;
-  const dir = def?.direction || getSignalThresholdDirection(def?.signal_id);
-  if (dir === "max") return `≤ ${scalar}${def?.unit ? ` ${def.unit}` : ""}`;
-  return `≥ ${scalar}${def?.unit ? ` ${def.unit}` : ""}`;
-}
-
 export function groupLibraryByCategory(library) {
   const groups = new Map();
   for (const entry of library || []) {
@@ -246,9 +231,4 @@ export function buildCustomSignalSourceGroups(connectors = [], catalog = [], sec
         return a.label.localeCompare(b.label);
       })
     }));
-}
-
-/** Flat list of source options (for tests and simple consumers). */
-export function buildCustomSignalSourceOptions(connectors = [], catalog = [], sections = []) {
-  return buildCustomSignalSourceGroups(connectors, catalog, sections).flatMap((g) => g.options);
 }

@@ -7,16 +7,14 @@ export {
   formatAuditTsFromIso, humanizeAuditEventType, auditDetailsToDetailString, mapWorkspaceAuditEventsToLog
 } from "../../lib/auditLogUtils.js";
 export {
-  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, formatDeltaBaselineVersionPill,
-  verdictIntelligenceSourceLine, scoreJustification
+  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, scoreJustification
 } from "../../lib/releaseDisplayUtils.js";
 
 import {
   formatAuditTsFromIso, humanizeAuditEventType, auditDetailsToDetailString, mapWorkspaceAuditEventsToLog
 } from "../../lib/auditLogUtils.js";
 import {
-  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, formatDeltaBaselineVersionPill,
-  verdictIntelligenceSourceLine, scoreJustification
+  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, scoreJustification
 } from "../../lib/releaseDisplayUtils.js";
 import { S } from "../../lib/workspaceStorage.js";
 import { DEFAULT_THRESHOLDS, DEFAULT_AUDIT } from "../../lib/workspaceDefaults.js";

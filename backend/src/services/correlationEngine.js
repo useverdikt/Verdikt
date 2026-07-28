@@ -200,26 +200,6 @@ async function classifyFailureModes(releaseId, workspaceId, failedSignalIds) {
   return classifications.sort((a, b) => b.confidence - a.confidence);
 }
 
-async function getFailureModes(releaseId) {
-  const rows = await queryAll(
-    `
-    SELECT failure_mode, confidence, signals_json, computed_at
-    FROM failure_mode_classifications
-    WHERE release_id = $1
-    ORDER BY confidence DESC
-  `,
-    [releaseId]
-  );
-  return rows.map((r) => ({
-    failure_mode: r.failure_mode,
-    confidence: r.confidence,
-    signals: JSON.parse(r.signals_json || "[]"),
-    computed_at: r.computed_at,
-    label: FAILURE_MODE_RULES.find((x) => x.id === r.failure_mode)?.label || r.failure_mode,
-    description: FAILURE_MODE_RULES.find((x) => x.id === r.failure_mode)?.description || ""
-  }));
-}
-
 async function getFailureModeTrends(workspaceId, _limit = 30) {
   const rows = await queryAll(
     `
@@ -245,7 +225,6 @@ module.exports = {
   computeAndPersistCorrelations,
   getCorrelations,
   classifyFailureModes,
-  getFailureModes,
   getFailureModeTrends,
   FAILURE_MODE_RULES
 };

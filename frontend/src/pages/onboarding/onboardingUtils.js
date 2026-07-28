@@ -85,9 +85,3 @@ export function applyAISuggestionsToThresh(thresh) {
 
 export const REG_LABELS = { req: "Regression required", wav: "Regression waivable", dis: "Role discretion" };
 export const REG_CLASS = { req: "reg-req", wav: "reg-wav", dis: "reg-dis" };
-
-export const TRIGGER_LABELS = {
-  manual: "Manual declaration",
-  label: "GitHub label",
-  webhook: "Pipeline webhook"
-};

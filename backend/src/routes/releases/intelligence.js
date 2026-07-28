@@ -11,8 +11,6 @@ const {
   requireReleaseAccess,
   getReleaseIntelligence,
   upsertReleaseIntelligence,
-  getEarlyWarning,
-  getFailureModes,
   computeAndPersistRecommendation,
   getRecommendationForRelease
 } = require("./_shared");
@@ -141,23 +139,6 @@ module.exports = function registerRoutes(app) {
   });
 
 
-  app.get("/api/releases/:releaseId/early-warning", authMiddleware, requireReleaseAccess, async (req, res, next) => {
-    try {
-      const ew = await getEarlyWarning(req.params.releaseId);
-      if (!ew) return sendError(res, req, 404, "no early warning computed for this release yet");
-      return res.json(ew);
-    } catch (e) {
-      next(e);
-    }
-  });
-  app.get("/api/releases/:releaseId/failure-modes", authMiddleware, requireReleaseAccess, async (req, res, next) => {
-    try {
-      const modes = await getFailureModes(req.params.releaseId);
-      return res.json({ release_id: req.params.releaseId, failure_modes: modes });
-    } catch (e) {
-      next(e);
-    }
-  });
   /** Extend the collection deadline while a release is still COLLECTING. */
 
   app.get("/api/releases/:releaseId/recommendation", authMiddleware, requireReleaseAccess, async (req, res, next) => {

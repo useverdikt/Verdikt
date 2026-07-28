@@ -9,7 +9,7 @@
  * Called on every signal ingest while status = COLLECTING.
  */
 
-const { queryOne, run } = require("../database");
+const { run } = require("../database");
 const { nowIso } = require("../lib/time");
 
 const RISK_LEVELS = Object.freeze({ stable: 0, at_risk: 1, likely_breach: 2, unstable_sample: 3 });
@@ -137,19 +137,6 @@ async function persistEarlyWarning(releaseId, workspaceId, earlyWarningResult) {
   );
 }
 
-async function getEarlyWarning(releaseId) {
-  const row = await queryOne("SELECT * FROM release_early_warnings WHERE release_id = $1", [releaseId]);
-  if (!row) return null;
-  return {
-    release_id: row.release_id,
-    overall_risk: row.overall_risk,
-    sample_pct: row.sample_pct,
-    warnings: row.warnings_json ? JSON.parse(row.warnings_json) : [],
-    computed_at: row.computed_at,
-    updated_at: row.updated_at
-  };
-}
-
 function maxRisk(a, b) {
   return RISK_LEVELS[b] > RISK_LEVELS[a] ? b : a;
 }
@@ -158,4 +145,4 @@ function round2(v) {
   return Math.round(v * 100) / 100;
 }
 
-module.exports = { computeEarlyWarnings, persistEarlyWarning, getEarlyWarning };
+module.exports = { computeEarlyWarnings, persistEarlyWarning };

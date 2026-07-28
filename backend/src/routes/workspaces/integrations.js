@@ -7,7 +7,6 @@ const { sendError,
   requireNonViewer,
   requireWorkspaceMatch,
   validateSignalPayload,
-  getSignalSchema,
   upsertIntegration,
   listIntegrations,
   deleteIntegration,
@@ -19,15 +18,6 @@ const { sendError,
 } = require("../deps");
 
 module.exports = function registerRoutes(app) {
-app.get("/api/workspaces/:workspaceId/signal-schema", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
-  try {
-    const schema = await getSignalSchema(req.params.workspaceId);
-    return res.json({ workspace_id: req.params.workspaceId, signals: schema });
-  } catch (e) {
-    next(e);
-  }
-});
-
 /** Validate a signal payload without ingesting it (dry-run). */
 app.post("/api/workspaces/:workspaceId/signal-schema/validate", authMiddleware, requireHumanSession, requireNonViewer, requireWorkspaceMatch, (req, res) => {
   const { signals } = req.body || {};

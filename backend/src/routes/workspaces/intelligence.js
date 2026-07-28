@@ -16,7 +16,6 @@ const {
   getReliabilitySummary,
   computeAndPersistRecommendation,
   getWorkspaceProductionHealth,
-  OUTCOME_CRITERIA,
   getWorkspaceMonitoringSummary
 } = require("../deps");
 const { getWorkspaceLoopReadinessCached } = require("../../services/loopReadinessCache");
@@ -134,14 +133,6 @@ app.get("/api/workspaces/:workspaceId/production-health", authMiddleware, requir
   }
 });
 
-/**
- * GET /api/workspaces/:workspaceId/production-health/criteria
- * Returns the exact heuristic thresholds used to classify production outcomes.
- * Surfaces Fix #1: users can see exactly why MISS/HEALTHY/INCIDENT was assigned.
- */
-app.get("/api/workspaces/:workspaceId/production-health/criteria", authMiddleware, requireWorkspaceMatch, (_req, res) => {
-  return res.json({ outcome_classification_criteria: OUTCOME_CRITERIA });
-});
 app.get("/api/workspaces/:workspaceId/loop-readiness", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     return res.json(await getWorkspaceLoopReadinessCached(req.params.workspaceId));

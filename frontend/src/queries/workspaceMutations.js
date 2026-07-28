@@ -37,12 +37,5 @@ export async function invalidateFullWorkspace(wsId) {
   return invalidateWorkspaceQueries(wsId);
 }
 
-/** Imperative post-mutation cache refresh (usable outside React hooks). */
-export async function afterWorkspaceMutation(wsId, scope = "full") {
-  if (scope === "thresholds") return invalidateThresholdDomain(wsId);
-  if (scope === "release") return invalidateReleaseDomain(wsId);
-  return invalidateFullWorkspace(wsId);
-}
-
 /** @deprecated prefer scoped helpers — kept for compatibility */
 export { invalidateWorkspaceQueries, appQueryClient };

@@ -194,30 +194,6 @@ export const SOURCE_OPTIONS = [
   }
 ];
 
-export const TRIGGER_MODES = [
-  {
-    id: "manual",
-    icon: "✎",
-    name: "Manual declaration",
-    desc: 'Anyone with certification authority clicks "Start certification" in Verdikt for a specific build or model version. Works for any AI team regardless of workflow. No integration required.',
-    tag: "DEFAULT"
-  },
-  {
-    id: "label",
-    icon: "◈",
-    name: "GitHub label",
-    desc: "Apply a label (e.g. verdikt:rc) to a PR or release in GitHub. Verdikt watches for that label and opens a collection window immediately.",
-    tag: "ONE CLICK"
-  },
-  {
-    id: "webhook",
-    icon: "⌥",
-    name: "Pipeline webhook",
-    desc: "Your release/eval pipeline POSTs to Verdikt when a model version is ready for certification, with version and tool mappings. Most precise — best for teams with reliable automation.",
-    tag: "MOST PRECISE"
-  }
-];
-
 export const INTEGRATION_PROVIDERS = [
   {
     name: "Braintrust",

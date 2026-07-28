@@ -137,8 +137,3 @@ export function formatOutcomeDrivers({ outcome_criteria = [], actual_outcome, si
 
   return { text: "No incident criteria met", expandable: false, detailKind: "none" };
 }
-
-/** @deprecated use formatPreShipRecommendation */
-export function preShipRecommendationColor(verdict) {
-  return formatPreShipRecommendation(verdict).color;
-}

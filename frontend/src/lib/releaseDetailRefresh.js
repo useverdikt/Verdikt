@@ -89,22 +89,6 @@ export function chartWindowPendingIds(releases, windowSize) {
     .filter(Boolean);
 }
 
-/** @deprecated Use chartWindowPendingIds + enqueue priority instead. */
-export function releaseIdsNeedingDetail(releases, { priorityCount = 0 } = {}) {
-  const pending = allPendingReleaseIds(releases);
-  if (!priorityCount || pending.length <= 1) return pending;
-
-  const prioritySet = new Set(
-    [...releases]
-      .slice(-priorityCount)
-      .map((r) => r.backendReleaseId)
-      .filter(Boolean)
-  );
-  const priority = pending.filter((id) => prioritySet.has(id));
-  const rest = pending.filter((id) => !prioritySet.has(id));
-  return [...priority, ...rest];
-}
-
 /** Notify other views (e.g. release dashboard) that a release row changed. */
 export function emitReleaseUpdated(mapped) {
   if (typeof window === "undefined" || !mapped) return;
