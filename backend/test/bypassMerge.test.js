@@ -18,7 +18,25 @@ const { createApp } = require("../src/app");
 const { applyReleaseOverride } = require("../src/services/releaseOverride");
 const { buildReleaseGateResponse } = require("../src/services/releaseGate");
 const { getWorkspaceRemediationDebt } = require("../src/services/remediationDebt");
+const { getThresholdMap } = require("../src/services/workspaceConfig");
+const { getLatestSignalMap } = require("../src/services/verdictEngine");
+const { persistCertificationSnapshot } = require("../src/services/certificationSnapshots");
 const { nowIso } = require("../src/lib/time");
+
+async function seedCertificationSnapshot(releaseId, workspaceId, status = "CERTIFIED") {
+  const [thresholdMap, latest] = await Promise.all([
+    getThresholdMap(workspaceId),
+    getLatestSignalMap(releaseId)
+  ]);
+  await persistCertificationSnapshot({
+    releaseId,
+    workspaceId,
+    thresholdMap,
+    signalMap: latest,
+    status,
+    allowUpdate: true
+  });
+}
 
 let app;
 
@@ -366,6 +384,7 @@ describe("bypass merge prod tracking", () => {
       "CERTIFIED_WITH_OVERRIDE",
       overrideRelease.body.id
     ]);
+    await seedCertificationSnapshot(overrideRelease.body.id, ws, "CERTIFIED_WITH_OVERRIDE");
 
     const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [overrideRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "default" });
@@ -427,6 +446,7 @@ describe("bypass merge prod tracking", () => {
       "CERTIFIED_WITH_OVERRIDE",
       emgRelease.body.id
     ]);
+    await seedCertificationSnapshot(emgRelease.body.id, ws, "CERTIFIED_WITH_OVERRIDE");
 
     const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [emgRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "default" });
@@ -536,6 +556,7 @@ describe("bypass merge prod tracking", () => {
       .send({ version: "Emergency strict (#9511)", release_type: "incident_hotfix", pr_number: 9511 })
       .expect(201);
     await run("UPDATE releases SET status = $1 WHERE id = $2", ["CERTIFIED_WITH_OVERRIDE", emgRelease.body.id]);
+    await seedCertificationSnapshot(emgRelease.body.id, ws, "CERTIFIED_WITH_OVERRIDE");
 
     const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [emgRelease.body.id]);
     const gate = await buildReleaseGateResponse(rel, { mode: "strict" });
