@@ -17,10 +17,13 @@ const { createApp } = require("../src/app");
 const { getThresholdMap } = require("../src/services/domain");
 const { getLatestSignalMap } = require("../src/services/verdictEngine");
 const certificationSnapshots = require("../src/services/certificationSnapshots");
+<<<<<<< HEAD
 const {
   backfillMissingCertificationSnapshots,
   processDueCertificationSnapshotRetries
 } = require("../src/services/certificationSnapshotRetry");
+=======
+>>>>>>> origin/main
 
 let app;
 
@@ -150,5 +153,4 @@ describe("certified release gate uses frozen snapshot", () => {
     assert.equal(after.body.action, "merge");
     assert.equal(after.body.snapshot_pending, false);
   });
-
 });
