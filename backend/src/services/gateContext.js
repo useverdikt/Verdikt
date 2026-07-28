@@ -12,6 +12,7 @@ const { getLatestSignalMap, getMissingRequiredSignals } = require("./verdictEngi
 const { getCertificationSnapshot } = require("./certificationSnapshots");
 const { buildGateCertification } = require("./gateCertification");
 const { buildGateRemediation } = require("./gateRemediation");
+const { log, inc } = require("../lib/observability");
 const { CERT_LIKE, BLOCKED_OR_COLLECTING } = require("../lib/releaseStatus");
 
 async function resolveGateEvidence(release) {
@@ -52,7 +53,8 @@ async function buildGateContext(release, intelligence) {
       thresholdMap
     );
   } catch (err) {
-    console.error("[gate_context] input fetch failed for", release.id, err?.message);
+    inc("gate_context_input_fetch_failed");
+    log("error", "gate_context_input_fetch_failed", { releaseId: release.id, error: err?.message });
   }
 
   const shared = { release, intelligence, thresholdMap, latest, missingRequiredSignals };
@@ -66,7 +68,8 @@ async function buildGateContext(release, intelligence) {
         certification.evidence_hash = snapshot.evidence_hash;
       }
     } catch (err) {
-      console.error("[gate_context] certification build failed for", release.id, err?.message);
+      inc("gate_context_certification_build_failed");
+      log("error", "gate_context_certification_build_failed", { releaseId: release.id, error: err?.message });
     }
   }
 
@@ -82,7 +85,8 @@ async function buildGateContext(release, intelligence) {
         remediation.evidence_hash = snapshot.evidence_hash;
       }
     } catch (err) {
-      console.error("[gate_context] remediation build failed for", release.id, err?.message);
+      inc("gate_context_remediation_build_failed");
+      log("error", "gate_context_remediation_build_failed", { releaseId: release.id, error: err?.message });
     }
   }
 
