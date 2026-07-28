@@ -7,6 +7,7 @@ const { initDatabase, closePool } = require("./database");
 const { seedDemoUser } = require("./bootstrap/seed");
 const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
 const { shouldStartBackgroundJobs } = require("./lib/startupMode");
+const { closeListener } = require("./services/ssePubSub");
 
 const SHUTDOWN_MS = Math.max(1000, Number(process.env.SHUTDOWN_GRACE_MS || 10_000));
 
@@ -54,6 +55,11 @@ async function startServer() {
       // start-server-and-test (and some hosts) may close the socket before our handler runs
       if (err && err.code !== "ERR_SERVER_NOT_RUNNING") {
         console.error("HTTP server close error:", err);
+      }
+      try {
+        await closeListener();
+      } catch (e) {
+        console.error("SSE listener close error:", e);
       }
       try {
         await closePool();

@@ -1,86 +1,93 @@
 "use strict";
 
 /**
- * Redis pub/sub backplane for SSE updates across multiple API replicas.
+ * PostgreSQL LISTEN/NOTIFY backplane for SSE updates across multiple API replicas.
  *
- * When REDIS_URL is set, every broadcast is published to a per-release channel
- * (`sse:{releaseId}`). Each API replica subscribes to the channels that have local
- * listeners and forwards messages to those listeners. Without REDIS_URL, SSE stays
- * in-process only (single-replica deployments).
+ * Uses a single channel (`sse_events`) and JSON payloads containing the target
+ * releaseId, event name, and data. Works with any PostgreSQL provider, including
+ * Supabase, without requiring Redis.
  */
 
-const Redis = require("ioredis");
-const { REDIS_URL } = require("../config");
+const { Client } = require("pg");
+const { log } = require("../lib/observability");
 
-let publisher = null;
-let subscriber = null;
+const CHANNEL = "sse_events";
+
+let listenerClient = null;
+let connecting = false;
 const handlers = new Map();
 
 function isEnabled() {
-  return !!REDIS_URL;
+  return true;
 }
 
-function getPublisher() {
-  if (!publisher) {
-    publisher = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: 2,
-      retryStrategy: (times) => Math.min(times * 50, 500)
-    });
-    publisher.on("error", () => {});
-  }
-  return publisher;
+function getDatabaseUrl() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is required for the SSE cross-replica backplane");
+  return url;
 }
 
-function getSubscriber() {
-  if (!subscriber) {
-    subscriber = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: 2,
-      retryStrategy: (times) => Math.min(times * 50, 500)
-    });
-    subscriber.on("error", () => {});
-    subscriber.on("message", (channel, message) => {
-      const releaseId = channel.replace(/^sse:/, "");
-      const handler = handlers.get(releaseId);
-      if (!handler) return;
+async function connectListener() {
+  if (listenerClient || connecting) return;
+  connecting = true;
+  try {
+    const client = new Client({ connectionString: getDatabaseUrl() });
+    client.on("notification", (msg) => {
       try {
-        const payload = JSON.parse(message);
-        handler(payload.event, payload.data);
+        const payload = JSON.parse(msg.payload);
+        const handler = handlers.get(payload.releaseId);
+        if (handler) handler(payload.event, payload.data);
       } catch {
         // Ignore malformed cross-replica messages.
       }
     });
+    client.on("error", (err) => {
+      log("error", "sse_pg_notify_listener_error", { error: err?.message });
+      listenerClient = null;
+      setTimeout(() => void connectListener().catch(() => {}), 5000);
+    });
+    client.on("end", () => {
+      listenerClient = null;
+    });
+    await client.connect();
+    await client.query(`LISTEN ${CHANNEL}`);
+    listenerClient = client;
+  } finally {
+    connecting = false;
   }
-  return subscriber;
 }
 
 async function publish(releaseId, event, data) {
-  if (!isEnabled()) return;
-  try {
-    const client = getPublisher();
-    await client.publish(`sse:${releaseId}`, JSON.stringify({ event, data }));
-  } catch {
-    // SSE is best-effort; a Redis outage must not block the API response.
-  }
+  const { query } = require("../database");
+  const payload = JSON.stringify({ releaseId, event, data }).replace(/'/g, "''");
+  await query(`NOTIFY ${CHANNEL}, '${payload}'`);
 }
 
 async function subscribe(releaseId, handler) {
-  if (!isEnabled()) return;
   handlers.set(releaseId, handler);
   try {
-    await getSubscriber().subscribe(`sse:${releaseId}`);
-  } catch {
+    await connectListener();
+  } catch (err) {
     handlers.delete(releaseId);
+    throw err;
   }
 }
 
 async function unsubscribe(releaseId) {
-  if (!isEnabled()) return;
   handlers.delete(releaseId);
-  try {
-    await getSubscriber().unsubscribe(`sse:${releaseId}`);
-  } catch {
-    // Best-effort cleanup.
+}
+
+async function closeListener() {
+  if (listenerClient) {
+    const client = listenerClient;
+    listenerClient = null;
+    try {
+      await client.query(`UNLISTEN ${CHANNEL}`);
+      await client.end();
+    } catch {
+      // Best-effort cleanup.
+    }
   }
 }
 
-module.exports = { isEnabled, publish, subscribe, unsubscribe };
+module.exports = { isEnabled, publish, subscribe, unsubscribe, closeListener };
