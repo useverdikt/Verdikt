@@ -113,8 +113,8 @@ async function attachStream(releaseId, res) {
   const entry = { res, ts: Date.now() };
   subscribers.get(releaseId).add(entry);
 
-  // Subscribe this replica to the Redis backplane for this release.
-  if (subscribers.get(releaseId).size === 1) {
+  // Subscribe this replica to the cross-process backplane for this release.
+  if (ssePubSub.isEnabled() && subscribers.get(releaseId).size === 1) {
     await ssePubSub.subscribe(releaseId, (eventName, data) => {
       void handleRemoteMessage(releaseId, eventName, data);
     });
