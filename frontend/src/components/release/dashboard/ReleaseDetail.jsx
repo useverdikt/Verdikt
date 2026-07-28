@@ -19,6 +19,7 @@ import {
 import { buildDetailSignalRows } from "../../../lib/workspaceSignalUi.js";
 import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import ReleaseDetailLoadingSkeleton from "./ReleaseDetailLoadingSkeleton.jsx";
+import ReleaseBriefPanel from "../ReleaseBriefPanel.jsx";
 
 export default function ReleaseDetail({
   release,
@@ -212,6 +213,7 @@ export default function ReleaseDetail({
       ) : (
         <>
       <RemediationDebtBanner debt={remediationDebt} compact />
+      {releaseId ? <ReleaseBriefPanel releaseId={releaseId} compact /> : null}
       {!isCollecting && receivedSignalCount > 0 ? (
         <SignalEvidenceBlock release={release} showFlag />
       ) : null}

@@ -3,6 +3,7 @@ import { C } from "../../../theme/tokens.js";
 import { apiGet, apiPost } from "../../../pages/settings/settingsClient.js";
 import { getWorkspaceId } from "../../../lib/apiClient.js";
 import EscalationOverrideModal from "../modals/EscalationOverrideModal.jsx";
+import ReleaseBriefPanel from "../../release/ReleaseBriefPanel.jsx";
 
 function formatTs(iso) {
   if (!iso) return "—";
@@ -20,6 +21,7 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
   const [error, setError] = useState(null);
   const [overrideRow, setOverrideRow] = useState(null);
   const [overrideBusy, setOverrideBusy] = useState(false);
+  const [briefReleaseId, setBriefReleaseId] = useState(null);
 
   const canAcknowledge = ["vp_engineering", "cto", "org_admin", "release_manager"].includes(
     String(currentUser?.role || "")
@@ -153,6 +155,31 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
                 <div style={{ marginTop: 4, fontFamily: C.mono, fontSize: 10, color: C.dim }}>
                   Agent: {row.requested_by_name || "—"}
                 </div>
+                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBriefReleaseId((prev) => (prev === row.release_id ? null : row.release_id))
+                    }
+                    style={{
+                      background: "none",
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      color: C.muted,
+                      fontFamily: C.mono,
+                      fontSize: 10
+                    }}
+                  >
+                    {briefReleaseId === row.release_id ? "Hide brief" : "Release brief"}
+                  </button>
+                </div>
+                {briefReleaseId === row.release_id && row.release_id ? (
+                  <div style={{ marginTop: 10 }}>
+                    <ReleaseBriefPanel releaseId={row.release_id} compact />
+                  </div>
+                ) : null}
               </div>
               {!isMobile ? (
                 <div style={{ fontFamily: C.mono, fontSize: 11, color: row.sla_breached ? C.red : C.dim }}>
