@@ -30,6 +30,8 @@ const {
   issueStreamToken,
   validateStreamToken,
   attachStream,
+  signalIngestRateLimit,
+  gatePollRateLimit,
   computeAndPersistRecommendation,
   getRecommendation,
   getRecommendationForRelease,
@@ -59,7 +61,7 @@ const {
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
 
 module.exports = function registerReleaseRoutes(app) {
-app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
+app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAccess, requireNonViewer, signalIngestRateLimit, async (req, res) => {
   const { source = "manual", signals } = req.body || {};
   if (!signals || typeof signals !== "object") {
     return res.status(400).json({ error: "signals object is required" });
@@ -155,7 +157,7 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
   return res.json(out);
 });
 
-app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res) => {
+app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requireReleaseAccess, requireNonViewer, signalIngestRateLimit, async (req, res) => {
   const { provider = "generic", payload = {}, source } = req.body || {};
   const mapped = mapIntegrationSignals(provider, payload);
   if (!Object.keys(mapped.signals).length) {
@@ -497,7 +499,7 @@ app.post("/api/releases/:releaseId/escalate", authMiddleware, requireReleaseAcce
   }
 });
 
-app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, async (req, res, next) => {
+app.get("/api/releases/:releaseId/gate", authMiddleware, requireReleaseAccess, gatePollRateLimit, async (req, res, next) => {
   try {
     const mode =
       req.query.mode === "strict"

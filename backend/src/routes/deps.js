@@ -23,7 +23,9 @@ const {
   checkForgotPasswordRateLimit,
   checkRegisterRateLimit,
   checkWaitlistRateLimit,
-  webhookRateLimit
+  webhookRateLimit,
+  signalIngestRateLimit,
+  gatePollRateLimit
 } = require("../middleware/rateLimit");
 const { sendPasswordResetEmail, sendWaitlistLeadEmail } = require("../services/email");
 const { verifyInboundWebhookSignature } = require("../services/inboundWebhookSecrets");
@@ -121,6 +123,8 @@ module.exports = {
   checkRegisterRateLimit,
   checkWaitlistRateLimit,
   webhookRateLimit,
+  signalIngestRateLimit,
+  gatePollRateLimit,
   sendPasswordResetEmail,
   sendWaitlistLeadEmail,
   verifyInboundWebhookSignature,

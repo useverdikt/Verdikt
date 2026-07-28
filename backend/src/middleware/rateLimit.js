@@ -7,14 +7,29 @@ const loginRateWindow = new Map();
 const forgotPasswordRateWindow = new Map();
 const registerRateWindow = new Map();
 const waitlistRateWindow = new Map();
+const signalIngestKeyWindow = new Map();
+const signalIngestWorkspaceWindow = new Map();
+const gatePollKeyWindow = new Map();
+const gatePollWorkspaceWindow = new Map();
 
 const REGISTER_RATE_LIMIT_PER_HOUR = Math.max(1, Number(process.env.REGISTER_RATE_LIMIT_PER_HOUR || 15));
 const WAITLIST_RATE_LIMIT_PER_HOUR = Math.max(3, Number(process.env.WAITLIST_RATE_LIMIT_PER_HOUR || 30));
 
-const isTestEnv = process.env.NODE_ENV === "test";
+function signalIngestKeyLimit() {
+  return Math.max(1, Number(process.env.SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_KEY || 120));
+}
+function signalIngestWorkspaceLimit() {
+  return Math.max(1, Number(process.env.SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE || 300));
+}
+function gatePollKeyLimit() {
+  return Math.max(1, Number(process.env.GATE_RATE_LIMIT_PER_MINUTE_PER_KEY || 60));
+}
+function gatePollWorkspaceLimit() {
+  return Math.max(1, Number(process.env.GATE_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE || 200));
+}
 
 function bypassRateLimit() {
-  return isTestEnv || process.env.DISABLE_RATE_LIMIT === "1";
+  return process.env.NODE_ENV === "test" || process.env.DISABLE_RATE_LIMIT === "1";
 }
 
 let redisClient;
@@ -151,6 +166,88 @@ async function checkWaitlistRateLimit(ip) {
   return checkWaitlistRateLimitMemory(ip);
 }
 
+function checkRateLimitMemory(windowMap, key, limit, windowMs) {
+  const now = Date.now();
+  const cutoff = now - windowMs;
+  const bucket = (windowMap.get(key) || []).filter((t) => t > cutoff);
+  if (bucket.length >= limit) {
+    windowMap.set(key, bucket);
+    return false;
+  }
+  bucket.push(now);
+  windowMap.set(key, bucket);
+  return true;
+}
+
+async function checkDualRateLimit({ keyPrefix, keyId, workspaceId, keyLimit, workspaceLimit }) {
+  if (bypassRateLimit()) return true;
+  const window = Math.floor(Date.now() / 60_000);
+  const keyKey = `${keyPrefix}:key:v1:${keyId}:${window}`;
+  const wsKey = `${keyPrefix}:ws:v1:${workspaceId}:${window}`;
+  const [keyCount, wsCount] = await Promise.all([
+    redisIncrWithTtl(keyKey, 70),
+    redisIncrWithTtl(wsKey, 70)
+  ]);
+  if (keyCount == null || wsCount == null) return null;
+  return keyCount <= keyLimit && wsCount <= workspaceLimit;
+}
+
+async function checkSignalIngestRateLimit(keyId, workspaceId) {
+  const ok = await checkDualRateLimit({
+    keyPrefix: "rl:ingest",
+    keyId,
+    workspaceId,
+    keyLimit: signalIngestKeyLimit(),
+    workspaceLimit: signalIngestWorkspaceLimit()
+  });
+  if (ok != null) return ok;
+  const memKeyOk = checkRateLimitMemory(signalIngestKeyWindow, keyId, signalIngestKeyLimit(), 60_000);
+  if (!memKeyOk) return false;
+  return checkRateLimitMemory(signalIngestWorkspaceWindow, workspaceId, signalIngestWorkspaceLimit(), 60_000);
+}
+
+async function checkGatePollRateLimit(keyId, workspaceId) {
+  const ok = await checkDualRateLimit({
+    keyPrefix: "rl:gate",
+    keyId,
+    workspaceId,
+    keyLimit: gatePollKeyLimit(),
+    workspaceLimit: gatePollWorkspaceLimit()
+  });
+  if (ok != null) return ok;
+  const memKeyOk = checkRateLimitMemory(gatePollKeyWindow, keyId, gatePollKeyLimit(), 60_000);
+  if (!memKeyOk) return false;
+  return checkRateLimitMemory(gatePollWorkspaceWindow, workspaceId, gatePollWorkspaceLimit(), 60_000);
+}
+
+async function signalIngestRateLimit(req, res, next) {
+  try {
+    const keyId = req.auth?.sub || req.auth?.apiKeyId || req.ip || "unknown";
+    const workspaceId = req.auth?.ws || req.params.workspaceId || "unknown";
+    const ok = await checkSignalIngestRateLimit(keyId, workspaceId);
+    if (!ok) {
+      return res.status(429).json({ error: "Signal ingest rate limit exceeded", request_id: req.requestId });
+    }
+    next();
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function gatePollRateLimit(req, res, next) {
+  try {
+    const keyId = req.auth?.sub || req.auth?.apiKeyId || req.ip || "unknown";
+    const workspaceId = req.auth?.ws || req.params.workspaceId || "unknown";
+    const ok = await checkGatePollRateLimit(keyId, workspaceId);
+    if (!ok) {
+      return res.status(429).json({ error: "Gate poll rate limit exceeded", request_id: req.requestId });
+    }
+    next();
+  } catch (e) {
+    next(e);
+  }
+}
+
 function checkWebhookRateLimitMemory(ip) {
   const now = Date.now();
   const cutoff = now - 60 * 1000;
@@ -190,7 +287,10 @@ async function webhookRateLimit(req, res, next) {
 const RATE_LIMIT_PRUNE_MS = 120 * 1000;
 setInterval(() => {
   const cutoff = Date.now() - RATE_LIMIT_PRUNE_MS;
-  for (const map of [loginRateWindow, webhookRateWindow, forgotPasswordRateWindow, registerRateWindow, waitlistRateWindow]) {
+  for (const map of [
+    loginRateWindow, webhookRateWindow, forgotPasswordRateWindow, registerRateWindow, waitlistRateWindow,
+    signalIngestKeyWindow, signalIngestWorkspaceWindow, gatePollKeyWindow, gatePollWorkspaceWindow
+  ]) {
     for (const [key, bucket] of [...map.entries()]) {
       const fresh = bucket.filter((t) => t > cutoff);
       if (!fresh.length) map.delete(key);
@@ -204,5 +304,9 @@ module.exports = {
   checkForgotPasswordRateLimit,
   checkRegisterRateLimit,
   checkWaitlistRateLimit,
-  webhookRateLimit
+  webhookRateLimit,
+  signalIngestRateLimit,
+  gatePollRateLimit,
+  checkSignalIngestRateLimit,
+  checkGatePollRateLimit
 };
