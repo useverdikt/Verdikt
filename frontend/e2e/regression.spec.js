@@ -5,6 +5,7 @@
  */
 import { test, expect } from "@playwright/test";
 import { newReleaseButton, waitForReleaseRows, waitForSessionGate } from "./helpers/shell.js";
+import { ensureE2eCollectingRelease } from "./helpers/seedE2eWorkspace.js";
 
 const API = "http://127.0.0.1:8787";
 
@@ -46,34 +47,41 @@ test.describe("releases dashboard (authenticated)", () => {
 });
 
 test.describe("collecting row actions", () => {
-  test("View live stream opens SSE modal; Extend deadline updates server window", async ({ page }) => {
+  test("View live stream opens SSE modal; Extend deadline updates server window", async ({ page, context }) => {
+    await page.goto("/releases");
+    await waitForSessionGate(page);
+    const workspaceId = await page.evaluate(() => localStorage.getItem("vdk3_workspace_id"));
+    const cookies = await context.cookies();
+    const collecting = await ensureE2eCollectingRelease({
+      apiBase: API,
+      cookies,
+      workspaceId
+    });
+    expect(collecting?.id).toBeTruthy();
+
     await page.goto("/releases");
     await waitForReleaseRows(page);
+    await page.getByRole("button", { name: /Sync workspace/i }).click();
+    await expect(page.getByRole("button", { name: /↻ Sync workspace/i })).toBeVisible({ timeout: 20_000 });
 
-    const collectingDetail = () =>
-      page.locator(".release-detail").filter({ hasText: /View live stream|Extend deadline/i });
+    const collectingRow = page
+      .locator(".release-row")
+      .filter({ has: page.locator(`.release-version[title="${collecting.version}"]`) })
+      .first();
+    await expect(collectingRow).toBeVisible({ timeout: 25_000 });
+    await collectingRow.click();
 
-    const ensureCollectingActions = async () => {
-      for (let i = 0; i < 6; i++) {
-        const panel = collectingDetail().first();
-        if (await panel.isVisible().catch(() => false)) return;
-        const collectingRow = page.locator(".releases-table .release-row.coll-pulse").first();
-        await expect(collectingRow).toBeVisible({ timeout: 15_000 });
-        await collectingRow.scrollIntoViewIfNeeded();
-        await collectingRow.click();
-      }
-      throw new Error("Could not open collecting release detail");
-    };
+    const collectingDetail = page.locator(".release-detail").filter({ hasText: /View live stream|Extend deadline/i });
+    await expect(collectingDetail).toBeVisible({ timeout: 15_000 });
 
-    await ensureCollectingActions();
-    await collectingDetail().getByRole("button", { name: /View live stream/i }).click({ force: true });
+    await collectingDetail.getByRole("button", { name: /View live stream/i }).click();
     const liveDialog = page.getByRole("dialog").filter({ hasText: "LIVE SIGNAL STREAM" });
-    await expect(liveDialog).toBeVisible();
+    await expect(liveDialog).toBeVisible({ timeout: 10_000 });
     await liveDialog.getByRole("button", { name: "Close" }).click();
     await expect(liveDialog).toHaveCount(0);
 
-    await ensureCollectingActions();
-    await collectingDetail().getByRole("button", { name: /Extend deadline/i }).click({ force: true });
+    await expect(collectingDetail).toBeVisible();
+    await collectingDetail.getByRole("button", { name: /Extend deadline/i }).click();
     await expect(page.locator("body")).toContainText(/Collection deadline extended/i);
   });
 });
