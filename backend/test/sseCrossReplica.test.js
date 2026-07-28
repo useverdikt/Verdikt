@@ -4,6 +4,7 @@ const { test, describe, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const sseManager = require("../src/services/sseManager");
 const ssePubSub = require("../src/services/ssePubSub");
+const { closeListener } = require("../src/services/ssePubSub");
 
 function createFakeRes() {
   const messages = [];
@@ -109,5 +110,26 @@ describe("SSE cross-replica pub/sub", () => {
     assert.ok(res.messages.some((m) => m.includes("event: verdict")));
     assert.ok(res.messages.some((m) => m.includes("event: stream_end")));
     assert.equal(res.ended, true);
+  });
+
+  test("real Postgres LISTEN/NOTIFY forwards messages across replicas", async () => {
+    // Use the actual backplane functions (not mocks) against the test database.
+    ssePubSub.isEnabled = originals.isEnabled;
+    ssePubSub.publish = originals.publish;
+    ssePubSub.subscribe = originals.subscribe;
+    ssePubSub.unsubscribe = originals.unsubscribe;
+
+    const received = [];
+    const releaseId = `rel_real_${Date.now()}`;
+    await ssePubSub.subscribe(releaseId, (event, data) => {
+      received.push({ event, data });
+    });
+    await ssePubSub.publish(releaseId, "signal_progress", { value: 99 });
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(received.length, 1);
+    assert.equal(received[0].event, "signal_progress");
+    assert.deepEqual(received[0].data, { value: 99 });
+    await ssePubSub.unsubscribe(releaseId);
+    await closeListener();
   });
 });
