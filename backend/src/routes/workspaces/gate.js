@@ -4,7 +4,8 @@ const {
   authMiddleware,
   requireWorkspaceMatch,
   resolveReleaseForWorkspaceIngest,
-  normalizeCommitSha
+  normalizeCommitSha,
+  gatePollRateLimit
 } = require("../deps");
 const { buildReleaseGateResponse } = require("../../services/releaseGate");
 
@@ -15,7 +16,7 @@ module.exports = function registerRoutes(app) {
    *
    * GET /api/workspaces/:workspaceId/gate?commit_sha=abc123&github_owner=org&github_repo=repo&pr_number=42&mode=strict
    */
-  app.get("/api/workspaces/:workspaceId/gate", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
+  app.get("/api/workspaces/:workspaceId/gate", authMiddleware, requireWorkspaceMatch, gatePollRateLimit, async (req, res, next) => {
     try {
       const commit_sha = normalizeCommitSha(String(req.query.commit_sha || ""));
       if (!commit_sha) {
