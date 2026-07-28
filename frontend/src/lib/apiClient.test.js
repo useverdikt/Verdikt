@@ -49,7 +49,30 @@ describe("apiClient error contract", () => {
       name: "ApiError",
       status: 404,
       code: "not_found",
+      requestId: "body-rid",
       message: "not_found (request_id: body-rid)"
+    });
+  });
+
+  it("attaches details from the standardized error body", async () => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 409,
+      headers: { get: () => null },
+      json: async () => ({
+        error: "not_pending",
+        message: "Escalation is not pending review",
+        request_id: "rid-1",
+        details: { state: "resolved" }
+      })
+    }));
+
+    await expect(apiGet("/api/workspaces/ws/escalations/x/acknowledge")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 409,
+      code: "not_pending",
+      details: { state: "resolved" },
+      message: "Escalation is not pending review (request_id: rid-1)"
     });
   });
 });

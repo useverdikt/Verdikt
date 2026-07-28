@@ -4,7 +4,8 @@ const {
   authMiddleware,
   requireWorkspaceMatch,
   requireHumanSession,
-  requireOverrideApproverRole
+  requireOverrideApproverRole,
+  sendError
 } = require("../deps");
 const { getUserRowForAuthById } = require("../../services/authUserLookup");
 const { listEscalationsForWorkspace, acknowledgeEscalation, acknowledgeEscalationWithOverride } = require("../../services/escalations");
@@ -47,7 +48,10 @@ module.exports = function registerEscalationRoutes(app) {
         });
         if (!out.ok) {
           const code = out.error === "not_found" ? 404 : 409;
-          return res.status(code).json({ error: out.error, state: out.state });
+          return sendError(res, req, code, out.error, {
+            message: out.error,
+            details: out.state != null ? { state: out.state } : undefined
+          });
         }
         return res.json({ ok: true, escalation: out.escalation });
       } catch (e) {
@@ -83,7 +87,10 @@ module.exports = function registerEscalationRoutes(app) {
               : out.error === "not_pending"
                 ? 409
                 : out.statusCode || 400;
-          return res.status(code).json({ error: out.error, state: out.state });
+          return sendError(res, req, code, out.error, {
+            message: out.error,
+            details: out.state != null ? { state: out.state } : undefined
+          });
         }
         return res.json({
           ok: true,

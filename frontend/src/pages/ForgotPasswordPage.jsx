@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getSafeApiBase } from "../lib/apiBase.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
+import { messageFromApiBody } from "../lib/apiErrorCopy.js";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -40,13 +41,13 @@ export default function ForgotPasswordPage() {
       const data = await res.json().catch(() => ({}));
       if (res.status === 429) {
         setStatus("");
-        setError(typeof data.error === "string" ? data.error : "Too many requests.");
+        setError(messageFromApiBody(data, "Too many requests."));
         setBusy(false);
         return;
       }
       if (!res.ok) {
         setStatus("");
-        setError(typeof data.error === "string" ? data.error : "Request failed");
+        setError(messageFromApiBody(data, "Request failed"));
         setBusy(false);
         return;
       }

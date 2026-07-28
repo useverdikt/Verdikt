@@ -3,7 +3,7 @@
 const { queryOne, queryAll, run, transaction } = require("../database");
 const { getUserRowForAuthById } = require("../services/authUserLookup");
 
-const {
+const { sendError,
   nowIso,
   writeAudit,
   auditActorFromAuth,
@@ -64,7 +64,7 @@ module.exports = function registerReleaseRoutes(app) {
 app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAccess, requireNonViewer, signalIngestRateLimit, async (req, res) => {
   const { source = "manual", signals } = req.body || {};
   if (!signals || typeof signals !== "object") {
-    return res.status(400).json({ error: "signals object is required" });
+    return sendError(res, req, 400, "signals object is required");
   }
   const release = req.releaseRow;
 
@@ -90,10 +90,11 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
   }
 
   if (releaseVerdictLockedAgainstIngest(release)) {
-    return res.status(409).json({
-      error: releaseIngestLockError(release),
-      status: release.status,
-      environment: release.environment || null
+    return sendError(res, req, 409, releaseIngestLockError(release), {
+      details: {
+        status: release.status,
+        environment: release.environment || null
+      }
     });
   }
 
@@ -126,10 +127,11 @@ app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAcces
       if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
       return res.json(out);
     }
-    return res.status(400).json({
-      error: "no valid signal values after validation (finite numbers, correct ranges per signal type)",
-      rejected_signal_ids: rejected,
-      schema_warnings: schemaCheck.warnings
+    return sendError(res, req, 400, "no valid signal values after validation (finite numbers, correct ranges per signal type)", {
+      details: {
+        rejected_signal_ids: rejected,
+        schema_warnings: schemaCheck.warnings
+      }
     });
   }
 
@@ -161,9 +163,10 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
   const { provider = "generic", payload = {}, source } = req.body || {};
   const mapped = mapIntegrationSignals(provider, payload);
   if (!Object.keys(mapped.signals).length) {
-    return res.status(400).json({
-      error: "no supported numeric signals found in payload",
-      supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency"])
+    return sendError(res, req, 400, "no supported numeric signals found in payload", {
+      details: {
+        supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency"])
+      }
     });
   }
   const release = req.releaseRow;
@@ -185,10 +188,11 @@ app.post("/api/releases/:releaseId/signals/integrations", authMiddleware, requir
     }
   }
   if (releaseVerdictLockedAgainstIngest(release)) {
-    return res.status(409).json({
-      error: releaseIngestLockError(release),
-      status: release.status,
-      environment: release.environment || null
+    return sendError(res, req, 409, releaseIngestLockError(release), {
+      details: {
+        status: release.status,
+        environment: release.environment || null
+      }
     });
   }
   const out = await ingestIntegrationSignals({
@@ -252,7 +256,7 @@ app.post("/api/releases/:releaseId/override", authMiddleware, requireHumanSessio
     metadata
   });
   if (!out.ok) {
-    return res.status(out.statusCode || 400).json({ error: out.error });
+    return sendError(res, req, out.statusCode || 400, out.error);
   }
 
   return res.json({
@@ -378,7 +382,7 @@ app.post("/api/releases/:releaseId/intelligence/decision", authMiddleware, requi
   const { decision, notes = "" } = req.body || {};
   const allowed = new Set(["applied", "dismissed", "overridden", "shipped"]);
   if (!allowed.has(String(decision))) {
-    return res.status(400).json({ error: "decision must be one of: applied, dismissed, overridden, shipped" });
+    return sendError(res, req, 400, "decision must be one of: applied, dismissed, overridden, shipped");
   }
   const actor = auditActorFromAuth(req.auth);
   const payload = {
@@ -407,7 +411,7 @@ app.post("/api/releases/:releaseId/intelligence/outcome", authMiddleware, requir
   const { label, notes = "", observed_at } = req.body || {};
   const allowed = new Set(["incident", "no_incident", "followup_met"]);
   if (!allowed.has(String(label))) {
-    return res.status(400).json({ error: "label must be one of: incident, no_incident, followup_met" });
+    return sendError(res, req, 400, "label must be one of: incident, no_incident, followup_met");
   }
   const payload = {
     label: String(label),
@@ -437,10 +441,10 @@ app.post("/api/releases/:releaseId/escalate", authMiddleware, requireReleaseAcce
     const { reason, blocking_signals = [], attempted_fixes = [] } = req.body || {};
     const justification = String(reason || "").trim();
     if (!justification) {
-      return res.status(400).json({ error: "reason is required" });
+      return sendError(res, req, 400, "reason is required");
     }
     if (release.status === "CERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE") {
-      return res.status(400).json({ error: "release is already certified; escalation not needed" });
+      return sendError(res, req, 400, "release is already certified; escalation not needed");
     }
 
     const actorType = req.auth?.authType === "api_key" ? "AGENT" : "USER";
@@ -546,7 +550,7 @@ app.get("/api/releases/:releaseId/cert/verify", async (req, res, next) => {
 app.get("/api/releases/:releaseId/cert/signature", async (req, res, next) => {
   try {
     const sig = await getCertSignaturePublic(req.params.releaseId);
-    if (!sig) return res.status(404).json({ error: "no signature on record for this release" });
+    if (!sig) return sendError(res, req, 404, "no signature on record for this release");
     return res.json(sig);
   } catch (e) {
     next(e);
@@ -557,7 +561,7 @@ app.get("/api/releases/:releaseId/cert/signature", async (req, res, next) => {
 app.get("/api/releases/:releaseId/early-warning", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
     const ew = await getEarlyWarning(req.params.releaseId);
-    if (!ew) return res.status(404).json({ error: "no early warning computed for this release yet" });
+    if (!ew) return sendError(res, req, 404, "no early warning computed for this release yet");
     return res.json(ew);
   } catch (e) {
     next(e);
@@ -584,7 +588,7 @@ app.post(
       const result = await extendCollectionDeadline(req.releaseRow, extendMinutes);
       return res.json({ release_id: req.params.releaseId, ...result });
     } catch (e) {
-      if (e.status === 409) return res.status(409).json({ error: e.message });
+      if (e.status === 409) return sendError(res, req, 409, e.message);
       next(e);
     }
   }
@@ -606,14 +610,19 @@ app.post("/api/releases/:releaseId/sse-token", authMiddleware, requireReleaseAcc
 app.get("/api/releases/:releaseId/stream", async (req, res) => {
   const { token } = req.query;
   const { valid, reason } = await validateStreamToken(token, req.params.releaseId);
-  if (!valid) return res.status(401).json({ error: `Unauthorized: ${reason || "invalid_token"}` });
+  if (!valid) {
+    return sendError(res, req, 401, "unauthorized", {
+      message: `Unauthorized: ${reason || "invalid_token"}`,
+      details: reason ? { reason } : undefined
+    });
+  }
   await attachStream(req.params.releaseId, res);
 });
 /** Allow setting commit_sha and pr_number on a release (for VCS write-back). */
 app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const { commit_sha, pr_number } = req.body || {};
-  if (!commit_sha && !pr_number) return res.status(400).json({ error: "commit_sha or pr_number is required" });
+  if (!commit_sha && !pr_number) return sendError(res, req, 400, "commit_sha or pr_number is required");
   await run(
     "UPDATE releases SET commit_sha = COALESCE($1, commit_sha), pr_number = COALESCE($2, pr_number), updated_at = $3 WHERE id = $4",
     [commit_sha || null, pr_number || null, nowIso(), req.params.releaseId]
@@ -629,7 +638,7 @@ app.patch("/api/releases/:releaseId/vcs-context", authMiddleware, requireRelease
 app.get("/api/releases/:releaseId/recommendation", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
     const rec = await getRecommendationForRelease(req.releaseRow);
-    if (!rec) return res.status(404).json({ error: "no recommendation computed for this release yet" });
+    if (!rec) return sendError(res, req, 404, "no recommendation computed for this release yet");
     return res.json({ release_id: req.params.releaseId, ...rec });
   } catch (e) {
     next(e);
@@ -660,7 +669,7 @@ app.post("/api/releases/:releaseId/production-signals", authMiddleware, requireR
   const workspaceId = req.releaseRow.workspace_id;
 
   if (!signals || typeof signals !== "object" || Array.isArray(signals)) {
-    return res.status(400).json({ error: "signals object is required" });
+    return sendError(res, req, 400, "signals object is required");
   }
 
   const idempotencyKey = req.headers["x-idempotency-key"] || bodyKey || null;
@@ -672,11 +681,9 @@ app.post("/api/releases/:releaseId/production-signals", authMiddleware, requireR
   });
 
   if (result.inserted.length === 0 && result.duplicates.length > 0) {
-    return res.status(409).json({
-      error: "duplicate_request",
+    return sendError(res, req, 409, "duplicate_request", {
       message: "All signals already recorded under this idempotency key.",
-      idempotency_key: idempotencyKey,
-      duplicates: result.duplicates
+      details: { idempotency_key: idempotencyKey, duplicates: result.duplicates }
     });
   }
 
@@ -712,7 +719,7 @@ app.get("/api/releases/:releaseId/production-signals", authMiddleware, requireRe
 app.post("/api/releases/:releaseId/production-signals/align", authMiddleware, requireHumanSession, requireReleaseAccess, requireNonViewer, async (req, res, next) => {
   try {
   const result = await computeOutcomeAlignment(req.params.releaseId, req.releaseRow.workspace_id);
-  if (!result) return res.status(422).json({ error: "No production observations found for this release yet." });
+  if (!result) return sendError(res, req, 422, "No production observations found for this release yet.");
   return res.json(result);
   } catch (e) {
     next(e);
@@ -728,7 +735,7 @@ app.put("/api/releases/:releaseId/production-signals/incident", authMiddleware, 
   try {
   const { incident_ref } = req.body || {};
   if (!incident_ref || typeof incident_ref !== "string" || !incident_ref.trim()) {
-    return res.status(400).json({ error: "incident_ref (non-empty string) is required" });
+    return sendError(res, req, 400, "incident_ref (non-empty string) is required");
   }
   const result = await setIncidentRef(req.params.releaseId, req.releaseRow.workspace_id, incident_ref.trim());
   return res.json(result);
@@ -745,7 +752,7 @@ app.put("/api/releases/:releaseId/production-signals/incident", authMiddleware, 
 app.get("/api/releases/:releaseId/vcs-monitor", authMiddleware, requireReleaseAccess, async (req, res, next) => {
   try {
   const window = await getMonitoringWindow(req.params.releaseId);
-  if (!window) return res.status(404).json({ error: "No monitoring window found for this release." });
+  if (!window) return sendError(res, req, 404, "No monitoring window found for this release.");
   return res.json(window);
   } catch (e) {
     next(e);
@@ -767,10 +774,10 @@ app.post("/api/releases/:releaseId/vcs-monitor/scan", authMiddleware, requireRel
     }
 
     if (!window || window.status === "no_sha") {
-      return res.status(422).json({ error: "Release has no commit_sha — VCS monitoring requires a commit SHA." });
+      return sendError(res, req, 422, "Release has no commit_sha — VCS monitoring requires a commit SHA.");
     }
     if (window.status === "no_vcs") {
-      return res.status(422).json({ error: "No VCS integration configured for this workspace. Connect GitHub or GitLab in settings." });
+      return sendError(res, req, 422, "No VCS integration configured for this workspace. Connect GitHub or GitLab in settings.");
     }
 
     const newStatus = await scanWindow(window);

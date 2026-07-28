@@ -73,7 +73,8 @@ describe("remediationDebt", () => {
       .post(`/api/workspaces/${ws}/releases`)
       .send({ version: "Hotfix (#9503)", release_type: "incident_hotfix", pr_number: 9503 })
       .expect(400);
-    assert.match(res.body.error, /incident context/i);
-    assert.equal(res.body.incident_context?.eligible, false);
+    assert.match(res.body.message || res.body.error, /incident context/i);
+    assert.equal(res.body.details?.incident_context?.eligible, false);
+    assert.ok(res.body.request_id);
   });
 });

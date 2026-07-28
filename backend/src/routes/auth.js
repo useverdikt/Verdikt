@@ -1,5 +1,7 @@
 "use strict";
 
+const { sendError } = require("../lib/apiError");
+
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -49,21 +51,18 @@ module.exports = function registerAuthRoutes(app) {
     const hasInvite = invite_token.length > 0;
 
     if (!ALLOW_PUBLIC_REGISTRATION && !hasInvite) {
-      return res.status(403).json({
-        error:
-          "Self-service registration is not available. Join the waitlist on the site, or sign in if you already have an account."
-      });
+      return sendError(res, req, 403, "Self-service registration is not available. Join the waitlist on the site, or sign in if you already have an account.");
     }
     const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
     const name = typeof rawName === "string" ? rawName.trim() : "";
     if (!email || !email.includes("@")) {
-      return res.status(400).json({ error: "Valid email is required" });
+      return sendError(res, req, 400, "Valid email is required");
     }
     if (typeof password !== "string" || password.length < 8) {
-      return res.status(400).json({ error: "Password must be at least 8 characters" });
+      return sendError(res, req, 400, "Password must be at least 8 characters");
     }
     if (!(await checkRegisterRateLimit(req.ip))) {
-      return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
+      return sendError(res, req, 429, "Too many registration attempts. Please try again later.");
     }
     const existing = await queryOne("SELECT id FROM users WHERE email = $1", [email]);
     if (existing) {
@@ -99,7 +98,7 @@ module.exports = function registerAuthRoutes(app) {
             : invited.error === "not_found" || invited.error === "expired"
               ? 404
               : invited.statusCode || 400;
-        return res.status(code).json({ error: invited.error });
+        return sendError(res, req, code, invited.error);
       }
       return res.status(200).json({ ok: true, message: REGISTER_RESPONSE_MESSAGE, joined_workspace: true });
     }
@@ -118,7 +117,7 @@ module.exports = function registerAuthRoutes(app) {
     const out = await getInviteByToken(req.params.token);
     if (!out.ok) {
       const code = out.error === "not_found" ? 404 : 410;
-      return res.status(code).json({ error: out.error });
+      return sendError(res, req, code, out.error);
     }
     return res.json({
       ok: true,
@@ -134,7 +133,7 @@ module.exports = function registerAuthRoutes(app) {
     try {
       const { token } = req.body || {};
       if (!token || typeof token !== "string") {
-        return res.status(400).json({ error: "token is required" });
+        return sendError(res, req, 400, "token is required");
       }
       const out = await acceptWorkspaceInvite({
         token: token.trim(),
@@ -148,7 +147,7 @@ module.exports = function registerAuthRoutes(app) {
             : out.error === "invite_email_mismatch"
               ? 403
               : out.statusCode || 400;
-        return res.status(code).json({ error: out.error });
+        return sendError(res, req, code, out.error);
       }
       const effectiveRole =
         (await getEffectiveRoleForWorkspace(out.user.id, out.user.workspace_id)) || out.user.role;
@@ -164,7 +163,7 @@ module.exports = function registerAuthRoutes(app) {
     const { email: rawEmail, password } = req.body || {};
     const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
     if (!email || typeof password !== "string") {
-      return res.status(400).json({ error: "Email and password are required" });
+      return sendError(res, req, 400, "Email and password are required");
     }
     if (!(await checkLoginRateLimit(req.ip, email))) {
       await writeAudit({
@@ -174,7 +173,7 @@ module.exports = function registerAuthRoutes(app) {
         actorName: "auth_guard",
         details: { email, ip: req.ip, request_id: req.requestId }
       });
-      return res.status(429).json({ error: "Too many login attempts. Please try again shortly." });
+      return sendError(res, req, 429, "Too many login attempts. Please try again shortly.");
     }
     const userRow = await queryOne("SELECT * FROM users WHERE email = $1", [email]);
     const isValid = userRow ? await bcrypt.compare(password, userRow.password_hash) : false;
@@ -186,7 +185,7 @@ module.exports = function registerAuthRoutes(app) {
         actorName: "auth",
         details: { email, ip: req.ip, request_id: req.requestId }
       });
-      return res.status(401).json({ error: "Invalid email or password" });
+      return sendError(res, req, 401, "Invalid email or password");
     }
     await writeAudit({
       workspaceId: userRow.workspace_id,
@@ -210,29 +209,23 @@ module.exports = function registerAuthRoutes(app) {
 
   app.post("/api/auth/session-from-supabase", async (req, res) => {
     if (!SUPABASE_JWT_SECRET) {
-      return res.status(503).json({
-        error:
-          "Supabase session exchange is not configured. Set SUPABASE_JWT_SECRET (Dashboard → Settings → API → JWT Secret)."
-      });
+      return sendError(res, req, 503, "Supabase session exchange is not configured. Set SUPABASE_JWT_SECRET (Dashboard → Settings → API → JWT Secret).");
     }
     const { access_token: accessToken } = req.body || {};
     if (typeof accessToken !== "string" || !accessToken.trim()) {
-      return res.status(400).json({ error: "access_token is required" });
+      return sendError(res, req, 400, "access_token is required");
     }
     let sub;
     try {
       const p = jwt.verify(accessToken.trim(), SUPABASE_JWT_SECRET, { algorithms: ["HS256"] });
       sub = p.sub;
     } catch {
-      return res.status(401).json({ error: "Invalid Supabase access token" });
+      return sendError(res, req, 401, "Invalid Supabase access token");
     }
     try {
       const userRow = await findApplicationUserForSupabaseSub(sub);
       if (!userRow) {
-        return res.status(401).json({
-          error:
-            "No application user for this Supabase account. Use Supabase Postgres (DATABASE_URL) with migrations applied, or add auth_user_id in local SQLite."
-        });
+        return sendError(res, req, 401, "No application user for this Supabase account. Use Supabase Postgres (DATABASE_URL) with migrations applied, or add auth_user_id in local SQLite.");
       }
       const effectiveRole =
         (await getEffectiveRoleForWorkspace(userRow.id, userRow.workspace_id)) || userRow.role;
@@ -242,7 +235,7 @@ module.exports = function registerAuthRoutes(app) {
       return res.json({ user: publicUser(sessionUser) });
     } catch (e) {
       console.error(`[${req.requestId}] session-from-supabase`, e);
-      return res.status(500).json({ error: "Session exchange failed" });
+      return sendError(res, req, 500, "Session exchange failed");
     }
   });
 
@@ -250,10 +243,10 @@ module.exports = function registerAuthRoutes(app) {
     const { email: rawEmail } = req.body || {};
     const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
     if (!email || !email.includes("@")) {
-      return res.status(400).json({ error: "Valid email is required" });
+      return sendError(res, req, 400, "Valid email is required");
     }
     if (!(await checkForgotPasswordRateLimit(req.ip))) {
-      return res.status(429).json({ error: "Too many requests. Please try again shortly." });
+      return sendError(res, req, 429, "Too many requests. Please try again shortly.");
     }
     const userRow = await queryOne("SELECT * FROM users WHERE email = $1", [email]);
     const payload = { ok: true, message: FORGOT_PASSWORD_GENERIC };
@@ -306,7 +299,7 @@ module.exports = function registerAuthRoutes(app) {
       return res.status(200).json(payload);
     } catch (e) {
       console.error(`[${req.requestId}] forgot-password`, e);
-      return res.status(500).json({ error: "Something went wrong" });
+      return sendError(res, req, 500, "Something went wrong");
     }
   });
 
@@ -333,19 +326,19 @@ module.exports = function registerAuthRoutes(app) {
     const rawPain = body.q_pain_points;
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail);
     if (!name || !rawEmail || !company) {
-      return res.status(400).json({ error: "Name, work email, and company are required" });
+      return sendError(res, req, 400, "Name, work email, and company are required");
     }
     if (!emailOk) {
-      return res.status(400).json({ error: "Valid work email is required" });
+      return sendError(res, req, 400, "Valid work email is required");
     }
     if (!qRole || !WAITLIST_Q_ROLE.has(qRole)) {
-      return res.status(400).json({ error: "Please answer: what best describes your role?" });
+      return sendError(res, req, 400, "Please answer: what best describes your role?");
     }
     if (!qTeamSize || !WAITLIST_Q_TEAM.has(qTeamSize)) {
-      return res.status(400).json({ error: "Please answer: team size on a typical release" });
+      return sendError(res, req, 400, "Please answer: team size on a typical release");
     }
     if (!qReleaseProcess || !WAITLIST_Q_PROCESS.has(qReleaseProcess)) {
-      return res.status(400).json({ error: "Please answer: how known issues are handled today" });
+      return sendError(res, req, 400, "Please answer: how known issues are handled today");
     }
     let painPoints = [];
     if (Array.isArray(rawPain)) {
@@ -353,11 +346,11 @@ module.exports = function registerAuthRoutes(app) {
     }
     const painDedup = [...new Set(painPoints)].filter((p) => WAITLIST_Q_PAIN.has(p));
     if (painDedup.length < 1 || painDedup.length > 2) {
-      return res.status(400).json({ error: "Please select 1–2 options for what would hurt most" });
+      return sendError(res, req, 400, "Please select 1–2 options for what would hurt most");
     }
     const qPainJson = JSON.stringify(painDedup);
     if (!(await checkWaitlistRateLimit(req.ip))) {
-      return res.status(429).json({ error: "Too many submissions. Please try again later." });
+      return sendError(res, req, 429, "Too many submissions. Please try again later.");
     }
     const ip = (req.ip || "").toString().slice(0, 64);
     const created = nowIso();
@@ -410,17 +403,17 @@ module.exports = function registerAuthRoutes(app) {
       return res.status(201).json({ ok: true, id: ins.lastInsertRowid });
     } catch (e) {
       console.error(`[${req.requestId}] waitlist-requests`, e);
-      return res.status(500).json({ error: "Something went wrong" });
+      return sendError(res, req, 500, "Something went wrong");
     }
   });
 
   app.post("/api/auth/reset-password", async (req, res) => {
     const { token: rawToken, password } = req.body || {};
     if (typeof rawToken !== "string" || !rawToken.trim()) {
-      return res.status(400).json({ error: "Reset token is required" });
+      return sendError(res, req, 400, "Reset token is required");
     }
     if (typeof password !== "string" || password.length < 8) {
-      return res.status(400).json({ error: "Password must be at least 8 characters" });
+      return sendError(res, req, 400, "Password must be at least 8 characters");
     }
     const tokenHash = crypto.createHash("sha256").update(rawToken.trim()).digest("hex");
     const row = await queryOne(
@@ -430,10 +423,10 @@ module.exports = function registerAuthRoutes(app) {
       [tokenHash]
     );
     if (!row) {
-      return res.status(400).json({ error: "Invalid or expired reset link" });
+      return sendError(res, req, 400, "Invalid or expired reset link");
     }
     if (new Date(row.expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ error: "Invalid or expired reset link" });
+      return sendError(res, req, 400, "Invalid or expired reset link");
     }
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const pwdChangedAt = nowIso();
@@ -457,7 +450,7 @@ module.exports = function registerAuthRoutes(app) {
 
   app.get("/api/auth/me", authMiddleware, async (req, res) => {
     const userRow = await getUserRowForAuthById(req.auth.sub);
-    if (!userRow) return res.status(401).json({ error: "User not found" });
+    if (!userRow) return sendError(res, req, 401, "User not found");
     return res.json({
       user: publicUser({
         ...userRow,

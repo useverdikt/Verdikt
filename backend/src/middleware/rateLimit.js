@@ -1,6 +1,7 @@
 "use strict";
 
 const { LOGIN_RATE_LIMIT_PER_MINUTE, WEBHOOK_RATE_LIMIT_PER_MINUTE, REDIS_URL } = require("../config");
+const { sendError } = require("../lib/apiError");
 
 const webhookRateWindow = new Map();
 const loginRateWindow = new Map();
@@ -226,7 +227,9 @@ async function signalIngestRateLimit(req, res, next) {
     const workspaceId = req.auth?.ws || req.params.workspaceId || "unknown";
     const ok = await checkSignalIngestRateLimit(keyId, workspaceId);
     if (!ok) {
-      return res.status(429).json({ error: "Signal ingest rate limit exceeded", request_id: req.requestId });
+      return sendError(res, req, 429, "signal_ingest_rate_limited", {
+        message: "Signal ingest rate limit exceeded"
+      });
     }
     next();
   } catch (e) {
@@ -240,7 +243,9 @@ async function gatePollRateLimit(req, res, next) {
     const workspaceId = req.auth?.ws || req.params.workspaceId || "unknown";
     const ok = await checkGatePollRateLimit(keyId, workspaceId);
     if (!ok) {
-      return res.status(429).json({ error: "Gate poll rate limit exceeded", request_id: req.requestId });
+      return sendError(res, req, 429, "gate_poll_rate_limited", {
+        message: "Gate poll rate limit exceeded"
+      });
     }
     next();
   } catch (e) {
@@ -276,7 +281,9 @@ async function webhookRateLimit(req, res, next) {
     const ok = await checkWebhookRateLimit(ip);
     if (!ok) {
       console.warn(`[${req.requestId}] webhook rate limit exceeded`, { ip });
-      return res.status(429).json({ error: "Webhook rate limit exceeded" });
+      return sendError(res, req, 429, "webhook_rate_limited", {
+        message: "Webhook rate limit exceeded"
+      });
     }
     next();
   } catch (e) {

@@ -82,14 +82,18 @@ async function readErrorMessage(res, path, method) {
   const requestId = res.headers.get("x-request-id");
   let msg = `${method} ${path} failed (${res.status})`;
   let code = null;
+  let details = undefined;
+  let bodyRequestId = null;
   try {
     const j = await res.json();
     if (j && typeof j === "object") {
       if (typeof j.message === "string" && j.message.trim()) msg = j.message.trim();
       else if (typeof j.error === "string" && j.error.trim()) msg = j.error.trim();
       if (typeof j.error === "string" && j.error.trim()) code = j.error.trim();
-      if (!requestId && typeof j.request_id === "string" && j.request_id.trim()) {
-        msg = `${msg} (request_id: ${j.request_id.trim()})`;
+      if (j.details !== undefined) details = j.details;
+      if (typeof j.request_id === "string" && j.request_id.trim()) bodyRequestId = j.request_id.trim();
+      if (!requestId && bodyRequestId) {
+        msg = `${msg} (request_id: ${bodyRequestId})`;
       }
     }
   } catch {
@@ -100,7 +104,8 @@ async function readErrorMessage(res, path, method) {
   err.name = "ApiError";
   err.status = res.status;
   err.code = code;
-  err.requestId = requestId || null;
+  err.requestId = requestId || bodyRequestId || null;
+  if (details !== undefined) err.details = details;
   return err;
 }
 

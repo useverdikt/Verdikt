@@ -3,6 +3,22 @@
  * Technical detail is kept for an optional expand control in ApiBanner.
  */
 
+/**
+ * Prefer the standardized API body `{ message, error }` for display.
+ * `error` is a machine code; `message` is human-readable.
+ * @param {unknown} data
+ * @param {string} [fallback]
+ */
+export function messageFromApiBody(data, fallback = "Request failed") {
+  if (data && typeof data === "object") {
+    const message = typeof data.message === "string" ? data.message.trim() : "";
+    if (message) return message;
+    const error = typeof data.error === "string" ? data.error.trim() : "";
+    if (error) return error;
+  }
+  return fallback;
+}
+
 /** @param {string | null | undefined} raw */
 export function resolveApiBanner(raw) {
   if (!raw) return null;

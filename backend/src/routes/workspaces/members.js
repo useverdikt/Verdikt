@@ -1,5 +1,7 @@
 "use strict";
 
+const { sendError } = require("../../lib/apiError");
+
 const {
   authMiddleware,
   requireHumanSession,
@@ -45,7 +47,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
           inviterName: actor?.name || req.auth.email
         });
         if (!out.ok) {
-          return res.status(out.statusCode || 400).json({ error: out.error });
+          return sendError(res, req, out.statusCode || 400, out.error);
         }
         return res.status(201).json({ ok: true, invite: out.invite });
       } catch (e) {
@@ -71,7 +73,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
           actorEmail: req.auth.email
         });
         if (!out.ok) {
-          return res.status(out.statusCode || 400).json({ error: out.error });
+          return sendError(res, req, out.statusCode || 400, out.error);
         }
         return res.json({ ok: true });
       } catch (e) {
@@ -96,7 +98,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
           actorEmail: req.auth.email
         });
         if (!out.ok) {
-          return res.status(out.statusCode || 400).json({ error: out.error });
+          return sendError(res, req, out.statusCode || 400, out.error);
         }
         return res.json({ ok: true });
       } catch (e) {
@@ -120,7 +122,7 @@ module.exports = function registerWorkspaceMemberRoutes(app) {
           actorEmail: req.auth.email
         });
         if (!out.ok) {
-          return res.status(out.statusCode || 400).json({ error: out.error });
+          return sendError(res, req, out.statusCode || 400, out.error);
         }
         return res.json({ ok: true });
       } catch (e) {

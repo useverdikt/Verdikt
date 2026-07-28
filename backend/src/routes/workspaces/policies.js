@@ -4,7 +4,7 @@ const { run } = require("../../database");
 const { queryOne } = require("../../database");
 const { normalizeWorkspaceSlug, validateWorkspaceSlug } = require("../../lib/workspaceSlug");
 const { getWorkspaceRemediationDebt } = require("../../services/remediationDebt");
-const {
+const { sendError,
   nowIso,
   writeAudit,
   authMiddleware,
@@ -106,13 +106,13 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
         nextPublicSlug = null;
       } else {
         const validated = validateWorkspaceSlug(public_slug);
-        if (!validated.ok) return res.status(400).json({ error: validated.error });
+        if (!validated.ok) return sendError(res, req, 400, validated.error);
         const taken = await queryOne(
           `SELECT workspace_id FROM workspace_policies
            WHERE LOWER(public_slug) = LOWER($1) AND workspace_id <> $2`,
           [validated.slug, req.params.workspaceId]
         );
-        if (taken) return res.status(409).json({ error: "public slug already in use" });
+        if (taken) return sendError(res, req, 409, "public slug already in use");
         nextPublicSlug = validated.slug;
       }
     }
@@ -224,7 +224,7 @@ app.put("/api/workspaces/:workspaceId/baseline-policy", authMiddleware, requireH
 app.get("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {
     const hook = await getOutboundWebhook(req.params.workspaceId);
-    if (!hook) return res.status(404).json({ error: "no outbound webhook configured" });
+    if (!hook) return sendError(res, req, 404, "no outbound webhook configured");
     // Mask secret
     const safe = { ...hook, secret: hook.secret ? "***" : null };
     return res.json(safe);
@@ -236,7 +236,7 @@ app.get("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, require
 app.put("/api/workspaces/:workspaceId/outbound-webhook", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
     const { url, secret, events } = req.body || {};
-    if (!url || typeof url !== "string") return res.status(400).json({ error: "url is required" });
+    if (!url || typeof url !== "string") return sendError(res, req, 400, "url is required");
     let safeUrl;
     try {
       const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");

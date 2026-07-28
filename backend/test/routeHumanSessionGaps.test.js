@@ -64,7 +64,9 @@ describe("release governance routes require human session", () => {
       .set("Authorization", `Bearer ${apiKey}`);
 
     assert.equal(res.status, 403, `Expected 403, got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert.match(res.body.error || "", /human session/i);
+    assert.equal(res.body.error, "human_session_required");
+    assert.match(res.body.message || "", /human session/i);
+    assert.ok(res.body.request_id);
   });
 
   it("PUT /production-signals/incident rejects agent API key with 403", async () => {
@@ -78,7 +80,9 @@ describe("release governance routes require human session", () => {
       .send({ incident_ref: "INC-123" });
 
     assert.equal(res.status, 403, `Expected 403, got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert.match(res.body.error || "", /human session/i);
+    assert.equal(res.body.error, "human_session_required");
+    assert.match(res.body.message || "", /human session/i);
+    assert.ok(res.body.request_id);
   });
 
   it("POST /collection-deadline/extend rejects agent API key with 403", async () => {
@@ -92,7 +96,9 @@ describe("release governance routes require human session", () => {
       .send({ extend_minutes: 10 });
 
     assert.equal(res.status, 403, `Expected 403, got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert.match(res.body.error || "", /human session/i);
+    assert.equal(res.body.error, "human_session_required");
+    assert.match(res.body.message || "", /human session/i);
+    assert.ok(res.body.request_id);
   });
 
   it("POST /intelligence/decision rejects agent API key with 403", async () => {
@@ -106,7 +112,9 @@ describe("release governance routes require human session", () => {
       .send({ decision: "applied", notes: "Looks good" });
 
     assert.equal(res.status, 403, `Expected 403, got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert.match(res.body.error || "", /human session/i);
+    assert.equal(res.body.error, "human_session_required");
+    assert.match(res.body.message || "", /human session/i);
+    assert.ok(res.body.request_id);
   });
 
   it("POST /intelligence/decision ignores body actor and records the authenticated human", async () => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { apiFetchInit, resolveApiOrigin } from "../settingsClient.js";
+import { messageFromApiBody } from "../../../lib/apiErrorCopy.js";
 
 export default function GovernancePanel({ section, wsId, toast }) {
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -59,7 +60,7 @@ export default function GovernancePanel({ section, wsId, toast }) {
         toast("Outbound webhook saved");
       } else {
         const e = await res.json();
-        toast(e.error || "Save failed");
+        toast(messageFromApiBody(e, "Save failed"));
       }
     } catch {
       toast("Network error");
@@ -100,7 +101,7 @@ export default function GovernancePanel({ section, wsId, toast }) {
       if (res.ok) toast("Agent gate & escalation settings saved");
       else {
         const e = await res.json();
-        toast(e.error || "Save failed");
+        toast(messageFromApiBody(e, "Save failed"));
       }
     } catch {
       toast("Network error");

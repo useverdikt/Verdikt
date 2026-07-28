@@ -1,6 +1,7 @@
 "use strict";
 
 const { AUTH_COOKIE_NAME, CSRF_COOKIE_NAME } = require("../config");
+const { sendError } = require("../lib/apiError");
 
 const CSRF_EXEMPT_PREFIXES = [
   "/api/auth/login",
@@ -32,7 +33,7 @@ function csrfProtection(req, res, next) {
   const header = (req.headers["x-csrf-token"] || "").toString();
   const cookie = (req.cookies[CSRF_COOKIE_NAME] || "").toString();
   if (header && cookie && header === cookie) return next();
-  return res.status(403).json({ error: "Invalid CSRF token" });
+  return sendError(res, req, 403, "invalid_csrf_token", { message: "Invalid CSRF token" });
 }
 
 module.exports = { csrfProtection };

@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { resolveApiBanner } from "./apiErrorCopy.js";
+import { resolveApiBanner, messageFromApiBody } from "./apiErrorCopy.js";
+
+describe("messageFromApiBody", () => {
+  it("prefers message over machine-code error", () => {
+    expect(
+      messageFromApiBody({ error: "unauthorized", message: "Invalid email or password" }, "fail")
+    ).toBe("Invalid email or password");
+  });
+
+  it("falls back to error then default", () => {
+    expect(messageFromApiBody({ error: "not_found" })).toBe("not_found");
+    expect(messageFromApiBody({})).toBe("Request failed");
+    expect(messageFromApiBody(null, "Sign in failed")).toBe("Sign in failed");
+  });
+});
 
 describe("resolveApiBanner", () => {
   it("maps threshold errors to friendly title", () => {

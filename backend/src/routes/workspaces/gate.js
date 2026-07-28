@@ -1,6 +1,6 @@
 "use strict";
 
-const {
+const { sendError,
   authMiddleware,
   requireWorkspaceMatch,
   resolveReleaseForWorkspaceIngest,
@@ -20,7 +20,7 @@ module.exports = function registerRoutes(app) {
     try {
       const commit_sha = normalizeCommitSha(String(req.query.commit_sha || ""));
       if (!commit_sha) {
-        return res.status(400).json({ error: "commit_sha query parameter is required (7+ hex chars)" });
+        return sendError(res, req, 400, "commit_sha query parameter is required (7+ hex chars)");
       }
 
       const github_owner = req.query.github_owner ? String(req.query.github_owner).trim() : null;
@@ -41,10 +41,11 @@ module.exports = function registerRoutes(app) {
       });
 
       if (!release) {
-        return res.status(404).json({
-          error: "no release found for commit_sha",
-          commit_sha,
-          hint: "Apply verdikt:rc on the PR (or create_release with this SHA) before calling gate"
+        return sendError(res, req, 404, "no release found for commit_sha", {
+          details: {
+            commit_sha,
+            hint: "Apply verdikt:rc on the PR (or create_release with this SHA) before calling gate"
+          }
         });
       }
 

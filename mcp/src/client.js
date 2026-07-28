@@ -18,10 +18,17 @@ export class VerdiktApiError extends Error {
    * @param {Record<string, unknown> | null} data
    */
   constructor(status, data) {
-    const msg = data?.error || data?.message || "Request failed";
+    const code = typeof data?.error === "string" ? data.error : null;
+    const msg =
+      (typeof data?.message === "string" && data.message.trim()) ||
+      (typeof data?.error === "string" && data.error) ||
+      "Request failed";
     super(`${status} ${msg}`);
     this.name = "VerdiktApiError";
     this.status = status;
+    this.code = code;
+    this.requestId = typeof data?.request_id === "string" ? data.request_id : null;
+    this.details = data?.details;
     this.data = data && typeof data === "object" ? { ...data } : { raw: data };
   }
 }
