@@ -478,10 +478,14 @@ function computeGateAction({
   missingRequiredSignals,
   collectionAgeMs = null,
   gracePeriodMs = COLLECTION_GRACE_MS,
-  blockedByRemediationDebt = false
+  blockedByRemediationDebt = false,
+  snapshotMissing = false
 }) {
   if (gateAllowed && (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")) {
     return "merge";
+  }
+  if (snapshotMissing && (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")) {
+    return "recover_certification";
   }
   if (blockedByRemediationDebt) {
     return "recover_certification";

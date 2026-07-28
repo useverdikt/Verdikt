@@ -14,6 +14,7 @@ const { getWorkspaceRemediationDebt } = require("./remediationDebt");
 const { getWorkspaceIncidentCorroboration } = require("./incidentContext");
 const { isEmergencyReleaseType } = require("../lib/emergencyReleaseType");
 const { log, inc } = require("../lib/observability");
+const { getCertificationSnapshot } = require("./certificationSnapshots");
 
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
@@ -29,19 +30,42 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     CERTIFIED_WITH_OVERRIDE: "release certified with override"
   };
   const reason = reasonByStatus[release.status] || `release status is ${release.status}`;
+  const status = String(release.status || "").toUpperCase();
+  const isCertified = status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE";
 
-  const [policy, intelligence, thresholdMap, trajectoryInfo, latest, remediationDebt] = await Promise.all([
+  const [policy, intelligence, trajectoryInfo, remediationDebt] = await Promise.all([
     getWorkspacePolicy(release.workspace_id),
     getReleaseIntelligence(releaseId),
-    getThresholdMap(release.workspace_id),
     computeReleaseTrajectory({
       workspaceId: release.workspace_id,
       releaseId,
       releaseRow: release
     }),
-    getLatestSignalMap(releaseId),
     getWorkspaceRemediationDebt(release.workspace_id)
   ]);
+
+  let thresholdMap = {};
+  let latest = {};
+  let snapshotMissing = false;
+  if (isCertified) {
+    const snapshot = await getCertificationSnapshot(releaseId);
+    if (snapshot) {
+      thresholdMap = snapshot.threshold_map || {};
+      latest = snapshot.signal_map || {};
+    } else {
+      snapshotMissing = true;
+      // Load live maps only so blockers/remediation context stays useful while the gate is blocked.
+      [thresholdMap, latest] = await Promise.all([
+        getThresholdMap(release.workspace_id),
+        getLatestSignalMap(releaseId)
+      ]);
+    }
+  } else {
+    [thresholdMap, latest] = await Promise.all([
+      getThresholdMap(release.workspace_id),
+      getLatestSignalMap(releaseId)
+    ]);
+  }
 
   const mode =
     modeOverride === "strict"
@@ -87,6 +111,16 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     blockedByRemediationDebt = true;
   }
 
+  if (snapshotMissing) {
+    gateAllowed = false;
+    gateReason = "certification snapshot is missing; gate blocked until evidence is frozen";
+    log("warn", "gate_snapshot_missing", {
+      releaseId,
+      workspaceId: release.workspace_id,
+      status: release.status
+    });
+  }
+
   const failedSignalsFromIntel = intelligence?.verdict?.failed_signals ?? [];
   let failedSignals = failedSignalsFromIntel;
   if (!failedSignals.length && (release.status === "UNCERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE")) {
@@ -108,7 +142,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     blockingSignals,
     missingRequiredSignals,
     collectionAgeMs,
-    blockedByRemediationDebt
+    blockedByRemediationDebt,
+    snapshotMissing
   });
   const actionKey = String(action || "unknown").toLowerCase();
   inc(`gate_action_${actionKey}`);
@@ -210,6 +245,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     certification,
     calibration,
     remediation_debt: remediationDebt,
+    snapshot_pending: snapshotMissing,
     gate: {
       allowed: gateAllowed,
       reason: gateReason,
