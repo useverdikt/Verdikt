@@ -17,13 +17,10 @@ const { createApp } = require("../src/app");
 const { getThresholdMap } = require("../src/services/domain");
 const { getLatestSignalMap } = require("../src/services/verdictEngine");
 const certificationSnapshots = require("../src/services/certificationSnapshots");
-<<<<<<< HEAD
 const {
   backfillMissingCertificationSnapshots,
   processDueCertificationSnapshotRetries
 } = require("../src/services/certificationSnapshotRetry");
-=======
->>>>>>> origin/main
 
 let app;
 
