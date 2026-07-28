@@ -1,6 +1,7 @@
 /**
- * Shared severity helpers — single ESM source for frontend + backend.
+ * Shared severity helpers — ESM source for frontend + backend.
  * Import via `@useverdikt/shared/severity` (see package.json exports).
+ * CJS consumers use severity.cjs (kept in sync; see p4Consistency.test.js).
  */
 
 /** Severity ordering for manual QA showstopper gates (least → most severe). */

@@ -13,7 +13,7 @@ const {
   BLOCKED_OR_COLLECTING,
   isVerdictedStatus,
   isBlockedOrCollectingStatus
-} = require("../../shared/releaseStatus.js");
+} = require("@useverdikt/shared/releaseStatus");
 
 describe("migration parity script", () => {
   it("extracts logical slugs from backend and supabase filenames", () => {

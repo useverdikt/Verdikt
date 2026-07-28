@@ -6,10 +6,7 @@ import { z } from "zod";
 import { apiRequest, jsonResult, withAgentSession, WORKSPACE_ID } from "./client.js";
 import { bindReleaseSession, ensureSessionId, resolveSessionId } from "./session.js";
 import { formatGateForAgent, formatReleaseBriefForAgent } from "./gateFormat.js";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const { isCertLikeStatus } = require("../../shared/releaseStatus.js");
+import { isCertLikeStatus } from "@useverdikt/shared/releaseStatus";
 
 const SESSION_ID_FIELD = z
   .string()

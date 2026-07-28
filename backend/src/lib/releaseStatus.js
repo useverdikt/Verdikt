@@ -1,3 +1,3 @@
 "use strict";
 
-module.exports = require("../../../shared/releaseStatus.js");
+module.exports = require("@useverdikt/shared/releaseStatus");
