@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
+import { getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { TREND_CHART_MAX_POINTS } from "../lib/trendChart.js";
 import { mapBackendListRowToUi } from "../lib/releaseMappers.js";
@@ -19,6 +19,11 @@ import {
   syncHydratedFromReleases,
   isSummaryPending
 } from "../lib/releaseDetailRefresh.js";
+import { appQueryClient } from "../queries/queryClient.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
+import { fetchWorkspaceReleases, fetchWorkspaceThresholds } from "../queries/workspaceFetchers.js";
+
+const RELEASE_LIST_LIMIT = 50;
 
 /** Release list + chart-window hydration for Intelligence Hub → Signal trends. */
 export function useTrendChartReleases() {
@@ -69,8 +74,16 @@ export function useTrendChartReleases() {
       try {
         const wsId = getWorkspaceId();
         const [relData, thData] = await Promise.all([
-          apiGet(`/api/workspaces/${wsId}/releases?limit=50`, navigate),
-          apiGet(`/api/workspaces/${wsId}/thresholds`, navigate).catch(() => null)
+          appQueryClient.fetchQuery({
+            queryKey: workspaceKeys.releases(wsId, { limit: RELEASE_LIST_LIMIT }),
+            queryFn: () => fetchWorkspaceReleases(wsId, navigate, { limit: RELEASE_LIST_LIMIT })
+          }),
+          appQueryClient
+            .fetchQuery({
+              queryKey: workspaceKeys.thresholds(wsId),
+              queryFn: () => fetchWorkspaceThresholds(wsId, navigate)
+            })
+            .catch(() => null)
         ]);
         if (cancelled) return;
         const rows = Array.isArray(relData?.releases) ? relData.releases : [];
