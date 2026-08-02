@@ -11,7 +11,6 @@ import {
   isSummaryPending,
   initialReleaseTablePendingIds,
   pendingSummaryIdsForReleases,
-  chartWindowPendingIds,
   resetHydrationPool,
   syncHydratedFromReleases,
   setHydrationNavigate,
@@ -19,7 +18,6 @@ import {
 } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { S } from "../lib/workspaceStorage.js";
-import { TREND_CHART_MAX_POINTS } from "../lib/trendChart.js";
 import { mapBackendListRowToUi } from "../lib/releaseMappers.js";
 import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
@@ -53,13 +51,8 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   navRef.current = nav;
   const workspaceIdRef = useRef(getWorkspaceId());
 
-  const scheduleReleaseHydration = useCallback((mergedReleases, { priorityChartWindow = false } = {}) => {
+  const scheduleReleaseHydration = useCallback((mergedReleases) => {
     syncHydratedFromReleases(mergedReleases, isSummaryPending);
-    if (priorityChartWindow) {
-      const chartIds = chartWindowPendingIds(mergedReleases, TREND_CHART_MAX_POINTS);
-      if (chartIds.length) enqueueReleaseHydration(chartIds, { priority: true });
-      return;
-    }
     const pending = initialReleaseTablePendingIds(mergedReleases);
     if (pending.length) enqueueReleaseHydration(pending, { priority: false });
   }, []);
@@ -115,7 +108,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   }, []);
 
   const applyReleaseListFromServer = useCallback(
-    (relData, { priorityChartWindow = false } = {}) => {
+    (relData) => {
       const rows = relData?.releases || [];
       setReleasesNextBefore(relData?.next_before || null);
       if (typeof relData?.shipped_without_certification_count === "number") {
@@ -136,7 +129,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
           return merged;
         });
         setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
-        scheduleReleaseHydration(merged, { priorityChartWindow });
+        scheduleReleaseHydration(merged);
         return merged;
       }
       setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
