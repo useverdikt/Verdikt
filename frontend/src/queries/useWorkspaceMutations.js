@@ -2,13 +2,13 @@ import { useMutation } from "@tanstack/react-query";
 import { apiPost, getWorkspaceId } from "../lib/apiClient.js";
 import { thresholdNormalizedToApiPayload } from "../lib/thresholdBounds.js";
 import {
-  invalidateReleaseDomain,
   invalidateThresholdDomain,
   invalidateFullWorkspace
 } from "./workspaceMutations.js";
 
 /**
  * TanStack Query mutations with targeted cache invalidation for workspace writes.
+ * Release mutations live in useReleaseActions (invalidate + force refresh into local state).
  */
 export function useWorkspaceMutations(navigate) {
   const wsId = getWorkspaceId();
@@ -47,43 +47,10 @@ export function useWorkspaceMutations(navigate) {
     }
   });
 
-  const postReleaseSignals = useMutation({
-    mutationFn: ({ releaseId, body }) => apiPost(`/api/releases/${releaseId}/signals`, body, { navigate }),
-    onSuccess: async () => {
-      await invalidateReleaseDomain(wsId);
-    }
-  });
-
-  const overrideRelease = useMutation({
-    mutationFn: ({ releaseId, body }) => apiPost(`/api/releases/${releaseId}/override`, body, { navigate }),
-    onSuccess: async () => {
-      await invalidateReleaseDomain(wsId);
-    }
-  });
-
-  const pullReleaseSources = useMutation({
-    mutationFn: (releaseId) => apiPost(`/api/releases/${releaseId}/sources/pull`, {}, { navigate }),
-    onSuccess: async () => {
-      await invalidateReleaseDomain(wsId);
-    }
-  });
-
-  const adoptSignalDefinition = useMutation({
-    mutationFn: (signalId) =>
-      apiPost(`/api/workspaces/${wsId}/signal-definitions/adopt`, { signal_id: signalId }, { navigate }),
-    onSuccess: async () => {
-      await invalidateThresholdDomain(wsId);
-    }
-  });
-
   return {
     wsId,
     saveThresholds,
     applyThresholdSuggestion,
-    dismissThresholdSuggestion,
-    postReleaseSignals,
-    overrideRelease,
-    pullReleaseSources,
-    adoptSignalDefinition
+    dismissThresholdSuggestion
   };
 }
