@@ -1,9 +1,12 @@
 "use strict";
 
-const crypto = require("crypto");
 const { transaction, queryOne, run } = require("../database");
 const { writeAudit } = require("./audit");
 const { log, inc } = require("../lib/observability");
+const {
+  canonicalHash,
+  buildLegacyEffectInput
+} = require("./outboundEffectLegacyObservation");
 
 const DEFAULT_BATCH_SIZE = 25;
 const DEFAULT_LEASE_MS = 120_000;
@@ -15,20 +18,6 @@ class RetryableShadowComparisonError extends Error {
     super(message);
     this.name = "RetryableShadowComparisonError";
   }
-}
-
-function stableValue(value) {
-  if (Array.isArray(value)) return value.map(stableValue);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, stableValue(value[key])])
-  );
-}
-
-function canonicalHash(value) {
-  return crypto.createHash("sha256").update(JSON.stringify(stableValue(value))).digest("hex");
 }
 
 function parseJsonObject(value, fallback = {}) {
@@ -155,17 +144,43 @@ async function compareVcsWriteback(row, release, _envelope, queryOneFn) {
   });
 }
 
-async function compareReleaseCallback(_row, release) {
+function compareLegacyObservation(row, release, envelope, label) {
+  const observation = parseJsonObject(row.legacy_comparison_json, null);
+  if (!observation) {
+    throw new RetryableShadowComparisonError(`legacy ${label} delivery not observed`);
+  }
+  const expected = buildLegacyEffectInput({
+    release: {
+      ...release,
+      status: row.verdict_status,
+      verdict_issued_at: row.verdict_issued_at
+    },
+    failedSignals: Array.isArray(envelope.failed_signals) ? envelope.failed_signals : []
+  });
+  return comparison(expected, observation.input || {}, {
+    comparison_scope: "delivery_input",
+    legacy_delivery_outcome: observation.outcome || null,
+    legacy_response_status: row.legacy_response_status ?? null,
+    legacy_error_code: row.legacy_error_code || null,
+    legacy_payload_hash: observation.payload_hash || null,
+    legacy_observed_at: row.legacy_observed_at || observation.observed_at || null
+  });
+}
+
+async function compareReleaseCallback(row, release, envelope) {
+  if (row.legacy_observed_at) {
+    return compareLegacyObservation(row, release, envelope, "release callback");
+  }
   if (!String(release.callback_url || "").trim()) {
     return { outcome: "skipped", reason: "no_callback_url" };
   }
-  return {
-    outcome: "unverifiable",
-    reason: "legacy_callback_has_no_delivery_record"
-  };
+  throw new RetryableShadowComparisonError("legacy release callback delivery not observed");
 }
 
-async function compareSlackVerdict(row, _release, _envelope, queryOneFn) {
+async function compareSlackVerdict(row, release, envelope, queryOneFn) {
+  if (row.legacy_observed_at) {
+    return compareLegacyObservation(row, release, envelope, "Slack verdict");
+  }
   const policy = await queryOneFn(
     `SELECT slack_webhook_url
        FROM workspace_policies
@@ -175,10 +190,7 @@ async function compareSlackVerdict(row, _release, _envelope, queryOneFn) {
   if (!String(policy?.slack_webhook_url || "").trim()) {
     return { outcome: "skipped", reason: "no_slack_webhook" };
   }
-  return {
-    outcome: "unverifiable",
-    reason: "legacy_slack_has_no_delivery_record"
-  };
+  throw new RetryableShadowComparisonError("legacy Slack verdict delivery not observed");
 }
 
 async function compareShadowIntent(row, { queryOneFn = queryOne } = {}) {
@@ -192,7 +204,7 @@ async function compareShadowIntent(row, { queryOneFn = queryOne } = {}) {
     case "vcs_writeback":
       return compareVcsWriteback(row, release, envelope, queryOneFn);
     case "release_callback":
-      return compareReleaseCallback(row, release);
+      return compareReleaseCallback(row, release, envelope);
     case "slack_verdict":
       return compareSlackVerdict(row, release, envelope, queryOneFn);
     default:
@@ -261,7 +273,8 @@ async function finalizeShadowComparison(row, workerId, result, runFn = run) {
         SET state = $1,
             payload_json = $2::jsonb,
             payload_hash = $3,
-            shadow_result_json = $4::jsonb,
+            shadow_result_json =
+              COALESCE(shadow_result_json, '{}'::jsonb) || $4::jsonb,
             claimed_by = NULL,
             claimed_until = NULL,
             last_error = NULL,
