@@ -211,6 +211,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   const deterministicIntelligence = await buildDeterministicVerdictIntelligence({
     release,
     failedSignals,
+    thresholdFailedSignals,
     missingRequiredSignals,
     nextStatus,
     deltaContext: deltaCtx,
