@@ -89,6 +89,10 @@ describe("evaluateReleaseAfterSignalIngest (unit)", () => {
     assert.equal(row.status, "UNCERTIFIED");
     const intelligence = await getReleaseIntelligence(releaseId);
     assert.deepEqual(intelligence.verdict.failed_signals, out.failed_signals);
+    assert.deepEqual(
+      intelligence.verdict.threshold_failed_signals,
+      out.threshold_failed_signals
+    );
   });
 
   it("preserves verdict_issued_at on re-evaluation after UNCERTIFIED", async () => {
