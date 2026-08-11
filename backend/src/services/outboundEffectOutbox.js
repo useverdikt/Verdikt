@@ -34,6 +34,7 @@ async function enqueuePostVerdictOutbox({
   verdictStatus,
   verdictIssuedAt,
   triggerSource,
+  source = "verdict",
   failedSignals = [],
   mode = OUTBOX_MODE,
   effectTypes = POST_VERDICT_EFFECT_TYPES
@@ -60,7 +61,7 @@ async function enqueuePostVerdictOutbox({
     workspace_id: String(workspaceId),
     release_id: String(releaseId),
     effect_type: String(effectType),
-    source: "verdict",
+    source: String(source || "verdict"),
     verdict_status: String(verdictStatus),
     verdict_issued_at: issuedAt,
     idempotency_key: buildOutboxIdempotencyKey({
