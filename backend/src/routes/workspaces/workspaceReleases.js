@@ -1,6 +1,6 @@
 "use strict";
 
-const { run, queryOne, queryAll } = require("../../database");
+const { queryOne, queryAll } = require("../../database");
 const { validateOutboundWebhookUrl } = require("../../lib/outboundUrl");
 const { openReleaseSession } = require("../../services/releaseIdentity");
 const { countShippedWithoutCertification } = require("../../services/releaseEnvironment");
@@ -8,8 +8,6 @@ const { getWorkspaceGovernanceStats } = require("../../services/governanceStats"
 const { getWorkspaceIncidentCorroboration } = require("../../services/incidentContext");
 const { isEmergencyReleaseType } = require("../../lib/emergencyReleaseType");
 const { sendError,
-  nowIso,
-  writeAudit,
   authMiddleware,
   requireNonViewer,
   requireWorkspaceMatch,
@@ -102,7 +100,7 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
     if (callback_url != null && String(callback_url).trim()) {
       try {
         normalizedCallbackUrl = await validateOutboundWebhookUrl(String(callback_url).trim());
-      } catch (e) {
+      } catch (_e) {
         const err = new Error("invalid_callback_url");
         err.status = 400;
         return next(err);

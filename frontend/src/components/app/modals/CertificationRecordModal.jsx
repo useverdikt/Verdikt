@@ -145,7 +145,7 @@ export default function CertificationRecordModal({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <a href={certPath} target="_blank" rel="noopener" style={{ fontSize: 11, color: C.accentBright, fontFamily: C.mono, fontWeight: 700, textDecoration: "none", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 6, padding: "5px 12px" }}>View public record →</a>
+            <a href={certPath} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.accentBright, fontFamily: C.mono, fontWeight: 700, textDecoration: "none", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 6, padding: "5px 12px" }}>View public record →</a>
             {typeof onShareSnapshot === "function" && (
               <button
                 type="button"

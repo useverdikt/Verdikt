@@ -2,7 +2,7 @@
 
 const { run } = require("../../database");
 const { queryOne } = require("../../database");
-const { normalizeWorkspaceSlug, validateWorkspaceSlug } = require("../../lib/workspaceSlug");
+const { validateWorkspaceSlug } = require("../../lib/workspaceSlug");
 const { getWorkspaceRemediationDebt } = require("../../services/remediationDebt");
 const { sendError,
   nowIso,

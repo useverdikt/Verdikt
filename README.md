@@ -129,6 +129,7 @@ npm run test:e2e          # Playwright e2e (run npx playwright install once)
 
 - [docs.useverdikt.com](https://docs.useverdikt.com) — partner and developer docs
 - [backend/README.md](backend/README.md) — API reference, auth, webhooks, env vars
+- [docs/ARCHITECTURE_INVARIANTS.md](docs/ARCHITECTURE_INVARIANTS.md) — system boundaries and non-negotiable engineering contracts
 - [supabase/README.md](supabase/README.md) — RLS, auth linkage, local stack
 - [docs.useverdikt.com/agent/mcp-setup](https://docs.useverdikt.com/agent/mcp-setup) — partner MCP setup · [mcp/README.md](mcp/README.md) — maintainer reference (in repo)
 - [docs/DOGFOOD_RUNBOOK.md](docs/DOGFOOD_RUNBOOK.md) — certify and incident-flow dogfood on useverdikt/Verdikt

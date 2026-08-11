@@ -36,7 +36,7 @@ function validateOverridePayload({ justification, metadata = {} }) {
   return { ok: true, impactSummary, mitigationPlan, followUpDueDate };
 }
 
-async function runOverrideSideEffects(release, overrideAssessment) {
+async function runOverrideSideEffects(release, _overrideAssessment) {
   let overrideCertSig = null;
   try {
     const freshRelease = await queryOne("SELECT * FROM releases WHERE id = $1", [release.id]);

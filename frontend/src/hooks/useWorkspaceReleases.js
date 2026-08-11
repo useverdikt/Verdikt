@@ -46,10 +46,13 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
 
   const releasesRef = useRef(releases);
-  releasesRef.current = releases;
   const navRef = useRef(nav);
-  navRef.current = nav;
   const workspaceIdRef = useRef(getWorkspaceId());
+
+  useEffect(() => {
+    releasesRef.current = releases;
+    navRef.current = nav;
+  }, [nav, releases]);
 
   const scheduleReleaseHydration = useCallback((mergedReleases) => {
     syncHydratedFromReleases(mergedReleases, isSummaryPending);

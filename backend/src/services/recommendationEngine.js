@@ -20,7 +20,7 @@
  * CERTIFIED*: penalty model with floors so borderline passes do not read as 0% trust.
  */
 
-const { queryOne, queryAll, run } = require("../database");
+const { queryOne, queryAll } = require("../database");
 const { nowIso } = require("../lib/time");
 const { safeJsonParse } = require("../lib/safeJson");
 const { upsertReleaseIntelligence, parseRecommendationBlob } = require("./intelligenceBuilder");
@@ -396,8 +396,8 @@ function buildRecommendation(release, ctx = {}) {
 }
 
 function buildRecommendationText(verdict, level, atRisk, failed, modes, envCtx = {}) {
-  const { env = "", isProd = false, isProdBypassed = false } =
-    typeof envCtx === "string" ? { env: envCtx, isProd: envCtx === "prod" || envCtx === "production" } : envCtx;
+  const { isProd = false, isProdBypassed = false } =
+    typeof envCtx === "string" ? { isProd: envCtx === "prod" || envCtx === "production" } : envCtx;
   const atRiskNames = atRisk.slice(0, 3).map((s) => s.signal_id).join(", ");
   const failedNames = failed.slice(0, 3).map((f) => f.signal_id).join(", ");
 
@@ -437,7 +437,7 @@ function buildRecommendationText(verdict, level, atRisk, failed, modes, envCtx =
 }
 
 function buildSuggestedActions(verdict, level, atRisk, failed, modes, lowRel, out, envCtx = {}) {
-  const { isProd = false, isProdBypassed = false } = envCtx;
+  const { isProd = false } = envCtx;
 
   if (verdict === "CERTIFIED" && level === "HIGH") {
     out.push("Deploy with standard monitoring.");

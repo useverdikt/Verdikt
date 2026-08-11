@@ -36,7 +36,10 @@ export function useTrendChartReleases() {
   const [wsReady, setWsReady] = useState(!hasBackend());
   const [thresholds, setThresholds] = useState(() => readInitialThresholdUiState().thresholds);
   const releasesRef = useRef(releases);
-  releasesRef.current = releases;
+
+  useEffect(() => {
+    releasesRef.current = releases;
+  }, [releases]);
 
   const scheduleChartHydration = useCallback((mergedReleases) => {
     syncHydratedFromReleases(mergedReleases, isSummaryPending);

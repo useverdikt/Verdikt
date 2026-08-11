@@ -3,10 +3,17 @@
 const crypto = require("crypto");
 const { queryOne, run } = require("../database");
 const { nowIso } = require("../lib/time");
-const { JWT_SECRET } = require("../config");
+const { CERT_SIGNING_KEY, JWT_SECRET } = require("../config");
 const { getCertificationSnapshot } = require("./certificationSnapshots");
 
-const SIGN_KEY = crypto.createHash("sha256").update(`verdikt:cert-sign:${JWT_SECRET}`).digest();
+const SIGN_KEY = crypto.createHash("sha256").update(`verdikt:cert-sign:${CERT_SIGNING_KEY}`).digest();
+const LEGACY_SIGN_KEY = crypto.createHash("sha256").update(`verdikt:cert-sign:${JWT_SECRET}`).digest();
+const SIGNING_KEY_HINT = "hmac-sha256/verdikt-cert-signing-key-v2";
+const LEGACY_SIGNING_KEY_HINT = "hmac-sha256/verdikt-cert-signing-key-v1";
+
+function verificationKeyFor(signatureRow) {
+  return signatureRow?.public_key_hint === LEGACY_SIGNING_KEY_HINT ? LEGACY_SIGN_KEY : SIGN_KEY;
+}
 
 function buildCanonicalPayload(release, verdict, signedAt, evidenceHash = null) {
   const fields = {
@@ -62,7 +69,7 @@ async function signCertificationRecord(release, verdictIntelligence) {
       signature,
       signedAt,
       "system",
-      "hmac-sha256/verdikt-cert-signing-key-v1"
+      SIGNING_KEY_HINT
     ]
   );
 
@@ -90,7 +97,7 @@ async function verifyCertificationRecord(releaseId) {
 
   const payload = buildCanonicalPayload(release, verdict, sigRow.signed_at, snapshot?.evidence_hash || null);
   const payloadHash = crypto.createHash("sha256").update(payload).digest("hex");
-  const expectedSig = crypto.createHmac("sha256", SIGN_KEY).update(payload).digest("hex");
+  const expectedSig = crypto.createHmac("sha256", verificationKeyFor(sigRow)).update(payload).digest("hex");
 
   const hashMatch = payloadHash === sigRow.payload_hash;
   const sigMatch = crypto.timingSafeEqual(Buffer.from(expectedSig, "hex"), Buffer.from(sigRow.signature, "hex"));

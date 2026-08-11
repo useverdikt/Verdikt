@@ -6,7 +6,7 @@
  */
 
 const crypto = require("crypto");
-const { queryOne, queryAll, transaction } = require("../database");
+const { queryAll, transaction } = require("../database");
 
 const GENESIS = "GENESIS";
 

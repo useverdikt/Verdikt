@@ -1,6 +1,6 @@
 "use strict";
 
-const { queryOne, queryAll } = require("../database");
+const { queryOne } = require("../database");
 const { normalizeWorkspaceSlug } = require("../lib/workspaceSlug");
 const { getReleaseIntelligence } = require("./intelligenceBuilder");
 const { buildGateContext } = require("./gateContext");

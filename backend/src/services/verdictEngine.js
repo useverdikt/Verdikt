@@ -8,7 +8,7 @@
  * Extracted from domain.js to separate the decision from its consequences.
  */
 
-const { queryOne, queryAll } = require("../database");
+const { queryAll } = require("../database");
 const sharedPkg = require("../lib/sharedPkg");
 const { normaliseSignalKey } = sharedPkg;
 const { analyzeReleaseDeltas } = require("./delta");
@@ -42,7 +42,7 @@ async function getMissingRequiredSignals(
   workspaceId,
   releaseId,
   preloadedLatest = null,
-  releaseRow = null,
+  _releaseRow = null,
   preloadedThresholdMap = null
 ) {
   const [definitions, thresholdsRaw] = await Promise.all([

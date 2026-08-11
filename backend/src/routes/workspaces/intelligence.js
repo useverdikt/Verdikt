@@ -1,8 +1,7 @@
 "use strict";
 
-const { queryOne, queryAll } = require("../../database");
+const { queryAll } = require("../../database");
 const {
-  writeAudit,
   authMiddleware,
   requireHumanSession,
   requireNonViewer,
@@ -107,7 +106,7 @@ app.post("/api/workspaces/:workspaceId/recommendations/backfill", authMiddleware
       try {
         await computeAndPersistRecommendation(release);
         computed++;
-      } catch (err) {
+      } catch (_err) {
         errors.push({ release_id: release.id, error: "recommendation_compute_failed" });
         skipped++;
       }

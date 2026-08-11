@@ -39,6 +39,7 @@ Runs on `http://localhost:8787`.
 Set strong secrets in production (the server **refuses to start** if they are missing, too short, or still at the dev default):
 
 - **`JWT_SECRET`** — at least **32** characters (e.g. `openssl rand -hex 32`).
+- **`CERT_SIGNING_KEY`** — at least **32** characters and different from `JWT_SECRET`; signs certification records.
 - **`WEBHOOK_SECRET`** — at least **24** characters (e.g. `openssl rand -hex 32`).
 
 Applies when **`NODE_ENV=production`** or when you opt in with **`REQUIRE_SECURE_CONFIG=1`** (useful for staging).
@@ -46,6 +47,7 @@ Applies when **`NODE_ENV=production`** or when you opt in with **`REQUIRE_SECURE
 ```bash
 export NODE_ENV=production
 export JWT_SECRET="$(openssl rand -hex 32)"
+export CERT_SIGNING_KEY="$(openssl rand -hex 32)"
 export WEBHOOK_SECRET="$(openssl rand -hex 32)"
 npm start
 ```
@@ -245,7 +247,7 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 
 - **Implemented in this API:** registration/login, per-workspace thresholds, releases, signal ingest and verdicts, GitHub label webhooks, overrides, workspace audit events, password reset (**email via Resend** when `RESEND_API_KEY` + `PUBLIC_APP_URL` are set), health/readiness, optional LLM features when provider keys are set.
 - **SPA “vendor” rows** (e.g. BrowserStack, Sentry, Braintrust) in the certification UI are **demo lanes** for grouping signals and manual simulation. They are **not** live vendor SDK integrations in this repository — use **webhooks** and **authenticated ingest** (`POST /api/releases/:releaseId/signals`, integration routes) for real data.
-- **Public `/badge` page** (frontend) shows **static demo records** for layout and embed snippets. There is **no public unauthenticated API** here to render an arbitrary customer release on that URL; the **authoritative record** is behind login (dashboard + audit log).
+- **Public `/badge` page** supports static demo records and live certification records. Live records load from unauthenticated `GET /api/public/cert/:workspaceSlug/:version` only when the workspace enables `public_cert_records` and configures a `public_slug`; sensitive fields remain policy-controlled.
 - **Threshold suggestions** in Settings call the backend when suggestions are enabled; empty or disabled behaviour depends on env (see threshold suggestion env vars above).
 
 ## Endpoints (protected unless noted)
@@ -286,10 +288,12 @@ All workspace and release endpoints require `Authorization: Bearer <token>` and 
 
 ```bash
 BASE=http://localhost:8787
-TOKEN=$(curl -sS -X POST "$BASE/api/auth/login" \
+COOKIE_JAR=$(mktemp)
+curl -sS -c "$COOKIE_JAR" -X POST "$BASE/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"email":"demo@verdikt.local","password":"demo123"}' | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>console.log(JSON.parse(s).token))")
-AUTH=( -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" )
+  -d '{"email":"demo@verdikt.local","password":"demo123"}' >/dev/null
+CSRF=$(awk '$6 == "vdk_csrf" { print $7 }' "$COOKIE_JAR")
+AUTH=( -b "$COOKIE_JAR" -H "x-csrf-token: $CSRF" -H "Content-Type: application/json" )
 
 # 1) Create release
 REL=$(curl -sS -X POST "$BASE/api/workspaces/ws_demo/releases" "${AUTH[@]}" \
@@ -305,7 +309,8 @@ curl -sS -X POST "$BASE/api/releases/$REL_ID/override" "${AUTH[@]}" \
   -d '{"approver_type":"PERSON","approver_name":"Alex Baird","approver_role":"VP Engineering","justification":"Hotfix queued within 48h","metadata":{"deploy_id":"dep_123"}}'
 
 # 4) Read release with audit
-curl -sS "$BASE/api/releases/$REL_ID" -H "Authorization: Bearer $TOKEN"
+curl -sS "$BASE/api/releases/$REL_ID" -b "$COOKIE_JAR"
+rm -f "$COOKIE_JAR"
 ```
 
 ## GitHub label trigger
@@ -556,8 +561,8 @@ Override requests must include structured metadata:
 ## Operational notes
 
 - Request IDs are returned as `x-request-id` in responses.
-- Webhook endpoint is rate-limited in-memory (`WEBHOOK_RATE_LIMIT_PER_MINUTE`, default `120`).
-- Keep `JWT_SECRET` and `WEBHOOK_SECRET` rotated and managed via secrets store.
+- Rate limits use Redis when `REDIS_URL` is set. Production-like startup requires Redis when `API_REPLICA_COUNT > 1` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1`; a single replica may use in-memory counters.
+- Keep `JWT_SECRET`, `CERT_SIGNING_KEY`, and `WEBHOOK_SECRET` independent, rotated, and managed via a secrets store.
 - Define your retention policy before production (recommended: keep release/audit records for at least 12 months for governance evidence).
 
 ## E2E script (API)

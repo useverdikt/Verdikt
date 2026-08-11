@@ -1,6 +1,6 @@
 "use strict";
 
-const { run, transaction } = require("../database");
+const { transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 const auditIntegrity = require("./auditIntegrity");
 const { getAgentSessionIdFromContext } = require("../lib/auditContext");

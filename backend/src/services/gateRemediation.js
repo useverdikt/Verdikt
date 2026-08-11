@@ -7,7 +7,7 @@ const { queryOne } = require("../database");
  * Built from existing verdict intelligence + live signal/threshold state.
  */
 async function buildGateRemediation({
-  release,
+  release: _release,
   intelligence,
   failedSignals = [],
   thresholdMap = {},

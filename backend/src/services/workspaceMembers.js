@@ -228,7 +228,15 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
   return { ok: true, user: fresh, workspace_id: invite.workspace_id, role: invite.role };
 }
 
-async function registerUserWithInvite({ email, password, name, inviteToken, passwordHash, displayName, userId }) {
+async function registerUserWithInvite({
+  email,
+  password: _password,
+  name: _name,
+  inviteToken,
+  passwordHash,
+  displayName,
+  userId
+}) {
   const preview = await getInviteByToken(inviteToken);
   if (!preview.ok) return preview;
 
