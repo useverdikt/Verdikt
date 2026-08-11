@@ -229,7 +229,6 @@ export default function ReleaseDetail({
               {release.integration_pull && (
                 <IntegrationPullBanner
                   integrationPull={release.integration_pull}
-                  releaseId={releaseId}
                   compact
                 />
               )}

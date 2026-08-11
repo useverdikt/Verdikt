@@ -45,6 +45,11 @@ export function invalidateWorkspaceAudit(wsId) {
   });
 }
 
+export function invalidateWorkspaceRemediationDebt(wsId) {
+  if (!wsId) return Promise.resolve();
+  return appQueryClient.invalidateQueries({ queryKey: workspaceKeys.remediationDebt(wsId) });
+}
+
 export function invalidateWorkspaceSignalDefinitions(wsId) {
   if (!wsId) return Promise.resolve();
   return appQueryClient.invalidateQueries({ queryKey: workspaceKeys.signalDefinitions(wsId) });

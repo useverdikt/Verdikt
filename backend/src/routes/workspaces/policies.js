@@ -3,6 +3,7 @@
 const { run } = require("../../database");
 const { queryOne } = require("../../database");
 const { validateWorkspaceSlug } = require("../../lib/workspaceSlug");
+const { validateSlackWebhookUrl } = require("../../lib/outboundUrl");
 const { getWorkspaceRemediationDebt } = require("../../services/remediationDebt");
 const { sendError,
   nowIso,
@@ -85,12 +86,21 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
     const nextShowSignalDetail = typeof show_signal_detail === "boolean" ? show_signal_detail : currentSignalDetail;
     const currentOverrideJust = current.show_override_justification !== false && current.show_override_justification !== 0;
     const nextShowOverrideJust = typeof show_override_justification === "boolean" ? show_override_justification : currentOverrideJust;
-    const nextSlackUrl =
-      slack_webhook_url === null || slack_webhook_url === ""
-        ? null
-        : typeof slack_webhook_url === "string"
-          ? slack_webhook_url.trim().slice(0, 2000) || null
-          : current.slack_webhook_url || null;
+    let nextSlackUrl = current.slack_webhook_url || null;
+    if (slack_webhook_url === null || slack_webhook_url === "") {
+      nextSlackUrl = null;
+    } else if (typeof slack_webhook_url === "string") {
+      const candidate = slack_webhook_url.trim().slice(0, 2000);
+      if (!candidate) {
+        nextSlackUrl = null;
+      } else {
+        try {
+          nextSlackUrl = await validateSlackWebhookUrl(candidate);
+        } catch (err) {
+          return sendError(res, req, 400, err.message);
+        }
+      }
+    }
     const nextCalibrationMode =
       calibration_mode === "auto_apply" || calibration_mode === "suggest_only"
         ? calibration_mode

@@ -1,23 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useRef } from "react";
 import { C } from "../../../theme/tokens.js";
 import { useReleaseStream } from "../../../lib/useReleaseStream.js";
-
-function useModalLayer(onClose) {
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key !== "Escape" || !onClose) return;
-      e.preventDefault();
-      onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-}
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 function formatEventTime(ts) {
   if (!ts) return "—";
@@ -40,7 +24,8 @@ function eventLabel(ev) {
 
 export default function LiveStreamModal({ release, onClose }) {
   const titleId = React.useId();
-  useModalLayer(onClose);
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const backendId = release?.backendReleaseId || release?.id;
   const { events, status, earlyWarning, error, collectionDeadline } = useReleaseStream(backendId, !!backendId);
 
@@ -78,6 +63,7 @@ export default function LiveStreamModal({ release, onClose }) {
       aria-labelledby={titleId}
     >
       <div
+        ref={panelRef}
         className="scale-in"
         style={{
           background: C.surface,

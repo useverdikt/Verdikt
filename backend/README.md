@@ -68,7 +68,9 @@ In production, **do not run background sweeps on every API replica**. Instead:
   # equivalent to RUN_BACKGROUND_JOBS=0 in production
   ```
 
-The worker exposes its own health endpoint on **`WORKER_PORT`** (default **3001**):
+For Railway, create a second service from the same repository, keep its root directory as `.`, and set its config file path to `/railway.worker.toml`. The existing API service continues to use `/railway.toml`. After deployment, set the repository secret `PROD_WORKER_URL` so the scheduled production smoke workflow verifies the worker independently.
+
+The worker exposes its own health endpoint on **`WORKER_PORT`**, Railway's **`PORT`**, or port **3001** (in that order):
 
 - `GET /health` — liveness
 - `GET /health/ready` — returns **200** once the worker has connected to PostgreSQL and started its jobs; returns **503** if the database is unreachable.

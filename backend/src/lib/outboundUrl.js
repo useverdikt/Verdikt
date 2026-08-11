@@ -84,8 +84,29 @@ async function validateOutboundWebhookUrl(rawUrl) {
   return parsed.toString();
 }
 
+async function validateSlackWebhookUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(String(rawUrl || "").trim());
+  } catch {
+    throw new Error("Slack webhook URL must be a valid URL");
+  }
+
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  const allowedHosts = new Set(["hooks.slack.com", "hooks.slack-gov.com"]);
+  if (parsed.protocol !== "https:" || !allowedHosts.has(host)) {
+    throw new Error("Slack webhook URL must use an approved Slack HTTPS host");
+  }
+  if (!/^\/services\/[^/]+\/[^/]+\/[^/]+\/?$/.test(parsed.pathname)) {
+    throw new Error("Slack webhook URL must use the Slack /services/ webhook path");
+  }
+
+  return validateOutboundWebhookUrl(parsed.toString());
+}
+
 module.exports = {
   validateOutboundWebhookUrl,
+  validateSlackWebhookUrl,
   isPrivateOrLocalIp,
   isBlockedHostname
 };

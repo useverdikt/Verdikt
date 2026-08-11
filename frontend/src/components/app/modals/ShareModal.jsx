@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Logo } from "../CommonControls.jsx";
 import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
 import { buildCertRecordFailing } from "../../../lib/workspaceSignalUi.js";
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -11,23 +12,6 @@ function currentWorkspaceSlug() {
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "workspace";
-}
-
-function useModalLayer(onClose) {
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key !== "Escape" || !onClose) return;
-      e.preventDefault();
-      onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
 }
 
 export default function ShareModal({
@@ -48,7 +32,8 @@ export default function ShareModal({
   certification = null
 }) {
   const titleId = React.useId();
-  useModalLayer(onClose);
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const isMobile = window.innerWidth <= 900;
   const { recommendation, failing: legacyFailing, isHardBlock } = calcVerdict(
     release.signals,
@@ -114,6 +99,7 @@ export default function ShareModal({
       aria-labelledby={titleId}
     >
       <div
+        ref={panelRef}
         className="scale-in"
         style={{
           background: C.surface,

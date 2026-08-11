@@ -35,7 +35,7 @@ export function WorkspaceProvider({ navigate, nav, children }) {
   const thresholdsApi = useWorkspaceThresholds(navigate, nav);
   const auditApi = useWorkspaceAudit(navigate, { setApiBanner });
 
-  const { applyReleaseListFromServer, navRef: releasesNavRef } = releasesApi;
+  const { applyReleaseListFromServer } = releasesApi;
   const { applyThresholdsFromApi, applySignalCatalogFromApi } = thresholdsApi;
   const { applyAuditFromApi } = auditApi;
 
@@ -90,7 +90,6 @@ export function WorkspaceProvider({ navigate, nav, children }) {
       applyReleaseListFromServer,
       applyThresholdsFromApi,
       applyAuditFromApi,
-      releasesNavRef,
       applySignalCatalogFromApi
     ]
   );

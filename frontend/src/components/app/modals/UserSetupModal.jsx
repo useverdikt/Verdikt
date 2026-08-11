@@ -1,22 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
 import { Inp, Logo } from "../CommonControls.jsx";
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 export default function UserSetupModal({ onSave, roles }) {
   const titleId = React.useId();
+  const panelRef = useRef(null);
+  useModalLayer(null, panelRef);
   const isMobile = window.innerWidth <= 900;
   const [name, setName] = useState("");
   const [role, setRole] = useState("ai_product_lead");
   const can = name.trim().length > 1;
-
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, []);
 
   const roleDescriptions = {
     ai_product_lead: "Primary user for AI product teams. Defines quality thresholds and certifies releases. Override authority is configurable per workspace.",
@@ -47,6 +42,7 @@ export default function UserSetupModal({ onSave, roles }) {
       aria-labelledby={titleId}
     >
       <div
+        ref={panelRef}
         className="scale-in"
         style={{
           background: C.raise,

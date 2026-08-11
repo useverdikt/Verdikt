@@ -8,7 +8,7 @@ const TONE = {
   red: { border: "rgba(248,113,113,0.25)", bg: "rgba(248,113,113,0.07)", color: "#f87171" }
 };
 
-export default function IntegrationPullBanner({ integrationPull, releaseId, compact = false }) {
+export default function IntegrationPullBanner({ integrationPull, compact = false }) {
   const messages = integrationPullBannerWarnings(integrationPull);
   if (!messages.length) return null;
 

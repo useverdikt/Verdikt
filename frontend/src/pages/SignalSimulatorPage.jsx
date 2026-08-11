@@ -540,7 +540,7 @@ export default function SignalSimulatorPage() {
 
   const emptyHint = useMemo(() => {
     if (!hasBackend() || !thresholdMap || activeSources.length > 0) return null;
-    return getSimulatorEmptyHint(thresholdMap, connectedSources, SIMULATOR_SOURCES);
+    return getSimulatorEmptyHint(thresholdMap, connectedSources);
   }, [thresholdMap, connectedSources, activeSources.length]);
 
   const showToast = useCallback((msg, color = "#22c55e") => {
@@ -579,7 +579,7 @@ export default function SignalSimulatorPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [navigate, showToast, workspaceFromQuery]);
+  }, [navigate, showToast, workspaceFromQuery, workspaceId]);
 
   const handleWorkspaceChange = useCallback((nextId) => {
     if (!nextId || nextId === workspaceId) return;

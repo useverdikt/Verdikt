@@ -52,7 +52,6 @@ export default function CollectingView({ release, onSimulate, onRunVerdict, sign
   const nextSource = sources.find((s) => s.status === "waiting" && s.configured !== false);
   const allRequiredArrived = sources.filter((s) => s.configured !== false).every((s) => s.status === "arrived");
   const showSimulate = !hasBackend() && nextSource;
-  const backendReleaseId = release.backendReleaseId || (String(release.id || "").startsWith("rel_") ? release.id : null);
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
 
   return (
@@ -68,7 +67,7 @@ export default function CollectingView({ release, onSimulate, onRunVerdict, sign
       </div>
 
       <EarlyWarningBanner earlyWarning={earlyWarning} />
-      <IntegrationPullBanner integrationPull={release.integration_pull} releaseId={backendReleaseId} />
+      <IntegrationPullBanner integrationPull={release.integration_pull} />
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
         <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>

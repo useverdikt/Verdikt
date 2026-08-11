@@ -152,7 +152,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
     setSelectedId,
     thresholds,
     setThresholds,
-    thresholdRequired,
     setThresholdRequired,
     currentUser,
     current,

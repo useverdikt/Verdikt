@@ -4,6 +4,7 @@ import {
   invalidateWorkspaceQueries,
   invalidateWorkspaceReleases,
   invalidateWorkspaceRelease,
+  invalidateWorkspaceRemediationDebt,
   invalidateWorkspaceSignalDefinitions,
   invalidateWorkspaceThresholds
 } from "./invalidateWorkspace.js";
@@ -24,11 +25,16 @@ export async function invalidateReleaseDomain(wsId, releaseId) {
     await Promise.all([
       invalidateWorkspaceReleases(wsId),
       invalidateWorkspaceRelease(wsId, releaseId),
-      invalidateWorkspaceAudit(wsId)
+      invalidateWorkspaceAudit(wsId),
+      invalidateWorkspaceRemediationDebt(wsId)
     ]);
     return;
   }
-  await Promise.all([invalidateWorkspaceReleases(wsId), invalidateWorkspaceAudit(wsId)]);
+  await Promise.all([
+    invalidateWorkspaceReleases(wsId),
+    invalidateWorkspaceAudit(wsId),
+    invalidateWorkspaceRemediationDebt(wsId)
+  ]);
 }
 
 /** Full workspace refresh — settings saves, ship, broad policy changes. */

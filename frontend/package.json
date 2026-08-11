@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=20.12.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,7 @@
     "test:e2e": "playwright test",
     "test:e2e:regression": "playwright test e2e/regression.spec.js",
     "test:e2e:ui": "playwright test --ui",
-    "lint": "eslint \"src/**/*.{js,jsx}\"",
+    "lint": "eslint \"src/**/*.{js,jsx}\" --max-warnings=0",
     "lint:fix": "eslint \"src/**/*.{js,jsx}\" --fix",
     "supabase:local": "bash ../scripts/supabase-local-bootstrap.sh"
   },

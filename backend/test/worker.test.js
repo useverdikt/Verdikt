@@ -61,9 +61,11 @@ async function fetchHealth(port, path) {
 
 describe("worker health readiness", () => {
   test("exposes health endpoints and reports jobs started", async () => {
+    const workerEnv = { ...process.env, PORT: "0" };
+    delete workerEnv.WORKER_PORT;
     const child = spawn("node", ["src/worker.js"], {
       cwd: BACKEND_DIR,
-      env: { ...process.env, WORKER_PORT: "0" },
+      env: workerEnv,
       stdio: ["ignore", "pipe", "pipe"]
     });
 

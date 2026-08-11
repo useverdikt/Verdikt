@@ -63,7 +63,7 @@ describe("simulatorMandatorySignals", () => {
   });
 
   it("empty hint when nothing required", () => {
-    const hint = getSimulatorEmptyHint({}, new Set(), SOURCES);
+    const hint = getSimulatorEmptyHint({}, new Set());
     expect(hint.title).toMatch(/No mandatory signals/);
     expect(countSimulatorEligibleRequired({})).toBe(0);
   });

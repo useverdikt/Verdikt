@@ -1,0 +1,13 @@
+# Railway worker service.
+# Create a second service from the same repository, keep Root Directory as `.`,
+# and set its config file path to `/railway.worker.toml`.
+
+[build]
+builder = "nixpacks"
+buildCommand = "echo 'No build step (Node worker via workspace)'"
+
+[deploy]
+startCommand = "npm --prefix backend run worker"
+restartPolicyType = "on_failure"
+healthcheckPath = "/health/ready"
+healthcheckTimeout = 120

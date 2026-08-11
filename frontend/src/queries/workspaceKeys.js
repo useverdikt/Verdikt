@@ -11,5 +11,6 @@ export const workspaceKeys = {
   releaseSummary: (wsId, releaseId) => [...workspaceKeys.releaseRoot(wsId, releaseId), "summary"],
   releaseDetail: (wsId, releaseId) => [...workspaceKeys.releaseRoot(wsId, releaseId), "detail"],
   audit: (wsId, params = {}) => [...workspaceKeys.workspace(wsId), "audit", params],
+  remediationDebt: (wsId) => [...workspaceKeys.workspace(wsId), "remediation-debt"],
   signalDefinitions: (wsId) => [...workspaceKeys.workspace(wsId), "signal-definitions"]
 };

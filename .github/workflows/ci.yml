@@ -16,14 +16,27 @@ concurrency:
 
 jobs:
   dependency-audit:
-    name: Production dependency audit
+    name: Production dependency audit (${{ matrix.package }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: root
+            directory: .
+          - package: backend
+            directory: backend
+          - package: frontend
+            directory: frontend
+          - package: mcp
+            directory: mcp
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
       - run: npm audit --omit=dev --audit-level=high
+        working-directory: ${{ matrix.directory }}
 
   migration-parity:
     name: Migration track parity
@@ -32,7 +45,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
       - run: node scripts/check-migration-parity.js
 
   backend-test:
@@ -65,7 +78,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --ignore-workspaces
@@ -82,12 +95,16 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-workspaces
       - run: npm run lint
       - run: npm test
+      - name: Production build
+        env:
+          VITE_API_BASE: https://api.example.invalid
+        run: npm run build
 
   mcp-package:
     name: MCP package (@useverdikt/mcp)
@@ -99,7 +116,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: mcp/package-lock.json
       - run: npm ci --ignore-workspaces
@@ -133,7 +150,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install workspace dependencies

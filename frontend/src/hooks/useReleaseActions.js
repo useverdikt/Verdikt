@@ -20,7 +20,6 @@ export function useReleaseActions({
   setSelectedId,
   thresholds,
   setThresholds,
-  thresholdRequired,
   setThresholdRequired,
   currentUser,
   current,
@@ -152,8 +151,7 @@ export function useReleaseActions({
       setReleases,
       showToast,
       navigate,
-      refreshReleaseFromBackend,
-      refreshAuditFromServer,
+      refreshReleaseAfterMutation,
       setApiBanner,
       toastAmber,
       toastGreen,
@@ -212,8 +210,7 @@ export function useReleaseActions({
       setReleases,
       showToast,
       navigate,
-      refreshReleaseFromBackend,
-      refreshAuditFromServer,
+      refreshReleaseAfterMutation,
       setApiBanner,
       toastAmber,
       toastGreen,
@@ -286,8 +283,7 @@ export function useReleaseActions({
       setReleases,
       setApiBanner,
       navigate,
-      refreshReleaseFromBackend,
-      refreshAuditFromServer,
+      refreshReleaseAfterMutation,
       addAudit,
       setShowOverride,
       showToast,
@@ -339,7 +335,7 @@ export function useReleaseActions({
       navigate("/releases", { replace: true });
       showToast(`Certification session opened for ${version}`, toastAmber);
     },
-    [navigate, setReleases, setSelectedId, setShowStartCert, showToast, toastRed, setApiBanner]
+    [navigate, setReleases, setSelectedId, setShowStartCert, showToast, toastAmber, toastRed, setApiBanner]
   );
 
   const handleManualAddSingle = useCallback(
@@ -501,8 +497,7 @@ export function useReleaseActions({
     setReleases,
     setApiBanner,
     navigate,
-    refreshReleaseFromBackend,
-    refreshAuditFromServer,
+    refreshReleaseAfterMutation,
     showToast,
     toastAmber,
     toastGreen,

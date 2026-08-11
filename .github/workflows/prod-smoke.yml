@@ -2,6 +2,7 @@
 #
 # Secrets (repository settings):
 #   PROD_API_URL — e.g. https://api.useverdikt.com
+#   PROD_WORKER_URL — optional dedicated worker URL for readiness checks
 #   PROD_SMOKE_API_KEY — optional workspace API key for gate 404 check
 #   PROD_SMOKE_WORKSPACE_ID — required when API key is set
 
@@ -25,6 +26,21 @@ jobs:
           URL="${PROD_API_URL%/}/health/ready"
           echo "GET $URL"
           curl -sS -f --max-time 20 "$URL" | jq .
+
+      - name: Worker health ready
+        env:
+          PROD_WORKER_URL: ${{ secrets.PROD_WORKER_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROD_WORKER_URL:-}" ]; then
+            echo "Skipping worker check — set PROD_WORKER_URL after creating the dedicated worker service."
+            exit 0
+          fi
+          URL="${PROD_WORKER_URL%/}/health/ready"
+          echo "GET $URL"
+          BODY=$(curl -sS -f --max-time 20 "$URL")
+          echo "$BODY" | jq .
+          echo "$BODY" | jq -e '.ok == true and .service == "verdikt-worker" and .checks.database == true and .checks.jobs_started == true' >/dev/null
 
       - name: Gate 404 for unknown SHA (optional)
         env:

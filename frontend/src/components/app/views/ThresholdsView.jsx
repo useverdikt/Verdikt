@@ -253,8 +253,6 @@ export default function ThresholdsView({
         loading={panelLoading}
         catalogError={signalsCatalogError}
         onReloadCatalog={onReloadSignalCatalog}
-        local={local}
-        setLocal={setLocal}
         localRequired={localRequired}
         setLocalRequired={setLocalRequired}
         canAct={canAct}

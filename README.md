@@ -98,7 +98,7 @@ This is an npm workspaces monorepo with a **root** `package-lock.json` plus **pe
 - CI package jobs run `npm ci --ignore-workspaces` in each package directory so Playwright / test binaries stay local to that package.
 - E2E installs from the **root** lock (`npm ci` at repo root).
 - When bumping a workspace package’s dependencies, update **both** that package’s lock (`npm install --workspaces=false` in the package dir) and the root lock (`npm install` at repo root) so they stay in sync.
-- All packages require **Node `>=20.12.0`** (`engines` in root, backend, frontend, and mcp).
+- All packages require **Node `>=22.12.0`** (`engines` in root, backend, frontend, mcp, and shared). Run `nvm use` from the repository root.
 
 ## Quick start (local development)
 

@@ -168,8 +168,6 @@ export default function WorkspaceSignalsPanel({
   loading = false,
   catalogError = null,
   onReloadCatalog,
-  local,
-  setLocal,
   localRequired,
   setLocalRequired,
   canAct,
