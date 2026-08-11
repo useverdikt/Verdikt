@@ -22,7 +22,8 @@ function loadConfig(extraEnv = {}) {
     "API_REPLICA_COUNT",
     "REQUIRE_DISTRIBUTED_RATE_LIMITS",
     "REDIS_URL",
-    "INTERNAL_WORKSPACE_VIEWER_EMAILS"
+    "INTERNAL_WORKSPACE_VIEWER_EMAILS",
+    "OUTBOX_MODE"
   ]) {
     if (!(key in extraEnv)) delete env[key];
   }
@@ -60,5 +61,11 @@ describe("production secure configuration", () => {
     const out = loadConfig({ CERT_SIGNING_KEY: BASE_ENV.JWT_SECRET });
     assert.notEqual(out.status, 0);
     assert.match(out.stderr, /CERT_SIGNING_KEY must be independent/);
+  });
+
+  it("rejects outbox delivery modes that are not implemented yet", () => {
+    const out = loadConfig({ OUTBOX_MODE: "primary" });
+    assert.notEqual(out.status, 0);
+    assert.match(out.stderr, /OUTBOX_MODE must be off or shadow/);
   });
 });

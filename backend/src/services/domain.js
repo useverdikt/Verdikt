@@ -56,6 +56,7 @@ const { buildThresholdSuggestions } = require("./thresholdAdvisor");
 const { maybeEnrichSuggestionReason } = require("./llmAssist");
 const { enqueuePostVerdictEffects } = require("./postVerdictEffects");
 const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
+const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
 
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
 
@@ -228,9 +229,10 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
 
   // ── Commit verdict atomically (row lock prevents concurrent double-commit) ─
   const commitResult = await transaction(async (tx) => {
-    const locked = await tx.queryOne("SELECT status, environment FROM releases WHERE id = $1 FOR UPDATE", [
-      releaseId
-    ]);
+    const locked = await tx.queryOne(
+      "SELECT status, environment, verdict_issued_at FROM releases WHERE id = $1 FOR UPDATE",
+      [releaseId]
+    );
     if (!locked) return { skipped: true, reason: "missing" };
     const lockedStatus = locked.status;
     if (certLike.has(lockedStatus)) {
@@ -241,9 +243,11 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     }
 
     const prevStatus = lockedStatus;
+    const commitTimestamp = nowIso();
+    const verdictIssuedAt = locked.verdict_issued_at || commitTimestamp;
     await tx.run(
       "UPDATE releases SET status = $1, updated_at = $2, verdict_issued_at = COALESCE(verdict_issued_at, $3) WHERE id = $4",
-      [nextStatus, nowIso(), nowIso(), releaseId]
+      [nextStatus, commitTimestamp, verdictIssuedAt, releaseId]
     );
     await upsertReleaseIntelligence(
       releaseId,
@@ -285,8 +289,17 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       },
       tx
     });
+    await enqueuePostVerdictOutbox({
+      tx,
+      releaseId,
+      workspaceId: release.workspace_id,
+      verdictStatus: nextStatus,
+      verdictIssuedAt,
+      triggerSource: source,
+      failedSignals
+    });
 
-    return { skipped: false, prevStatus };
+    return { skipped: false, prevStatus, verdictIssuedAt };
   });
 
   if (commitResult.skipped) {

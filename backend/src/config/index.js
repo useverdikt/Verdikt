@@ -82,6 +82,7 @@ const API_REPLICA_COUNT = Number.isFinite(API_REPLICA_COUNT_RAW)
   : 1;
 const REQUIRE_DISTRIBUTED_RATE_LIMITS =
   process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS === "1" || API_REPLICA_COUNT > 1;
+const OUTBOX_MODE = String(process.env.OUTBOX_MODE || "shadow").trim().toLowerCase();
 const INTERNAL_WORKSPACE_VIEWER_EMAILS = String(process.env.INTERNAL_WORKSPACE_VIEWER_EMAILS || "")
   .split(",")
   .map((entry) => entry.trim().toLowerCase())
@@ -139,6 +140,9 @@ if (IS_PROD_LIKE && REQUIRE_DISTRIBUTED_RATE_LIMITS && !REDIS_URL) {
   throw new Error(
     "Refusing to start without REDIS_URL when API_REPLICA_COUNT > 1 or REQUIRE_DISTRIBUTED_RATE_LIMITS=1."
   );
+}
+if (!["off", "shadow"].includes(OUTBOX_MODE)) {
+  throw new Error("Refusing to start: OUTBOX_MODE must be off or shadow.");
 }
 if (IS_PROD_LIKE) {
   const hex = ENCRYPTION_MASTER_KEY_RAW.startsWith("0x")
@@ -199,6 +203,7 @@ module.exports = {
   REDIS_URL,
   API_REPLICA_COUNT,
   REQUIRE_DISTRIBUTED_RATE_LIMITS,
+  OUTBOX_MODE,
   INTERNAL_WORKSPACE_VIEWER_EMAILS,
   isInternalWorkspaceViewerEmail,
   SUPABASE_JWT_SECRET,

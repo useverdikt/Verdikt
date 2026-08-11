@@ -37,6 +37,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent.
 - Sweeps query only actionable rows, use deterministic ordering, and process bounded batches. A failure for one release must not stop the remainder of the batch.
 - Expired collection-window work uses short PostgreSQL transactions to acquire durable, owner-scoped leases before evaluation. Never hold the claim transaction open during verdict work; failed workers recover through lease expiry. Roll out `observe` before `enforce`.
+- Post-verdict external delivery intent is inserted into `outbound_effect_outbox` in the same transaction as the terminal verdict. Each release event and effect type has a stable idempotency key. Shadow recording must precede any outbox-owned delivery cutover.
 
 ## Database changes
 
