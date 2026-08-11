@@ -17,6 +17,18 @@ const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
 const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
 const { isProdEnvironment } = require("../lib/releaseStatus");
+const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
+
+const OVERRIDE_EFFECT_TYPES = Object.freeze(["outbound_webhook", "release_callback"]);
+
+function parseJsonObject(value) {
+  if (value && typeof value === "object") return value;
+  try {
+    return JSON.parse(value || "{}");
+  } catch {
+    return {};
+  }
+}
 
 function validateOverridePayload({ justification, metadata = {} }) {
   if (!justification || !String(justification).trim()) {
@@ -122,11 +134,20 @@ async function applyReleaseOverrideDbWrites(
     ]
   );
 
-  await tx.run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
-    "CERTIFIED_WITH_OVERRIDE",
-    nowIso(),
-    release.id
-  ]);
+  const verdictIssuedAt = release.verdict_issued_at || ts;
+  await tx.run(
+    `UPDATE releases
+        SET status = $1,
+            updated_at = $2,
+            verdict_issued_at = COALESCE(verdict_issued_at, $3)
+      WHERE id = $4`,
+    [
+      "CERTIFIED_WITH_OVERRIDE",
+      ts,
+      verdictIssuedAt,
+      release.id
+    ]
+  );
 
   await upsertReleaseIntelligence(release.id, release.workspace_id, {
     override: overrideAssessment,
@@ -168,6 +189,25 @@ async function applyReleaseOverrideDbWrites(
     actorName: "assistive_intelligence",
     details: overrideAssessment,
     tx
+  });
+
+  const intelligenceRow = await tx.queryOne(
+    "SELECT verdict_json FROM release_intelligence WHERE release_id = $1",
+    [release.id]
+  );
+  const verdictIntelligence = parseJsonObject(intelligenceRow?.verdict_json);
+  await enqueuePostVerdictOutbox({
+    tx,
+    releaseId: release.id,
+    workspaceId: release.workspace_id,
+    verdictStatus: "CERTIFIED_WITH_OVERRIDE",
+    verdictIssuedAt,
+    triggerSource: retroactive ? "retroactive_override" : "human_override",
+    source: "override",
+    failedSignals: Array.isArray(verdictIntelligence.failed_signals)
+      ? verdictIntelligence.failed_signals
+      : [],
+    effectTypes: OVERRIDE_EFFECT_TYPES
   });
 }
 
@@ -253,5 +293,6 @@ module.exports = {
   applyReleaseOverride,
   applyReleaseOverrideDbWrites,
   runOverrideSideEffects,
+  OVERRIDE_EFFECT_TYPES,
   validateOverridePayload
 };

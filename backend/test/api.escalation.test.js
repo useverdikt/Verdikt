@@ -11,7 +11,7 @@ const { describe, it, after, before } = require("node:test");
 const assert = require("node:assert/strict");
 const request = require("supertest");
 
-const { queryOne, run } = require("../src/database");
+const { queryAll, queryOne, run } = require("../src/database");
 const {
   GEMINI_STUB,
   createApp,
@@ -139,6 +139,18 @@ describe("Escalation inbox", () => {
 
     const release = await queryOne("SELECT status FROM releases WHERE id = $1", [rel.body.id]);
     assert.equal(release.status, "CERTIFIED_WITH_OVERRIDE");
+
+    const outboxRows = await queryAll(
+      `SELECT effect_type, source
+         FROM outbound_effect_outbox
+        WHERE release_id = $1
+        ORDER BY effect_type`,
+      [rel.body.id]
+    );
+    assert.deepEqual(outboxRows, [
+      { effect_type: "outbound_webhook", source: "override" },
+      { effect_type: "release_callback", source: "override" }
+    ]);
 
     const audit = await queryOne(
       "SELECT event_type FROM audit_events WHERE release_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
