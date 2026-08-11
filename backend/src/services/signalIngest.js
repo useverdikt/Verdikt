@@ -6,8 +6,8 @@ const { writeAudit } = require("./audit");
 const { evaluateReleaseAfterSignalIngest } = require("./domain");
 const {
   extractIdempotencyKey,
-  countSignalsForIdempotencyKey,
-  respondToDuplicateSignalIngest
+  respondToDuplicateSignalIngest,
+  replayDuplicateSignalIngestIfPresent
 } = require("./signalIngestIdempotency");
 
 // ON CONFLICT DO NOTHING ensures duplicate signal rows from concurrent
@@ -32,23 +32,19 @@ async function ingestReleaseSignals({
   beforeEvaluate = null
 }) {
   const entries = Object.entries(signals || {});
-  if (idempotencyKey) {
-    const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
-    if (existingCount > 0) {
-      const response = await respondToDuplicateSignalIngest(
-        release,
-        release.id,
-        source,
-        idempotencyKey
-      );
-      return {
-        kind: "duplicate",
-        response,
-        insertedCount: 0,
-        acceptedSignalIds: [],
-        rejectedSignalIds: []
-      };
-    }
+  const duplicateResponse = await replayDuplicateSignalIngestIfPresent(
+    release,
+    source,
+    idempotencyKey
+  );
+  if (duplicateResponse) {
+    return {
+      kind: "duplicate",
+      response: duplicateResponse,
+      insertedCount: 0,
+      acceptedSignalIds: [],
+      rejectedSignalIds: []
+    };
   }
 
   const acceptedEntries = [];

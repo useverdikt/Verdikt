@@ -29,6 +29,9 @@ const { openReleaseSession, buildGithubMappings } = require("../services/release
 const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
 const { promoteReleaseOnMerge } = require("../services/releaseEnvironment");
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
+const {
+  replayDuplicateSignalIngestIfPresent
+} = require("../services/signalIngestIdempotency");
 const { ackGitHubWebhookFailure } = require("../lib/githubWebhookAck");
 
 const {
@@ -267,6 +270,26 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
       }
     });
   }
+  const mapped = mapIntegrationSignals(provider, payload);
+  const mappedSignalIds = Object.keys(mapped.signals);
+  const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
+  const idempotencyKey = resolveIntegrationIdempotencyKey(req, [
+    req.headers["x-github-delivery"]
+  ]);
+  const duplicate = mappedSignalIds.length
+    ? await replayDuplicateSignalIngestIfPresent(release, ingestSource, idempotencyKey)
+    : null;
+  if (duplicate) {
+    return res.json({
+      ...duplicate,
+      inserted_count: 0,
+      integration: {
+        provider: String(provider),
+        mapped_signal_ids: mappedSignalIds,
+        ingest_mode: "workspace_webhook"
+      }
+    });
+  }
   if (releaseVerdictLockedAgainstIngest(release)) {
     return sendError(res, req, 409, releaseIngestLockError(release), {
       details: {
@@ -276,27 +299,25 @@ app.post("/api/workspaces/:workspaceId/integrations/evals", webhookRateLimit, as
       }
     });
   }
-  const mapped = mapIntegrationSignals(provider, payload);
-  if (!Object.keys(mapped.signals).length) {
+  if (!mappedSignalIds.length) {
     return sendError(res, req, 400, "no supported numeric signals found in payload", {
       details: {
         supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat(["p95latency", "p99latency"])
       }
     });
   }
-  const ingestSource = typeof source === "string" && source.trim() ? source.trim() : `integration:${String(provider)}`;
   const out = await ingestIntegrationSignals({
     release,
     mappedSignals: mapped.signals,
     source: ingestSource,
-    idempotencyKey: resolveIntegrationIdempotencyKey(req, [req.headers["x-github-delivery"]]),
+    idempotencyKey,
     auditDetails: { provider: String(provider), ingest_mode: "workspace_webhook" }
   });
   return res.json({
     ...out,
     integration: {
       provider: String(provider),
-      mapped_signal_ids: Object.keys(mapped.signals),
+      mapped_signal_ids: mappedSignalIds,
       ingest_mode: "workspace_webhook"
     }
   });
@@ -375,6 +396,27 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
         }
       });
     }
+    const mapped = mapIntegrationSignals("ci", { signals });
+    const mappedSignalIds = Object.keys(mapped.signals);
+    const ingestSource = typeof source === "string" && source.trim() ? source.trim() : "ci_webhook";
+    const idempotencyKey = resolveIntegrationIdempotencyKey(req, [
+      req.headers["x-github-delivery"]
+    ]);
+    const duplicate = mappedSignalIds.length
+      ? await replayDuplicateSignalIngestIfPresent(release, ingestSource, idempotencyKey)
+      : null;
+    if (duplicate) {
+      return res.json({
+        ...duplicate,
+        inserted_count: 0,
+        release_id: release.id,
+        integration: {
+          provider: "ci",
+          mapped_signal_ids: mappedSignalIds,
+          ingest_mode: "ci_webhook"
+        }
+      });
+    }
     if (releaseVerdictLockedAgainstIngest(release)) {
       return sendError(res, req, 409, releaseIngestLockError(release), {
         details: {
@@ -384,9 +426,7 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
         }
       });
     }
-
-    const mapped = mapIntegrationSignals("ci", { signals });
-    if (!Object.keys(mapped.signals).length) {
+    if (!mappedSignalIds.length) {
       return sendError(res, req, 400, "no supported numeric signals found in payload", {
         details: {
           supported_signal_ids: Object.keys(AI_SIGNAL_DEFINITIONS).concat([
@@ -398,13 +438,11 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
         }
       });
     }
-
-    const ingestSource = typeof source === "string" && source.trim() ? source.trim() : "ci_webhook";
     const out = await ingestIntegrationSignals({
       release,
       mappedSignals: mapped.signals,
       source: ingestSource,
-      idempotencyKey: resolveIntegrationIdempotencyKey(req, [req.headers["x-github-delivery"]]),
+      idempotencyKey,
       auditDetails: {
         provider: "ci",
         ingest_mode: "ci_webhook",
@@ -418,7 +456,7 @@ app.post("/api/workspaces/:workspaceId/integrations/ci", webhookRateLimit, async
       release_id: release.id,
       integration: {
         provider: "ci",
-        mapped_signal_ids: Object.keys(mapped.signals),
+        mapped_signal_ids: mappedSignalIds,
         ingest_mode: "ci_webhook"
       }
     });

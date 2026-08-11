@@ -137,6 +137,7 @@ describe("Release identity + SHA correlation", () => {
       pr_number: 99001,
       repo_owner: "acme",
       repo_name: "app",
+      idempotency_key: `ci-replay-${created.body.id}`,
       signals: { accuracy: 92, safety: 91, tone: 88, hallucination: 95, relevance: 90 }
     };
     const signed = await signVerdiktWebhook(ws, body);
@@ -151,6 +152,67 @@ describe("Release identity + SHA correlation", () => {
     assert.equal(ingest.body.release_id, created.body.id);
     const sigCount = await queryOne("SELECT COUNT(*) AS c FROM signals WHERE release_id = $1", [created.body.id]);
     assert.ok(Number(sigCount?.c || 0) >= 5);
+
+    const auditBefore = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = $1",
+      [created.body.id]
+    );
+    await run("UPDATE releases SET status = 'CERTIFIED' WHERE id = $1", [created.body.id]);
+    const replay = await request(app)
+      .post(`/api/workspaces/${ws}/integrations/ci`)
+      .set("Content-Type", "application/json")
+      .set("x-verdikt-signature", signed.signature)
+      .send(signed.raw)
+      .expect(200);
+    assert.equal(replay.body.duplicate, true);
+    assert.equal(replay.body.inserted_count, 0);
+    assert.equal(replay.body.release_id, created.body.id);
+    const auditAfter = await queryOne(
+      "SELECT COUNT(*) AS c FROM audit_events WHERE release_id = $1",
+      [created.body.id]
+    );
+    assert.equal(Number(auditAfter.c), Number(auditBefore.c));
+  });
+
+  it("eval webhook duplicate replay succeeds after the release becomes locked", async () => {
+    const email = `eval_replay_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human
+      .post("/api/auth/register")
+      .send({ email, password: "password123", name: "Eval Replay" })
+      .expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+    const created = await human
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: "eval-replay-v1", release_type: "model_update" })
+      .expect(201);
+    const body = {
+      release_id: created.body.id,
+      provider: "generic",
+      payload: { accuracy: 92 },
+      idempotency_key: `eval-replay-${created.body.id}`
+    };
+    const signed = await signVerdiktWebhook(ws, body);
+
+    await request(app)
+      .post(`/api/workspaces/${ws}/integrations/evals`)
+      .set("Content-Type", "application/json")
+      .set("x-verdikt-signature", signed.signature)
+      .send(signed.raw)
+      .expect(200);
+    await run("UPDATE releases SET status = 'CERTIFIED' WHERE id = $1", [created.body.id]);
+
+    const replay = await request(app)
+      .post(`/api/workspaces/${ws}/integrations/evals`)
+      .set("Content-Type", "application/json")
+      .set("x-verdikt-signature", signed.signature)
+      .send(signed.raw)
+      .expect(200);
+    assert.equal(replay.body.duplicate, true);
+    assert.equal(replay.body.inserted_count, 0);
+    assert.equal(replay.body.integration.ingest_mode, "workspace_webhook");
   });
 
   it("gate response includes action field for agent loop", async () => {

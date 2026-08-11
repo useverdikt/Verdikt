@@ -105,9 +105,26 @@ async function respondToDuplicateSignalIngest(release, releaseId, _source, idemp
   return { ...out, duplicate: true, idempotency_key: idempotencyKey };
 }
 
+async function replayDuplicateSignalIngestIfPresent(
+  release,
+  source,
+  idempotencyKey
+) {
+  if (!idempotencyKey) return null;
+  const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
+  if (existingCount === 0) return null;
+  return respondToDuplicateSignalIngest(
+    release,
+    release.id,
+    source,
+    idempotencyKey
+  );
+}
+
 module.exports = {
   extractIdempotencyKey,
   countSignalsForIdempotencyKey,
   buildIngestReadResponse,
-  respondToDuplicateSignalIngest
+  respondToDuplicateSignalIngest,
+  replayDuplicateSignalIngestIfPresent
 };
