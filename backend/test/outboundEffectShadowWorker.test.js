@@ -195,7 +195,7 @@ describe("outbound effect shadow worker", () => {
     assert.equal(row.shadow_result_json.outcome, "matched");
   });
 
-  it("surfaces mismatches and unverifiable configured channels without sending", async () => {
+  it("surfaces mismatches and retries configured channels until legacy evidence arrives", async () => {
     const release = await seedRelease({ callbackUrl: "https://example.com/callback" });
     await configureWebhook(release);
     await run(
@@ -210,7 +210,7 @@ describe("outbound effect shadow worker", () => {
       workspaceId: release.workspaceId
     });
     assert.equal(result.mismatched, 1);
-    assert.equal(result.unverifiable, 2);
+    assert.equal(result.retried, 2);
 
     const rows = await queryAll(
       `SELECT effect_type, state
@@ -221,8 +221,8 @@ describe("outbound effect shadow worker", () => {
     );
     assert.deepEqual(rows, [
       { effect_type: "outbound_webhook", state: "shadow_mismatch" },
-      { effect_type: "release_callback", state: "shadow_unverifiable" },
-      { effect_type: "slack_verdict", state: "shadow_unverifiable" }
+      { effect_type: "release_callback", state: "retry" },
+      { effect_type: "slack_verdict", state: "retry" }
     ]);
   });
 

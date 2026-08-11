@@ -17,6 +17,7 @@ const { getWorkspacePolicy } = require("./workspaceConfig");
 const { validateSlackWebhookUrl } = require("../lib/outboundUrl");
 const { nowIso } = require("../lib/time");
 const { PUBLIC_APP_URL } = require("../config");
+const { recordLegacyEffectObservation } = require("./outboundEffectLegacyObservation");
 
 const CALIBRATION_EMOJI = {
   MISS: ":rotating_light:",
@@ -128,20 +129,29 @@ function buildSlackPayload(release, failedSignals = [], certificationContext = n
  * @param {object|null} certificationContext
  */
 async function deliverSlackVerdict(release, failedSignals = [], certificationContext = null) {
+  let payload = null;
   try {
     const policy = await getWorkspacePolicy(release.workspace_id);
     const rawUrl = policy?.slack_webhook_url;
     if (!rawUrl) return;
+    payload = buildSlackPayload(release, failedSignals, certificationContext);
 
     let safeUrl;
     try {
       safeUrl = await validateSlackWebhookUrl(rawUrl);
     } catch {
       console.error("[slack_notifier] invalid webhook URL for workspace:", release.workspace_id);
+      await recordLegacyEffectObservation({
+        release,
+        effectType: "slack_verdict",
+        failedSignals,
+        payload,
+        outcome: "blocked",
+        errorCode: "invalid_url"
+      });
       return;
     }
 
-    const payload = buildSlackPayload(release, failedSignals, certificationContext);
     const body = JSON.stringify(payload);
 
     const res = await fetch(safeUrl, {
@@ -153,9 +163,35 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
 
     if (!res.ok) {
       console.error("[slack_notifier] non-2xx response:", release.id, res.status);
+      await recordLegacyEffectObservation({
+        release,
+        effectType: "slack_verdict",
+        failedSignals,
+        payload,
+        outcome: "failed",
+        responseStatus: res.status,
+        errorCode: `http_${res.status}`
+      });
+      return;
     }
+    await recordLegacyEffectObservation({
+      release,
+      effectType: "slack_verdict",
+      failedSignals,
+      payload,
+      outcome: "succeeded",
+      responseStatus: res.status
+    });
   } catch (err) {
     console.error("[slack_notifier] delivery failed:", release.id, err?.message);
+    await recordLegacyEffectObservation({
+      release,
+      effectType: "slack_verdict",
+      failedSignals,
+      payload,
+      outcome: "failed",
+      errorCode: "delivery_failed"
+    });
   }
 }
 

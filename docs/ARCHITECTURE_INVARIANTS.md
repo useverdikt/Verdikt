@@ -38,7 +38,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - Sweeps query only actionable rows, use deterministic ordering, and process bounded batches. A failure for one release must not stop the remainder of the batch.
 - Expired collection-window work uses short PostgreSQL transactions to acquire durable, owner-scoped leases before evaluation. Never hold the claim transaction open during verdict work; failed workers recover through lease expiry. Roll out `observe` before `enforce`.
 - Post-verdict external delivery intent is inserted into `outbound_effect_outbox` in the same transaction as the terminal verdict. Each release event and effect type has a stable idempotency key. Shadow recording must precede any outbox-owned delivery cutover.
-- Shadow outbox workers use owner-scoped leases, bounded retries, and dead letters. Shadow processing may compare database evidence but must never perform network delivery; `shadow_unverifiable` channels are not eligible for primary cutover.
+- Shadow outbox workers use owner-scoped leases, bounded retries, and dead letters. Shadow processing may compare database evidence but must never perform network delivery. Legacy observation writes are fail-open and store hashes/metadata rather than endpoint URLs or secrets; historical `shadow_unverifiable` rows remain non-certifying evidence.
 
 ## Database changes
 
