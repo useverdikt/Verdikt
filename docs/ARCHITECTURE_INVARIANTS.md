@@ -36,6 +36,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - Cross-replica release events use PostgreSQL `LISTEN/NOTIFY`; in-process events are insufficient for production coordination.
 - Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent.
 - Sweeps query only actionable rows, use deterministic ordering, and process bounded batches. A failure for one release must not stop the remainder of the batch.
+- Expired collection-window work uses short PostgreSQL transactions to acquire durable, owner-scoped leases before evaluation. Never hold the claim transaction open during verdict work; failed workers recover through lease expiry. Roll out `observe` before `enforce`.
 
 ## Database changes
 
