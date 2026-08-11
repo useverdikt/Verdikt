@@ -17,7 +17,8 @@ import {
   setHydrationNavigate,
   setOnEach,
   syncHydratedFromReleases,
-  isSummaryPending
+  isSummaryPending,
+  projectReleaseForList
 } from "../lib/releaseDetailRefresh.js";
 import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
@@ -50,7 +51,9 @@ export function useTrendChartReleases() {
   useEffect(() => {
     if (!hasBackend()) return;
     setHydrationNavigate(navigate);
-    setOnEach((mapped) => setReleases((prev) => mergeReleaseIntoList(prev, mapped)));
+    setOnEach((mapped) =>
+      setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)))
+    );
     return () => {
       setOnEach(null);
       resetHydrationPool();
@@ -61,7 +64,7 @@ export function useTrendChartReleases() {
     const onReleaseUpdated = (event) => {
       const mapped = event?.detail;
       if (!mapped?.backendReleaseId) return;
-      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
+      setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)));
     };
     window.addEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
     return () => window.removeEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);

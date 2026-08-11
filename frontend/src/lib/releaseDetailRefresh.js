@@ -33,12 +33,12 @@ export function isReleaseDetailPending(release) {
   return true;
 }
 
-/** Merge list API stubs with already-hydrated rows so re-sync does not wipe detail. */
+/** Merge list API stubs with hydrated summaries so re-sync does not wipe signals. */
 export function mergeListStubsWithExisting(prev, stubs) {
   const prevByBackend = new Map(prev.map((r) => [r.backendReleaseId, r]));
   return stubs.map((stub) => {
     const existing = prevByBackend.get(stub.backendReleaseId);
-    if (existing?.detailLoaded || existing?.summaryLoaded) {
+    if (existing?.summaryLoaded) {
       return {
         ...existing,
         version: stub.version,
@@ -51,8 +51,8 @@ export function mergeListStubsWithExisting(prev, stubs) {
         updated_at: stub.updated_at ?? existing.updated_at,
         verdict_issued_at: stub.verdict_issued_at ?? existing.verdict_issued_at,
         collection_deadline: stub.collection_deadline ?? existing.collection_deadline,
-        summaryLoaded: existing.summaryLoaded || stub.summaryLoaded,
-        detailLoaded: existing.detailLoaded || stub.detailLoaded
+        summaryLoaded: true,
+        detailLoaded: false
       };
     }
     return stub;
@@ -104,24 +104,25 @@ export function mergeReleaseIntoList(releases, mapped) {
   if (ix >= 0) {
     const existing = releases[ix];
     const next = [...releases];
-    if (existing.detailLoaded && !mapped.detailLoaded) {
-      next[ix] = {
-        ...existing,
-        ...mapped,
-        id: releases[ix].id,
-        detailLoaded: true,
-        summaryLoaded: true,
-        intelligence: existing.intelligence ?? mapped.intelligence,
-        overrideBy: existing.overrideBy ?? mapped.overrideBy,
-        overrideReason: existing.overrideReason ?? mapped.overrideReason,
-        release_deltas: existing.release_deltas ?? mapped.release_deltas
-      };
-    } else {
-      next[ix] = { ...existing, ...mapped, id: releases[ix].id };
-    }
+    next[ix] = { ...existing, ...mapped, id: releases[ix].id };
     return next;
   }
   return [mapped, ...releases];
+}
+
+/** Keep only list/summary state locally; full detail remains query-owned. */
+export function projectReleaseForList(mapped) {
+  if (!mapped) return mapped;
+  return {
+    ...mapped,
+    intelligence: undefined,
+    certification: undefined,
+    release_deltas: undefined,
+    overrideBy: undefined,
+    overrideReason: undefined,
+    detailLoaded: false,
+    summaryLoaded: mapped.summaryLoaded === true || mapped.detailLoaded === true
+  };
 }
 
 /** Fetch detail via the global pool, optionally broadcast, return mapped release. */

@@ -29,10 +29,6 @@ export function useWorkspaceSync() {
 export function useAuditRecordOpener({ openAuditRecord, setAuditDetail, showToast, toastColor }) {
   return useCallback(
     async (linkedRelease, backendReleaseId) => {
-      if (linkedRelease) {
-        setAuditDetail(linkedRelease);
-        return;
-      }
       const mapped = await openAuditRecord(linkedRelease, backendReleaseId, { showToast, toastColor });
       if (mapped) setAuditDetail(mapped);
     },

@@ -1,6 +1,6 @@
 import React from "react";
 import ReleaseRow from "./ReleaseRow.jsx";
-import ReleaseDetail from "./ReleaseDetail.jsx";
+import ReleaseDetailQuery from "./ReleaseDetailQuery.jsx";
 
 export default function ReleaseDashboardTable({
   wsReady,
@@ -125,7 +125,7 @@ export default function ReleaseDashboardTable({
                   releaseTypes={releaseTypes}
                 />
                 {isExpanded && (
-                  <ReleaseDetail
+                  <ReleaseDetailQuery
                     release={r}
                     signalCategories={signalCategories}
                     signalDefinitions={signalDefinitions}

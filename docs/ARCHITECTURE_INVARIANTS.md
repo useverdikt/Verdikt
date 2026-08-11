@@ -36,6 +36,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - Terminal verdict intelligence persists exact `failed_signals` and `threshold_failed_signals` arrays. Gate reads reuse threshold failures only with frozen snapshot evidence; live UNCERTIFIED gates recalculate so post-verdict threshold changes retain existing semantics. Legacy snapshots without the field also fall back safely.
 - Audit rows are append-only and serialized per workspace with a PostgreSQL advisory transaction lock.
 - Repeated gate polls coalesce only when the recorded result, release, actor, and agent session are unchanged. The first result, every changed result, and an unchanged five-minute heartbeat append hash-chained audit rows; compare-and-append runs under the workspace audit lock.
+- Expanded frontend release detail is owned by the workspace-scoped TanStack `releaseDetail` query. The local release list may keep summary/display projections but must not become a second store for intelligence, certification, or delta detail.
 - Cross-replica release events use PostgreSQL `LISTEN/NOTIFY`; in-process events are insufficient for production coordination.
 - Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent.
 - Sweeps query only actionable rows, use deterministic ordering, and process bounded batches. A failure for one release must not stop the remainder of the batch.

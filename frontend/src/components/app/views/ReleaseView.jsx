@@ -25,7 +25,6 @@ export default function ReleaseView({
   signalSources,
   releaseVersionPrimarySecondary,
   onCollectingAction,
-  onEnsureReleaseDetail,
   onHydrateVisibleSummaries,
   hasMoreReleases = false,
   loadingMoreReleases = false,
@@ -70,7 +69,6 @@ export default function ReleaseView({
       onViewFullRecord={onViewFullRecord}
       onBeginOverride={onBeginOverride}
       onCollectingAction={onCollectingAction}
-      onEnsureReleaseDetail={onEnsureReleaseDetail}
       onHydrateVisibleSummaries={onHydrateVisibleSummaries}
       setupChecklist={setupChecklist}
       hasMoreReleases={hasMoreReleases}
