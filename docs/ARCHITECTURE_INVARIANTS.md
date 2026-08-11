@@ -32,6 +32,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 ## Data, concurrency, and background work
 
 - Signal ingestion is idempotent. Retries must not create duplicate evidence.
+- Push-based manual, API, CI, and mapped-integration signals share `ingestReleaseSignals` for validation-aware persistence, idempotency race handling, and verdict evaluation. Routes retain authentication, release-lock errors, and response decoration. Pull/CSV replacement flows remain separate because they intentionally replace a source snapshot.
 - Audit rows are append-only and serialized per workspace with a PostgreSQL advisory transaction lock.
 - Cross-replica release events use PostgreSQL `LISTEN/NOTIFY`; in-process events are insufficient for production coordination.
 - Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent.

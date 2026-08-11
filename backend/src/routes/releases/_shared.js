@@ -62,7 +62,11 @@ const {
   countSignalsForIdempotencyKey,
   respondToDuplicateSignalIngest
 } = require("../../services/signalIngestIdempotency");
-const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../../services/signalIngest");
+const {
+  ingestReleaseSignals,
+  ingestIntegrationSignals,
+  resolveIntegrationIdempotencyKey
+} = require("../../services/signalIngest");
 
 module.exports = {
   queryOne,
@@ -122,6 +126,7 @@ module.exports = {
   extractIdempotencyKey,
   countSignalsForIdempotencyKey,
   respondToDuplicateSignalIngest,
+  ingestReleaseSignals,
   ingestIntegrationSignals,
   resolveIntegrationIdempotencyKey
 };
