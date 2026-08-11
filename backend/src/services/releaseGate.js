@@ -1,6 +1,6 @@
 "use strict";
 
-const { writeAudit } = require("./audit");
+const { writeGateAuditIfNeeded } = require("./gateAudit");
 const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { getMissingRequiredSignals } = require("./verdictEngine");
 const { computeGateAction, computeCollectionAgeMs } = require("./releaseIdentity");
@@ -232,10 +232,9 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
   }
 
   if (!skipAudit) {
-    await writeAudit({
+    await writeGateAuditIfNeeded({
       workspaceId: release.workspace_id,
       releaseId,
-      eventType: "RELEASE_GATE_CHECKED",
       actorType: auth?.authType === "api_key" ? "AGENT" : "SYSTEM",
       actorName: auth?.authType === "api_key" ? auth.apiKeyName || "agent_runtime" : "ci_pipeline",
       details: {
