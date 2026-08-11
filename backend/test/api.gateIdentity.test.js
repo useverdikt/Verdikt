@@ -235,6 +235,15 @@ describe("Release identity + SHA correlation", () => {
     assert.ok(gate.body.blockers.length >= 1);
     assert.equal(typeof gate.body.next_step, "string");
     assert.ok(gate.body.next_step.length > 0);
+
+    await human.get(`/api/releases/${created.body.id}/gate`).expect(200);
+    const gateAuditCount = await queryOne(
+      `SELECT COUNT(*)::int AS count
+         FROM audit_events
+        WHERE release_id = $1 AND event_type = 'RELEASE_GATE_CHECKED'`,
+      [created.body.id]
+    );
+    assert.equal(gateAuditCount.count, 1);
   });
 
   it("gate includes remediation intelligence when blocked (UNCERTIFIED)", async () => {
