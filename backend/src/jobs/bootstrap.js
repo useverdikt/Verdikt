@@ -14,10 +14,14 @@ const {
   runCertificationSnapshotBackfillOnce,
   startCertificationSnapshotRetrySweepJob
 } = require("./certificationSnapshotRetrySweep");
+const {
+  runOutboundEffectShadowSweepOnce,
+  startOutboundEffectShadowSweepJob
+} = require("./outboundEffectSweep");
 
 /**
  * Start background interval jobs (collection sweep, VCS monitor, escalation SLA,
- * certification snapshot retries).
+ * certification snapshot retries, shadow outbox validation).
  * API server runs these by default; set RUN_BACKGROUND_JOBS=0 to disable when using worker.js.
  */
 function startBackgroundJobs() {
@@ -26,6 +30,7 @@ function startBackgroundJobs() {
     vcsMonitorInterval: null,
     escalationSlaInterval: null,
     certSnapshotRetryInterval: null,
+    outboundEffectInterval: null,
     vcsInitialTimeout: null
   };
 
@@ -34,9 +39,11 @@ function startBackgroundJobs() {
   handles.vcsMonitorInterval = startVcsMonitorSweepJob();
   handles.escalationSlaInterval = startEscalationSlaSweepJob();
   handles.certSnapshotRetryInterval = startCertificationSnapshotRetrySweepJob();
+  handles.outboundEffectInterval = startOutboundEffectShadowSweepJob();
   void runEscalationSlaSweepJobOnce();
   void runCertificationSnapshotBackfillOnce();
   void runCertificationSnapshotRetrySweepOnce();
+  void runOutboundEffectShadowSweepOnce();
   handles.vcsInitialTimeout = setTimeout(() => void runVcsMonitorSweep().catch(() => {}), 8_000);
 
   return handles;
@@ -48,6 +55,7 @@ function stopBackgroundJobs(handles) {
   if (handles.vcsMonitorInterval) clearInterval(handles.vcsMonitorInterval);
   if (handles.escalationSlaInterval) clearInterval(handles.escalationSlaInterval);
   if (handles.certSnapshotRetryInterval) clearInterval(handles.certSnapshotRetryInterval);
+  if (handles.outboundEffectInterval) clearInterval(handles.outboundEffectInterval);
   if (handles.vcsInitialTimeout) clearTimeout(handles.vcsInitialTimeout);
 }
 

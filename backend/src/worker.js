@@ -50,7 +50,9 @@ async function main() {
   await initDatabase();
   const jobs = startBackgroundJobs();
   jobsStarted = true;
-  console.log("[worker] background jobs started (collection, VCS monitor, escalation SLA, cert snapshot retries)");
+  console.log(
+    "[worker] background jobs started (collection, VCS monitor, escalation SLA, cert snapshot retries, shadow outbox)"
+  );
 
   const healthServer = createWorkerHealthServer();
 
