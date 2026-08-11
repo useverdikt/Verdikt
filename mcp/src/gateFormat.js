@@ -1,3 +1,25 @@
+function normalizedCommitSha(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+/** Fail closed when a gate response belongs to a different commit. */
+export function assertGateCommitSha(out, requestedCommitSha) {
+  const requested = normalizedCommitSha(requestedCommitSha);
+  const returned = normalizedCommitSha(out?.commit_sha);
+  const matches =
+    requested.length >= 7 &&
+    returned.length >= 7 &&
+    (requested === returned || requested.startsWith(returned) || returned.startsWith(requested));
+  if (!matches) {
+    const error = new Error(
+      `gate_commit_sha_mismatch: requested=${requested || "missing"} returned=${returned || "missing"}`
+    );
+    error.code = "gate_commit_sha_mismatch";
+    throw error;
+  }
+  return out;
+}
+
 /** Normalize gate API response with agent-facing guidance (read action, not exit_code alone). */
 export function formatGateForAgent(out) {
   const action = out?.action || "unknown";

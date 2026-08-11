@@ -49,5 +49,6 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 ## Release safety
 
 - A successful CI run is necessary but not sufficient: protected release PRs also pass the Verdikt gate.
+- A gate request containing `commit_sha` may resolve only that commit (full or matching 7+ character prefix). It must never fall back to another release for the same PR, ref, or version; CI and MCP clients fail closed when the returned SHA differs.
 - Certification snapshots and signatures are immutable evidence. New records use the independent v2 signing key; legacy v1 JWT-derived records remain read-only verifiable until an explicit retirement migration removes that compatibility path.
 - Public certification records are opt-in per workspace and must expose only the fields allowed by workspace policy.
