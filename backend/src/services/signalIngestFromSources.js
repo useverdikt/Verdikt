@@ -13,10 +13,9 @@ const {
   extractVersionFromRow,
   mapFlatRowToSignals,
   mapIntegrationSignals,
-  resolveReleaseForWorkspaceIngest,
   releaseVerdictLockedAgainstIngest
 } = require("./verdictEngine");
-const { summarizePullResult, buildIntegrationPullWarnings } = require("./integrationPullStatus");
+const { buildIntegrationPullWarnings } = require("./integrationPullStatus");
 const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
 const { pickReleaseForIngestFromList, normalizeCommitSha, commitShaMatches } = require("../lib/releaseIngestPick");
 const { metadataMatchesRelease, extractIdentityFromRow } = require("./releaseIdentity");

@@ -339,7 +339,7 @@ export default function ApiSignalSection({
         <div className="sblock-head">
           <div>
             <div className="sblock-title">Request integration</div>
-            <div className="sblock-desc">Need a pull connector we don't ship yet? Tell us what to build.</div>
+            <div className="sblock-desc">Need a pull connector we don&apos;t ship yet? Tell us what to build.</div>
           </div>
         </div>
         <div className="sblock-body" style={{ padding: "18px" }}>

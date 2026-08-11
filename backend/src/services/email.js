@@ -264,7 +264,6 @@ function escapeHtml(s) {
 
 async function sendResendToMany({ to, subject, text, html }) {
   const apiKey = (process.env.RESEND_API_KEY || "").trim();
-  const base = publicAppBase();
   if (!apiKey) return { skipped: true, reason: "missing_resend" };
   const from =
     (process.env.EMAIL_FROM || "").trim() || "Verdikt <onboarding@resend.dev>";

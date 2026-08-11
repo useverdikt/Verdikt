@@ -26,7 +26,6 @@
 const { queryOne } = require("../database");
 const { nowIso } = require("../lib/time");
 const { log, inc } = require("../lib/observability");
-const { writeAudit } = require("./audit");
 const { classifyFailureModes } = require("./correlationEngine");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
 const { signCertificationRecord } = require("./certSigner");

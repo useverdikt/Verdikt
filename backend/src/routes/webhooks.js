@@ -4,10 +4,8 @@ const { sendError } = require("../lib/apiError");
 
 const crypto = require("crypto");
 
-const { queryOne, queryAll, run, transaction } = require("../database");
+const { queryAll } = require("../database");
 const config = require("../config");
-const { nowIso } = require("../lib/time");
-const { writeAudit } = require("../services/audit");
 const { webhookRateLimit } = require("../middleware/rateLimit");
 const { verifyInboundWebhookSignature } = require("../services/inboundWebhookSecrets");
 const {
@@ -22,7 +20,6 @@ const {
   resolveWorkspaceForGithubRepo
 } = require("../services/githubApp");
 const {
-  evaluateReleaseAfterSignalIngest,
   mapIntegrationSignals,
   releaseVerdictLockedAgainstIngest,
   releaseIngestLockError,
@@ -63,7 +60,7 @@ function verifyGitHubWebhookSignature(req) {
 const { classifyGithubReleaseType } = require("../services/githubReleaseClassification");
 
 module.exports = function registerWebhookRoutes(app) {
-app.get("/api/hooks/github/setup", async (req, res) => {
+app.get("/api/hooks/github/setup", async (req, res, next) => {
   try {
     const state = typeof req.query.state === "string" ? req.query.state.trim() : "";
     const installationId = Number(req.query.installation_id || 0);
@@ -93,7 +90,7 @@ app.get("/api/hooks/github/setup", async (req, res) => {
   }
 });
 
-app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
+app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
   try {
     if (!GITHUB_WEBHOOK_SECRET) {
       return sendError(res, req, 503, "GitHub webhook not configured on server");
@@ -103,7 +100,6 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, next) => {
     }
 
     const event = String(req.headers["x-github-event"] || "");
-    const deliveryId = String(req.headers["x-github-delivery"] || "");
     if (event === "ping") return res.json({ ok: true, event: "ping" });
     if (event !== "pull_request") return res.json({ ok: true, ignored: `event:${event}` });
 

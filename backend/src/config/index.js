@@ -42,6 +42,9 @@ const GITHUB_APP_PRIVATE_KEY = (process.env.GITHUB_APP_PRIVATE_KEY || "").trim()
 const GITHUB_APP_INSTALL_URL = (process.env.GITHUB_APP_INSTALL_URL || "").trim();
 const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").trim();
 const ENCRYPTION_MASTER_KEY_RAW = (process.env.ENCRYPTION_MASTER_KEY || "").trim();
+const DEFAULT_DEV_CERT_SIGNING_KEY = "dev-insecure-change-with-env-CERT_SIGNING_KEY";
+const CERT_SIGNING_KEY =
+  (process.env.CERT_SIGNING_KEY || (IS_PROD_LIKE ? "" : DEFAULT_DEV_CERT_SIGNING_KEY)).trim();
 
 /** Minimum lengths when NODE_ENV=production or REQUIRE_SECURE_CONFIG=1 */
 const MIN_JWT_SECRET_LEN = 32;
@@ -73,6 +76,12 @@ const CSRF_COOKIE_NAME = (process.env.CSRF_COOKIE_NAME || "vdk_csrf").trim() || 
 const COOKIE_MAX_AGE_MS = Math.max(60_000, Number(process.env.AUTH_COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000));
 /** Optional `redis://` URL for distributed rate limits (multi-instance). When unset, in-memory maps are used. */
 const REDIS_URL = (process.env.REDIS_URL || "").trim();
+const API_REPLICA_COUNT_RAW = Number(process.env.API_REPLICA_COUNT || 1);
+const API_REPLICA_COUNT = Number.isFinite(API_REPLICA_COUNT_RAW)
+  ? Math.max(1, Math.floor(API_REPLICA_COUNT_RAW))
+  : 1;
+const REQUIRE_DISTRIBUTED_RATE_LIMITS =
+  process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS === "1" || API_REPLICA_COUNT > 1;
 const INTERNAL_WORKSPACE_VIEWER_EMAILS = String(process.env.INTERNAL_WORKSPACE_VIEWER_EMAILS || "")
   .split(",")
   .map((entry) => entry.trim().toLowerCase())
@@ -111,6 +120,24 @@ if (IS_PROD_LIKE && JWT_SECRET.length < MIN_JWT_SECRET_LEN) {
 if (IS_PROD_LIKE && WEBHOOK_SECRET.length < MIN_WEBHOOK_SECRET_LEN) {
   throw new Error(
     `Refusing to start: WEBHOOK_SECRET must be at least ${MIN_WEBHOOK_SECRET_LEN} characters in production-like mode.`
+  );
+}
+if (IS_PROD_LIKE && CERT_SIGNING_KEY.length < MIN_JWT_SECRET_LEN) {
+  throw new Error(
+    `Refusing to start: CERT_SIGNING_KEY must be at least ${MIN_JWT_SECRET_LEN} characters in production-like mode.`
+  );
+}
+if (IS_PROD_LIKE && CERT_SIGNING_KEY === JWT_SECRET) {
+  throw new Error("Refusing to start: CERT_SIGNING_KEY must be independent from JWT_SECRET.");
+}
+if (IS_PROD_LIKE && INTERNAL_WORKSPACE_VIEWER_EMAILS.length > 0) {
+  throw new Error(
+    "Refusing to start: INTERNAL_WORKSPACE_VIEWER_EMAILS must be empty in production-like mode; use audited workspace membership instead."
+  );
+}
+if (IS_PROD_LIKE && REQUIRE_DISTRIBUTED_RATE_LIMITS && !REDIS_URL) {
+  throw new Error(
+    "Refusing to start without REDIS_URL when API_REPLICA_COUNT > 1 or REQUIRE_DISTRIBUTED_RATE_LIMITS=1."
   );
 }
 if (IS_PROD_LIKE) {
@@ -170,8 +197,11 @@ module.exports = {
   CSRF_COOKIE_NAME,
   COOKIE_MAX_AGE_MS,
   REDIS_URL,
+  API_REPLICA_COUNT,
+  REQUIRE_DISTRIBUTED_RATE_LIMITS,
   INTERNAL_WORKSPACE_VIEWER_EMAILS,
   isInternalWorkspaceViewerEmail,
   SUPABASE_JWT_SECRET,
-  ENCRYPTION_MASTER_KEY: ENCRYPTION_MASTER_KEY_RAW
+  ENCRYPTION_MASTER_KEY: ENCRYPTION_MASTER_KEY_RAW,
+  CERT_SIGNING_KEY
 };

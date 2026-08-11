@@ -1,6 +1,6 @@
 "use strict";
 
-const { run, transaction } = require("../../database");
+const { transaction } = require("../../database");
 const { sendError,
   writeAudit,
   authMiddleware,

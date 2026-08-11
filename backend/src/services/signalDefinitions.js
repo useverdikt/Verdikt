@@ -1,7 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
-const { queryOne, queryAll, run, transaction } = require("../database");
+const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const sharedPkg = require("../lib/sharedPkg");
 

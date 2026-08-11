@@ -16,7 +16,7 @@ const { queryOne } = require("../database");
  */
 
 async function buildGateCertification({
-  release,
+  release: _release,
   intelligence,
   thresholdMap = {},
   latest = {},

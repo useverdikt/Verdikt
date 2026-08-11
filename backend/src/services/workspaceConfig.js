@@ -5,7 +5,6 @@
  * workspace policy. Uses PostgreSQL via the unified async DB API.
  */
 
-const path = require("path");
 const { queryOne, queryAll, run, transaction } = require("../database");
 const sharedPkg = require("../lib/sharedPkg");
 const { nowIso } = require("../lib/time");

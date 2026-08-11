@@ -3,17 +3,30 @@
 const { queryAll } = require("../database");
 const { evaluateReleaseAfterSignalIngest } = require("../services/domain");
 
-async function runCollectionDeadlineSweep() {
-  const nowMs = Date.now();
-  const rows = await queryAll(
-    "SELECT * FROM releases WHERE status = 'COLLECTING' AND collection_deadline IS NOT NULL",
-    []
+const CONFIGURED_BATCH_SIZE = Number(process.env.COLLECTION_SWEEP_BATCH_SIZE || 100);
+const DEFAULT_BATCH_SIZE = Number.isFinite(CONFIGURED_BATCH_SIZE)
+  ? Math.min(1000, Math.max(1, Math.floor(CONFIGURED_BATCH_SIZE)))
+  : 100;
+
+async function runCollectionDeadlineSweep({
+  limit = DEFAULT_BATCH_SIZE,
+  queryAllFn = queryAll,
+  evaluateFn = evaluateReleaseAfterSignalIngest
+} = {}) {
+  const batchLimit = Math.min(1000, Math.max(1, Number(limit) || DEFAULT_BATCH_SIZE));
+  const rows = await queryAllFn(
+    `SELECT *
+       FROM releases
+      WHERE status = 'COLLECTING'
+        AND collection_deadline IS NOT NULL
+        AND collection_deadline <= NOW()
+      ORDER BY collection_deadline ASC, id ASC
+      LIMIT $1`,
+    [batchLimit]
   );
   for (const rel of rows) {
-    const deadlineMs = Date.parse(rel.collection_deadline);
-    if (!Number.isFinite(deadlineMs) || deadlineMs >= nowMs) continue;
     try {
-      await evaluateReleaseAfterSignalIngest(rel, rel.id, "collection_deadline_sweep", 0);
+      await evaluateFn(rel, rel.id, "collection_deadline_sweep", 0);
     } catch (err) {
       console.error("[collection_deadline_sweep]", rel.id, err);
     }
@@ -28,4 +41,8 @@ function startCollectionDeadlineSweepJob() {
   return id;
 }
 
-module.exports = { runCollectionDeadlineSweep, startCollectionDeadlineSweepJob };
+module.exports = {
+  runCollectionDeadlineSweep,
+  startCollectionDeadlineSweepJob,
+  DEFAULT_BATCH_SIZE
+};

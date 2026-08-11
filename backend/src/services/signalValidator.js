@@ -5,7 +5,6 @@
  * Schema validation for incoming signal payloads.
  */
 
-const path = require("path");
 const sharedPkg = require("../lib/sharedPkg");
 const { queryAll, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
