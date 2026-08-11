@@ -18,6 +18,115 @@ const {
 const INSERT_SIGNALS_SQL =
   "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id";
 
+/**
+ * Shared persistence and evaluation path for release signals. Route-specific
+ * authentication, lock errors, payload shape, and response decoration remain
+ * at the boundary.
+ */
+async function ingestReleaseSignals({
+  release,
+  signals,
+  source,
+  idempotencyKey = null,
+  validateSignal = null,
+  beforeEvaluate = null
+}) {
+  const entries = Object.entries(signals || {});
+  if (idempotencyKey) {
+    const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
+    if (existingCount > 0) {
+      const response = await respondToDuplicateSignalIngest(
+        release,
+        release.id,
+        source,
+        idempotencyKey
+      );
+      return {
+        kind: "duplicate",
+        response,
+        insertedCount: 0,
+        acceptedSignalIds: [],
+        rejectedSignalIds: []
+      };
+    }
+  }
+
+  const acceptedEntries = [];
+  const rejectedSignalIds = [];
+  for (const [signalId, value] of entries) {
+    if (validateSignal && !validateSignal(signalId, value)) {
+      rejectedSignalIds.push(signalId);
+    } else {
+      acceptedEntries.push([signalId, value]);
+    }
+  }
+
+  let insertedCount = 0;
+  if (acceptedEntries.length > 0) {
+    await transaction(async (tx) => {
+      for (const [signalId, value] of acceptedEntries) {
+        const result = await tx.query(INSERT_SIGNALS_SQL, [
+          release.id,
+          signalId,
+          value,
+          source,
+          nowIso(),
+          idempotencyKey
+        ]);
+        if (result.rows?.length > 0) insertedCount += 1;
+      }
+    });
+  }
+
+  if (entries.length > 0 && insertedCount === 0) {
+    if (idempotencyKey && rejectedSignalIds.length < entries.length) {
+      const response = await respondToDuplicateSignalIngest(
+        release,
+        release.id,
+        source,
+        idempotencyKey
+      );
+      return {
+        kind: "duplicate",
+        response,
+        insertedCount: 0,
+        acceptedSignalIds: acceptedEntries.map(([signalId]) => signalId),
+        rejectedSignalIds
+      };
+    }
+    return {
+      kind: "no_valid_signals",
+      response: null,
+      insertedCount: 0,
+      acceptedSignalIds: [],
+      rejectedSignalIds
+    };
+  }
+
+  const acceptedSignalIds = acceptedEntries.map(([signalId]) => signalId);
+  if (beforeEvaluate) {
+    await beforeEvaluate({
+      acceptedSignalIds,
+      rejectedSignalIds,
+      insertedCount
+    });
+  }
+  const response = await evaluateReleaseAfterSignalIngest(
+    release,
+    release.id,
+    source,
+    insertedCount
+  );
+  if (idempotencyKey && response) response.idempotency_key = idempotencyKey;
+  return {
+    kind: "ingested",
+    response,
+    insertedCount,
+    acceptedSignalIds,
+    rejectedSignalIds
+  };
+}
+
 async function ingestIntegrationSignals({
   release,
   mappedSignals,
@@ -30,54 +139,38 @@ async function ingestIntegrationSignals({
     throw new Error("no supported numeric signals found in payload");
   }
 
-  // Fast path: if the route already confirmed a duplicate via its pre-check
-  // (countSignalsForIdempotencyKey), replay read-only without opening a
-  // transaction. The transaction + ON CONFLICT below is the race backstop for
-  // the narrow window where two concurrent first-time requests both pass that
-  // pre-check.
-  if (idempotencyKey) {
-    const existingCount = await countSignalsForIdempotencyKey(release.id, idempotencyKey);
-    if (existingCount > 0) {
-      const out = await respondToDuplicateSignalIngest(release, release.id, source, idempotencyKey);
-      return { ...out, inserted_count: 0, duplicate: true };
-    }
-  }
-
-  let insertedCount = 0;
-  await transaction(async (tx) => {
-    for (const [signalId, value] of Object.entries(mappedSignals)) {
-      const result = await tx.query(INSERT_SIGNALS_SQL, [release.id, signalId, value, source, nowIso(), idempotencyKey]);
-      if (result.rows?.length > 0) insertedCount += 1;
-    }
-  });
-
-  // Race-loser: a concurrent request with the same idempotency key won the
-  // insert; our ON CONFLICT DO NOTHING inserts produced no rows. Replay
-  // read-only — do NOT write a second audit event or re-evaluate the verdict.
-  if (idempotencyKey && insertedCount === 0) {
-    const out = await respondToDuplicateSignalIngest(release, release.id, source, idempotencyKey);
-    return { ...out, inserted_count: 0, duplicate: true };
-  }
-
-  await writeAudit({
-    workspaceId: release.workspace_id,
-    releaseId: release.id,
-    eventType: "INTEGRATION_SIGNALS_MAPPED",
-    actorType: "SYSTEM",
-    actorName: source,
-    details: {
-      mapped_signal_ids: signalIds,
-      ...auditDetails
+  const result = await ingestReleaseSignals({
+    release,
+    signals: mappedSignals,
+    source,
+    idempotencyKey,
+    beforeEvaluate: async () => {
+      await writeAudit({
+        workspaceId: release.workspace_id,
+        releaseId: release.id,
+        eventType: "INTEGRATION_SIGNALS_MAPPED",
+        actorType: "SYSTEM",
+        actorName: source,
+        details: {
+          mapped_signal_ids: signalIds,
+          ...auditDetails
+        }
+      });
     }
   });
-
-  const out = await evaluateReleaseAfterSignalIngest(release, release.id, source, signalIds.length);
-  if (idempotencyKey) out.idempotency_key = idempotencyKey;
-  return { ...out, inserted_count: signalIds.length };
+  return {
+    ...result.response,
+    inserted_count: result.kind === "duplicate" ? 0 : signalIds.length,
+    ...(result.kind === "duplicate" ? { duplicate: true } : {})
+  };
 }
 
 function resolveIntegrationIdempotencyKey(req, fallbackKeys = []) {
   return extractIdempotencyKey(req, fallbackKeys);
 }
 
-module.exports = { ingestIntegrationSignals, resolveIntegrationIdempotencyKey };
+module.exports = {
+  ingestReleaseSignals,
+  ingestIntegrationSignals,
+  resolveIntegrationIdempotencyKey
+};

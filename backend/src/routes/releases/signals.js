@@ -1,9 +1,7 @@
 "use strict";
 
 const {
-  transaction,
   sendError,
-  nowIso,
   writeAudit,
   auditActorFromAuth,
   authMiddleware,
@@ -11,7 +9,6 @@ const {
   requireNonViewer,
   requireReleaseAccess,
   isAllowedSignalValue,
-  evaluateReleaseAfterSignalIngest,
   mapIntegrationSignals,
   releaseVerdictLockedAgainstIngest,
   releaseIngestLockError,
@@ -24,6 +21,7 @@ const {
   extractIdempotencyKey,
   countSignalsForIdempotencyKey,
   respondToDuplicateSignalIngest,
+  ingestReleaseSignals,
   ingestIntegrationSignals,
   resolveIntegrationIdempotencyKey
 } = require("./_shared");
@@ -66,44 +64,29 @@ module.exports = function registerRoutes(app) {
       });
     }
 
-    // ON CONFLICT DO NOTHING is the race backstop: if two concurrent first-time
-    // requests with the same key both pass the pre-check above, only one set of
-    // signal rows actually lands at the DB level.
-    const insertSql =
-      "INSERT INTO signals (release_id, signal_id, value, source, created_at, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING";
-    const rejected = [];
-    let insertedCount = 0;
-    await transaction(async (tx) => {
-      for (const [signalId, value] of Object.entries(signals)) {
-        if (!isAllowedSignalValue(signalId, value)) {
-          rejected.push(signalId);
-          continue;
-        }
-        const result = await tx.run(insertSql, [req.params.releaseId, signalId, value, source, nowIso(), idempotencyKey]);
-        if (result.changes > 0) insertedCount += 1;
-      }
+    const ingestResult = await ingestReleaseSignals({
+      release,
+      signals,
+      source,
+      idempotencyKey,
+      validateSignal: isAllowedSignalValue
     });
-
-    const keyCount = Object.keys(signals).length;
-    if (keyCount > 0 && insertedCount === 0) {
-      // If every signal was rejected by validation, that's a real 400. But if
-      // some signals were valid yet nothing inserted, we lost a concurrent race
-      // for this idempotency key — the winner already wrote the rows. Treat it
-      // as a duplicate read-only replay instead of a spurious validation error.
-      if (idempotencyKey && rejected.length < keyCount) {
-        const out = await respondToDuplicateSignalIngest(release, req.params.releaseId, source, idempotencyKey);
-        if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
-        return res.json(out);
-      }
+    if (ingestResult.kind === "duplicate") {
+      const out = ingestResult.response;
+      if (schemaCheck.warnings.length > 0) out.schema_warnings = schemaCheck.warnings;
+      return res.json(out);
+    }
+    if (ingestResult.kind === "no_valid_signals") {
       return sendError(res, req, 400, "no valid signal values after validation (finite numbers, correct ranges per signal type)", {
         details: {
-          rejected_signal_ids: rejected,
+          rejected_signal_ids: ingestResult.rejectedSignalIds,
           schema_warnings: schemaCheck.warnings
         }
       });
     }
 
-    const out = await evaluateReleaseAfterSignalIngest(release, req.params.releaseId, source, insertedCount);
+    const out = ingestResult.response;
+    const insertedCount = ingestResult.insertedCount;
     if (req.auth?.authType === "api_key" && insertedCount > 0) {
       const actor = auditActorFromAuth(req.auth);
       await writeAudit({
@@ -114,7 +97,7 @@ module.exports = function registerRoutes(app) {
         actorName: actor.actorName,
         details: {
           source,
-          signal_ids: Object.keys(signals).filter((k) => !rejected.includes(k)),
+          signal_ids: ingestResult.acceptedSignalIds,
           inserted_count: insertedCount,
           idempotency_key: idempotencyKey,
           api_key_id: actor.api_key_id
