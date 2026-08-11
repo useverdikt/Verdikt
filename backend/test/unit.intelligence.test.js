@@ -11,7 +11,7 @@ const { describe, it, after, before } = require("node:test");
 const assert = require("node:assert/strict");
 const request = require("supertest");
 
-const { queryOne, run } = require("../src/database");
+const { queryOne, run, transaction } = require("../src/database");
 const {
   writeAudit,
   ensureWorkspaceSeeded,
@@ -82,6 +82,55 @@ describe("release intelligence recommendation vs user decision (unit)", () => {
 
     const fetched = await getRecommendation(releaseId);
     assert.equal(fetched?.confidence_score, rec.confidence_score);
+  });
+
+  it("preserves independent intelligence patches that commit concurrently", async () => {
+    const ws = `ws_intel_concurrent_${crypto.randomBytes(3).toString("hex")}`;
+    const releaseId = `rel_intel_concurrent_${crypto.randomBytes(3).toString("hex")}`;
+    const now = nowIso();
+    await ensureWorkspaceSeeded(ws);
+    await run(
+      `INSERT INTO releases
+         (id, workspace_id, version, release_type, environment, status, created_at, updated_at)
+       VALUES ($1, $2, 'v1', 'model_update', 'pre-prod', 'COLLECTING', $3, $3)`,
+      [releaseId, ws, now]
+    );
+
+    let arrivals = 0;
+    const waiters = [];
+    const waitForBothWrites = async () => {
+      arrivals += 1;
+      if (arrivals === 2) {
+        for (const resolve of waiters.splice(0)) resolve();
+        return;
+      }
+      await new Promise((resolve) => waiters.push(resolve));
+    };
+    const coordinatedPatch = (patch) =>
+      transaction((tx) =>
+        upsertReleaseIntelligence(releaseId, ws, patch, {
+          queryOne: tx.queryOne.bind(tx),
+          run: async (...args) => {
+            await waitForBothWrites();
+            return tx.run(...args);
+          }
+        })
+      );
+
+    const verdict = { status: "UNCERTIFIED", summary: "concurrent verdict" };
+    const recommendation = {
+      recommended_verdict: "UNCERTIFIED",
+      confidence_score: 73,
+      summary: "concurrent recommendation"
+    };
+    await Promise.all([
+      coordinatedPatch({ verdict }),
+      coordinatedPatch({ recommendation })
+    ]);
+
+    const intelligence = await getReleaseIntelligence(releaseId);
+    assert.deepEqual(intelligence.verdict, verdict);
+    assert.deepEqual(intelligence.recommendation, recommendation);
   });
 });
 
