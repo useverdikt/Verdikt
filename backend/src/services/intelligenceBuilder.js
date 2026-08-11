@@ -105,6 +105,7 @@ async function computeRegressionHistoryInsights(workspaceId, currentReleaseId, r
 async function buildDeterministicVerdictIntelligence({
   release,
   failedSignals,
+  thresholdFailedSignals = failedSignals,
   missingRequiredSignals,
   nextStatus,
   deltaContext,
@@ -228,6 +229,7 @@ async function buildDeterministicVerdictIntelligence({
     confidence: nextStatus === "CERTIFIED" ? 0.72 : severity === "HIGH" ? 0.84 : 0.76,
     summary,
     failed_signals: failedSignals,
+    threshold_failed_signals: thresholdFailedSignals,
     likely_failure_modes:
       nextStatus === "CERTIFIED"
         ? []

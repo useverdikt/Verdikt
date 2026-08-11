@@ -25,18 +25,23 @@ async function resolveGateFailedSignals({
   release,
   latest,
   thresholdMap,
+  evidenceSource,
   computeVerdictFn = computeVerdict
 }) {
-  const persisted = intelligence?.verdict?.failed_signals;
-  if (Array.isArray(persisted)) {
-    inc("gate_failed_signals_intelligence_hit");
+  const persisted = intelligence?.verdict?.threshold_failed_signals;
+  if (evidenceSource === "snapshot" && Array.isArray(persisted)) {
+    inc("gate_failed_signals_snapshot_hit");
     return persisted;
   }
 
   if (release.status === "UNCERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE") {
-    // Compatibility fallback for verdict intelligence written before
-    // failed_signals became a persisted field.
-    inc("gate_failed_signals_legacy_fallback");
+    // Live UNCERTIFIED evidence may reflect threshold edits made after the
+    // verdict. Snapshot releases without the field are legacy records.
+    inc(
+      evidenceSource === "snapshot"
+        ? "gate_failed_signals_legacy_fallback"
+        : "gate_failed_signals_live_recalculation"
+    );
     const verdict = await computeVerdictFn(
       release.workspace_id,
       release.id,
@@ -77,7 +82,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     resolveGateEvidence(release)
   ]);
 
-  const { thresholdMap, latest, snapshot } = evidence;
+  const { thresholdMap, latest, snapshot, source: evidenceSource } = evidence;
   // Live maps are still returned when a cert snapshot is missing so blockers /
   // remediation stay useful while merge is blocked with recover_certification.
   const snapshotMissing = isCertifiedSnapshotMissing(release, evidence);
@@ -140,7 +145,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     intelligence,
     release,
     latest,
-    thresholdMap
+    thresholdMap,
+    evidenceSource
   });
   const blockingSignals = failedSignals.map((f) => f.signal_id).filter(Boolean);
   const missingRequiredSignals = await getMissingRequiredSignals(

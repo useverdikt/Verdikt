@@ -33,7 +33,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 
 - Signal ingestion is idempotent. Retries must not create duplicate evidence, append audits, or re-evaluate verdicts. Every push boundary, including signed CI/eval webhooks, checks duplicate replay before rejecting a verdict-locked release.
 - Push-based manual, API, CI, and mapped-integration signals share `ingestReleaseSignals` for validation-aware persistence, idempotency race handling, and verdict evaluation. Routes retain authentication, release-lock errors, and response decoration. Pull/CSV replacement flows remain separate because they intentionally replace a source snapshot.
-- Terminal verdict intelligence persists the exact `failed_signals` array. Gate reads treat a present array, including an empty array, as authoritative; only legacy blocked records without that field may recalculate the verdict.
+- Terminal verdict intelligence persists exact `failed_signals` and `threshold_failed_signals` arrays. Gate reads reuse threshold failures only with frozen snapshot evidence; live UNCERTIFIED gates recalculate so post-verdict threshold changes retain existing semantics. Legacy snapshots without the field also fall back safely.
 - Audit rows are append-only and serialized per workspace with a PostgreSQL advisory transaction lock.
 - Cross-replica release events use PostgreSQL `LISTEN/NOTIFY`; in-process events are insufficient for production coordination.
 - Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent.
