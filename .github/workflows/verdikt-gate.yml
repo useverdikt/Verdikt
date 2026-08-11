@@ -64,6 +64,14 @@ jobs:
           for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
             echo "--- Gate poll ${attempt}/${POLL_ATTEMPTS} ---"
             LAST_RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
+            RESPONSE_SHA=$(echo "$LAST_RESP" | jq -r '.commit_sha // empty' | tr '[:upper:]' '[:lower:]')
+            EXPECTED_SHA=$(echo "$COMMIT_SHA" | tr '[:upper:]' '[:lower:]')
+            if [ "$RESPONSE_SHA" != "$EXPECTED_SHA" ]; then
+              echo "$LAST_RESP" | jq .
+              write_gate_response
+              echo "::error::Verdikt returned certification for commit ${RESPONSE_SHA:-missing}, expected ${EXPECTED_SHA}. Refusing stale gate result."
+              exit 1
+            fi
             ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
             STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
             REASON=$(echo "$LAST_RESP" | jq -r '.gate.reason // ""')

@@ -5,7 +5,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { apiRequest, jsonResult, withAgentSession, WORKSPACE_ID } from "./client.js";
 import { bindReleaseSession, ensureSessionId, resolveSessionId } from "./session.js";
-import { formatGateForAgent, formatReleaseBriefForAgent } from "./gateFormat.js";
+import {
+  assertGateCommitSha,
+  formatGateForAgent,
+  formatReleaseBriefForAgent
+} from "./gateFormat.js";
 import { isCertLikeStatus } from "@useverdikt/shared/releaseStatus";
 
 const SESSION_ID_FIELD = z
@@ -232,6 +236,7 @@ server.registerTool(
       null,
       requestOpts({ session_id })
     );
+    assertGateCommitSha(out, commit_sha);
     const releaseId = extractReleaseId(out);
     const sessionId = resolveSessionId({ sessionId: session_id });
     if (releaseId && sessionId) bindReleaseSession(releaseId, sessionId);

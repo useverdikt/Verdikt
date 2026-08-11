@@ -164,6 +164,10 @@ async function resolveReleaseForWorkspaceIngest(
     for (const row of candidates) {
       if (commitShaMatches(row.commit_sha, sha)) return row;
     }
+
+    // A supplied SHA is an integrity boundary. Never fall back to another
+    // release for the same PR/ref/version when the requested commit is absent.
+    return null;
   }
 
   const prOnly = Number.isFinite(Number(pr_number)) ? Number(pr_number) : null;

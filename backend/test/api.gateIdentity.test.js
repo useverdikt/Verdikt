@@ -299,6 +299,19 @@ describe("Release identity + SHA correlation", () => {
     assert.equal(gate.body.action, "collecting");
     assert.equal(gate.body.gate.exit_code, 1);
 
+    const newerSha = crypto.randomBytes(20).toString("hex");
+    const staleGate = await agent
+      .get(`/api/workspaces/${ws}/gate`)
+      .query({
+        commit_sha: newerSha,
+        github_owner: "acme",
+        github_repo: "app",
+        pr_number: 42
+      })
+      .set("Authorization", `Bearer ${keyRes.body.api_key}`)
+      .expect(404);
+    assert.equal(staleGate.body.details.commit_sha, newerSha);
+
     await agent
       .get(`/api/workspaces/${ws}/gate`)
       .query({ commit_sha: "deadbeef" })

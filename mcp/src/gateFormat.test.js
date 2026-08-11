@@ -5,7 +5,11 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatGateForAgent, formatReleaseBriefForAgent } from "./gateFormat.js";
+import {
+  assertGateCommitSha,
+  formatGateForAgent,
+  formatReleaseBriefForAgent
+} from "./gateFormat.js";
 
 // ── merge action ──────────────────────────────────────────────────────────────
 
@@ -93,6 +97,27 @@ test("calibration passed through to agent_guidance when present", () => {
   const out = formatGateForAgent({ action: "merge", calibration: cal, gate: { exit_code: 0 } });
   assert.deepEqual(out.calibration, cal);
   assert.deepEqual(out.agent_guidance.calibration, cal);
+});
+
+test("gate SHA assertion accepts exact and abbreviated matches", () => {
+  const full = "abcdef1234567890abcdef1234567890abcdef12";
+  assert.equal(assertGateCommitSha({ commit_sha: full }, full).commit_sha, full);
+  assert.equal(assertGateCommitSha({ commit_sha: full }, full.slice(0, 12)).commit_sha, full);
+});
+
+test("gate SHA assertion rejects stale or missing response identity", () => {
+  assert.throws(
+    () =>
+      assertGateCommitSha(
+        { action: "merge", commit_sha: "1111111111111111111111111111111111111111" },
+        "2222222222222222222222222222222222222222"
+      ),
+    /gate_commit_sha_mismatch/
+  );
+  assert.throws(
+    () => assertGateCommitSha({ action: "merge" }, "2222222222222222222222222222222222222222"),
+    /returned=missing/
+  );
 });
 
 test("original fields from gate response are preserved", () => {
