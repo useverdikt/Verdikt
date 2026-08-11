@@ -41,6 +41,25 @@ const { computeAndPersistRecommendation, getRecommendation } = require("../src/s
 describe("public certification records", () => {
   const app = createApp();
 
+  it("rejects non-Slack webhook URLs before saving workspace policy", async () => {
+    const email = `slack_url_${crypto.randomBytes(4).toString("hex")}@test.local`;
+    const human = request.agent(app);
+    await human.post("/api/auth/register").send({ email, password: "password123", name: "Slack URL" }).expect(200);
+    await human.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await human.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const response = await human
+      .post(`/api/workspaces/${ws}/policies`)
+      .send({ slack_webhook_url: "https://example.com/services/T000/B000/secret" })
+      .expect(400);
+
+    assert.equal(response.body.error, "bad_request");
+    assert.match(response.body.message, /approved Slack HTTPS host/);
+    const policy = await queryOne("SELECT slack_webhook_url FROM workspace_policies WHERE workspace_id = $1", [ws]);
+    assert.equal(policy.slack_webhook_url, null);
+  });
+
   it("returns live cert record with certification narrative when public slug is set", async () => {
     const slug = `pub-${crypto.randomBytes(4).toString("hex")}`;
     const email = `pubcert_${crypto.randomBytes(4).toString("hex")}@test.local`;

@@ -1,6 +1,6 @@
 import shared from "@shared/config.json";
 import { C } from "../../theme/tokens.js";
-import { mapBackendStatusToUi, normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../lib/releaseStatus.js";
 
 // Re-exported from dedicated modules so all existing callers keep working unchanged.
 export {
@@ -10,12 +10,7 @@ export {
   formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, scoreJustification
 } from "../../lib/releaseDisplayUtils.js";
 
-import {
-  formatAuditTsFromIso, humanizeAuditEventType, auditDetailsToDetailString, mapWorkspaceAuditEventsToLog
-} from "../../lib/auditLogUtils.js";
-import {
-  formatReleaseDisplayName, releaseVersionPrimarySecondary, formatAiPct, scoreJustification
-} from "../../lib/releaseDisplayUtils.js";
+import { formatAiPct } from "../../lib/releaseDisplayUtils.js";
 import { S } from "../../lib/workspaceStorage.js";
 import { DEFAULT_THRESHOLDS, DEFAULT_AUDIT } from "../../lib/workspaceDefaults.js";
 import { TREND_CHART_MAX_POINTS, trendChartXLabel } from "../../lib/trendChart.js";

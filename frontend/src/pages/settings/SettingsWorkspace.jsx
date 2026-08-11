@@ -13,8 +13,7 @@ import {
   apiPut,
   apiPatch,
   apiDelete,
-  getWorkspaceId,
-  onApiUnauthorized
+  getWorkspaceId
 } from "./settingsClient.js";
 import ConnectSignalSourceModal from "./ConnectSignalSourceModal.jsx";
 import { getSafeApiBase } from "../../lib/apiBase.js";
@@ -700,7 +699,6 @@ export default function SettingsWorkspace() {
         <AgentAccessSection section={section} wsId={wsId} navigate={navigate} toast={toast} />
         <TriggerSettingsSection
           section={section}
-          wsId={wsId}
           triggerConfig={triggerConfig}
           setTriggerConfig={(updater) => { setTriggerConfig(updater); setTriggerDirty(true); }}
           saveTrigger={saveTrigger}
@@ -711,7 +709,6 @@ export default function SettingsWorkspace() {
           beginGithubAppConnect={beginGithubAppConnect}
           toggleGithubRepoSelected={toggleGithubRepoSelected}
           refreshGithubRepos={loadGithubRepos}
-          toast={toast}
           vcsCfg={vcsCfg}
           vcsForm={vcsForm}
           setVcsForm={setVcsForm}

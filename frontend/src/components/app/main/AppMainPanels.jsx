@@ -18,7 +18,8 @@ export const SignalDetailPanel = ({
   onClose
 }) => {
   const titleId = React.useId();
-  useModalLayer(onClose);
+  const panelRef = React.useRef(null);
+  useModalLayer(onClose, panelRef);
   const isMobile = isMobileViewport();
   const cat = SIGNAL_CATEGORIES.find((c) => c.id === catId);
   if (!cat) return null;
@@ -40,6 +41,7 @@ export const SignalDetailPanel = ({
     "aria-modal": "true",
     "aria-labelledby": titleId
   }, /* @__PURE__ */ React.createElement("div", {
+    ref: panelRef,
     className: "scale-in",
     style: {
       background: C.raise,

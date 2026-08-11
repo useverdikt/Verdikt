@@ -117,7 +117,6 @@ export default function ReleaseDashboardTable({
                   release={r}
                   isExpanded={isExpanded}
                   onToggle={() => toggleRow(r.id)}
-                  catStatuses={catStatuses}
                   signalCategories={signalCategories}
                   signalDefinitions={signalDefinitions}
                   thresholds={thresholds}

@@ -9,7 +9,7 @@ function listFocusables(root) {
 }
 
 /** Lock body scroll, Escape to close, focus trap, and focus restore for modal overlays. */
-export function useModalLayer(onClose, panelRef) {
+export function useModalLayer(onClose, panelRef, active = true) {
   const closeRef = useRef(onClose);
   const restoreFocusRef = useRef(null);
 
@@ -18,6 +18,7 @@ export function useModalLayer(onClose, panelRef) {
   }, [onClose]);
 
   useEffect(() => {
+    if (!active) return undefined;
     restoreFocusRef.current = document.activeElement;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -71,5 +72,5 @@ export function useModalLayer(onClose, panelRef) {
         }
       }
     };
-  }, [panelRef]);
+  }, [active, panelRef]);
 }

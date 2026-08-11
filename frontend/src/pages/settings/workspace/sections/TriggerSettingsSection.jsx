@@ -3,12 +3,10 @@ import { TRIGGER_MODES, MVP_TRIGGER_MODE_IDS } from "../../settingsData.js";
 
 export default function TriggerSettingsSection({
   section,
-  wsId,
   triggerConfig,
   setTriggerConfig,
   saveTrigger,
   triggerDirty,
-  toast,
   githubAppStatus,
   githubRepos,
   githubReposLoading,

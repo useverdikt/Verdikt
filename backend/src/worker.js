@@ -12,7 +12,7 @@ const http = require("http");
 const { queryOne, initDatabase, closePool } = require("./database");
 const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
 
-const WORKER_PORT = Math.max(0, Number(process.env.WORKER_PORT || 3001));
+const WORKER_PORT = Math.max(0, Number(process.env.WORKER_PORT || process.env.PORT || 3001));
 let jobsStarted = false;
 let listeningPort = null;
 

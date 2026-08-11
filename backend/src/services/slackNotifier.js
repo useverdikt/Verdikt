@@ -14,7 +14,7 @@
  */
 
 const { getWorkspacePolicy } = require("./workspaceConfig");
-const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
+const { validateSlackWebhookUrl } = require("../lib/outboundUrl");
 const { nowIso } = require("../lib/time");
 const { PUBLIC_APP_URL } = require("../config");
 
@@ -135,7 +135,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
 
     let safeUrl;
     try {
-      safeUrl = await validateOutboundWebhookUrl(rawUrl);
+      safeUrl = await validateSlackWebhookUrl(rawUrl);
     } catch {
       console.error("[slack_notifier] invalid webhook URL for workspace:", release.workspace_id);
       return;
@@ -258,7 +258,7 @@ async function deliverSlackCalibrationNudge(release, alignmentResult, suggestion
 
     let safeUrl;
     try {
-      safeUrl = await validateOutboundWebhookUrl(rawUrl);
+      safeUrl = await validateSlackWebhookUrl(rawUrl);
     } catch {
       console.error("[slack_notifier] invalid webhook URL for workspace:", release.workspace_id);
       return;
@@ -349,7 +349,7 @@ async function deliverSlackBypassMerge(release, statusAtMerge) {
 
     let safeUrl;
     try {
-      safeUrl = await validateOutboundWebhookUrl(rawUrl);
+      safeUrl = await validateSlackWebhookUrl(rawUrl);
     } catch {
       console.error("[slack_notifier] invalid webhook URL for workspace:", release.workspace_id);
       return;

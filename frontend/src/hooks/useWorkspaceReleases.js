@@ -46,13 +46,11 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
 
   const releasesRef = useRef(releases);
-  const navRef = useRef(nav);
   const workspaceIdRef = useRef(getWorkspaceId());
 
   useEffect(() => {
     releasesRef.current = releases;
-    navRef.current = nav;
-  }, [nav, releases]);
+  }, [releases]);
 
   const scheduleReleaseHydration = useCallback((mergedReleases) => {
     syncHydratedFromReleases(mergedReleases, isSummaryPending);
@@ -246,7 +244,6 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     loadMoreReleases,
     openAuditRecord,
     hydrateVisibleSummaries,
-    navRef,
     shippedWithoutCertificationCount,
     productionIncidentsCount,
     remediationDebtActive

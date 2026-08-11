@@ -1,32 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiGet, getWorkspaceId } from "../lib/apiClient.js";
 import { hasBackend } from "../lib/hasBackend.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
 
 /**
  * Workspace remediation debt after emergency merge without certification.
  */
 export function useRemediationDebt(navigate) {
-  const [debt, setDebt] = useState(null);
+  const wsId = getWorkspaceId();
+  const enabled = hasBackend() && Boolean(wsId);
+  const query = useQuery({
+    queryKey: workspaceKeys.remediationDebt(wsId || "local"),
+    queryFn: () => apiGet(`/api/workspaces/${wsId}/remediation-debt`, { navigate }),
+    enabled
+  });
 
-  const refresh = useCallback(async () => {
-    const wsId = getWorkspaceId();
-    if (!hasBackend() || !wsId) {
-      setDebt({ active: false });
-      return null;
-    }
-    try {
-      const data = await apiGet(`/api/workspaces/${wsId}/remediation-debt`, { navigate });
-      setDebt(data);
-      return data;
-    } catch {
-      setDebt({ active: false });
-      return { active: false };
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  return { debt, refresh };
+  return {
+    debt: enabled ? query.data || (query.isError ? { active: false } : null) : { active: false },
+    refresh: query.refetch
+  };
 }

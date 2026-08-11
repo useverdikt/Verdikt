@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useRef, useMemo } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
@@ -9,6 +9,7 @@ import {
 } from "../../release/SignalEvidenceProvenance.jsx";
 import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
 import { buildCertRecordFailing, buildCertRecordSignalEntries } from "../../../lib/workspaceSignalUi.js";
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -17,27 +18,6 @@ function currentWorkspaceSlug() {
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "workspace";
-}
-
-function useModalLayer(onClose) {
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key !== "Escape" || !closeRef.current) return;
-      e.preventDefault();
-      closeRef.current();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
 }
 
 export default function CertificationRecordModal({
@@ -59,7 +39,8 @@ export default function CertificationRecordModal({
   certification
 }) {
   const titleId = React.useId();
-  useModalLayer(onClose);
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const [isMobile, setIsMobile] = React.useState(() => window.innerWidth <= 900);
   React.useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 900);
@@ -135,7 +116,7 @@ export default function CertificationRecordModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000e0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20, backdropFilter: "blur(6px)" }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <div className="scale-in" style={{ background: C.raise, border: `1px solid ${C.borderL}`, borderRadius: isMobile ? 12 : 18, maxWidth: 640, width: "100%", boxShadow: "0 32px 100px #00000090", maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto" }}>
+      <div ref={panelRef} className="scale-in" style={{ background: C.raise, border: `1px solid ${C.borderL}`, borderRadius: isMobile ? 12 : 18, maxWidth: 640, width: "100%", boxShadow: "0 32px 100px #00000090", maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto" }}>
         <div style={{ background: C.surface, padding: isMobile ? "12px 12px" : "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "space-between", borderRadius: isMobile ? "12px 12px 0 0" : "18px 18px 0 0", gap: isMobile ? 10 : 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 14, color: C.dim }} aria-hidden="true">⊠</span>

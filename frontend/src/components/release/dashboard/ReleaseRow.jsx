@@ -14,7 +14,6 @@ export default function ReleaseRow({
   isExpanded,
   isLast,
   onToggle,
-  catStatuses,
   signalCategories,
   signalDefinitions = [],
   thresholds = {},

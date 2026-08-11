@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { apiPut } from "./settingsClient.js";
+import { useModalLayer } from "../../hooks/useModalLayer.js";
 
 const DD_SITES = [
   { value: "datadoghq.com", label: "US1 (datadoghq.com)" },
@@ -22,6 +23,8 @@ const DD_SITES = [
  * }} props
  */
 export default function ConnectSignalSourceModal({ open, onClose, sourceId, name, workspaceId, navigate, onSuccess, toast }) {
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef, open);
   const [apiKey, setApiKey] = useState("");
   const [username, setUsername] = useState("");
   const [appKey, setAppKey] = useState("");
@@ -110,6 +113,7 @@ export default function ConnectSignalSourceModal({ open, onClose, sourceId, name
       aria-labelledby="connect-signal-title"
     >
       <div
+        ref={panelRef}
         style={{
           background: "#0e1016",
           border: "1px solid #1a1f2e",

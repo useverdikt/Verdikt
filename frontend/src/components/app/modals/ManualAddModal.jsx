@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { C } from "../../../theme/tokens.js";
+import { useModalLayer } from "../../../hooks/useModalLayer.js";
 
 const CSV_TEMPLATE = "version,date,release_type\nv2.15.0,2026-03-04,prompt_update\nv2.14.1,2026-03-03,model_patch";
 
@@ -30,6 +31,8 @@ const parseManualCSV = (text, releaseTypes) => {
 export default function ManualAddModal({ onClose, onAddSingle, onImportCSV, releaseTypes }) {
   const isMobile = window.innerWidth <= 900;
   const titleId = React.useId();
+  const panelRef = useRef(null);
+  useModalLayer(onClose, panelRef);
   const [mode, setMode] = useState("single");
   const [version, setVersion] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -66,7 +69,7 @@ export default function ManualAddModal({ onClose, onAddSingle, onImportCSV, rele
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000d8", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20 }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: isMobile ? 12 : 16, padding: isMobile ? "16px 12px" : "28px 32px", width: "100%", maxWidth: 520, maxHeight: isMobile ? "96vh" : "90vh", overflow: "auto", position: "relative" }}>
+      <div ref={panelRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: isMobile ? 12 : 16, padding: isMobile ? "16px 12px" : "28px 32px", width: "100%", maxWidth: 520, maxHeight: isMobile ? "96vh" : "90vh", overflow: "auto", position: "relative" }}>
         <button type="button" onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 16, right: 18, background: "transparent", border: "none", color: C.muted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
         <div style={{ fontFamily: C.mono, fontSize: 10, color: C.accent, letterSpacing: "0.12em", marginBottom: 6 }}>NO INTEGRATION</div>
         <h3 id={titleId} style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: C.text }}>Add releases manually</h3>

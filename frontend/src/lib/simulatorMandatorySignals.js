@@ -162,7 +162,7 @@ export function getSimulatorReadiness(thresholdMap, connectedSourceIds, sources)
 /**
  * Human-readable hint when signal sim has no panels to show.
  */
-export function getSimulatorEmptyHint(thresholdMap, connectedSourceIds, sources) {
+export function getSimulatorEmptyHint(thresholdMap, connectedSourceIds) {
   const eligibleRequired = countSimulatorEligibleRequired(thresholdMap);
   if (eligibleRequired === 0) {
     return {

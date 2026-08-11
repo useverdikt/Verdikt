@@ -4,7 +4,7 @@ Public developer docs for [docs.useverdikt.com](https://docs.useverdikt.com).
 
 ## Local preview
 
-Mintlify requires **Node 20.17+**. Brand tokens match [useverdikt.com](https://useverdikt.com) — see `docs.json`, `style.css`, and `logo/`.
+Use **Node 22** to match the application and CI runtime. Brand tokens match [useverdikt.com](https://useverdikt.com) — see `docs.json`, `style.css`, and `logo/`.
 
 ```bash
 cd docs-site
