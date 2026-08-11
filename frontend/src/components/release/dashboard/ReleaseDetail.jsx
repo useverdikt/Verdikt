@@ -30,7 +30,9 @@ export default function ReleaseDetail({
   releaseTypes,
   onViewFullRecord,
   onBeginOverride,
-  onCollectingAction
+  onCollectingAction,
+  detailLoadError = null,
+  onRetryDetail = null
 }) {
   const intel = release.intelligence || {};
   const verdictIntel = intel.verdict || {};
@@ -208,7 +210,19 @@ export default function ReleaseDetail({
 
   return (
     <div className="release-detail">
-      {detailPending ? (
+      {detailLoadError ? (
+        <div role="alert" style={{ padding: "24px", color: "#f87171" }}>
+          <div>Could not load release details.</div>
+          <button
+            type="button"
+            className="dab"
+            style={{ marginTop: 12 }}
+            onClick={() => onRetryDetail?.()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : detailPending ? (
         <ReleaseDetailLoadingSkeleton signalCount={ordered.length} />
       ) : (
         <>

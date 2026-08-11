@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
-import { isReleaseDetailPending } from "../lib/releaseDetailRefresh.js";
 import { envBucket } from "../components/release/dashboard/releaseDashboardUtils.js";
 
-export function useReleaseDashboardFilters(releases, { onEnsureReleaseDetail } = {}) {
+export function useReleaseDashboardFilters(releases) {
   const [activeEnv, setActiveEnv] = useState("All");
   const [activeFilter, setActiveFilter] = useState("All");
   const [expandedId, setExpandedId] = useState(null);
@@ -38,16 +37,7 @@ export function useReleaseDashboardFilters(releases, { onEnsureReleaseDetail } =
   }, [releases, activeEnv, activeFilter, searchQ]);
 
   const toggleRow = (id) => {
-    setExpandedId((prev) => {
-      const next = prev === id ? null : id;
-      if (next && onEnsureReleaseDetail) {
-        const release = releases.find((r) => r.id === next);
-        if (release?.backendReleaseId && isReleaseDetailPending(release)) {
-          void onEnsureReleaseDetail(release.backendReleaseId);
-        }
-      }
-      return next;
-    });
+    setExpandedId((prev) => (prev === id ? null : id));
   };
 
   return {

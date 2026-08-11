@@ -103,7 +103,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
     removeSignalDefinition,
     addAudit,
     refreshReleaseFromBackend,
-    ensureReleaseDetail,
     hydrateVisibleSummaries,
     refreshAuditFromServer,
     openAuditRecord,
@@ -326,7 +325,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
               signalSources={SIGNAL_SOURCES}
               releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
               onCollectingAction={actions.handleCollectingAction}
-              onEnsureReleaseDetail={ensureReleaseDetail}
               onHydrateVisibleSummaries={hydrateVisibleSummaries}
               hasMoreReleases={Boolean(releasesNextBefore)}
               loadingMoreReleases={releasesLoadingMore}

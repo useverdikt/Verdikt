@@ -8,7 +8,8 @@ import {
   allPendingReleaseIds,
   pendingSummaryIdsForReleases,
   initialReleaseTablePendingIds,
-  RELEASE_TABLE_INITIAL_HYDRATE
+  RELEASE_TABLE_INITIAL_HYDRATE,
+  projectReleaseForList
 } from "./releaseDetailRefresh.js";
 
 describe("mergeReleaseIntoList", () => {
@@ -30,13 +31,64 @@ describe("mergeReleaseIntoList", () => {
   });
 });
 
+describe("projectReleaseForList", () => {
+  it("keeps list fields but removes query-owned full detail", () => {
+    const projected = projectReleaseForList({
+      backendReleaseId: "rel_1",
+      status: "certified",
+      signals: { accuracy: 92 },
+      overrideBy: "CTO",
+      intelligence: { verdict: { summary: "detail" } },
+      certification: { summary: "certificate" },
+      release_deltas: [{ signal_id: "accuracy" }],
+      detailLoaded: true,
+      summaryLoaded: true
+    });
+
+    expect(projected.status).toBe("certified");
+    expect(projected.signals.accuracy).toBe(92);
+    expect(projected.overrideBy).toBeUndefined();
+    expect(projected.overrideReason).toBeUndefined();
+    expect(projected.intelligence).toBeUndefined();
+    expect(projected.certification).toBeUndefined();
+    expect(projected.release_deltas).toBeUndefined();
+    expect(projected.detailLoaded).toBe(false);
+    expect(projected.summaryLoaded).toBe(true);
+  });
+
+  it("clears previously merged full detail when updating a list row", () => {
+    const next = mergeReleaseIntoList(
+      [
+        {
+          id: "rc-local",
+          backendReleaseId: "rel_1",
+          intelligence: { verdict: { summary: "old local detail" } },
+          release_deltas: [{ signal_id: "accuracy" }],
+          detailLoaded: true
+        }
+      ],
+      projectReleaseForList({
+        backendReleaseId: "rel_1",
+        status: "certified",
+        signals: { accuracy: 95 },
+        detailLoaded: true
+      })
+    );
+
+    expect(next[0].intelligence).toBeUndefined();
+    expect(next[0].release_deltas).toBeUndefined();
+    expect(next[0].detailLoaded).toBe(false);
+  });
+});
+
 describe("mergeListStubsWithExisting", () => {
-  it("preserves hydrated detail when list re-syncs", () => {
+  it("preserves hydrated summary signals when list re-syncs", () => {
     const prev = [
       {
         id: "rc-a",
         backendReleaseId: "rel_a",
-        detailLoaded: true,
+        detailLoaded: false,
+        summaryLoaded: true,
         signals: { accuracy: 0.91 },
         version: "v1-old"
       }
@@ -54,7 +106,8 @@ describe("mergeListStubsWithExisting", () => {
     const merged = mergeListStubsWithExisting(prev, stubs);
     expect(merged[0].signals.accuracy).toBe(0.91);
     expect(merged[0].version).toBe("v1-new");
-    expect(merged[0].detailLoaded).toBe(true);
+    expect(merged[0].detailLoaded).toBe(false);
+    expect(merged[0].summaryLoaded).toBe(true);
   });
 });
 

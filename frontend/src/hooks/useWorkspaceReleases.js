@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getWorkspaceId } from "../lib/apiClient.js";
 import {
   mergeReleaseIntoList,
-  refreshReleaseDetail,
   RELEASE_UPDATED_EVENT,
-  awaitReleaseDetail,
   enqueueReleaseHydration,
   mergeListStubsWithExisting,
   isReleaseDetailPending,
@@ -14,7 +12,8 @@ import {
   resetHydrationPool,
   syncHydratedFromReleases,
   setHydrationNavigate,
-  setOnEach
+  setOnEach,
+  projectReleaseForList
 } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
 import { S } from "../lib/workspaceStorage.js";
@@ -22,6 +21,7 @@ import { mapBackendListRowToUi } from "../lib/releaseMappers.js";
 import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
 import { fetchWorkspaceReleases } from "../queries/workspaceFetchers.js";
+import { releaseDetailQueryOptions } from "../queries/useReleaseDetailQuery.js";
 
 const RELEASE_PAGE_SIZE = 50;
 
@@ -70,7 +70,9 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   useEffect(() => {
     if (!hasBackend()) return;
     setHydrationNavigate(navigate);
-    setOnEach((mapped) => setReleases((prev) => mergeReleaseIntoList(prev, mapped)));
+    setOnEach((mapped) =>
+      setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)))
+    );
     return () => {
       setOnEach(null);
       resetHydrationPool();
@@ -102,7 +104,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     const onReleaseUpdated = (event) => {
       const mapped = event?.detail;
       if (!mapped?.backendReleaseId) return;
-      setReleases((prev) => mergeReleaseIntoList(prev, mapped));
+      setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)));
     };
     window.addEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
     return () => window.removeEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
@@ -126,7 +128,10 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
         const stubs = rows.map(mapBackendListRowToUi);
         let merged = stubs;
         setReleases((prev) => {
-          merged = mergeListStubsWithExisting(prev, stubs);
+          merged = mergeListStubsWithExisting(
+            prev.map(projectReleaseForList),
+            stubs
+          );
           return merged;
         });
         setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
@@ -141,32 +146,20 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     [scheduleReleaseHydration]
   );
 
-  const ensureReleaseDetail = useCallback(
-    async (backendReleaseId) => {
-      if (!hasBackend() || !backendReleaseId) return null;
-      const existing = releasesRef.current.find((r) => r.backendReleaseId === backendReleaseId);
-      if (existing && !isReleaseDetailPending(existing)) return existing;
-      try {
-        setApiBanner?.(null);
-        setHydrationNavigate(navigate);
-        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, full: true });
-        if (mapped) setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-        return mapped;
-      } catch (e) {
-        setApiBanner?.(e.message || "Failed to load release details");
-        return null;
-      }
-    },
-    [navigate, setApiBanner]
-  );
-
   const refreshReleaseFromBackend = useCallback(
     async (backendReleaseId) => {
       if (!hasBackend() || !backendReleaseId) return;
       try {
         setApiBanner?.(null);
-        const mapped = await refreshReleaseDetail(backendReleaseId, navigate, { emit: false, force: true });
-        if (mapped) setReleases((prev) => mergeReleaseIntoList(prev, mapped));
+        const wsId = getWorkspaceId();
+        const mapped = await appQueryClient.fetchQuery(
+          releaseDetailQueryOptions(wsId, backendReleaseId, navigate)
+        );
+        if (mapped) {
+          setReleases((prev) =>
+            mergeReleaseIntoList(prev, projectReleaseForList(mapped))
+          );
+        }
       } catch (e) {
         setApiBanner?.(e.message || "Failed to refresh release from server");
       }
@@ -210,15 +203,16 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
 
   const openAuditRecord = useCallback(
     async (linkedRelease, backendReleaseId, { showToast, toastColor }) => {
-      if (linkedRelease) return linkedRelease;
-      if (!backendReleaseId || !hasBackend()) return null;
+      if (linkedRelease && (!hasBackend() || !isReleaseDetailPending(linkedRelease))) {
+        return linkedRelease;
+      }
+      const releaseId = backendReleaseId || linkedRelease?.backendReleaseId;
+      if (!releaseId || !hasBackend()) return linkedRelease || null;
       try {
         setApiBanner?.(null);
-        setHydrationNavigate(navigate);
-        const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, full: true });
-        if (!mapped) return null;
-        setReleases((prev) => mergeReleaseIntoList(prev, mapped));
-        return mapped;
+        return await appQueryClient.fetchQuery(
+          releaseDetailQueryOptions(getWorkspaceId(), releaseId, navigate)
+        );
       } catch (e) {
         setApiBanner?.(e.message || "Could not load release record from audit entry");
         if (showToast && toastColor) {
@@ -239,7 +233,6 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     releasesLoadingMore,
     scheduleReleaseHydration,
     applyReleaseListFromServer,
-    ensureReleaseDetail,
     refreshReleaseFromBackend,
     loadMoreReleases,
     openAuditRecord,

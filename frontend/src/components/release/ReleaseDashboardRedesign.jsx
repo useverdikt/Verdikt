@@ -25,7 +25,6 @@ export function ReleaseDashboard({
   onViewFullRecord,
   onBeginOverride,
   onCollectingAction,
-  onEnsureReleaseDetail,
   onHydrateVisibleSummaries,
   setupChecklist,
   hasMoreReleases = false,
@@ -35,7 +34,7 @@ export function ReleaseDashboard({
   productionIncidentsCount = null,
   remediationDebtActive = false
 }) {
-  const filters = useReleaseDashboardFilters(releases, { onEnsureReleaseDetail });
+  const filters = useReleaseDashboardFilters(releases);
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
 
   useEffect(() => {
