@@ -20,6 +20,36 @@ const {
   attachSnapshotMeta
 } = require("./gateContext");
 
+async function resolveGateFailedSignals({
+  intelligence,
+  release,
+  latest,
+  thresholdMap,
+  computeVerdictFn = computeVerdict
+}) {
+  const persisted = intelligence?.verdict?.failed_signals;
+  if (Array.isArray(persisted)) {
+    inc("gate_failed_signals_intelligence_hit");
+    return persisted;
+  }
+
+  if (release.status === "UNCERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE") {
+    // Compatibility fallback for verdict intelligence written before
+    // failed_signals became a persisted field.
+    inc("gate_failed_signals_legacy_fallback");
+    const verdict = await computeVerdictFn(
+      release.workspace_id,
+      release.id,
+      latest,
+      release,
+      thresholdMap
+    );
+    return Array.isArray(verdict?.failed_signals) ? verdict.failed_signals : [];
+  }
+
+  return [];
+}
+
 /**
  * Build the standard release gate payload (used by release_id and commit_sha routes).
  */
@@ -106,12 +136,12 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     });
   }
 
-  const failedSignalsFromIntel = intelligence?.verdict?.failed_signals ?? [];
-  let failedSignals = failedSignalsFromIntel;
-  if (!failedSignals.length && (release.status === "UNCERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE")) {
-    const verdict = await computeVerdict(release.workspace_id, releaseId, latest, release, thresholdMap);
-    failedSignals = verdict.failed_signals ?? [];
-  }
+  const failedSignals = await resolveGateFailedSignals({
+    intelligence,
+    release,
+    latest,
+    thresholdMap
+  });
   const blockingSignals = failedSignals.map((f) => f.signal_id).filter(Boolean);
   const missingRequiredSignals = await getMissingRequiredSignals(
     release.workspace_id,
@@ -249,4 +279,4 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
   };
 }
 
-module.exports = { buildReleaseGateResponse };
+module.exports = { buildReleaseGateResponse, resolveGateFailedSignals };

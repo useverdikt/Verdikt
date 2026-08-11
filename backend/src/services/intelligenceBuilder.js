@@ -227,6 +227,7 @@ async function buildDeterministicVerdictIntelligence({
     risk_level: severity,
     confidence: nextStatus === "CERTIFIED" ? 0.72 : severity === "HIGH" ? 0.84 : 0.76,
     summary,
+    failed_signals: failedSignals,
     likely_failure_modes:
       nextStatus === "CERTIFIED"
         ? []
