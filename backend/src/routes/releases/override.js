@@ -1,5 +1,9 @@
 "use strict";
 
+const { parseRequestBody } = require("../../lib/requestValidation");
+const {
+  overrideBodySchema
+} = require("../../schemas/governanceRequestSchemas");
 const {
   getUserRowForAuthById,
   sendError,
@@ -17,32 +21,36 @@ const {
 module.exports = function registerRoutes(app) {
   app.post("/api/releases/:releaseId/override", authMiddleware, requireHumanSession, requireReleaseAccess, requireOverrideApproverRole, async (req, res, next) => {
     try {
-    const {
-      approver_type = "PERSON",
-      justification,
-      metadata = {}
-    } = req.body || {};
-    const authUser = await getUserRowForAuthById(req.auth.sub);
-    const approver_name = authUser?.name || authUser?.email || req.auth.email;
-    const approver_role = authUser?.role || req.auth.role;
+      const parsedBody = parseRequestBody(overrideBodySchema, req, res, {
+        message: "invalid override request body"
+      });
+      if (!parsedBody.ok) return;
+      const {
+        approver_type = "PERSON",
+        justification,
+        metadata = {}
+      } = parsedBody.data;
+      const authUser = await getUserRowForAuthById(req.auth.sub);
+      const approver_name = authUser?.name || authUser?.email || req.auth.email;
+      const approver_role = authUser?.role || req.auth.role;
 
-    const out = await applyReleaseOverride(req.releaseRow, {
-      approver_type,
-      approver_name,
-      approver_role,
-      justification,
-      metadata
-    });
-    if (!out.ok) {
-      return sendError(res, req, out.statusCode || 400, out.error);
-    }
+      const out = await applyReleaseOverride(req.releaseRow, {
+        approver_type,
+        approver_name,
+        approver_role,
+        justification,
+        metadata
+      });
+      if (!out.ok) {
+        return sendError(res, req, out.statusCode || 400, out.error);
+      }
 
-    return res.json({
-      release_id: out.release_id,
-      status: out.status,
-      assistive: out.assistive,
-      cert_signature: out.cert_signature
-    });
+      return res.json({
+        release_id: out.release_id,
+        status: out.status,
+        assistive: out.assistive,
+        cert_signature: out.cert_signature
+      });
     } catch (e) {
       next(e);
     }

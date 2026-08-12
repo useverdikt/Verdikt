@@ -11,6 +11,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - `backend/src/jobs/` contains bounded background sweeps. Production API replicas do not run these by default; dedicated workers do.
 - `shared/` contains signal-domain constants used by both frontend and backend.
 - `mcp/` is an API client for agent runtimes; it must not duplicate verdict logic.
+- High-risk route bodies are parsed through shared Zod schemas after authentication/authorization and before service or database work. Validation errors use the canonical API error envelope and expose field paths/codes, never submitted values.
 
 ## Certification flow
 
