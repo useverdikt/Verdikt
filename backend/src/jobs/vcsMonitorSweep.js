@@ -4,39 +4,115 @@
  * Background job: poll open VCS monitoring windows.
  */
 
-const { queryAll } = require("../database");
+const crypto = require("crypto");
+const os = require("os");
 const { scanWindow } = require("../services/vcsMonitor");
+const {
+  claimDueVcsMonitoringWindows,
+  completeVcsMonitorSweepClaim,
+  recordVcsMonitorSweepClaimFailure,
+  DEFAULT_LEASE_MS,
+  DEFAULT_RESCAN_MS
+} = require("../services/vcsMonitorSweepClaims");
+const { log, inc } = require("../lib/observability");
 
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
-const MIN_RESCAN_MS = 5 * 60 * 1000;
-const MIN_RESCAN_SEC = Math.floor(MIN_RESCAN_MS / 1000);
+const CONFIGURED_BATCH_SIZE = Number(process.env.VCS_MONITOR_SWEEP_BATCH_SIZE || 20);
+const DEFAULT_BATCH_SIZE = Number.isFinite(CONFIGURED_BATCH_SIZE)
+  ? Math.min(100, Math.max(1, Math.floor(CONFIGURED_BATCH_SIZE)))
+  : 20;
+const CONFIGURED_LEASE_MS = Number(process.env.VCS_MONITOR_SWEEP_CLAIM_LEASE_MS || DEFAULT_LEASE_MS);
+const DEFAULT_WORKER_ID =
+  String(process.env.VCS_MONITOR_SWEEP_WORKER_ID || "").trim() ||
+  `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString("hex")}`;
 
-async function runVcsMonitorSweep() {
-  const sql = `
-      SELECT * FROM vcs_monitoring_windows
-      WHERE status IN ('pending', 'scanning')
-        AND (
-          last_scanned_at IS NULL
-          OR EXTRACT(EPOCH FROM (NOW() - last_scanned_at)) >= $1
-        )
-      ORDER BY monitoring_end ASC
-      LIMIT 20
-    `;
+async function runVcsMonitorSweep({
+  limit = DEFAULT_BATCH_SIZE,
+  workerId = DEFAULT_WORKER_ID,
+  leaseMs = CONFIGURED_LEASE_MS,
+  minRescanMs = DEFAULT_RESCAN_MS,
+  scanFn = scanWindow,
+  claimBatchFn = claimDueVcsMonitoringWindows,
+  completeClaimFn = completeVcsMonitorSweepClaim,
+  failClaimFn = recordVcsMonitorSweepClaimFailure,
+  logFn = log,
+  incFn = inc
+} = {}) {
+  const batchLimit = Math.min(100, Math.max(1, Number(limit) || DEFAULT_BATCH_SIZE));
+  const windows = await claimBatchFn({
+    limit: batchLimit,
+    workerId,
+    leaseMs,
+    minRescanMs
+  });
 
-  const windows = await queryAll(sql, [MIN_RESCAN_SEC]);
+  if (windows.length === 0) {
+    return { worker_id: workerId, selected: 0, succeeded: 0, failed: 0 };
+  }
 
-  if (windows.length === 0) return;
+  logFn("info", "vcs_monitor_sweep_claimed", {
+    workerId,
+    windowCount: windows.length,
+    leaseMs: Number(leaseMs)
+  });
+  incFn("vcs_monitor_sweep_claimed", windows.length);
 
-  console.log(`[vcs_monitor_sweep] scanning ${windows.length} window(s)`);
-
+  let succeeded = 0;
+  let failed = 0;
   for (const window of windows) {
     try {
-      const newStatus = await scanWindow(window);
-      console.log(`[vcs_monitor_sweep] ${window.release_id} → ${newStatus}`);
+      const newStatus = await scanFn(window);
+      succeeded += 1;
+      incFn("vcs_monitor_sweep_succeeded");
+      try {
+        const completion = await completeClaimFn(window.release_id, workerId);
+        if (completion?.changes !== 1) {
+          logFn("error", "vcs_monitor_sweep_ownership_lost", {
+            releaseId: window.release_id,
+            workerId
+          });
+          incFn("vcs_monitor_sweep_ownership_lost");
+        }
+      } catch (claimErr) {
+        logFn("error", "vcs_monitor_sweep_claim_complete_failed", {
+          releaseId: window.release_id,
+          workerId,
+          error: String(claimErr?.message || claimErr).slice(0, 500)
+        });
+        incFn("vcs_monitor_sweep_claim_complete_failed");
+      }
+      logFn("info", "vcs_monitor_sweep_completed", {
+        releaseId: window.release_id,
+        workerId,
+        status: newStatus
+      });
     } catch (err) {
-      console.error(`[vcs_monitor_sweep] error for ${window.release_id}:`, err?.message);
+      failed += 1;
+      incFn("vcs_monitor_sweep_failed");
+      try {
+        await failClaimFn(window.release_id, workerId, err);
+      } catch (claimErr) {
+        logFn("error", "vcs_monitor_sweep_claim_failure_record_failed", {
+          releaseId: window.release_id,
+          workerId,
+          error: String(claimErr?.message || claimErr).slice(0, 500)
+        });
+        incFn("vcs_monitor_sweep_claim_failure_record_failed");
+      }
+      logFn("error", "vcs_monitor_sweep_failed", {
+        releaseId: window.release_id,
+        workerId,
+        error: String(err?.message || err).slice(0, 500)
+      });
     }
   }
+
+  return {
+    worker_id: workerId,
+    selected: windows.length,
+    succeeded,
+    failed
+  };
 }
 
 function startVcsMonitorSweepJob() {
@@ -47,4 +123,8 @@ function startVcsMonitorSweepJob() {
   return id;
 }
 
-module.exports = { runVcsMonitorSweep, startVcsMonitorSweepJob };
+module.exports = {
+  runVcsMonitorSweep,
+  startVcsMonitorSweepJob,
+  DEFAULT_BATCH_SIZE
+};
