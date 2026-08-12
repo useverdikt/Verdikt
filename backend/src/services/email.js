@@ -1,10 +1,14 @@
 "use strict";
 
+const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
+
 /**
  * Transactional email for password reset via Resend (HTTPS API).
  * Set RESEND_API_KEY and PUBLIC_APP_URL (or FRONTEND_URL) for production.
  * @see https://resend.com/docs/api-reference/emails/send-email
  */
+
+const RESEND_TIMEOUT_MS = 15_000;
 
 function publicAppBase() {
   const raw = (process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").trim();
@@ -14,6 +18,45 @@ function publicAppBase() {
 function isPasswordResetEmailConfigured() {
   const key = (process.env.RESEND_API_KEY || "").trim();
   return Boolean(key && publicAppBase());
+}
+
+async function sendResendEmail(
+  { apiKey, from, to, subject, text, html },
+  { timeoutMs = RESEND_TIMEOUT_MS } = {}
+) {
+  try {
+    const res = await fetchWithTimeout(
+      "https://api.resend.com/emails",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ from, to, subject, text, html })
+      },
+      timeoutMs
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errMsg =
+        typeof body.message === "string"
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `HTTP ${res.status}`;
+      return { ok: false, error: errMsg };
+    }
+    return { ok: true };
+  } catch (error) {
+    const rawMessage = String(error?.message || error);
+    return {
+      ok: false,
+      error: rawMessage.startsWith("fetch timeout after")
+        ? "email send timeout"
+        : rawMessage
+    };
+  }
 }
 
 /**
@@ -32,41 +75,7 @@ async function sendPasswordResetEmail({ to, resetToken }) {
   const text = `We received a request to reset your password.\n\nOpen this link (valid about 1 hour):\n${resetUrl}\n\nIf you didn't ask for this, you can ignore this email.`;
   const html = `<p>We received a request to reset your Verdikt password.</p><p><a href="${resetUrl.replace(/"/g, "&quot;")}">Reset password</a></p><p style="color:#666;font-size:13px">If you didn't ask for this, you can ignore this email.</p>`;
 
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 15_000);
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject,
-        text,
-        html
-      }),
-      signal: ac.signal
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const errMsg =
-        typeof body.message === "string"
-          ? body.message
-          : typeof body.error === "string"
-            ? body.error
-            : `HTTP ${res.status}`;
-      return { ok: false, error: errMsg };
-    }
-    return { ok: true };
-  } catch (e) {
-    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
-    return { ok: false, error: msg };
-  } finally {
-    clearTimeout(t);
-  }
+  return sendResendEmail({ apiKey, from, to: [to], subject, text, html });
 }
 
 /**
@@ -86,41 +95,7 @@ async function sendAlreadyRegisteredEmail({ to }) {
   const text = `Someone tried to create a new Verdikt account with this email address.\n\nIf this was you and you already have an account, sign in here:\n${signInUrl}\n\nIf you did not request this, you can ignore this email.`;
   const html = `<p>Someone tried to create a new Verdikt account with this email address.</p><p><a href="${signInUrl.replace(/"/g, "&quot;")}">Sign in to your existing account</a></p><p style="color:#666;font-size:13px">If you did not request this, you can ignore this email.</p>`;
 
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 15_000);
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject,
-        text,
-        html
-      }),
-      signal: ac.signal
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const errMsg =
-        typeof body.message === "string"
-          ? body.message
-          : typeof body.error === "string"
-            ? body.error
-            : `HTTP ${res.status}`;
-      return { ok: false, error: errMsg };
-    }
-    return { ok: true };
-  } catch (e) {
-    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
-    return { ok: false, error: msg };
-  } finally {
-    clearTimeout(t);
-  }
+  return sendResendEmail({ apiKey, from, to: [to], subject, text, html });
 }
 
 /**
@@ -217,41 +192,7 @@ ${qualHtml}
 </table>
 ${(message || "").trim() ? `<p style="margin-top:12px"><strong>Notes</strong></p><pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(message.trim())}</pre>` : ""}`;
 
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 15_000);
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject,
-        text,
-        html
-      }),
-      signal: ac.signal
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const errMsg =
-        typeof body.message === "string"
-          ? body.message
-          : typeof body.error === "string"
-            ? body.error
-            : `HTTP ${res.status}`;
-      return { ok: false, error: errMsg };
-    }
-    return { ok: true };
-  } catch (e) {
-    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
-    return { ok: false, error: msg };
-  } finally {
-    clearTimeout(t);
-  }
+  return sendResendEmail({ apiKey, from, to: [to], subject, text, html });
 }
 
 function escapeHtml(s) {
@@ -270,35 +211,14 @@ async function sendResendToMany({ to, subject, text, html }) {
   const recipients = (Array.isArray(to) ? to : [to]).map((s) => String(s || "").trim()).filter(Boolean);
   if (!recipients.length) return { skipped: true, reason: "no_recipients" };
 
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 15_000);
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ from, to: recipients, subject, text, html }),
-      signal: ac.signal
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const errMsg =
-        typeof body.message === "string"
-          ? body.message
-          : typeof body.error === "string"
-            ? body.error
-            : `HTTP ${res.status}`;
-      return { ok: false, error: errMsg };
-    }
-    return { ok: true };
-  } catch (e) {
-    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
-    return { ok: false, error: msg };
-  } finally {
-    clearTimeout(t);
-  }
+  return sendResendEmail({
+    apiKey,
+    from,
+    to: recipients,
+    subject,
+    text,
+    html
+  });
 }
 
 async function sendEscalationRequestedEmail({
@@ -393,38 +313,12 @@ async function sendWorkspaceInviteEmail({ to, token, role, inviterName }) {
 <p>New to Verdikt$1 <a href="${escapeHtml(registerUrl)}">Create your account</a></p>
 <p style="color:#666;font-size:13px">This invite expires in 7 days.</p>`;
 
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 15_000);
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ from, to: [to], subject, text, html }),
-      signal: ac.signal
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const errMsg =
-        typeof body.message === "string"
-          ? body.message
-          : typeof body.error === "string"
-            ? body.error
-            : `HTTP ${res.status}`;
-      return { ok: false, error: errMsg };
-    }
-    return { ok: true };
-  } catch (e) {
-    const msg = e && e.name === "AbortError" ? "email send timeout" : String(e.message || e);
-    return { ok: false, error: msg };
-  } finally {
-    clearTimeout(t);
-  }
+  return sendResendEmail({ apiKey, from, to: [to], subject, text, html });
 }
 
 module.exports = {
+  RESEND_TIMEOUT_MS,
+  sendResendEmail,
   isPasswordResetEmailConfigured,
   sendPasswordResetEmail,
   sendAlreadyRegisteredEmail,

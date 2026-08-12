@@ -26,6 +26,32 @@ describe("fetchWithTimeout", () => {
       global.fetch = originalFetch;
     }
   });
+
+  it("preserves caller aborts instead of reporting them as timeouts", async () => {
+    const originalFetch = global.fetch;
+    const externalController = new AbortController();
+    global.fetch = (_url, options) =>
+      new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          reject(Object.assign(new Error("caller aborted"), { name: "AbortError" }));
+        });
+      });
+
+    try {
+      const request = fetchWithTimeout(
+        "https://example.test/cancelled",
+        { signal: externalController.signal },
+        1_000
+      );
+      externalController.abort();
+      await assert.rejects(
+        () => request,
+        (error) => error?.name === "AbortError" && error?.message === "caller aborted"
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
 
 describe("ackGitHubWebhookFailure", () => {
