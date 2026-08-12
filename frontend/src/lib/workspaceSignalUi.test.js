@@ -94,6 +94,24 @@ describe("workspaceSignalUi", () => {
     expect(failing[0].sigLabel).toBe("Behavioural Drift");
   });
 
+  it("uses server failed ids instead of live threshold math when provided", () => {
+    const evaluateSignal = () => ({ pass: true });
+    const fmtVal = (_sig, val) => String(val);
+    const failing = buildCertRecordFailing({
+      definitions: [{ signal_id: "accuracy", display_name: "Accuracy", direction: "min" }],
+      legacyOrdered: [],
+      releaseSignals: { accuracy: 99 },
+      thresholds: { accuracy: 85 },
+      evaluateSignal,
+      fmtVal,
+      getRegressionRequired: () => true,
+      releaseType: "model_update",
+      failedSignalIds: new Set(["accuracy"])
+    });
+    expect(failing).toHaveLength(1);
+    expect(failing[0].sigId).toBe("accuracy");
+  });
+
   it("lists pull and push sources for custom signal dropdown", () => {
     const catalog = [
       { id: "braintrust", name: "Braintrust" },

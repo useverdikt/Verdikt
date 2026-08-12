@@ -16,7 +16,7 @@ describe("evaluateSignal", () => {
   });
 });
 
-describe("calcVerdict", () => {
+describe("calcVerdict (demo / offline local math only)", () => {
   const baseT = { ...DEFAULT_THRESHOLDS };
 
   it("returns SHIP when all evaluated signals pass", () => {

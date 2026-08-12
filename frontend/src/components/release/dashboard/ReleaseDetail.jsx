@@ -20,6 +20,7 @@ import { buildDetailSignalRows } from "../../../lib/workspaceSignalUi.js";
 import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import ReleaseDetailLoadingSkeleton from "./ReleaseDetailLoadingSkeleton.jsx";
 import ReleaseBriefPanel from "../ReleaseBriefPanel.jsx";
+import { hasServerFailedSignalList, serverFailedSignalIds } from "../../../lib/serverVerdict.js";
 
 export default function ReleaseDetail({
   release,
@@ -56,6 +57,8 @@ export default function ReleaseDetail({
     signalDefinitions.length > 0
       ? buildDetailSignalRows(signalDefinitions, legacyOrdered, signals)
       : legacyOrdered;
+  const useServerFails = hasServerFailedSignalList(release);
+  const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
 
   let reasoningPoints =
     Array.isArray(recommendationIntel.reasoning) && recommendationIntel.reasoning.length
@@ -127,7 +130,9 @@ export default function ReleaseDetail({
       );
     }
 
-    const { pass } = evaluateSignalLocal(sig, raw, thr);
+    const { pass } = useServerFails
+      ? { pass: !failedSignalIds.has(sig.id) }
+      : evaluateSignalLocal(sig, raw, thr);
     const display = formatSignalValueLocal(sig, raw);
     const thLine = formatThresholdLineLocal(sig, thr);
     const provSource = provenanceSourceForSignal(release, sig.id);

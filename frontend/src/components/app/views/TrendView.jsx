@@ -103,7 +103,7 @@ export default function TrendView({
               })}
             </svg>
             <div style={{ fontSize: 10, color: C.dim, fontFamily: C.mono, marginTop: 8 }}>
-              X-axis: release index in this window (R1 = oldest shown). Hover a point for the full release id.
+              Pass rate is a what-if against current threshold sliders, not the stored certification verdict. Dots use the server status.
             </div>
             {historyFull.length > trendChartMaxPoints && (
               <div style={{ fontSize: 10, color: C.dim, fontFamily: C.mono, marginTop: 10 }}>
