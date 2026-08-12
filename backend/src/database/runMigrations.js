@@ -6,6 +6,7 @@ const { getPool } = require("../db/pg");
 const { nowIso } = require("../lib/time");
 
 const MIGRATIONS_DIR = path.join(__dirname, "..", "..", "migrations", "postgres");
+const MIGRATION_LOCK_KEYS = [1447316308, 1296648018]; // "VDKT", "MIGR"
 
 /**
  * Runs ordered *.sql migrations from backend/migrations/postgres.
@@ -14,10 +15,20 @@ const MIGRATIONS_DIR = path.join(__dirname, "..", "..", "migrations", "postgres"
  * Each migration file executes inside a single BEGIN/COMMIT on one connection,
  * so multi-statement files (e.g. backfill + trigger) are atomic.
  */
-async function runMigrations() {
-  const pool = getPool();
+async function runMigrations({
+  pool = getPool(),
+  fsImpl = fs,
+  migrationsDir = MIGRATIONS_DIR,
+  nowFn = nowIso,
+  logger = console
+} = {}) {
   const client = await pool.connect();
+  let lockAcquired = false;
+  let destroyClient = false;
   try {
+    await client.query("SELECT pg_advisory_lock($1, $2)", MIGRATION_LOCK_KEYS);
+    lockAcquired = true;
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         id SERIAL PRIMARY KEY,
@@ -29,13 +40,13 @@ async function runMigrations() {
     const { rows: appliedRows } = await client.query("SELECT name FROM schema_migrations");
     const applied = new Set(appliedRows.map((r) => r.name));
 
-    if (!fs.existsSync(MIGRATIONS_DIR)) {
-      console.warn("[migrations] directory missing:", MIGRATIONS_DIR);
+    if (!fsImpl.existsSync(migrationsDir)) {
+      logger.warn("[migrations] directory missing:", migrationsDir);
       return;
     }
 
-    const files = fs
-      .readdirSync(MIGRATIONS_DIR)
+    const files = fsImpl
+      .readdirSync(migrationsDir)
       .filter((f) => f.endsWith(".sql"))
       .sort();
 
@@ -43,22 +54,36 @@ async function runMigrations() {
       const base = file.replace(/\.sql$/, "");
       if (applied.has(base)) continue;
 
-      const full = path.join(MIGRATIONS_DIR, file);
-      const sql = fs.readFileSync(full, "utf8");
+      const full = path.join(migrationsDir, file);
+      const sql = fsImpl.readFileSync(full, "utf8");
       await client.query("BEGIN");
       try {
         await client.query(sql);
-        await client.query("INSERT INTO schema_migrations (name, applied_at) VALUES ($1, $2)", [base, nowIso()]);
+        await client.query("INSERT INTO schema_migrations (name, applied_at) VALUES ($1, $2)", [
+          base,
+          nowFn()
+        ]);
         await client.query("COMMIT");
-        console.log("[migrations] applied:", base);
+        logger.log("[migrations] applied:", base);
       } catch (e) {
         await client.query("ROLLBACK");
         throw new Error(`Migration ${file} failed: ${e.message}`);
       }
     }
   } finally {
-    client.release();
+    if (lockAcquired) {
+      try {
+        const result = await client.query(
+          "SELECT pg_advisory_unlock($1, $2) AS unlocked",
+          MIGRATION_LOCK_KEYS
+        );
+        if (result.rows?.[0]?.unlocked !== true) destroyClient = true;
+      } catch {
+        destroyClient = true;
+      }
+    }
+    client.release(destroyClient);
   }
 }
 
-module.exports = { runMigrations };
+module.exports = { MIGRATION_LOCK_KEYS, runMigrations };
