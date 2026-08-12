@@ -5,7 +5,8 @@ import {
   failingSignalsForDisplay,
   hasServerFailedSignalList,
   isHardBlockFromRelease,
-  serverFailedSignalIds
+  serverFailedSignalIds,
+  shouldUseServerFailedSignals
 } from "./serverVerdict.js";
 
 describe("displayRecommendationFromStatus", () => {
@@ -65,6 +66,29 @@ describe("server failed-signal lists", () => {
   it("flags high-risk intelligence as a hard block", () => {
     expect(isHardBlockFromRelease({ intelligence: { verdict: { risk_level: "HIGH", failed_signals: [] } } })).toBe(true);
     expect(isHardBlockFromRelease({ intelligence: { verdict: { risk_level: "LOW", failed_signals: [] } } })).toBe(false);
+  });
+
+  it("uses server failures for verdicted releases, not collecting", () => {
+    const lastEval = { last_signal_evaluation: { failed_signals: [{ signal_id: "accuracy" }] } };
+    expect(shouldUseServerFailedSignals({ status: "COLLECTING", ...lastEval })).toBe(false);
+    expect(shouldUseServerFailedSignals({ status: "CERTIFIED", ...lastEval })).toBe(true);
+    expect(shouldUseServerFailedSignals({ status: "UNCERTIFIED", ...lastEval })).toBe(true);
+    expect(shouldUseServerFailedSignals({ status: "CERTIFIED" })).toBe(false);
+    expect(shouldUseServerFailedSignals(null)).toBe(false);
+  });
+
+  it("does not freeze collecting failing rows to the last ingest audit", () => {
+    const release = {
+      status: "COLLECTING",
+      backendReleaseId: "rel_1",
+      last_signal_evaluation: { failed_signals: [{ signal_id: "accuracy" }] }
+    };
+    expect(hasServerFailedSignalList(release)).toBe(true);
+    expect(shouldUseServerFailedSignals(release)).toBe(false);
+    const rows = failingSignalsForDisplay(release, {
+      demoFallback: () => [{ sigId: "safety", sigLabel: "Safety" }]
+    });
+    expect(rows[0].sigId).toBe("safety");
   });
 
   it("rolls category status from failed ids", () => {

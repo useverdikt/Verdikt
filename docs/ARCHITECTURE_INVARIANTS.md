@@ -4,7 +4,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 
 ## System boundaries
 
-- `frontend/` is the React/Vite browser application. It calls the HTTP API and does not own certification decisions. Live release, override, share, and certification-record UI must display `release.status` and persisted `failed_signals`. Browser `calcVerdict` / `evaluateSignal` are demo or what-if simulation only.
+- `frontend/` is the React/Vite browser application. It calls the HTTP API and does not own certification decisions. Live release, override, share, certification-record, expanded detail, and verdicted list-row signal dots must display `release.status` and persisted `failed_signals`. COLLECTING rows still preview received values against current sliders. Browser `calcVerdict` / `evaluateSignal` are demo or what-if simulation only.
 - `backend/src/routes/` handles HTTP parsing, authentication, authorization, and response mapping.
 - `backend/src/services/` owns release, signal, verdict, gate, audit, integration, and notification behavior.
 - `backend/src/database/` is the PostgreSQL access layer. PostgreSQL is the source of truth.

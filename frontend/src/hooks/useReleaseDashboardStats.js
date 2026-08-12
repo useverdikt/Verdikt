@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { hasComputedAlignment } from "../lib/releaseAlignmentMeta.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, isCertifiedLike, isLiveBypassRisk } from "../lib/releaseStatus.js";
 import { envDisplayLabel } from "../components/release/dashboard/releaseDashboardUtils.js";
-import { categoryStatusFromFailedIds, hasServerFailedSignalList } from "../lib/serverVerdict.js";
+import { categoryStatusFromFailedIds, shouldUseServerFailedSignals } from "../lib/serverVerdict.js";
 
 export function useReleaseDashboardStats({
   releases,
@@ -60,7 +60,7 @@ export function useReleaseDashboardStats({
     for (const r of releases) {
       map[r.id] = {};
       for (const cat of signalCategories) {
-        map[r.id][cat.id] = hasServerFailedSignalList(r)
+        map[r.id][cat.id] = shouldUseServerFailedSignals(r)
           ? categoryStatusFromFailedIds(cat, r)
           : calcCategoryStatus(cat.id, r.signals, thresholds, r.releaseType);
       }

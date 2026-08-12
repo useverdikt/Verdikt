@@ -8,9 +8,9 @@ import { normalizeReleaseStatus, UI_RELEASE_STATUS, isCertifiedLike, uiStatusLab
 import {
   categoryStatusFromFailedIds,
   failingSignalsForDisplay,
-  hasServerFailedSignalList,
   isHardBlockFromRelease,
-  serverFailedSignalIds
+  serverFailedSignalIds,
+  shouldUseServerFailedSignals
 } from "../../../lib/serverVerdict.js";
 import { calcVerdict } from "../../../app/main/appMainLogic.js";
 
@@ -45,7 +45,7 @@ export default function ShareModal({
   const isMobile = window.innerWidth <= 900;
   const rs = normalizeReleaseStatus(release.status);
   const isShip = isCertifiedLike(rs);
-  const useServerFails = hasServerFailedSignalList(release);
+  const useServerFails = shouldUseServerFailedSignals(release);
   const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
   const isHardBlock = isHardBlockFromRelease(release);
   const legacyFailing = useMemo(
