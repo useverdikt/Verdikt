@@ -7,6 +7,13 @@ const { writeAudit } = require("./audit");
 const { getWorkspacePolicy } = require("./workspaceConfig");
 const { sendEscalationRequestedEmail, sendEscalationSlaReminderEmail } = require("./email");
 const { applyReleaseOverride, runOverrideSideEffects } = require("./releaseOverride");
+const {
+  claimDueEscalations,
+  completeEscalationSlaSweepClaim,
+  ownsActiveEscalationSlaSweepClaim,
+  recordEscalationSlaSweepClaimFailure,
+  DEFAULT_LEASE_MS
+} = require("./escalationSlaSweepClaims");
 const { log, inc } = require("../lib/observability");
 
 const PENDING = "pending_human_review";
@@ -287,90 +294,192 @@ async function acknowledgeEscalationWithOverride({
   };
 }
 
-async function runEscalationSlaSweep() {
-  const now = nowIso();
-  const nowMs = Date.now();
-  const pending = await queryAll(
-    `SELECT e.*, r.version AS release_version FROM escalation_requests e
-     LEFT JOIN releases r ON r.id = e.release_id
-     WHERE e.state = $1 AND e.sla_due_at IS NOT NULL AND TRIM(e.sla_due_at) != ''`,
-    [PENDING]
+async function markEscalationBreachedWithAudit(
+  row,
+  now,
+  { transactionFn = transaction, writeAuditFn = writeAudit } = {}
+) {
+  return transactionFn(async (tx) => {
+    const transitioned = await tx.run(
+      `UPDATE escalation_requests
+          SET sla_breached = 1, updated_at = $1
+        WHERE id = $2
+          AND state = $3
+          AND sla_breached = 0
+        RETURNING id`,
+      [now, row.id, PENDING]
+    );
+    if (transitioned.changes !== 1) return false;
+
+    await writeAuditFn({
+      workspaceId: row.workspace_id,
+      releaseId: row.release_id,
+      eventType: "ESCALATION_SLA_BREACHED",
+      actorType: "SYSTEM",
+      actorName: "escalation_sla_sweep",
+      details: { escalation_id: row.id, sla_due_at: row.sla_due_at },
+      tx
+    });
+    return true;
+  });
+}
+
+async function markEscalationReminderSent(row, workerId, now, runFn = run) {
+  return runFn(
+    `UPDATE escalation_requests e
+        SET sla_reminder_sent_at = $1, updated_at = $1
+      WHERE e.id = $2
+        AND e.state = $3
+        AND e.sla_reminder_sent_at IS NULL
+        AND EXISTS (
+          SELECT 1
+            FROM escalation_sla_sweep_claims c
+           WHERE c.escalation_id = e.id
+             AND c.claimed_by = $4
+             AND c.lease_until > NOW()
+        )`,
+    [now, row.id, PENDING, workerId]
+  );
+}
+
+async function runEscalationSlaSweep({
+  limit = 100,
+  workerId = `escalation-sla:${process.pid}`,
+  leaseMs = DEFAULT_LEASE_MS,
+  workspaceId = null,
+  claimBatchFn = claimDueEscalations,
+  completeClaimFn = completeEscalationSlaSweepClaim,
+  ownsClaimFn = ownsActiveEscalationSlaSweepClaim,
+  failClaimFn = recordEscalationSlaSweepClaimFailure,
+  resolveRecipientsFn = resolveEscalationNotifyEmails,
+  sendReminderFn = sendEscalationSlaReminderEmail,
+  transactionFn = transaction,
+  writeAuditFn = writeAudit,
+  markReminderFn = markEscalationReminderSent,
+  logFn = log,
+  incFn = inc
+} = {}) {
+  const batchLimit = Math.min(500, Math.max(1, Number(limit) || 100));
+  const dueRows = await claimBatchFn({
+    limit: batchLimit,
+    workerId,
+    leaseMs,
+    workspaceId
+  });
+  if (!dueRows.length) {
+    return { processed: 0, breached: 0, reminders: 0, failed: 0 };
+  }
+
+  logFn("info", "escalation_sla_sweep_claimed", {
+    workerId,
+    escalationCount: dueRows.length,
+    leaseMs: Number(leaseMs)
+  });
+  incFn("escalation_sla_sweep_claimed", dueRows.length);
+
+  const recipientCache = new Map();
+  const stats = { processed: dueRows.length, breached: 0, reminders: 0, failed: 0 };
+
+  const recipientsFor = (workspace) => {
+    if (!recipientCache.has(workspace)) {
+      recipientCache.set(workspace, Promise.resolve(resolveRecipientsFn(workspace)));
+    }
+    return recipientCache.get(workspace);
+  };
+
+  await Promise.all(
+    dueRows.map(async (row) => {
+      try {
+        if (!row.sla_breached) {
+          const breached = await markEscalationBreachedWithAudit(row, nowIso(), {
+            transactionFn,
+            writeAuditFn
+          });
+          if (breached) {
+            stats.breached += 1;
+            incFn("escalation_sla_breach");
+            logFn("warn", "escalation_sla_breach", {
+              escalationId: row.id,
+              workspaceId: row.workspace_id,
+              releaseId: row.release_id,
+              slaDueAt: row.sla_due_at
+            });
+          }
+        }
+
+        if (!row.sla_reminder_sent_at) {
+          const ownsClaim = await ownsClaimFn(row.id, workerId);
+          if (!ownsClaim) {
+            logFn("error", "escalation_sla_sweep_ownership_lost", {
+              escalationId: row.id,
+              workerId
+            });
+            incFn("escalation_sla_sweep_ownership_lost");
+            return;
+          }
+          const recipients = await recipientsFor(row.workspace_id);
+          if (recipients.length) {
+            await sendReminderFn({
+              to: recipients,
+              workspaceId: row.workspace_id,
+              releaseId: row.release_id,
+              releaseVersion: row.release_version || row.release_id,
+              escalationId: row.id,
+              slaDueAt: row.sla_due_at
+            });
+          }
+          const marked = await markReminderFn(row, workerId, nowIso());
+          if (marked.changes === 1) {
+            stats.reminders += 1;
+          } else {
+            logFn("info", "escalation_sla_reminder_finalize_skipped", {
+              escalationId: row.id,
+              workerId
+            });
+            incFn("escalation_sla_reminder_finalize_skipped");
+          }
+        }
+
+        try {
+          const completed = await completeClaimFn(row.id, workerId);
+          if (completed?.changes !== 1) {
+            logFn("error", "escalation_sla_sweep_ownership_lost", {
+              escalationId: row.id,
+              workerId
+            });
+            incFn("escalation_sla_sweep_ownership_lost");
+          }
+        } catch (claimErr) {
+          logFn("error", "escalation_sla_sweep_claim_complete_failed", {
+            escalationId: row.id,
+            workerId,
+            error: String(claimErr?.message || claimErr).slice(0, 500)
+          });
+          incFn("escalation_sla_sweep_claim_complete_failed");
+        }
+      } catch (err) {
+        stats.failed += 1;
+        incFn("escalation_sla_sweep_failed");
+        try {
+          await failClaimFn(row.id, workerId, err);
+        } catch (claimErr) {
+          logFn("error", "escalation_sla_sweep_claim_failure_record_failed", {
+            escalationId: row.id,
+            workerId,
+            error: String(claimErr?.message || claimErr).slice(0, 500)
+          });
+          incFn("escalation_sla_sweep_claim_failure_record_failed");
+        }
+        logFn("error", "escalation_sla_sweep_failed", {
+          escalationId: row.id,
+          workerId,
+          error: String(err?.message || err).slice(0, 500)
+        });
+      }
+    })
   );
 
-  const dueRows = pending.filter((row) => {
-    const dueMs = Date.parse(row.sla_due_at);
-    return Number.isFinite(dueMs) && dueMs < nowMs;
-  });
-  if (!dueRows.length) return { processed: 0, breached: 0, reminders: 0 };
-
-  const newlyBreached = dueRows.filter((row) => !row.sla_breached);
-  if (newlyBreached.length) {
-    const breachIds = newlyBreached.map((row) => row.id);
-    const placeholders = breachIds.map((_, i) => `$${i + 2}`).join(", ");
-    await run(
-      `UPDATE escalation_requests SET sla_breached = 1, updated_at = $1
-       WHERE id IN (${placeholders}) AND sla_breached = 0`,
-      [now, ...breachIds]
-    );
-    for (const row of newlyBreached) {
-      inc("escalation_sla_breach");
-      log("warn", "escalation_sla_breach", {
-        escalationId: row.id,
-        workspaceId: row.workspace_id,
-        releaseId: row.release_id,
-        slaDueAt: row.sla_due_at
-      });
-      await writeAudit({
-        workspaceId: row.workspace_id,
-        releaseId: row.release_id,
-        eventType: "ESCALATION_SLA_BREACHED",
-        actorType: "SYSTEM",
-        actorName: "escalation_sla_sweep",
-        details: { escalation_id: row.id, sla_due_at: row.sla_due_at }
-      });
-    }
-  }
-
-  const needsReminder = dueRows.filter((row) => !row.sla_reminder_sent_at);
-  if (needsReminder.length) {
-    const workspaceIds = [...new Set(needsReminder.map((row) => row.workspace_id))];
-    const recipientCache = new Map();
-    await Promise.all(
-      workspaceIds.map(async (workspaceId) => {
-        const recipients = await resolveEscalationNotifyEmails(workspaceId);
-        recipientCache.set(workspaceId, recipients);
-      })
-    );
-
-    await Promise.allSettled(
-      needsReminder.map((row) => {
-        const recipients = recipientCache.get(row.workspace_id) || [];
-        if (!recipients.length) return Promise.resolve();
-        return sendEscalationSlaReminderEmail({
-          to: recipients,
-          workspaceId: row.workspace_id,
-          releaseId: row.release_id,
-          releaseVersion: row.release_version || row.release_id,
-          escalationId: row.id,
-          slaDueAt: row.sla_due_at
-        });
-      })
-    );
-
-    const reminderIds = needsReminder.map((row) => row.id);
-    const reminderPlaceholders = reminderIds.map((_, i) => `$${i + 3}`).join(", ");
-    await run(
-      `UPDATE escalation_requests SET sla_reminder_sent_at = $1, updated_at = $2
-       WHERE id IN (${reminderPlaceholders}) AND sla_reminder_sent_at IS NULL`,
-      [now, now, ...reminderIds]
-    );
-  }
-
-  return {
-    processed: dueRows.length,
-    breached: newlyBreached.length,
-    reminders: needsReminder.length
-  };
+  return stats;
 }
 
 module.exports = {
@@ -379,6 +488,8 @@ module.exports = {
   listEscalationsForWorkspace,
   acknowledgeEscalation,
   acknowledgeEscalationWithOverride,
+  markEscalationBreachedWithAudit,
+  markEscalationReminderSent,
   runEscalationSlaSweep,
   PENDING,
   RESOLVED
