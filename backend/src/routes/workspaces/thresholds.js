@@ -1,6 +1,10 @@
 "use strict";
 
 const { transaction } = require("../../database");
+const { parseRequestBody } = require("../../lib/requestValidation");
+const {
+  thresholdsBodySchema
+} = require("../../schemas/governanceRequestSchemas");
 const { sendError,
   writeAudit,
   authMiddleware,
@@ -30,10 +34,11 @@ app.get("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireWorksp
 
 app.post("/api/workspaces/:workspaceId/thresholds", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
-    const { thresholds } = req.body || {};
-    if (!thresholds || typeof thresholds !== "object") {
-      return sendError(res, req, 400, "thresholds object is required");
-    }
+    const parsedBody = parseRequestBody(thresholdsBodySchema, req, res, {
+      message: "thresholds object is required"
+    });
+    if (!parsedBody.ok) return;
+    const { thresholds } = parsedBody.data;
     const upsertSql =
       "INSERT INTO thresholds (workspace_id, signal_id, min_value, max_value, required_for_certification) VALUES ($1, $2, $3, $4, $5) ON CONFLICT(workspace_id, signal_id) DO UPDATE SET min_value=excluded.min_value, max_value=excluded.max_value, required_for_certification=excluded.required_for_certification";
     await transaction(async (tx) => {

@@ -1,5 +1,9 @@
 "use strict";
 
+const { parseRequestBody } = require("../../lib/requestValidation");
+const {
+  signalIngestBodySchema
+} = require("../../schemas/governanceRequestSchemas");
 const {
   sendError,
   writeAudit,
@@ -28,10 +32,11 @@ const {
 
 module.exports = function registerRoutes(app) {
   app.post("/api/releases/:releaseId/signals", authMiddleware, requireReleaseAccess, requireNonViewer, signalIngestRateLimit, async (req, res) => {
-    const { source = "manual", signals } = req.body || {};
-    if (!signals || typeof signals !== "object") {
-      return sendError(res, req, 400, "signals object is required");
-    }
+    const parsedBody = parseRequestBody(signalIngestBodySchema, req, res, {
+      message: "signals object is required"
+    });
+    if (!parsedBody.ok) return;
+    const { source = "manual", signals } = parsedBody.data;
     const release = req.releaseRow;
 
     // Idempotency: clients may provide X-Idempotency-Key header or body.idempotency_key

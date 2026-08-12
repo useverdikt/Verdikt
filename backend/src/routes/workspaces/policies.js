@@ -2,8 +2,12 @@
 
 const { run } = require("../../database");
 const { queryOne } = require("../../database");
+const { parseRequestBody } = require("../../lib/requestValidation");
 const { validateWorkspaceSlug } = require("../../lib/workspaceSlug");
 const { validateSlackWebhookUrl } = require("../../lib/outboundUrl");
+const {
+  policyBodySchema
+} = require("../../schemas/governanceRequestSchemas");
 const { getWorkspaceRemediationDebt } = require("../../services/remediationDebt");
 const { sendError,
   nowIso,
@@ -53,6 +57,10 @@ app.get("/api/workspaces/:workspaceId/policies", authMiddleware, requireWorkspac
 
 app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSession, requireWorkspaceMatch, requireNonViewer, async (req, res, next) => {
   try {
+    const parsedBody = parseRequestBody(policyBodySchema, req, res, {
+      message: "invalid policy request body"
+    });
+    if (!parsedBody.ok) return;
     const current = await getWorkspacePolicy(req.params.workspaceId);
     const {
       require_ai_eval, ai_missing_policy, gate_mode, escalation_notify_email, escalation_sla_hours,
@@ -63,7 +71,7 @@ app.post("/api/workspaces/:workspaceId/policies", authMiddleware, requireHumanSe
       calibration_mode,
       public_slug,
       public_display_name
-    } = req.body || {};
+    } = parsedBody.data;
     const nextRequireAi = typeof require_ai_eval === "boolean" ? (require_ai_eval ? 1 : 0) : current.require_ai_eval;
     const nextMissingPolicy =
       typeof ai_missing_policy === "string" && ["block_uncertified", "allow_without_ai"].includes(ai_missing_policy)
