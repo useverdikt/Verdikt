@@ -22,6 +22,7 @@ function aggregate(overrides = {}) {
     backlog: 0,
     stale_backlog: 0,
     dead_letters: 0,
+    failed_legacy_deliveries: 0,
     observation_expected: 20,
     observation_recorded: 20,
     p95_comparison_seconds: "12.25",
@@ -69,6 +70,17 @@ describe("outbound effect readiness", () => {
 
     assert.equal(result.status, "blocked");
     assert.deepEqual(result.blockers, ["release_callback:shadow_mismatch"]);
+  });
+
+  it("blocks readiness when legacy delivery evidence contains a non-2xx result", async () => {
+    const result = await getOutboundEffectReadiness("ws_failed_delivery", {
+      queryAllFn: async () => [aggregate({ failed_legacy_deliveries: 1 })]
+    });
+
+    assert.equal(result.status, "blocked");
+    assert.deepEqual(result.blockers, ["release_callback:legacy_delivery_failed"]);
+    const callback = result.effects.find((effect) => effect.effect_type === "release_callback");
+    assert.equal(callback.failed_legacy_deliveries, 1);
   });
 
   it("reports insufficient data for clean but undersized evidence", async () => {

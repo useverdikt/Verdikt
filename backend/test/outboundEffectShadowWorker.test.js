@@ -30,6 +30,7 @@ before(async () => {
 afterEach(async () => {
   for (const workspaceId of workspacesToClean) {
     await run("DELETE FROM outbound_effect_outbox WHERE workspace_id = $1", [workspaceId]);
+    await run("DELETE FROM vcs_status_deliveries WHERE workspace_id = $1", [workspaceId]);
     await run("DELETE FROM releases WHERE workspace_id = $1", [workspaceId]);
   }
   workspacesToClean.clear();
@@ -39,6 +40,7 @@ async function seedRelease({ callbackUrl = null } = {}) {
   const workspaceId = `ws_shadow_${crypto.randomBytes(4).toString("hex")}`;
   const releaseId = `rel_shadow_${crypto.randomBytes(5).toString("hex")}`;
   const timestamp = nowIso();
+  const commitSha = crypto.randomBytes(20).toString("hex");
   workspacesToClean.add(workspaceId);
   await ensureWorkspaceSeeded(workspaceId);
   await run(
@@ -47,9 +49,9 @@ async function seedRelease({ callbackUrl = null } = {}) {
         verdict_issued_at, callback_url, commit_sha, pr_number)
      VALUES ($1, $2, 'shadow-v1', 'model_update', 'staging', 'UNCERTIFIED', $3, $3,
              $3, $4, $5, 77)`,
-    [releaseId, workspaceId, timestamp, callbackUrl, crypto.randomBytes(20).toString("hex")]
+    [releaseId, workspaceId, timestamp, callbackUrl, commitSha]
   );
-  return { workspaceId, releaseId, timestamp };
+  return { workspaceId, releaseId, timestamp, commitSha };
 }
 
 async function enqueueEffects(release, effectTypes, failedSignals = []) {
@@ -80,7 +82,12 @@ async function configureWebhook(release) {
   );
 }
 
-async function insertWebhookDelivery(release, failedSignals, overrides = {}) {
+async function insertWebhookDelivery(
+  release,
+  failedSignals,
+  overrides = {},
+  { responseStatus = 200, errorMessage = null } = {}
+) {
   const payload = {
     event: "UNCERTIFIED",
     release_id: release.releaseId,
@@ -94,8 +101,15 @@ async function insertWebhookDelivery(release, failedSignals, overrides = {}) {
   await run(
     `INSERT INTO outbound_webhook_deliveries
        (webhook_id, release_id, event_type, payload_json, response_status, error_message, delivered_at)
-     VALUES ($1, $2, 'UNCERTIFIED', $3, 200, NULL, $4)`,
-    [`owh_${release.workspaceId}`, release.releaseId, JSON.stringify(payload), nowIso()]
+     VALUES ($1, $2, 'UNCERTIFIED', $3, $4, $5, $6)`,
+    [
+      `owh_${release.workspaceId}`,
+      release.releaseId,
+      JSON.stringify(payload),
+      responseStatus,
+      errorMessage,
+      nowIso()
+    ]
   );
 }
 
@@ -193,6 +207,64 @@ describe("outbound effect shadow worker", () => {
     assert.equal(row.state, "shadow_matched");
     assert.ok(row.payload_hash);
     assert.equal(row.shadow_result_json.outcome, "matched");
+  });
+
+  it("rejects matching legacy intent when the delivery returned non-2xx", async () => {
+    const release = await seedRelease();
+    const failedSignals = [{ signal_id: "accuracy", failure_kind: "threshold", value: 60 }];
+    await configureWebhook(release);
+    await enqueueEffects(release, ["outbound_webhook"], failedSignals);
+    await insertWebhookDelivery(release, failedSignals, {}, {
+      responseStatus: 401,
+      errorMessage: "Bad credentials"
+    });
+
+    const result = await processDueOutboundEffects({
+      workerId: "shadow-non2xx-worker",
+      workspaceId: release.workspaceId
+    });
+    assert.equal(result.mismatched, 1);
+    assert.equal(result.matched, 0);
+
+    const row = await queryOne(
+      `SELECT state, shadow_result_json
+         FROM outbound_effect_outbox
+        WHERE release_id = $1`,
+      [release.releaseId]
+    );
+    assert.equal(row.state, "shadow_mismatch");
+    assert.equal(row.shadow_result_json.outcome, "mismatch");
+    assert.equal(row.shadow_result_json.reason, "legacy_delivery_failed");
+    assert.equal(row.shadow_result_json.legacy_response_status, 401);
+  });
+
+  it("rejects matching VCS writeback intent when GitHub returned 401", async () => {
+    const release = await seedRelease();
+    await enqueueEffects(release, ["vcs_writeback"]);
+    await run(
+      `INSERT INTO vcs_status_deliveries
+         (workspace_id, release_id, provider, commit_sha, pr_number, status_sent,
+          response_code, error_message, delivered_at)
+       VALUES ($1, $2, 'github', $3, 77, 'UNCERTIFIED', 401, 'Bad credentials', $4)`,
+      [release.workspaceId, release.releaseId, release.commitSha, nowIso()]
+    );
+
+    const result = await processDueOutboundEffects({
+      workerId: "shadow-vcs-401-worker",
+      workspaceId: release.workspaceId
+    });
+    assert.equal(result.mismatched, 1);
+    assert.equal(result.matched, 0);
+
+    const row = await queryOne(
+      `SELECT state, shadow_result_json
+         FROM outbound_effect_outbox
+        WHERE release_id = $1`,
+      [release.releaseId]
+    );
+    assert.equal(row.state, "shadow_mismatch");
+    assert.equal(row.shadow_result_json.reason, "legacy_delivery_failed");
+    assert.equal(row.shadow_result_json.legacy_response_status, 401);
   });
 
   it("surfaces mismatches and retries configured channels until legacy evidence arrives", async () => {

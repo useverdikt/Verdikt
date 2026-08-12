@@ -28,6 +28,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - `INTERNAL_WORKSPACE_VIEWER_EMAILS` is a local/test convenience only and must be empty in production-like environments.
 - `JWT_SECRET`, `CERT_SIGNING_KEY`, and webhook secrets are separate trust domains. Certification signatures must never be derived from the login secret.
 - Integration and VCS credentials are encrypted at rest with AES-256-GCM through `ENCRYPTION_MASTER_KEY`.
+- VCS monitoring may infer healthy production evidence only after every required provider read succeeds. Authentication/configuration failures are terminal `error` states; retryable provider failures remain `scanning`. Neither failure mode may emit production observations.
 
 ## Data, concurrency, and background work
 
@@ -43,7 +44,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - Expired collection-window work uses short PostgreSQL transactions to acquire durable, owner-scoped leases before evaluation. Never hold the claim transaction open during verdict work; failed workers recover through lease expiry. Roll out `observe` before `enforce`.
 - External delivery intent is inserted into `outbound_effect_outbox` in the same transaction as the terminal verdict or human override. Each release event records only effects executed by its legacy path and uses a stable idempotency key. Shadow recording must precede any outbox-owned delivery cutover.
 - Shadow outbox workers use owner-scoped leases, bounded retries, and dead letters. Shadow processing may compare database evidence but must never perform network delivery. Legacy observation writes are fail-open and store hashes/metadata rather than endpoint URLs or secrets; historical `shadow_unverifiable` rows remain non-certifying evidence.
-- Outbox delivery ownership cannot advance from shadow on worker liveness alone. A 7–14 day workspace-scoped readiness window must have a meaningful eligible sample, zero mismatches/dead letters/stale backlog, at least 99% legacy observation coverage, and p95 comparison latency below five minutes. Aggregate readiness reads never expose payloads or destinations.
+- Outbox delivery ownership cannot advance from shadow on worker liveness alone. A 7–14 day workspace-scoped readiness window must have a meaningful eligible sample, zero mismatches/dead letters/stale backlog/failed legacy deliveries, at least 99% legacy observation coverage, and p95 comparison latency below five minutes. Payload equality never converts a non-2xx or failed legacy delivery into a match. Aggregate readiness reads never expose payloads or destinations.
 
 ## Database changes
 

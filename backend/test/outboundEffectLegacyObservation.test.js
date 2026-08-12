@@ -70,7 +70,7 @@ async function seedObservedRelease() {
 }
 
 describe("legacy outbound effect observations", () => {
-  it("records Slack and callback attempts and lets shadow processing compare them without sending", async () => {
+  it("records blocked Slack and callback attempts as shadow mismatches without sending", async () => {
     const seeded = await seedObservedRelease();
     const failedSignals = [{ signal_id: "accuracy", failure_kind: "threshold", value: 60 }];
     await transaction((tx) =>
@@ -129,7 +129,8 @@ describe("legacy outbound effect observations", () => {
         workerId: "legacy-observation-worker",
         workspaceId: seeded.workspaceId
       });
-      assert.equal(result.matched, 2);
+      assert.equal(result.matched, 0);
+      assert.equal(result.mismatched, 2);
       assert.equal(result.retried, 0);
     } finally {
       global.fetch = originalFetch;
@@ -144,8 +145,9 @@ describe("legacy outbound effect observations", () => {
       [seeded.releaseId]
     );
     for (const row of completed) {
-      assert.equal(row.state, "shadow_matched");
-      assert.equal(row.shadow_result_json.outcome, "matched");
+      assert.equal(row.state, "shadow_mismatch");
+      assert.equal(row.shadow_result_json.outcome, "mismatch");
+      assert.equal(row.shadow_result_json.reason, "legacy_delivery_failed");
       assert.equal(row.shadow_result_json.comparison_scope, "delivery_input");
       assert.equal(row.legacy_comparison_json.outcome, "blocked");
     }
