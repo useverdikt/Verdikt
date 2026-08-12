@@ -39,6 +39,22 @@ const READINESS_SQL = `
     )::int AS stale_backlog,
     COUNT(*) FILTER (WHERE state = 'dead_letter')::int AS dead_letters,
     COUNT(*) FILTER (
+      WHERE (
+             shadow_result_json->>'legacy_response_status' ~ '^[0-9]+$'
+         AND (shadow_result_json->>'legacy_response_status')::int NOT BETWEEN 200 AND 299
+            )
+         OR COALESCE(shadow_result_json->>'legacy_error', '') <> ''
+         OR (
+             legacy_response_status IS NOT NULL
+         AND legacy_response_status NOT BETWEEN 200 AND 299
+            )
+         OR legacy_error_code IS NOT NULL
+         OR (
+             legacy_comparison_json IS NOT NULL
+         AND COALESCE(legacy_comparison_json->>'outcome', 'unknown') <> 'succeeded'
+            )
+    )::int AS failed_legacy_deliveries,
+    COUNT(*) FILTER (
       WHERE effect_type IN ('release_callback', 'slack_verdict')
         AND state <> 'shadow_skipped'
     )::int AS observation_expected,
@@ -79,6 +95,7 @@ function classifyEffect(row, criteria) {
   const matched = numberValue(row.matched);
   const mismatched = numberValue(row.mismatched);
   const deadLetters = numberValue(row.dead_letters);
+  const failedLegacyDeliveries = numberValue(row.failed_legacy_deliveries);
   const staleBacklog = numberValue(row.stale_backlog);
   const eligibleComparisons = matched + mismatched;
   const observationExpected = numberValue(row.observation_expected);
@@ -93,6 +110,7 @@ function classifyEffect(row, criteria) {
 
   if (mismatched > 0) blockers.push("shadow_mismatch");
   if (deadLetters > 0) blockers.push("dead_letter");
+  if (failedLegacyDeliveries > 0) blockers.push("legacy_delivery_failed");
   if (staleBacklog > 0) blockers.push("stale_backlog");
   if (
     observationCoveragePct != null &&
@@ -127,6 +145,7 @@ function classifyEffect(row, criteria) {
     backlog: numberValue(row.backlog),
     stale_backlog: staleBacklog,
     dead_letters: deadLetters,
+    failed_legacy_deliveries: failedLegacyDeliveries,
     observation_expected: observationExpected,
     observation_recorded: observationRecorded,
     observation_coverage_pct: observationCoveragePct,

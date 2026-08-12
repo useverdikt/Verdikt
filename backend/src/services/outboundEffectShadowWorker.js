@@ -47,6 +47,23 @@ function comparison(expected, actual, metadata = {}) {
   };
 }
 
+function requireSuccessfulLegacyDelivery(
+  result,
+  { responseStatus = null, error = null, outcome = null } = {}
+) {
+  const numericStatus = responseStatus == null ? null : Number(responseStatus);
+  const non2xx =
+    numericStatus != null &&
+    (!Number.isFinite(numericStatus) || numericStatus < 200 || numericStatus >= 300);
+  const failedOutcome = outcome != null && outcome !== "succeeded";
+  if (!non2xx && !error && !failedOutcome) return result;
+  return {
+    ...result,
+    outcome: "mismatch",
+    reason: "legacy_delivery_failed"
+  };
+}
+
 async function compareOutboundWebhook(row, release, envelope, queryOneFn) {
   const delivery = await queryOneFn(
     `SELECT payload_json, response_status, error_message, delivered_at
@@ -93,10 +110,14 @@ async function compareOutboundWebhook(row, release, envelope, queryOneFn) {
     verdict_issued_at: normalizedTimestamp(payload.verdict_issued_at),
     failed_signals: Array.isArray(payload.failed_signals) ? payload.failed_signals : []
   };
-  return comparison(expected, actual, {
+  const result = comparison(expected, actual, {
     legacy_response_status: delivery.response_status,
     legacy_error: delivery.error_message || null,
     legacy_observed_at: delivery.delivered_at
+  });
+  return requireSuccessfulLegacyDelivery(result, {
+    responseStatus: delivery.response_status,
+    error: delivery.error_message
   });
 }
 
@@ -136,11 +157,15 @@ async function compareVcsWriteback(row, release, _envelope, queryOneFn) {
     pr_number: delivery.pr_number == null ? null : Number(delivery.pr_number),
     status_sent: delivery.status_sent
   };
-  return comparison(expected, actual, {
+  const result = comparison(expected, actual, {
     legacy_response_status: delivery.response_code,
     legacy_error: delivery.error_message || null,
     legacy_observed_at: delivery.delivered_at,
     provider_source: integration ? "current_integration" : "legacy_delivery"
+  });
+  return requireSuccessfulLegacyDelivery(result, {
+    responseStatus: delivery.response_code,
+    error: delivery.error_message
   });
 }
 
@@ -157,13 +182,18 @@ function compareLegacyObservation(row, release, envelope, label) {
     },
     failedSignals: Array.isArray(envelope.failed_signals) ? envelope.failed_signals : []
   });
-  return comparison(expected, observation.input || {}, {
+  const result = comparison(expected, observation.input || {}, {
     comparison_scope: "delivery_input",
     legacy_delivery_outcome: observation.outcome || null,
     legacy_response_status: row.legacy_response_status ?? null,
     legacy_error_code: row.legacy_error_code || null,
     legacy_payload_hash: observation.payload_hash || null,
     legacy_observed_at: row.legacy_observed_at || observation.observed_at || null
+  });
+  return requireSuccessfulLegacyDelivery(result, {
+    responseStatus: row.legacy_response_status,
+    error: row.legacy_error_code,
+    outcome: observation.outcome || null
   });
 }
 
@@ -436,6 +466,7 @@ module.exports = {
   DEFAULT_LEASE_MS,
   DEFAULT_MAX_ATTEMPTS,
   canonicalHash,
+  requireSuccessfulLegacyDelivery,
   compareShadowIntent,
   claimDueOutboundEffects,
   processDueOutboundEffects,

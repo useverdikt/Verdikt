@@ -31,6 +31,16 @@ const {
 
 // ─── GitHub API helpers ───────────────────────────────────────────────────────
 
+class VcsProviderError extends Error {
+  constructor(provider, status, path) {
+    super(`${provider} API ${status} for ${path}`);
+    this.name = "VcsProviderError";
+    this.provider = provider;
+    this.status = Number(status);
+    this.path = path;
+  }
+}
+
 async function ghFetch(cfg, path) {
   const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}${path}`;
   const res = await fetch(url, {
@@ -41,7 +51,7 @@ async function ghFetch(cfg, path) {
     },
     signal: AbortSignal.timeout(10_000)
   });
-  if (!res.ok) throw new Error(`GitHub API ${res.status} for ${path}`);
+  if (!res.ok) throw new VcsProviderError("GitHub", res.status, path);
   return res.json();
 }
 
@@ -52,7 +62,7 @@ async function glFetch(cfg, path) {
     headers: { "PRIVATE-TOKEN": cfg.access_token },
     signal: AbortSignal.timeout(10_000)
   });
-  if (!res.ok) throw new Error(`GitLab API ${res.status} for ${path}`);
+  if (!res.ok) throw new VcsProviderError("GitLab", res.status, path);
   return res.json();
 }
 
@@ -63,40 +73,33 @@ async function scanGitHub(cfg, commitSha, prNumber, since, until) {
   const sinceMs = Date.parse(since);
   const untilMs = Date.parse(until);
 
-  let defaultBranch = "main";
-  try {
-    const repo = await ghFetch(cfg, "");
-    defaultBranch = repo.default_branch || "main";
-  } catch (_) {}
-
+  const repo = await ghFetch(cfg, "");
+  const defaultBranch = repo.default_branch || "main";
   let scanBranch = defaultBranch;
   if (prNumber) {
-    try {
-      const pr = await ghFetch(cfg, `/pulls/${prNumber}`);
-      scanBranch = pr.base?.ref || defaultBranch;
-    } catch (_) {}
+    const pr = await ghFetch(cfg, `/pulls/${prNumber}`);
+    scanBranch = pr.base?.ref || defaultBranch;
   }
 
-  try {
-    const sinceStr = new Date(since).toISOString();
-    const untilStr = new Date(until).toISOString();
-    const commits = await ghFetch(
+  const sinceStr = new Date(since).toISOString();
+  const untilStr = new Date(until).toISOString();
+  const commits = await ghFetch(
+    cfg,
+    `/commits?sha=${encodeURIComponent(scanBranch)}&since=${sinceStr}&until=${untilStr}&per_page=100`
+  );
+  for (const c of commits || []) {
+    const msg = c.commit?.message || "";
+    const hit = classifyCommitMessage(msg, c.sha, commitSha);
+    if (!hit) continue;
+    if (hit.kind === "revert") findings.revert_commits.push(hit);
+    else findings.hotfix_commits.push(hit);
+  }
+
+  for (let page = 1; page <= 10; page += 1) {
+    const prs = await ghFetch(
       cfg,
-      `/commits?sha=${encodeURIComponent(scanBranch)}&since=${sinceStr}&until=${untilStr}&per_page=30`
+      `/pulls?state=all&sort=created&direction=desc&per_page=100&page=${page}`
     );
-    for (const c of commits || []) {
-      const msg = c.commit?.message || "";
-      const hit = classifyCommitMessage(msg, c.sha, commitSha);
-      if (!hit) continue;
-      if (hit.kind === "revert") findings.revert_commits.push(hit);
-      else findings.hotfix_commits.push(hit);
-    }
-  } catch (err) {
-    console.warn("[vcs_monitor] commit scan error:", err.message);
-  }
-
-  try {
-    const prs = await ghFetch(cfg, `/pulls?state=all&sort=created&direction=desc&per_page=15`);
     for (const pr of prs || []) {
       const classified = classifyPullRequest(
         {
@@ -116,8 +119,11 @@ async function scanGitHub(cfg, commitSha, prNumber, since, until) {
         findings[classified.bucket].push(classified.entry);
       }
     }
-  } catch (err) {
-    console.warn("[vcs_monitor] PR scan error:", err.message);
+    if (!Array.isArray(prs) || prs.length < 100) break;
+    const oldestCreatedMs = Math.min(
+      ...prs.map((pr) => Date.parse(pr.created_at)).filter(Number.isFinite)
+    );
+    if (Number.isFinite(oldestCreatedMs) && oldestCreatedMs < sinceMs) break;
   }
 
   return findings;
@@ -130,43 +136,38 @@ async function scanGitLab(cfg, commitSha, _prNumber, since, until) {
   const sinceMs = Date.parse(since);
   const untilMs = Date.parse(until);
 
-  try {
-    const sinceStr = new Date(since).toISOString();
-    const commits = await glFetch(cfg, `/repository/commits?since=${sinceStr}&per_page=30`);
-    for (const c of commits || []) {
-      const msg = c.title || c.message || "";
-      const hit = classifyCommitMessage(msg, c.id, commitSha);
-      if (!hit) continue;
-      if (hit.kind === "revert") findings.revert_commits.push(hit);
-      else findings.hotfix_commits.push(hit);
-    }
-  } catch (err) {
-    console.warn("[vcs_monitor] GitLab commit scan error:", err.message);
+  const sinceStr = new Date(since).toISOString();
+  const commits = await glFetch(cfg, `/repository/commits?since=${sinceStr}&per_page=100`);
+  for (const c of commits || []) {
+    const msg = c.title || c.message || "";
+    const hit = classifyCommitMessage(msg, c.id, commitSha);
+    if (!hit) continue;
+    if (hit.kind === "revert") findings.revert_commits.push(hit);
+    else findings.hotfix_commits.push(hit);
   }
 
-  try {
-    const mrs = await glFetch(cfg, `/merge_requests?state=all&order_by=created_at&sort=desc&per_page=15`);
-    for (const mr of mrs || []) {
-      const classified = classifyPullRequest(
-        {
-          number: mr.iid,
-          title: mr.title,
-          labels: mr.labels,
-          state: mr.state,
-          created_at: mr.created_at,
-          merged_at: mr.merged_at
-        },
-        { sinceMs, untilMs }
-      );
-      if (!classified) continue;
-      if (classified.bucket === "hotfix_commits") {
-        findings.hotfix_commits.push({ sha: `MR!${mr.iid}`, message: mr.title });
-      } else {
-        findings[classified.bucket].push(classified.entry);
-      }
+  const mrs = await glFetch(
+    cfg,
+    `/merge_requests?state=all&order_by=created_at&sort=desc&per_page=100`
+  );
+  for (const mr of mrs || []) {
+    const classified = classifyPullRequest(
+      {
+        number: mr.iid,
+        title: mr.title,
+        labels: mr.labels,
+        state: mr.state,
+        created_at: mr.created_at,
+        merged_at: mr.merged_at
+      },
+      { sinceMs, untilMs }
+    );
+    if (!classified) continue;
+    if (classified.bucket === "hotfix_commits") {
+      findings.hotfix_commits.push({ sha: `MR!${mr.iid}`, message: mr.title });
+    } else {
+      findings[classified.bucket].push(classified.entry);
     }
-  } catch (err) {
-    console.warn("[vcs_monitor] GitLab MR scan error:", err.message);
   }
 
   return findings;
@@ -195,12 +196,25 @@ async function scanWindow(window) {
         : await scanGitLab(cfg, commit_sha, pr_number, monitoring_start, monitoring_end);
   } catch (err) {
     inc("vcs_monitor_scan_failed");
-    log("error", "vcs_monitor_scan_failed", { releaseId: release_id, error: err.message });
+    const providerStatus = Number.isFinite(Number(err?.status)) ? Number(err.status) : null;
+    const terminalProviderError =
+      providerStatus != null &&
+      providerStatus >= 400 &&
+      providerStatus < 500 &&
+      ![408, 429].includes(providerStatus);
+    const failureStatus = terminalProviderError ? "error" : "scanning";
+    log("error", "vcs_monitor_scan_failed", {
+      releaseId: release_id,
+      provider: cfg.provider,
+      providerStatus,
+      retryable: !terminalProviderError,
+      error: err.message
+    });
     await run(
-      "UPDATE vcs_monitoring_windows SET status = 'error', error_message = $1, last_scanned_at = $2, scan_count = scan_count + 1 WHERE release_id = $3",
-      [err.message.slice(0, 200), nowIso(), release_id]
+      "UPDATE vcs_monitoring_windows SET status = $1, error_message = $2, last_scanned_at = $3, scan_count = scan_count + 1 WHERE release_id = $4",
+      [failureStatus, err.message.slice(0, 200), nowIso(), release_id]
     );
-    return "error";
+    return failureStatus;
   }
 
   const signals = findingsToSignals(findings);
@@ -234,7 +248,8 @@ async function markWindow(releaseId, status, findings, signals, outcome) {
       scan_count            = scan_count + 1,
       findings_json         = $3,
       inferred_signals_json = $4,
-      inferred_outcome      = $5
+      inferred_outcome      = $5,
+      error_message         = NULL
     WHERE release_id = $6
   `,
     [
@@ -360,6 +375,9 @@ async function getWorkspaceMonitoringSummary(workspaceId) {
 }
 
 module.exports = {
+  VcsProviderError,
+  scanGitHub,
+  scanGitLab,
   openMonitoringWindow,
   refreshMonitoringWindowForProd,
   scanWindow,
