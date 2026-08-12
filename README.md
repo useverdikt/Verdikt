@@ -125,6 +125,14 @@ npm run test:frontend     # frontend unit tests
 npm run test:e2e          # Playwright e2e (run npx playwright install once)
 ```
 
+Backend CI runs four Node test-runner shards in parallel, each with an isolated
+PostgreSQL service, then reports the existing `Backend (node:test)` aggregate
+check. Reproduce one shard locally from `backend/` with:
+
+```bash
+node --test-concurrency=1 --test --test-shard=1/4 test/*.test.js
+```
+
 ## Documentation
 
 - [docs.useverdikt.com](https://docs.useverdikt.com) — partner and developer docs
