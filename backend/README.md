@@ -91,7 +91,7 @@ export ENABLE_ASSISTIVE_LLM=1
 
 ## Database migrations (PostgreSQL)
 
-Schema changes live in **`migrations/postgres/`** as ordered `NNN_*.sql` files. On startup the API runs pending migrations and records them in **`schema_migrations`**.
+Schema changes live in **`migrations/postgres/`** as ordered `NNN_*.sql` files. On startup the API or dedicated worker runs pending migrations and records them in **`schema_migrations`**. A shared PostgreSQL advisory lock serializes concurrent API/worker startup so only one process discovers and applies migrations at a time.
 
 - Add new changes as the next number (e.g. `002_add_feature.sql`) — do not rewrite already-applied files in production.
 
