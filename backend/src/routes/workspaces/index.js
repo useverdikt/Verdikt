@@ -13,4 +13,5 @@ module.exports = function registerWorkspaceRoutes(app) {
   require("./members")(app);
   require("./gate")(app);
   require("./agentSessions")(app);
+  require("./outboundEffects")(app);
 };

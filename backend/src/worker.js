@@ -11,13 +11,21 @@
 const http = require("http");
 const { queryOne, initDatabase, closePool } = require("./database");
 const { startBackgroundJobs, stopBackgroundJobs } = require("./jobs/bootstrap");
+const { getOutboundEffectSweepHealth } = require("./jobs/outboundEffectSweep");
 
 const WORKER_PORT = Math.max(0, Number(process.env.WORKER_PORT || process.env.PORT || 3001));
 let jobsStarted = false;
 let listeningPort = null;
 
 function buildHealthResponse(ok, checks = {}) {
-  return JSON.stringify({ ok, service: "verdikt-worker", checks });
+  return JSON.stringify({
+    ok,
+    service: "verdikt-worker",
+    checks: {
+      ...checks,
+      outbox_shadow: getOutboundEffectSweepHealth()
+    }
+  });
 }
 
 function createWorkerHealthServer() {
@@ -73,7 +81,15 @@ async function main() {
   process.on("SIGINT", () => void shutdown("SIGINT"));
 }
 
-main().catch((err) => {
-  console.error("[worker] failed to start:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error("[worker] failed to start:", err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildHealthResponse,
+  createWorkerHealthServer,
+  main
+};
