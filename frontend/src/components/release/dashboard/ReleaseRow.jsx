@@ -1,5 +1,6 @@
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import { isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
+import { serverFailedSignalIds, shouldUseServerFailedSignals } from "../../../lib/serverVerdict.js";
 import {
   envClass,
   envDisplayLabel,
@@ -37,7 +38,8 @@ export default function ReleaseRow({
     releaseSignals: release.signals,
     thresholds,
     releaseType: release.releaseType,
-    releaseTypes
+    releaseTypes,
+    failedSignalIds: shouldUseServerFailedSignals(release) ? serverFailedSignalIds(release) : null
   });
   const receivedSignalCount = evaluatedCount;
   const summaryPending = isSummaryPending(release);

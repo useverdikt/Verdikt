@@ -35,13 +35,11 @@ import {
   formatAiPct,
   buildRegressionOverrideContext,
   scoreJustification,
-  releaseRiskScore,
   genCertSummary,
   sidebarStatusLabel,
   formatSidebarReleaseAge
 } from "./app/main/appMainLogic.js";
 import { resolveSignalMeta } from "./lib/workspaceSignalUi.js";
-import { SignalDetailPanel } from "./components/app/main/AppMainPanels.jsx";
 import { hasBackend } from "./lib/hasBackend.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS, canOfferOverride } from "./lib/releaseStatus.js";
 import { useLoopReadinessNudge } from "./hooks/useLoopReadinessNudge.js";
@@ -133,7 +131,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
   const [showReevalConfirm, setShowReevalConfirm] = useState(false);
   const [reEvaluating, setReEvaluating] = useState(false);
   const [_headerActionsOpen, setHeaderActionsOpen] = useState(false);
-  const [detailCat, setDetailCat] = useState(null);
   const [auditDetail, setAuditDetail] = useState(null);
   const headerActionsRef = useRef(null);
 
@@ -268,7 +265,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
           releaseTypes={RELEASE_TYPES}
           formatSidebarReleaseAge={formatSidebarReleaseAge}
           sidebarStatusLabel={sidebarStatusLabel}
-          releaseRiskScore={releaseRiskScore}
           thresholds={thresholds}
           formatReleaseDisplayName={formatReleaseDisplayName}
           currentUser={currentUser}
@@ -309,7 +305,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
               signalCategories={SIGNAL_CATEGORIES}
               signalDefinitions={signalDefinitions}
               calcCategoryStatus={calcCategoryStatus}
-              setDetailCat={setDetailCat}
               setShowStartCert={setShowStartCert}
               onViewFullRecord={setAuditDetail}
               onBeginOverride={(release) => {
@@ -439,15 +434,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
             findSignalMetaById={resolveSignalMetaForWorkspace}
             formatAiPct={formatAiPct}
             scoreJustification={scoreJustification}
-          />
-        )}
-        {detailCat && current && (
-          <SignalDetailPanel
-            catId={detailCat}
-            release={current}
-            thresholds={thresholds}
-            releaseType={current.releaseType}
-            onClose={() => setDetailCat(null)}
           />
         )}
         {auditDetail && (

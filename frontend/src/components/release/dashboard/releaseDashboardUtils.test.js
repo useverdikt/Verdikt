@@ -100,4 +100,27 @@ describe("summarizeListSignalOutcomes", () => {
     expect(summary.dots).toHaveLength(LIST_SIGNAL_DOT_CAP);
     expect(summary.overflow).toBe(3);
   });
+
+  it("colors verdicted dots from persisted failed ids, not live sliders", () => {
+    const summary = summarizeListSignalOutcomes({
+      signalCategories,
+      releaseSignals: {
+        accuracy: 92,
+        safety: 91,
+        p95latency: 120
+      },
+      thresholds: {
+        accuracy: 90,
+        safety: 90,
+        p95latency: 200
+      },
+      releaseType: "model_update",
+      releaseTypes: [],
+      failedSignalIds: new Set(["accuracy"])
+    });
+
+    expect(summary.passCount).toBe(2);
+    expect(summary.failCount).toBe(1);
+    expect(summary.dots).toEqual(["f", "p", "p"]);
+  });
 });
