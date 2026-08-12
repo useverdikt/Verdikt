@@ -209,20 +209,27 @@ describe("assessOverrideJustification (unit)", () => {
 describe("Gemini assistive enrichment (mocked API)", () => {
   it("callIntelligenceModel parses Gemini generateContent response shape", async () => {
     const prev = global.fetch;
-    global.fetch = async () => ({
-      ok: true,
-      json: async () => ({
-        candidates: [
-          {
-            content: {
-              parts: [{ text: '{"summary":"ok","recommended_actions":["a"]}' }]
+    const controller = new AbortController();
+    global.fetch = async (_url, options) => {
+      assert.equal(options.signal, controller.signal);
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: '{"summary":"ok","recommended_actions":["a"]}' }]
+              }
             }
-          }
-        ]
-      })
-    });
+          ]
+        })
+      };
+    };
     try {
-      const text = await callIntelligenceModel('{"prompt":"x"}', { maxTokens: 200 });
+      const text = await callIntelligenceModel('{"prompt":"x"}', {
+        maxTokens: 200,
+        signal: controller.signal
+      });
       assert.ok(text.includes("summary"));
     } finally {
       global.fetch = prev;
