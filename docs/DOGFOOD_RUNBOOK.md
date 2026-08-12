@@ -266,6 +266,37 @@ See also: [docs/INCIDENT_FLOW_DOGFOOD.md](INCIDENT_FLOW_DOGFOOD.md) (tracker che
 
 ---
 
+## Outbound-effect shadow readiness
+
+The durable outbox remains observation-only while `OUTBOX_MODE=shadow`; legacy
+Slack, callback, webhook, and VCS paths are still the only network senders.
+Do not enable primary delivery from worker uptime alone.
+
+1. Confirm the dedicated worker returns `200` from `/health/ready`.
+2. Inspect `checks.outbox_shadow` and verify:
+   - `enabled` is `true`
+   - `last_succeeded_at` advances
+   - `consecutive_failures` is `0`
+3. With an authenticated human session for the workspace, request:
+
+   ```text
+   GET /api/workspaces/:workspaceId/outbound-effects/readiness?window_days=7
+   ```
+
+4. Require `status: "ready"` before proposing a canary. The report fails closed
+   unless each observed effect has at least 20 eligible comparisons, zero
+   mismatches, zero dead letters, no stale backlog, at least 99% legacy
+   observation coverage, and p95 comparison latency below five minutes.
+5. Keep the report for 7–14 days. Investigate every entry in `blockers`; a
+   zero-traffic or undersized sample is `insufficient_data`, never ready.
+
+The readiness response contains aggregate counts only. It does not expose
+destinations, payloads, or credentials. Until a separate canary change is
+merged and explicitly enabled, rollback remains `OUTBOX_MODE=off`, which stops
+outbox recording/processing while leaving legacy delivery authoritative.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |

@@ -34,16 +34,39 @@ const MAX_ATTEMPTS = boundedInt(
 const WORKER_ID =
   String(process.env.OUTBOX_WORKER_ID || "").trim() ||
   `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString("hex")}`;
+const sweepHealth = {
+  last_attempted_at: null,
+  last_succeeded_at: null,
+  last_failed_at: null,
+  consecutive_failures: 0,
+  last_summary: null
+};
+
+function timestamp(nowFn) {
+  const value = nowFn();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function getOutboundEffectSweepHealth() {
+  return {
+    mode: OUTBOX_MODE,
+    enabled: OUTBOX_MODE === "shadow",
+    ...sweepHealth,
+    last_summary: sweepHealth.last_summary ? { ...sweepHealth.last_summary } : null
+  };
+}
 
 async function runOutboundEffectShadowSweepOnce({
   mode = OUTBOX_MODE,
   processFn = processDueOutboundEffects,
   logFn = log,
-  incFn = inc
+  incFn = inc,
+  nowFn = () => new Date()
 } = {}) {
   if (mode !== "shadow") {
     return { disabled: true, mode };
   }
+  sweepHealth.last_attempted_at = timestamp(nowFn);
   try {
     const result = await processFn({
       limit: BATCH_SIZE,
@@ -58,8 +81,18 @@ async function runOutboundEffectShadowSweepOnce({
       });
       incFn("outbox_shadow_processed", result.claimed);
     }
+    sweepHealth.last_succeeded_at = timestamp(nowFn);
+    sweepHealth.consecutive_failures = 0;
+    sweepHealth.last_summary = {
+      claimed: Number(result.claimed || 0),
+      mismatched: Number(result.mismatched || 0),
+      retried: Number(result.retried || 0),
+      dead_lettered: Number(result.dead_lettered || 0)
+    };
     return result;
   } catch (error) {
+    sweepHealth.last_failed_at = timestamp(nowFn);
+    sweepHealth.consecutive_failures += 1;
     logFn("error", "outbox_shadow_sweep_failed", {
       workerId: WORKER_ID,
       error: String(error?.message || error).slice(0, 500)
@@ -81,6 +114,7 @@ function startOutboundEffectShadowSweepJob({ mode = OUTBOX_MODE } = {}) {
 module.exports = {
   runOutboundEffectShadowSweepOnce,
   startOutboundEffectShadowSweepJob,
+  getOutboundEffectSweepHealth,
   SWEEP_MS,
   BATCH_SIZE,
   LEASE_MS,

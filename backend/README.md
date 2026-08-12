@@ -72,12 +72,12 @@ For Railway, create a second service from the same repository, keep its root dir
 
 Expired collection-window processing has a staged database-lease rollout. `COLLECTION_SWEEP_CLAIM_MODE=observe` (the default) preserves the previous behavior and emits structured `collection_sweep_claim_observed` events. After confirming the observed batch volume, set it to `enforce` so concurrent workers atomically claim disjoint releases. Use `off` for an immediate behavior rollback. `COLLECTION_SWEEP_CLAIM_LEASE_MS` defaults to five minutes; an expired lease is reclaimable if a worker exits mid-evaluation.
 
-Post-verdict integration delivery is also being migrated in stages. `OUTBOX_MODE=shadow` (the default) writes deduplicated delivery intents in the same transaction as verdicts and human overrides; override events record only the webhook and callback effects that their legacy path executes. Legacy Slack/callback delivery paths record fail-open, URL-free observations on those rows; the leased worker compares their delivery inputs alongside webhook/VCS evidence and reports mismatches. It never sends external traffic. Existing delivery remains authoritative; set `OUTBOX_MODE=off` to disable recording and shadow processing.
+Post-verdict integration delivery is also being migrated in stages. `OUTBOX_MODE=shadow` (the default) writes deduplicated delivery intents in the same transaction as verdicts and human overrides; override events record only the webhook and callback effects that their legacy path executes. Legacy Slack/callback delivery paths record fail-open, URL-free observations on those rows; the leased worker compares their delivery inputs alongside webhook/VCS evidence and reports mismatches. It never sends external traffic. Existing delivery remains authoritative; set `OUTBOX_MODE=off` to disable recording and shadow processing. Human workspace sessions can read aggregate cutover evidence from `GET /api/workspaces/:workspaceId/outbound-effects/readiness?window_days=7`; the response excludes payloads and destinations and fails closed on small samples or unhealthy evidence.
 
 The worker exposes its own health endpoint on **`WORKER_PORT`**, Railway's **`PORT`**, or port **3001** (in that order):
 
 - `GET /health` — liveness
-- `GET /health/ready` — returns **200** once the worker has connected to PostgreSQL and started its jobs; returns **503** if the database is unreachable.
+- `GET /health/ready` — returns **200** once the worker has connected to PostgreSQL and started its jobs; returns **503** if the database is unreachable. `checks.outbox_shadow` includes the latest attempted/successful/failed sweep timestamps and consecutive failure count.
 
 Optional AI provider configuration (Gemini default):
 
@@ -121,7 +121,7 @@ Writes timestamped **`.sql`** files under **`data/backups/`** (override with `BA
 
 - **`GET /health`** — Liveness: returns `{ ok: true }` if the process is running. Use for “is the process up?” probes.
 - **`GET /health/ready`** — Readiness: runs `SELECT 1` against PostgreSQL. Returns **503** if the database is unusable. Point orchestrators / load balancers at this for “can this instance take traffic?”
-- **Worker health** — The dedicated worker (`src/worker.js`) serves `GET /health` and `GET /health/ready` on its own port (`WORKER_PORT`, default 3001). Readiness checks that PostgreSQL is reachable and the sweep jobs have started.
+- **Worker health** — The dedicated worker (`src/worker.js`) serves `GET /health` and `GET /health/ready` on its own port (`WORKER_PORT`, default 3001). Readiness checks that PostgreSQL is reachable and the sweep jobs have started; `checks.outbox_shadow` distinguishes a live process from a recently successful shadow sweep.
 - **Request logging** — After each response, one line is logged: `[request-id] METHOD path status duration`. Disable with **`LOG_REQUESTS=0`**. For JSON lines (Datadog, CloudWatch, etc.) set **`LOG_JSON=1`**.
 - **Service events** — Certification snapshot failures, escalation SLA breaches, collection-sweep claims, shadow outbox comparisons/retries, gate actions, post-verdict side effects, gate context build failures, and VCS monitor scan failures all emit structured lines via `src/lib/observability.js` (same `LOG_JSON=1` switch). Process-local counters (`cert_snapshot_*`, `escalation_sla_breach`, `collection_sweep_*`, `outbox_shadow_*`, `gate_action_*`, `post_verdict_*`, `gate_context_*`, `vcs_monitor_*`) are for debugging; rely on log aggregation across API/worker processes.
 - **Graceful shutdown** — **`SIGTERM`** / **`SIGINT`** stop the HTTP server, clear the collection sweep interval, and end the PostgreSQL pool. **`SHUTDOWN_GRACE_MS`** (default **10000**) caps how long to wait before `exit(1)` if connections linger.
