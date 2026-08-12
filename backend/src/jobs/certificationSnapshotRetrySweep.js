@@ -1,13 +1,31 @@
 "use strict";
 
+const crypto = require("crypto");
+const os = require("os");
 const {
   processDueCertificationSnapshotRetries,
   backfillMissingCertificationSnapshots
 } = require("../services/certificationSnapshotRetry");
+const {
+  RETRY_CLAIM_LEASE_MS,
+  BACKFILL_CLAIM_LEASE_MS
+} = require("../services/certificationSnapshotClaims");
 
-async function runCertificationSnapshotRetrySweepOnce() {
+const WORKER_INSTANCE_ID = `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString("hex")}`;
+const RETRY_WORKER_ID =
+  String(process.env.CERT_SNAPSHOT_RETRY_WORKER_ID || "").trim() ||
+  `cert-snapshot-retry:${WORKER_INSTANCE_ID}`;
+const BACKFILL_WORKER_ID =
+  String(process.env.CERT_SNAPSHOT_BACKFILL_WORKER_ID || "").trim() ||
+  `cert-snapshot-backfill:${WORKER_INSTANCE_ID}`;
+
+async function runCertificationSnapshotRetrySweepOnce({
+  workerId = RETRY_WORKER_ID,
+  leaseMs = Number(process.env.CERT_SNAPSHOT_RETRY_CLAIM_LEASE_MS || RETRY_CLAIM_LEASE_MS),
+  processFn = processDueCertificationSnapshotRetries
+} = {}) {
   try {
-    const result = await processDueCertificationSnapshotRetries();
+    const result = await processFn({ workerId, leaseMs });
     if (result.processed > 0) {
       console.info(
         "[cert_snapshot_retry_sweep]",
@@ -21,7 +39,11 @@ async function runCertificationSnapshotRetrySweepOnce() {
   }
 }
 
-async function runCertificationSnapshotBackfillOnce() {
+async function runCertificationSnapshotBackfillOnce({
+  workerId = BACKFILL_WORKER_ID,
+  leaseMs = Number(process.env.CERT_SNAPSHOT_BACKFILL_CLAIM_LEASE_MS || BACKFILL_CLAIM_LEASE_MS),
+  backfillFn = backfillMissingCertificationSnapshots
+} = {}) {
   try {
     let totalProcessed = 0;
     let totalSucceeded = 0;
@@ -29,7 +51,7 @@ async function runCertificationSnapshotBackfillOnce() {
     // Backfill in batches until no more missing snapshots are found, so legacy
     // deployments with hundreds of pre-existing certified releases are fully covered.
     for (let i = 0; i < 50; i += 1) {
-      const result = await backfillMissingCertificationSnapshots({ limit: 100 });
+      const result = await backfillFn({ limit: 100, workerId, leaseMs });
       if (!result || result.processed === 0) break;
       totalProcessed += result.processed;
       totalSucceeded += result.succeeded;

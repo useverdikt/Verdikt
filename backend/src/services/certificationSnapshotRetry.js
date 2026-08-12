@@ -1,17 +1,28 @@
 "use strict";
 
-const { run, queryAll, transaction } = require("../database");
+const { run } = require("../database");
 const certificationSnapshots = require("./certificationSnapshots");
 const { writeAudit } = require("./audit");
 const { isCertLikeStatus } = require("../lib/releaseStatus");
 const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
+const {
+  claimDueCertificationSnapshotRetries,
+  ownsActiveCertificationSnapshotRetryClaim,
+  completeCertificationSnapshotRetryClaim,
+  rescheduleCertificationSnapshotRetryClaim,
+  claimMissingCertificationSnapshots,
+  ownsActiveCertificationSnapshotBackfillClaim,
+  completeCertificationSnapshotBackfillClaim,
+  recordCertificationSnapshotBackfillClaimFailure,
+  RETRY_CLAIM_LEASE_MS,
+  BACKFILL_CLAIM_LEASE_MS
+} = require("./certificationSnapshotClaims");
 const { log, inc } = require("../lib/observability");
 
 const MAX_ATTEMPTS = 4;
 /** Delay before retry attempt N (index = attempt after the initial sync failure). */
 const BACKOFF_MS = [0, 2000, 10000, 30000];
-const CLAIM_LEASE_MS = 120_000;
 
 function backoffMsForAttempt(attempt) {
   return BACKOFF_MS[Math.min(Math.max(attempt, 0), BACKOFF_MS.length - 1)];
@@ -97,6 +108,8 @@ async function enqueueRetryJob(args, attempt, err) {
        attempt = EXCLUDED.attempt,
        next_attempt_at = EXCLUDED.next_attempt_at,
        last_error = EXCLUDED.last_error,
+       claimed_by = NULL,
+       lease_until = NULL,
        updated_at = NOW()`,
     [
       args.releaseId,
@@ -140,51 +153,66 @@ async function enqueueCertificationSnapshotPersist(args) {
 }
 
 /**
- * Claim and process due retry rows. Safe across multiple workers (SKIP LOCKED).
- * @returns {{ processed: number, succeeded: number, failed: number, exhausted: number }}
+ * Claim and process due retry rows with owner-scoped completion.
  */
-async function processDueCertificationSnapshotRetries({ limit = 25 } = {}) {
-  const claimed = await transaction(async (tx) => {
-    const due = await tx.queryAll(
-      `SELECT *
-         FROM certification_snapshot_retries
-        WHERE next_attempt_at <= NOW()
-        ORDER BY next_attempt_at ASC
-        LIMIT $1
-        FOR UPDATE SKIP LOCKED`,
-      [limit]
-    );
-    const leaseUntil = new Date(Date.now() + CLAIM_LEASE_MS).toISOString();
-    for (const row of due) {
-      await tx.run(
-        `UPDATE certification_snapshot_retries
-            SET next_attempt_at = $2::timestamptz, updated_at = NOW()
-          WHERE release_id = $1`,
-        [row.release_id, leaseUntil]
-      );
-    }
-    return due;
-  });
-
+async function processDueCertificationSnapshotRetries({
+  limit = 25,
+  workerId = `cert-snapshot-retry:${process.pid}`,
+  leaseMs = RETRY_CLAIM_LEASE_MS,
+  claimBatchFn = claimDueCertificationSnapshotRetries,
+  ownsClaimFn = ownsActiveCertificationSnapshotRetryClaim,
+  completeClaimFn = completeCertificationSnapshotRetryClaim,
+  rescheduleClaimFn = rescheduleCertificationSnapshotRetryClaim,
+  persistFn = certificationSnapshots.persistCertificationSnapshot
+} = {}) {
+  const claimed = await claimBatchFn({ limit, workerId, leaseMs });
   let succeeded = 0;
   let failed = 0;
   let exhausted = 0;
+  let ownershipLost = 0;
 
   for (const row of claimed) {
     const args = rowToArgs(row);
+    if (!(await ownsClaimFn(row.release_id, workerId))) {
+      ownershipLost += 1;
+      inc("cert_snapshot_retry_ownership_lost");
+      continue;
+    }
+
     try {
-      await certificationSnapshots.persistCertificationSnapshot(args);
-      await run(`DELETE FROM certification_snapshot_retries WHERE release_id = $1`, [row.release_id]);
-      succeeded += 1;
+      await persistFn(args);
+      const completed = await completeClaimFn(row.release_id, workerId);
+      if (completed.changes === 1) {
+        succeeded += 1;
+      } else {
+        ownershipLost += 1;
+        inc("cert_snapshot_retry_ownership_lost");
+      }
     } catch (err) {
       const nextAttempt = Number(row.attempt) + 1;
       if (nextAttempt >= MAX_ATTEMPTS) {
-        await run(`DELETE FROM certification_snapshot_retries WHERE release_id = $1`, [row.release_id]);
-        await onFinalFailure(args, err);
-        exhausted += 1;
+        const completed = await completeClaimFn(row.release_id, workerId);
+        if (completed.changes === 1) {
+          await onFinalFailure(args, err);
+          exhausted += 1;
+        } else {
+          ownershipLost += 1;
+          inc("cert_snapshot_retry_ownership_lost");
+        }
       } else {
-        await enqueueRetryJob(args, nextAttempt, err);
-        failed += 1;
+        const rescheduled = await rescheduleClaimFn({
+          args,
+          attempt: nextAttempt,
+          nextAttemptAt: nextAttemptAtIso(nextAttempt),
+          error: err,
+          workerId
+        });
+        if (rescheduled.changes === 1) {
+          failed += 1;
+        } else {
+          ownershipLost += 1;
+          inc("cert_snapshot_retry_ownership_lost");
+        }
       }
     }
   }
@@ -193,7 +221,8 @@ async function processDueCertificationSnapshotRetries({ limit = 25 } = {}) {
     processed: claimed.length,
     succeeded,
     failed,
-    exhausted
+    exhausted,
+    ownership_lost: ownershipLost
   };
 }
 
@@ -201,52 +230,69 @@ async function processDueCertificationSnapshotRetries({ limit = 25 } = {}) {
  * One-time backfill for certified releases created before certification snapshots existed.
  * For each certified release with no snapshot and no pending retry, compute the current
  * threshold map + latest signal map and enqueue a persist (or retry on failure).
- * Optional releaseId/workspaceId filters make it safe to call from tests against a
- * specific release without being affected by leftover rows in the test DB.
- * @returns {{ processed: number, succeeded: number, failed: number }}
+ * Optional releaseId/workspaceId filters make it safe to target a specific release.
  */
-async function backfillMissingCertificationSnapshots({ limit = 100, releaseId = null, workspaceId = null } = {}) {
-  const conditions = [
-    "r.status IN ('CERTIFIED', 'CERTIFIED_WITH_OVERRIDE')",
-    "cs.release_id IS NULL",
-    "crr.release_id IS NULL"
-  ];
-  const params = [];
-  let idx = 1;
-  if (releaseId) {
-    conditions.push(`r.id = $${idx++}`);
-    params.push(releaseId);
-  }
-  if (workspaceId) {
-    conditions.push(`r.workspace_id = $${idx++}`);
-    params.push(workspaceId);
-  }
-  params.push(limit);
-  const sql = `SELECT r.id AS release_id, r.workspace_id, r.status
-       FROM releases r
-       LEFT JOIN certification_snapshots cs ON cs.release_id = r.id
-       LEFT JOIN certification_snapshot_retries crr ON crr.release_id = r.id
-      WHERE ${conditions.join(" AND ")}
-      LIMIT $${idx}`;
-  const rows = await queryAll(sql, params);
+async function backfillMissingCertificationSnapshots({
+  limit = 100,
+  releaseId = null,
+  workspaceId = null,
+  workerId = `cert-snapshot-backfill:${process.pid}`,
+  leaseMs = BACKFILL_CLAIM_LEASE_MS,
+  claimBatchFn = claimMissingCertificationSnapshots,
+  ownsClaimFn = ownsActiveCertificationSnapshotBackfillClaim,
+  completeClaimFn = completeCertificationSnapshotBackfillClaim,
+  failClaimFn = recordCertificationSnapshotBackfillClaimFailure,
+  getThresholdMapFn = getThresholdMap,
+  getLatestSignalMapFn = getLatestSignalMap,
+  enqueuePersistFn = enqueueCertificationSnapshotPersist
+} = {}) {
+  const rows = await claimBatchFn({
+    limit,
+    releaseId,
+    workspaceId,
+    workerId,
+    leaseMs
+  });
   let succeeded = 0;
   let failed = 0;
+  let ownershipLost = 0;
+
   for (const row of rows) {
     try {
+      if (!(await ownsClaimFn(row.release_id, workerId))) {
+        ownershipLost += 1;
+        inc("cert_snapshot_backfill_ownership_lost");
+        continue;
+      }
       const [thresholdMap, latest] = await Promise.all([
-        getThresholdMap(row.workspace_id),
-        getLatestSignalMap(row.release_id)
+        getThresholdMapFn(row.workspace_id),
+        getLatestSignalMapFn(row.release_id)
       ]);
-      await enqueueCertificationSnapshotPersist({
+      await enqueuePersistFn({
         releaseId: row.release_id,
         workspaceId: row.workspace_id,
         thresholdMap,
         signalMap: latest,
         status: row.status
       });
-      succeeded += 1;
+      const completed = await completeClaimFn(row.release_id, workerId);
+      if (completed.changes === 1) {
+        succeeded += 1;
+      } else {
+        ownershipLost += 1;
+        inc("cert_snapshot_backfill_ownership_lost");
+      }
     } catch (err) {
       failed += 1;
+      try {
+        await failClaimFn(row.release_id, workerId, err);
+      } catch (claimErr) {
+        log("error", "cert_snapshot_backfill_claim_failure_record_failed", {
+          releaseId: row.release_id,
+          workerId,
+          error: String(claimErr?.message || claimErr).slice(0, 200)
+        });
+      }
       log("error", "cert_snapshot_backfill_failed", {
         releaseId: row.release_id,
         workspaceId: row.workspace_id,
@@ -254,11 +300,12 @@ async function backfillMissingCertificationSnapshots({ limit = 100, releaseId = 
       });
     }
   }
-  return { processed: rows.length, succeeded, failed };
+  return { processed: rows.length, succeeded, failed, ownership_lost: ownershipLost };
 }
 
 /** Test helper — clears pending retry rows. */
 async function _resetCertificationSnapshotRetryState() {
+  await run(`DELETE FROM certification_snapshot_backfill_claims`);
   await run(`DELETE FROM certification_snapshot_retries`);
 }
 
