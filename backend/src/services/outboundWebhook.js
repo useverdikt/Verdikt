@@ -8,9 +8,12 @@
 
 const crypto = require("crypto");
 const { queryOne, run } = require("../database");
+const { postJsonWithTimeout } = require("../lib/outboundHttp");
 const { nowIso } = require("../lib/time");
 const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeeded } = require("../lib/encryption");
 const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
+
+const OUTBOUND_WEBHOOK_TIMEOUT_MS = 10_000;
 
 async function getOutboundWebhook(workspaceId) {
   const row = await queryOne("SELECT * FROM outbound_webhooks WHERE workspace_id = $1 AND enabled = 1", [workspaceId]);
@@ -120,16 +123,11 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
       );
       return;
     }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(deliveryUrl, {
-      method: "POST",
+    const res = await postJsonWithTimeout(deliveryUrl, bodyStr, {
       headers,
-      body: bodyStr,
-      signal: controller.signal,
-      redirect: "error"
+      redirect: "error",
+      timeoutMs: OUTBOUND_WEBHOOK_TIMEOUT_MS
     });
-    clearTimeout(timeout);
     responseStatus = res.status;
     if (!res.ok) {
       errorMessage = `Non-OK response: ${res.status}`;
@@ -149,4 +147,11 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
   );
 }
 
-module.exports = { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook, deliverVerdictWebhook, buildVerdictPayload };
+module.exports = {
+  OUTBOUND_WEBHOOK_TIMEOUT_MS,
+  getOutboundWebhook,
+  setOutboundWebhook,
+  deleteOutboundWebhook,
+  deliverVerdictWebhook,
+  buildVerdictPayload
+};

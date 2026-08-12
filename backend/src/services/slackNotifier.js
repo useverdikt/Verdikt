@@ -13,11 +13,14 @@
  * Safe to call unconditionally — returns immediately when no URL is configured.
  */
 
+const { postJsonWithTimeout } = require("../lib/outboundHttp");
 const { getWorkspacePolicy } = require("./workspaceConfig");
 const { validateSlackWebhookUrl } = require("../lib/outboundUrl");
 const { nowIso } = require("../lib/time");
 const { PUBLIC_APP_URL } = require("../config");
 const { recordLegacyEffectObservation } = require("./outboundEffectLegacyObservation");
+
+const SLACK_WEBHOOK_TIMEOUT_MS = 8_000;
 
 const CALIBRATION_EMOJI = {
   MISS: ":rotating_light:",
@@ -154,11 +157,8 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
 
     const body = JSON.stringify(payload);
 
-    const res = await fetch(safeUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      signal: AbortSignal.timeout(8_000)
+    const res = await postJsonWithTimeout(safeUrl, body, {
+      timeoutMs: SLACK_WEBHOOK_TIMEOUT_MS
     });
 
     if (!res.ok) {
@@ -301,11 +301,8 @@ async function deliverSlackCalibrationNudge(release, alignmentResult, suggestion
     }
 
     const payload = buildCalibrationSlackPayload(release, alignmentResult, suggestions);
-    const res = await fetch(safeUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8_000)
+    const res = await postJsonWithTimeout(safeUrl, payload, {
+      timeoutMs: SLACK_WEBHOOK_TIMEOUT_MS
     });
 
     if (!res.ok) {
@@ -392,11 +389,8 @@ async function deliverSlackBypassMerge(release, statusAtMerge) {
     }
 
     const payload = buildBypassMergeSlackPayload(release, statusAtMerge);
-    const res = await fetch(safeUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8_000)
+    const res = await postJsonWithTimeout(safeUrl, payload, {
+      timeoutMs: SLACK_WEBHOOK_TIMEOUT_MS
     });
 
     if (!res.ok) {
@@ -408,6 +402,7 @@ async function deliverSlackBypassMerge(release, statusAtMerge) {
 }
 
 module.exports = {
+  SLACK_WEBHOOK_TIMEOUT_MS,
   deliverSlackVerdict,
   buildSlackPayload,
   deliverSlackCalibrationNudge,

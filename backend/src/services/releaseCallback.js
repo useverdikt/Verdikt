@@ -1,8 +1,11 @@
 "use strict";
 
+const { postJsonWithTimeout } = require("../lib/outboundHttp");
 const { validateOutboundWebhookUrl } = require("../lib/outboundUrl");
 const { nowIso } = require("../lib/time");
 const { recordLegacyEffectObservation } = require("./outboundEffectLegacyObservation");
+
+const RELEASE_CALLBACK_TIMEOUT_MS = 15_000;
 
 function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = {}, failedSignals = [], certification = null) {
   const signals = failedSignals.length ? failedSignals : (verdictIntelligence?.failed_signals ?? []);
@@ -57,15 +60,12 @@ async function deliverReleaseCallback(release, verdictIntelligence, gateExtras =
   const body = JSON.stringify(payload);
 
   try {
-    const res = await fetch(safeUrl, {
-      method: "POST",
+    const res = await postJsonWithTimeout(safeUrl, body, {
       headers: {
-        "Content-Type": "application/json",
         "User-Agent": "Verdikt-Callback/1.0"
       },
-      body,
       redirect: "error",
-      signal: AbortSignal.timeout(15_000)
+      timeoutMs: RELEASE_CALLBACK_TIMEOUT_MS
     });
     if (!res.ok) {
       console.error("[release_callback] non-2xx:", release.id, res.status);
@@ -103,4 +103,8 @@ async function deliverReleaseCallback(release, verdictIntelligence, gateExtras =
   }
 }
 
-module.exports = { buildReleaseCallbackPayload, deliverReleaseCallback };
+module.exports = {
+  RELEASE_CALLBACK_TIMEOUT_MS,
+  buildReleaseCallbackPayload,
+  deliverReleaseCallback
+};
