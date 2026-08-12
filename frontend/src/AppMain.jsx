@@ -28,7 +28,6 @@ import {
   evaluateSignal,
   formatReleaseDisplayName,
   releaseVersionPrimarySecondary,
-  calcVerdict,
   calcCategoryStatus,
   fmtVal,
   catStatusColor,
@@ -122,9 +121,8 @@ function AppMainContent({ navigate, nav, isMobile }) {
     sidebarReleaseGroups,
     collapsedSidebarDayKeys,
     setCollapsedSidebarDayKeys,
-    releaseSidebarCounts,
-    sidebarRecById
-  } = useReleaseSidebar(releases, thresholds, nav);
+    releaseSidebarCounts
+  } = useReleaseSidebar(releases, nav);
 
   const [showStartCert, setShowStartCert] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
@@ -267,7 +265,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
           setCollapsedSidebarDayKeys={setCollapsedSidebarDayKeys}
           selectedId={selectedId}
           setSelectedId={setSelectedId}
-          sidebarRecById={sidebarRecById}
           releaseTypes={RELEASE_TYPES}
           formatSidebarReleaseAge={formatSidebarReleaseAge}
           sidebarStatusLabel={sidebarStatusLabel}
@@ -437,7 +434,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
             onClose={() => setShowOverride(false)}
             onConfirm={actions.handleOverrideConfirm}
             roles={ROLES}
-            calcVerdict={calcVerdict}
             fmtVal={fmtVal}
             buildRegressionOverrideContext={buildRegressionOverrideContext}
             findSignalMetaById={resolveSignalMetaForWorkspace}
@@ -463,7 +459,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
               setShareRelease(r);
               setShowShare(true);
             }}
-            calcVerdict={calcVerdict}
             releaseTypes={RELEASE_TYPES}
             signalCategories={SIGNAL_CATEGORIES}
             signalDefinitions={signalDefinitions}
@@ -485,7 +480,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
               setShowShare(false);
               setShareRelease(null);
             }}
-            calcVerdict={calcVerdict}
             calcCategoryStatus={calcCategoryStatus}
             releaseTypes={RELEASE_TYPES}
             signalCategories={SIGNAL_CATEGORIES}

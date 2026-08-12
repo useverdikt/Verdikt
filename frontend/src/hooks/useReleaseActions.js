@@ -485,6 +485,7 @@ export function useReleaseActions({
       }
     }
     if (!hasBackend() || !backendId) {
+      // Demo / offline only — live workspaces persist the verdict on the server.
       const v = calcVerdict(active.signals, thresholds, active.releaseType);
       const nextStatus = v.recommendation === "SHIP" ? UI_RELEASE_STATUS.CERTIFIED : UI_RELEASE_STATUS.UNCERTIFIED;
       setReleases((p) => p.map((r) => (r.id === selectedId ? { ...r, status: nextStatus } : r)));

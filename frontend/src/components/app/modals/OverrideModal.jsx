@@ -5,6 +5,8 @@ import { Btn } from "../../ui/Btn.jsx";
 import RemediationDebtBanner from "../RemediationDebtBanner.jsx";
 import { useRemediationDebt } from "../../../hooks/useRemediationDebt.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
+import { failingSignalsForDisplay } from "../../../lib/serverVerdict.js";
+import { calcVerdict } from "../../../app/main/appMainLogic.js";
 
 export default function OverrideModal({
   release,
@@ -13,7 +15,6 @@ export default function OverrideModal({
   onClose,
   onConfirm,
   roles,
-  calcVerdict,
   fmtVal,
   buildRegressionOverrideContext,
   findSignalMetaById,
@@ -40,7 +41,15 @@ export default function OverrideModal({
   }, [release.release_deltas, buildRegressionOverrideContext]);
 
   const ownerLabel = currentUser ? `${currentUser.name}, ${roles[currentUser.role]?.title || "User"}` : "";
-  const { failing } = useMemo(() => calcVerdict(release.signals, thresholds, release.releaseType), [release.signals, release.releaseType, thresholds, calcVerdict]);
+  const failing = useMemo(
+    () =>
+      failingSignalsForDisplay(release, {
+        thresholds,
+        findMeta: findSignalMetaById,
+        demoFallback: () => calcVerdict(release.signals, thresholds, release.releaseType).failing
+      }),
+    [release, thresholds, findSignalMetaById]
+  );
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(followUpDate);
   const can = reason.length > 20 && impactSummary.length >= 8 && mitigationPlan.length >= 8 && dateOk;
 
@@ -55,14 +64,18 @@ export default function OverrideModal({
         </p>
         <div style={{ background: C.redDim, border: `1px solid ${C.red}25`, borderRadius: 8, padding: "13px 16px", marginBottom: 20 }}>
           <div style={{ fontSize: 10, color: C.red, fontWeight: 700, marginBottom: 8, letterSpacing: "0.1em", fontFamily: C.mono }}>FAILING SIGNALS ({failing.length})</div>
-          {failing.map((f, i) => (
+          {failing.length === 0 ? (
+            <div style={{ fontSize: 12, color: C.muted }}>No persisted failing-signal list on this release. The server status is still UNCERTIFIED.</div>
+          ) : (
+            failing.map((f, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, marginBottom: 4, gap: 12 }}>
               <span style={{ color: C.text }}>{f.catLabel} · {f.sigLabel}</span>
               <span style={{ fontFamily: C.mono, color: C.red, flexShrink: 0 }}>
                 {fmtVal({ direction: f.direction, unit: f.unit }, f.value)} <span style={{ color: C.dim }}>vs {f.direction === "above" ? "≥" : "≤"}{f.threshold}{f.unit}</span>
               </span>
             </div>
-          ))}
+          ))
+          )}
         </div>
         {regCtx.regressionRows.length > 0 && (
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>

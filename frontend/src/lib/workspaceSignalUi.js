@@ -1,4 +1,4 @@
-/** Map workspace definition → UI signal meta for evaluateSignal / fmtVal. */
+/** Map workspace definition → UI signal meta for evaluateSignal / fmtVal (simulation / display). */
 export function definitionToSignalMeta(def) {
   if (!def) return null;
   const direction = def.direction === "max" ? "below" : "above";
@@ -75,11 +75,13 @@ export function buildCertRecordSignalEntries({
   evaluateSignal,
   fmtVal,
   getRegressionRequired,
-  releaseType
+  releaseType,
+  failedSignalIds = null
 }) {
   const rows = buildDetailSignalRows(definitions, legacyOrdered, releaseSignals);
   const reqd = getRegressionRequired?.(releaseType);
   const out = [];
+  const useServerFails = failedSignalIds instanceof Set;
 
   for (const { sig } of rows) {
     const val = releaseSignals[sig.id];
@@ -100,7 +102,9 @@ export function buildCertRecordSignalEntries({
     }
     if (val === undefined || val === null) continue;
 
-    const { pass } = evaluateSignal(sig, val, thresholds[sig.id]);
+    const pass = useServerFails
+      ? !failedSignalIds.has(sig.id)
+      : Boolean(evaluateSignal(sig, val, thresholds[sig.id])?.pass);
     out.push({
       id: sig.id,
       label: sig.label,
@@ -126,7 +130,8 @@ export function buildCertRecordFailing({
   evaluateSignal,
   fmtVal,
   getRegressionRequired,
-  releaseType
+  releaseType,
+  failedSignalIds = null
 }) {
   return buildCertRecordSignalEntries({
     definitions,
@@ -136,7 +141,8 @@ export function buildCertRecordFailing({
     evaluateSignal,
     fmtVal,
     getRegressionRequired,
-    releaseType
+    releaseType,
+    failedSignalIds
   })
     .filter((e) => !e.pass && !e.waived)
     .map((e) => ({

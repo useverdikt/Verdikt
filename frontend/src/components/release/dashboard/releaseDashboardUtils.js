@@ -74,6 +74,7 @@ export function formatRelativeTimestamp(iso) {
   return `${days}d ago`;
 }
 
+/** What-if pass/fail against the current threshold sliders. Not the stored verdict. */
 export function evaluateSignalLocal(sig, value, threshold) {
   if (sig.direction === "test") {
     const v =

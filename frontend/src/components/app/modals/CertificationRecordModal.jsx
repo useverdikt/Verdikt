@@ -10,6 +10,8 @@ import {
 import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
 import { buildCertRecordFailing, buildCertRecordSignalEntries } from "../../../lib/workspaceSignalUi.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
+import { categoryStatusFromFailedIds, failingSignalsForDisplay, hasServerFailedSignalList, serverFailedSignalIds } from "../../../lib/serverVerdict.js";
+import { calcVerdict } from "../../../app/main/appMainLogic.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -25,7 +27,6 @@ export default function CertificationRecordModal({
   thresholds,
   onClose,
   onShareSnapshot,
-  calcVerdict,
   releaseTypes,
   signalCategories,
   signalDefinitions = [],
@@ -47,7 +48,17 @@ export default function CertificationRecordModal({
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
-  const { failing: legacyFailing } = calcVerdict(release.signals, thresholds, release.releaseType);
+  const useServerFails = hasServerFailedSignalList(release);
+  const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
+  const legacyFailing = useMemo(
+    () =>
+      failingSignalsForDisplay(release, {
+        definitions: signalDefinitions,
+        thresholds,
+        demoFallback: () => calcVerdict(release.signals, thresholds, release.releaseType).failing
+      }),
+    [release, signalDefinitions, thresholds]
+  );
   const legacyOrdered = useMemo(() => getOrderedDetailSignals(signalCategories), [signalCategories]);
   const useWorkspaceSignals = signalDefinitions.length > 0;
   const certSignalEntries = useMemo(
@@ -61,7 +72,8 @@ export default function CertificationRecordModal({
             evaluateSignal,
             fmtVal,
             getRegressionRequired,
-            releaseType: release.releaseType
+            releaseType: release.releaseType,
+            failedSignalIds
           })
         : [],
     [
@@ -73,7 +85,8 @@ export default function CertificationRecordModal({
       thresholds,
       evaluateSignal,
       fmtVal,
-      getRegressionRequired
+      getRegressionRequired,
+      failedSignalIds
     ]
   );
   const failing = useMemo(
@@ -87,7 +100,8 @@ export default function CertificationRecordModal({
             evaluateSignal,
             fmtVal,
             getRegressionRequired,
-            releaseType: release.releaseType
+            releaseType: release.releaseType,
+            failedSignalIds
           })
         : legacyFailing,
     [
@@ -100,7 +114,8 @@ export default function CertificationRecordModal({
       evaluateSignal,
       fmtVal,
       getRegressionRequired,
-      legacyFailing
+      legacyFailing,
+      failedSignalIds
     ]
   );
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
@@ -280,7 +295,9 @@ export default function CertificationRecordModal({
               </div>
             ) : (
               signalCategories.map((cat) => {
-              const status = calcCategoryStatus(cat.id, release.signals, thresholds, release.releaseType);
+              const status = useServerFails
+                ? categoryStatusFromFailedIds(cat, release)
+                : calcCategoryStatus(cat.id, release.signals, thresholds, release.releaseType);
               const sc = catStatusColor(status);
               const catSignals = cat.signals
                 .map((sig) => {
@@ -289,7 +306,9 @@ export default function CertificationRecordModal({
                   const isWaived = sig.conditional && (val === null || val === undefined || reqd === false);
                   if (isWaived) return { label: sig.label, display: "WAIVED", color: C.amber };
                   if (val === undefined || val === null) return null;
-                  const { pass } = evaluateSignal(sig, val, thresholds[sig.id]);
+                  const pass = useServerFails
+                    ? !failedSignalIds.has(sig.id)
+                    : evaluateSignal(sig, val, thresholds[sig.id]).pass;
                   const provSource = provenanceSourceForSignal(release, sig.id);
                   return {
                     label: sig.label,

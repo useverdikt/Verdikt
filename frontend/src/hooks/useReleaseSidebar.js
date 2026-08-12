@@ -2,14 +2,13 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { getWorkspaceId } from "../lib/apiClient.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import {
-  calcVerdict,
   formatSidebarDayHeading,
   releaseDayKeyLocal,
   releaseSortTimestampMs,
   semverDesc
 } from "../app/main/appMainLogic.js";
 
-export function useReleaseSidebar(releases, thresholds, nav) {
+export function useReleaseSidebar(releases, nav) {
   const [collapsedSidebarDayKeys, setCollapsedSidebarDayKeys] = React.useState(() => new Set());
   const sidebarCollapsedInitializedForWs = useRef(null);
   const knownSidebarDayKeysRef = useRef(new Set());
@@ -87,20 +86,11 @@ export function useReleaseSidebar(releases, thresholds, nav) {
     return { nCert, nUncertified, nProgress, nOv, nPassed, nTotal };
   }, [releases]);
 
-  const sidebarRecById = useMemo(() => {
-    const m = new Map();
-    for (const r of sortedReleasesForSidebar) {
-      m.set(r.id, calcVerdict(r.signals, thresholds, r.releaseType).recommendation);
-    }
-    return m;
-  }, [sortedReleasesForSidebar, thresholds]);
-
   return {
     sortedReleasesForSidebar,
     sidebarReleaseGroups,
     collapsedSidebarDayKeys,
     setCollapsedSidebarDayKeys,
-    releaseSidebarCounts,
-    sidebarRecById
+    releaseSidebarCounts
   };
 }

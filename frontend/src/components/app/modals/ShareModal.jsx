@@ -4,6 +4,15 @@ import { Logo } from "../CommonControls.jsx";
 import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
 import { buildCertRecordFailing } from "../../../lib/workspaceSignalUi.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, isCertifiedLike, uiStatusLabel } from "../../../lib/releaseStatus.js";
+import {
+  categoryStatusFromFailedIds,
+  failingSignalsForDisplay,
+  hasServerFailedSignalList,
+  isHardBlockFromRelease,
+  serverFailedSignalIds
+} from "../../../lib/serverVerdict.js";
+import { calcVerdict } from "../../../app/main/appMainLogic.js";
 
 function currentWorkspaceSlug() {
   const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
@@ -19,7 +28,6 @@ export default function ShareModal({
   thresholds,
   project,
   onClose,
-  calcVerdict,
   calcCategoryStatus,
   releaseTypes,
   signalCategories,
@@ -35,10 +43,19 @@ export default function ShareModal({
   const panelRef = useRef(null);
   useModalLayer(onClose, panelRef);
   const isMobile = window.innerWidth <= 900;
-  const { recommendation, failing: legacyFailing, isHardBlock } = calcVerdict(
-    release.signals,
-    thresholds,
-    release.releaseType
+  const rs = normalizeReleaseStatus(release.status);
+  const isShip = isCertifiedLike(rs);
+  const useServerFails = hasServerFailedSignalList(release);
+  const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
+  const isHardBlock = isHardBlockFromRelease(release);
+  const legacyFailing = useMemo(
+    () =>
+      failingSignalsForDisplay(release, {
+        definitions: signalDefinitions,
+        thresholds,
+        demoFallback: () => calcVerdict(release.signals, thresholds, release.releaseType).failing
+      }),
+    [release, signalDefinitions, thresholds]
   );
   const legacyOrdered = useMemo(() => getOrderedDetailSignals(signalCategories), [signalCategories]);
   const useWorkspaceSignals = signalDefinitions.length > 0;
@@ -53,7 +70,8 @@ export default function ShareModal({
             evaluateSignal,
             fmtVal,
             getRegressionRequired,
-            releaseType: release.releaseType
+            releaseType: release.releaseType,
+            failedSignalIds
           })
         : legacyFailing,
     [
@@ -66,11 +84,18 @@ export default function ShareModal({
       evaluateSignal,
       fmtVal,
       getRegressionRequired,
-      legacyFailing
+      legacyFailing,
+      failedSignalIds
     ]
   );
-  const isShip = recommendation === "SHIP";
-  const color = isShip ? C.green : C.red;
+  const color =
+    rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
+      ? C.amber
+      : rs === UI_RELEASE_STATUS.CERTIFIED
+        ? C.green
+        : rs === UI_RELEASE_STATUS.COLLECTING
+          ? C.accent
+          : C.red;
   const [copied, setCopied] = useState(false);
   const rt = releaseTypes.find((r) => r.id === release.releaseType);
   const publicRecordUrl = `https://useverdikt.com/cert/${currentWorkspaceSlug()}/${encodeURIComponent(String(release.version || ""))}`;
@@ -189,11 +214,12 @@ export default function ShareModal({
                   VERDIKT · {release.version} · {release.date}
                 </div>
                 <div id={titleId} style={{ color, fontSize: 24, fontWeight: 800, letterSpacing: "-0.03em" }}>
-                  {isShip ? "Certified" : "Uncertified"}
+                  {uiStatusLabel(rs)}
                 </div>
                 <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
-                  {isHardBlock ? "Hard gate failure · " : ""}
-                  {failing.length === 0 ? "All signals passing" : `${failing.length} signal${failing.length > 1 ? "s" : ""} below threshold`}
+                  {rs === UI_RELEASE_STATUS.COLLECTING
+                    ? "Collection in progress — not a final verdict"
+                    : `${isHardBlock ? "Hard gate failure · " : ""}${failing.length === 0 ? "All required signals met threshold" : `${failing.length} signal${failing.length > 1 ? "s" : ""} below threshold`}`}
                 </div>
               </div>
             </div>
@@ -201,7 +227,9 @@ export default function ShareModal({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: release.regressionWaiver ? 16 : 22 }}>
             {signalCategories.map((cat) => {
-              const status = calcCategoryStatus(cat.id, release.signals, thresholds, release.releaseType);
+              const status = useServerFails
+                ? categoryStatusFromFailedIds(cat, release)
+                : calcCategoryStatus(cat.id, release.signals, thresholds, release.releaseType);
               const computed = catStatusColor(status);
               const statusText = status === "pass" ? "CERTIFIED" : status === "fail" ? "UNCERTIFIED" : status === "waived" ? "WAIVED" : "—";
               return (

@@ -303,6 +303,7 @@ const INFRA_ITEMS = [{
 }];
 const SEVERITIES = ["none", "P4", "P3", "P2", "P1", "P0"];
 const severityRank = (s) => SEVERITIES.indexOf(s ?? "none");
+/** What-if / demo helper. Live certification UI must use server status + failed_signals. */
 const evaluateSignal = (sig, value, threshold) => {
   if (sig.direction === "test") {
     const v = value && typeof value === "object"
@@ -435,6 +436,7 @@ const getLastCertified = (releases) => {
     return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
   }) || null;
 };
+/** Demo / offline local math only. Live UI must read release.status and server failed_signals. */
 const calcVerdict = (signals, thresholds, releaseType, prevSigs = null) => {
   const failing = [];
   const hardGateFails = [];
@@ -510,6 +512,7 @@ const calcVerdict = (signals, thresholds, releaseType, prevSigs = null) => {
     isHardBlock: hardGateFails.length > 0
   };
 };
+/** What-if category rollup for Trends / demo. Live cert UI uses categoryStatusFromFailedIds. */
 const calcCategoryStatus = (catId, signals, thresholds, releaseType) => {
   const cat = SIGNAL_CATEGORIES.find((c) => c.id === catId);
   if (!cat) return "unknown";
