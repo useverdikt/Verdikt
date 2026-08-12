@@ -78,7 +78,7 @@ async function maybeEnrichVerdictIntelligence({ release, failedSignals, missingR
   ].join("\n");
 
   const text = await withTimeoutRetry(
-    () => callIntelligenceModel(prompt, { maxTokens: 480 })
+    ({ signal }) => callIntelligenceModel(prompt, { maxTokens: 480, signal })
   ).catch(() => "");
   if (!text) return intelligence;
 
@@ -166,7 +166,7 @@ async function maybeEnrichSuggestionReason(suggestion, { window }) {
     JSON.stringify(payload)
   ].join("\n");
   const text = await withTimeoutRetry(
-    () => callIntelligenceModel(prompt, { maxTokens: 120 })
+    ({ signal }) => callIntelligenceModel(prompt, { maxTokens: 120, signal })
   ).catch(() => "");
   if (!text) return suggestion.reason;
   return text.replace(/\s+/g, " ").slice(0, 140);
