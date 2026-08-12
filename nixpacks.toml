@@ -3,7 +3,8 @@
 # not `backend/` — backend depends on `file:../shared` via npm workspaces.
 
 [phases.setup]
-nixPkgs = ["nodejs_20", "npm-10_x"]
+# Keep production aligned with `.nvmrc` and every package's `engines.node`.
+nixPkgs = ["nodejs_22", "npm-10_x"]
 
 [phases.install]
 dependsOn = ["setup"]
