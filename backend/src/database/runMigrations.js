@@ -12,8 +12,9 @@ const MIGRATION_LOCK_KEYS = [1447316308, 1296648018]; // "VDKT", "MIGR"
  * Runs ordered *.sql migrations from backend/migrations/postgres.
  * Tracked in schema_migrations; each file runs at most once.
  *
- * Each migration file executes inside a single BEGIN/COMMIT on one connection,
- * so multi-statement files (e.g. backfill + trigger) are atomic.
+ * All pending files execute in one transaction so the transaction-scoped
+ * advisory lock remains pinned to one PostgreSQL backend even through a
+ * transaction-pooling proxy such as Supavisor.
  */
 async function runMigrations({
   pool = getPool(),
@@ -23,11 +24,12 @@ async function runMigrations({
   logger = console
 } = {}) {
   const client = await pool.connect();
-  let lockAcquired = false;
+  let transactionOpen = false;
   let destroyClient = false;
   try {
-    await client.query("SELECT pg_advisory_lock($1, $2)", MIGRATION_LOCK_KEYS);
-    lockAcquired = true;
+    await client.query("BEGIN");
+    transactionOpen = true;
+    await client.query("SELECT pg_advisory_xact_lock($1, $2)", MIGRATION_LOCK_KEYS);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -39,16 +41,17 @@ async function runMigrations({
 
     const { rows: appliedRows } = await client.query("SELECT name FROM schema_migrations");
     const applied = new Set(appliedRows.map((r) => r.name));
+    const newlyApplied = [];
 
+    let files = [];
     if (!fsImpl.existsSync(migrationsDir)) {
       logger.warn("[migrations] directory missing:", migrationsDir);
-      return;
+    } else {
+      files = fsImpl
+        .readdirSync(migrationsDir)
+        .filter((f) => f.endsWith(".sql"))
+        .sort();
     }
-
-    const files = fsImpl
-      .readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
 
     for (const file of files) {
       const base = file.replace(/\.sql$/, "");
@@ -56,32 +59,31 @@ async function runMigrations({
 
       const full = path.join(migrationsDir, file);
       const sql = fsImpl.readFileSync(full, "utf8");
-      await client.query("BEGIN");
       try {
         await client.query(sql);
         await client.query("INSERT INTO schema_migrations (name, applied_at) VALUES ($1, $2)", [
           base,
           nowFn()
         ]);
-        await client.query("COMMIT");
-        logger.log("[migrations] applied:", base);
+        newlyApplied.push(base);
       } catch (e) {
-        await client.query("ROLLBACK");
         throw new Error(`Migration ${file} failed: ${e.message}`);
       }
     }
-  } finally {
-    if (lockAcquired) {
+    await client.query("COMMIT");
+    transactionOpen = false;
+    for (const base of newlyApplied) logger.log("[migrations] applied:", base);
+  } catch (error) {
+    if (transactionOpen) {
       try {
-        const result = await client.query(
-          "SELECT pg_advisory_unlock($1, $2) AS unlocked",
-          MIGRATION_LOCK_KEYS
-        );
-        if (result.rows?.[0]?.unlocked !== true) destroyClient = true;
+        await client.query("ROLLBACK");
+        transactionOpen = false;
       } catch {
         destroyClient = true;
       }
     }
+    throw error;
+  } finally {
     client.release(destroyClient);
   }
 }

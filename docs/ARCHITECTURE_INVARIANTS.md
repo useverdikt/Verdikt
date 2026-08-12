@@ -49,7 +49,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 ## Database changes
 
 - Every schema change must have matching migrations in `backend/migrations/postgres/` and `supabase/migrations/`.
-- API and worker startup serialize migration discovery and execution with the same PostgreSQL session advisory lock. The lock is acquired before `schema_migrations` is created or read, survives each per-file transaction, and is released (or its pooled connection destroyed) on every exit path.
+- API and worker startup serialize migration discovery and execution with the same PostgreSQL transaction-scoped advisory lock. All pending files run in that transaction so transaction-pooling proxies pin every migration query to the lock-owning backend; commit or rollback releases the lock automatically.
 - Migrations are forward-only, ordered, and transactional where PostgreSQL permits.
 - Run `npm run check:migrations` before merge.
 

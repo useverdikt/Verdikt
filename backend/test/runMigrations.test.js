@@ -18,7 +18,7 @@ function createHarness() {
     nextClientId: 1,
     migrationExecutions: 0,
     failNextMigration: false,
-    failUnlock: false,
+    failRollback: false,
     releases: []
   };
 
@@ -51,19 +51,12 @@ function createHarness() {
       return {
         async query(sql, params = []) {
           const normalized = String(sql).trim();
-          if (normalized.startsWith("SELECT pg_advisory_lock")) {
+          if (normalized.startsWith("SELECT pg_advisory_xact_lock")) {
             assert.deepEqual(params, MIGRATION_LOCK_KEYS);
             state.events.push(`wait:${clientId}`);
             await acquireLock(clientId);
             state.events.push(`acquired:${clientId}`);
-            return { rows: [{ pg_advisory_lock: null }] };
-          }
-          if (normalized.startsWith("SELECT pg_advisory_unlock")) {
-            assert.deepEqual(params, MIGRATION_LOCK_KEYS);
-            if (state.failUnlock) throw new Error("simulated unlock failure");
-            const unlocked = releaseLock(clientId);
-            state.events.push(`unlocked:${clientId}`);
-            return { rows: [{ unlocked }] };
+            return { rows: [{ pg_advisory_xact_lock: null }] };
           }
           if (normalized.startsWith("CREATE TABLE IF NOT EXISTS schema_migrations")) {
             state.events.push(`table:${clientId}`);
@@ -72,8 +65,16 @@ function createHarness() {
           if (normalized === "SELECT name FROM schema_migrations") {
             return { rows: [...state.applied].map((name) => ({ name })) };
           }
-          if (normalized === "BEGIN" || normalized === "COMMIT" || normalized === "ROLLBACK") {
+          if (normalized === "BEGIN") {
             state.events.push(`${normalized.toLowerCase()}:${clientId}`);
+            return { rows: [] };
+          }
+          if (normalized === "COMMIT" || normalized === "ROLLBACK") {
+            state.events.push(`${normalized.toLowerCase()}:${clientId}`);
+            releaseLock(clientId);
+            if (normalized === "ROLLBACK" && state.failRollback) {
+              throw new Error("simulated rollback failure");
+            }
             return { rows: [] };
           }
           if (normalized.startsWith("INSERT INTO schema_migrations")) {
@@ -130,12 +131,12 @@ describe("runMigrations", () => {
       { clientId: 2, destroy: false }
     ]);
     assert.ok(
-      harness.state.events.indexOf("unlocked:1") <
+      harness.state.events.indexOf("commit:1") <
         harness.state.events.indexOf("acquired:2")
     );
   });
 
-  it("releases the advisory lock after a migration fails", async () => {
+  it("rolls back the transaction-scoped lock after a migration fails", async () => {
     const harness = createHarness();
     harness.state.failNextMigration = true;
     const options = {
@@ -155,22 +156,27 @@ describe("runMigrations", () => {
     assert.equal(harness.state.migrationExecutions, 2);
     assert.deepEqual([...harness.state.applied], ["001_test"]);
     assert.deepEqual(
-      harness.state.events.filter((event) => event.startsWith("unlocked:")),
-      ["unlocked:1", "unlocked:2"]
+      harness.state.events.filter((event) => event.startsWith("rollback:")),
+      ["rollback:1"]
     );
   });
 
-  it("destroys a pooled connection when lock release cannot be confirmed", async () => {
+  it("destroys a pooled connection when rollback fails", async () => {
     const harness = createHarness();
-    harness.state.failUnlock = true;
+    harness.state.failNextMigration = true;
+    harness.state.failRollback = true;
 
-    await runMigrations({
-      pool: harness.pool,
-      fsImpl: harness.fsImpl,
-      migrationsDir: "/test/migrations",
-      nowFn: () => "2026-08-12T12:00:00.000Z",
-      logger: harness.logger
-    });
+    await assert.rejects(
+      () =>
+        runMigrations({
+          pool: harness.pool,
+          fsImpl: harness.fsImpl,
+          migrationsDir: "/test/migrations",
+          nowFn: () => "2026-08-12T12:00:00.000Z",
+          logger: harness.logger
+        }),
+      /Migration 001_test\.sql failed: simulated migration failure/
+    );
 
     assert.deepEqual(harness.state.releases, [{ clientId: 1, destroy: true }]);
   });
