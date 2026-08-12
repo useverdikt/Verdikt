@@ -48,9 +48,13 @@ jobs:
           node-version: "22"
       - run: node scripts/check-migration-parity.js
 
-  backend-test:
-    name: Backend (node:test)
+  backend-test-shard:
+    name: Backend shard (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         # Docker Hub pulls often timeout on GHA; ECR Public mirrors official postgres image.
@@ -82,8 +86,27 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --ignore-workspaces
-      - run: npm run lint
-      - run: npm test
+      - name: Lint backend
+        if: matrix.shard == 1
+        run: npm run lint
+      - name: Run backend test shard
+        run: node --test-concurrency=1 --test --test-shard=${{ matrix.shard }}/4 test/*.test.js
+
+  backend-test:
+    name: Backend (node:test)
+    runs-on: ubuntu-latest
+    if: always()
+    needs: backend-test-shard
+    steps:
+      - name: Require every backend shard
+        env:
+          SHARD_RESULT: ${{ needs.backend-test-shard.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "One or more backend test shards failed: $SHARD_RESULT"
+            exit 1
+          fi
+          echo "All backend test shards passed."
 
   frontend-unit:
     name: Frontend (Vitest)
