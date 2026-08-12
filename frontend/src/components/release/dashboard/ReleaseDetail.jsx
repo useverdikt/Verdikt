@@ -20,7 +20,7 @@ import { buildDetailSignalRows } from "../../../lib/workspaceSignalUi.js";
 import { isReleaseDetailPending } from "../../../lib/releaseDetailRefresh.js";
 import ReleaseDetailLoadingSkeleton from "./ReleaseDetailLoadingSkeleton.jsx";
 import ReleaseBriefPanel from "../ReleaseBriefPanel.jsx";
-import { hasServerFailedSignalList, serverFailedSignalIds } from "../../../lib/serverVerdict.js";
+import { serverFailedSignalIds, shouldUseServerFailedSignals } from "../../../lib/serverVerdict.js";
 
 export default function ReleaseDetail({
   release,
@@ -57,7 +57,7 @@ export default function ReleaseDetail({
     signalDefinitions.length > 0
       ? buildDetailSignalRows(signalDefinitions, legacyOrdered, signals)
       : legacyOrdered;
-  const useServerFails = hasServerFailedSignalList(release);
+  const useServerFails = shouldUseServerFailedSignals(release);
   const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
 
   let reasoningPoints =

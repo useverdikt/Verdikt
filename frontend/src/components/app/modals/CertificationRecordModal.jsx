@@ -10,7 +10,7 @@ import {
 import { getOrderedDetailSignals } from "../../release/dashboard/releaseDashboardUtils.js";
 import { buildCertRecordFailing, buildCertRecordSignalEntries } from "../../../lib/workspaceSignalUi.js";
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
-import { categoryStatusFromFailedIds, failingSignalsForDisplay, hasServerFailedSignalList, serverFailedSignalIds } from "../../../lib/serverVerdict.js";
+import { categoryStatusFromFailedIds, failingSignalsForDisplay, serverFailedSignalIds, shouldUseServerFailedSignals } from "../../../lib/serverVerdict.js";
 import { calcVerdict } from "../../../app/main/appMainLogic.js";
 
 function currentWorkspaceSlug() {
@@ -48,7 +48,7 @@ export default function CertificationRecordModal({
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
-  const useServerFails = hasServerFailedSignalList(release);
+  const useServerFails = shouldUseServerFailedSignals(release);
   const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
   const legacyFailing = useMemo(
     () =>

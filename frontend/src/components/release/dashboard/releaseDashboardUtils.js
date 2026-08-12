@@ -163,7 +163,8 @@ export function summarizeListSignalOutcomes({
   thresholds = {},
   releaseType,
   releaseTypes = [],
-  maxDots = LIST_SIGNAL_DOT_CAP
+  maxDots = LIST_SIGNAL_DOT_CAP,
+  failedSignalIds = null
 }) {
   const legacyOrdered = getOrderedDetailSignals(signalCategories);
   const entries = buildCertRecordSignalEntries({
@@ -174,7 +175,8 @@ export function summarizeListSignalOutcomes({
     evaluateSignal: evaluateSignalLocal,
     fmtVal: formatSignalValueLocal,
     getRegressionRequired: (rt) => regressionRequiredLocal(releaseTypes, rt),
-    releaseType
+    releaseType,
+    failedSignalIds
   });
 
   const allDots = entries.map((e) => (e.waived ? "w" : e.pass ? "p" : "f"));

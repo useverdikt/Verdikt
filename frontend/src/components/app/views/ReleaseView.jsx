@@ -16,7 +16,6 @@ export default function ReleaseView({
   signalCategories,
   signalDefinitions = [],
   calcCategoryStatus,
-  setDetailCat: _setDetailCat,
   setShowStartCert,
   onViewFullRecord,
   onBeginOverride,

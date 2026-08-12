@@ -40,6 +40,18 @@ export function hasServerFailedSignalList(release) {
   return Array.isArray(serverFailedSignalRecords(release));
 }
 
+/**
+ * Color pass/fail from persisted server failures only after a verdict.
+ * COLLECTING still previews received values against current sliders — last ingest
+ * audit must not freeze those dots while signals are still arriving.
+ */
+export function shouldUseServerFailedSignals(release) {
+  if (!release) return false;
+  const s = normalizeReleaseStatus(release.status);
+  if (s === UI_RELEASE_STATUS.COLLECTING) return false;
+  return hasServerFailedSignalList(release);
+}
+
 export function serverFailedSignalIds(release) {
   const records = serverFailedSignalRecords(release);
   if (!records) return new Set();
@@ -71,7 +83,8 @@ function directionFromRule(rule, fallback) {
 
 /**
  * Failing rows for override / cert / share UI.
- * Prefers persisted server records. Demo/offline callers may pass demoFallback.
+ * Prefers persisted server records after a verdict. COLLECTING and demo/offline
+ * callers may pass demoFallback for live slider preview.
  */
 export function failingSignalsForDisplay(release, {
   definitions = [],
@@ -79,8 +92,8 @@ export function failingSignalsForDisplay(release, {
   thresholds = {},
   demoFallback
 } = {}) {
-  const records = serverFailedSignalRecords(release);
-  if (Array.isArray(records)) {
+  if (shouldUseServerFailedSignals(release)) {
+    const records = serverFailedSignalRecords(release) || [];
     return records
       .map((rec) => {
         const sigId = asSignalId(rec);
@@ -112,7 +125,8 @@ export function failingSignalsForDisplay(release, {
       })
       .filter(Boolean);
   }
-  if (release?.backendReleaseId) return [];
+  const collecting = normalizeReleaseStatus(release?.status) === UI_RELEASE_STATUS.COLLECTING;
+  if (release?.backendReleaseId && !collecting) return [];
   if (typeof demoFallback === "function") return demoFallback();
   return [];
 }

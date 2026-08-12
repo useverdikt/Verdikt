@@ -430,12 +430,6 @@ const formatSidebarDayHeading = (dayKey) => {
     year: sameYear ? void 0 : "numeric"
   });
 };
-const getLastCertified = (releases) => {
-  return releases.find((r) => {
-    const s = normalizeReleaseStatus(r.status);
-    return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
-  }) || null;
-};
 /** Demo / offline local math only. Live UI must read release.status and server failed_signals. */
 const calcVerdict = (signals, thresholds, releaseType, prevSigs = null) => {
   const failing = [];
@@ -547,17 +541,6 @@ const fmtVal = (sig, val) => {
   if (sig.unit === "fps") return Math.round(n) + "fps";
   return String(val);
 };
-const signalColor = (sig, val, threshold) => {
-  if (val === null || val === void 0) return C.amber;
-  if (sig.direction === "test") return evaluateSignal(sig, val, threshold).pass ? C.green : C.red;
-  if (sig.direction === "pass") return val === "pass" ? C.green : C.red;
-  const pass = sig.direction === "above" ? Number(val) >= Number(threshold) : Number(val) <= Number(threshold);
-  if (pass) {
-    const margin = sig.direction === "above" ? (Number(val) - Number(threshold)) / Number(threshold) * 100 : (Number(threshold) - Number(val)) / Number(threshold) * 100;
-    return margin < 10 ? C.amber : C.green;
-  }
-  return C.red;
-};
 const catStatusColor = (s) => s === "pass" ? C.green : s === "fail" ? C.red : s === "waived" ? C.amber : C.dim;
 const findSignalMetaById = (signalId) => {
   for (const c of SIGNAL_CATEGORIES) {
@@ -579,24 +562,6 @@ const buildRegressionOverrideContext = (deltas) => {
   const justification = ["Regression detected", ...headlineLines.map((l) => `• ${l}`), "", "Please explain why this regression is acceptable and what mitigation plan you have."].join("\n");
   const labels = regressionRows.map((r) => findSignalMetaById(r.signal_id)?.label || r.signal_id);
   return { regressionRows, justification, suggestedImpact: `Regression affects AI quality (${labels.join(", ")}). Describe user impact and scope.` };
-};
-const releaseRiskScore = (r, thresholds) => {
-  if (normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.UNCERTIFIED) return { level: "HIGH RISK", color: C.red };
-  if (r.status === "overridden") return { level: "OVERRIDDEN", color: C.amber };
-  let nearMiss = 0;
-  SIGNAL_CATEGORIES.flatMap((c) => c.signals).forEach((sig) => {
-    const val = r.signals[sig.id];
-    if (val == null) return;
-    const th = thresholds[sig.id];
-    if (!th) return;
-    const { pass } = evaluateSignal(sig, val, th);
-    if (pass) {
-      const margin = sig.direction === "above" ? val / th - 1 : 1 - val / th;
-      if (margin < 0.12) nearMiss++;
-    }
-  });
-  if (nearMiss >= 2) return { level: "BORDERLINE", color: C.amber };
-  return null;
 };
 const genCertSummary = (release, failing, isShip) => {
   const rt = RELEASE_TYPES.find((r) => r.id === release.releaseType);
@@ -646,15 +611,12 @@ export {
   formatSidebarReleaseAge,
   releaseDayKeyLocal,
   formatSidebarDayHeading,
-  getLastCertified,
   calcVerdict,
   calcCategoryStatus,
   fmtVal,
-  signalColor,
   catStatusColor,
   findSignalMetaById,
   buildRegressionOverrideContext,
-  releaseRiskScore,
   genCertSummary
 };
 

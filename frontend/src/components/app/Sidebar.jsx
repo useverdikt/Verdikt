@@ -353,7 +353,6 @@ export default function Sidebar({
   releaseTypes: _releaseTypesUnused,
   formatSidebarReleaseAge: _formatSidebarReleaseAge,
   sidebarStatusLabel: _sidebarStatusLabel,
-  releaseRiskScore: _releaseRiskScore,
   thresholds: _thresholdsUnused,
 }) {
   const nUncertified = releaseSidebarCounts?.nUncertified ?? 0;
