@@ -1,6 +1,6 @@
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../../../lib/releaseStatus.js";
 import { isSummaryPending } from "../../../lib/releaseDetailRefresh.js";
-import { serverFailedSignalIds, shouldUseServerFailedSignals } from "../../../lib/serverVerdict.js";
+import { serverFailedSignalIds, shouldHoldListDotsForServerFails, shouldUseServerFailedSignals } from "../../../lib/serverVerdict.js";
 import {
   envClass,
   envDisplayLabel,
@@ -42,7 +42,7 @@ export default function ReleaseRow({
     failedSignalIds: shouldUseServerFailedSignals(release) ? serverFailedSignalIds(release) : null
   });
   const receivedSignalCount = evaluatedCount;
-  const summaryPending = isSummaryPending(release);
+  const summaryPending = isSummaryPending(release) || shouldHoldListDotsForServerFails(release);
 
   const timeLabel = formatAge ? formatAge(release) : release.date || "—";
   const subLabel =

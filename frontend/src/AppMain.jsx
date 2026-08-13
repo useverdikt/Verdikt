@@ -24,7 +24,6 @@ import {
   RELEASE_TYPES,
   getRegressionRequired,
   SIGNAL_CATEGORIES,
-  SIGNAL_SOURCES,
   evaluateSignal,
   formatReleaseDisplayName,
   releaseVersionPrimarySecondary,
@@ -125,6 +124,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
   const [showStartCert, setShowStartCert] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
+  const [overrideRelease, setOverrideRelease] = useState(null);
   const [showShare, setShowShare] = useState(false);
   const [shareRelease, setShareRelease] = useState(null);
   const [liveStreamRelease, setLiveStreamRelease] = useState(null);
@@ -137,6 +137,10 @@ function AppMainContent({ navigate, nav, isMobile }) {
   const current = releases.find((r) => r.id === selectedId) || releases[0];
   const resolveSignalMetaForWorkspace = (signalId) =>
     resolveSignalMeta(signalId, signalDefinitions, findSignalMetaById);
+
+  useEffect(() => {
+    if (!showOverride) setOverrideRelease(null);
+  }, [showOverride]);
 
   const actions = useReleaseActions({
     navigate,
@@ -294,7 +298,6 @@ function AppMainContent({ navigate, nav, isMobile }) {
           nav={nav}
           releaseContent={
             <ReleaseViewPanel
-              current={current}
               releases={sortedReleasesForSidebar}
               wsReady={wsReady}
               wsId={getWorkspaceId()}
@@ -310,11 +313,9 @@ function AppMainContent({ navigate, nav, isMobile }) {
               onBeginOverride={(release) => {
                 if (!canOfferOverride(release)) return;
                 if (release?.id) setSelectedId(release.id);
+                setOverrideRelease(release);
                 setShowOverride(true);
               }}
-              handleSimulateSignal={actions.handleSimulateSignal}
-              handleRunVerdict={actions.handleRunVerdict}
-              signalSources={SIGNAL_SOURCES}
               releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
               onCollectingAction={actions.handleCollectingAction}
               onHydrateVisibleSummaries={hydrateVisibleSummaries}
@@ -420,13 +421,16 @@ function AppMainContent({ navigate, nav, isMobile }) {
             releaseTypes={RELEASE_TYPES}
           />
         )}
-        {showOverride && current && (
+        {showOverride && overrideRelease && (
           <OverrideModal
-            key={current.backendReleaseId || current.id}
-            release={current}
+            key={overrideRelease.backendReleaseId || overrideRelease.id}
+            release={overrideRelease}
             thresholds={thresholds}
             currentUser={currentUser}
-            onClose={() => setShowOverride(false)}
+            onClose={() => {
+              setShowOverride(false);
+              setOverrideRelease(null);
+            }}
             onConfirm={actions.handleOverrideConfirm}
             roles={ROLES}
             fmtVal={fmtVal}

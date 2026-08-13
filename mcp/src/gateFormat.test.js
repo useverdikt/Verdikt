@@ -61,6 +61,16 @@ test("recover_certification action: next_step references CERTIFIED recovery", ()
   assert.ok(out.agent_guidance.next_step.toLowerCase().includes("certified"));
 });
 
+test("recover_certification action: snapshot_pending points at frozen evidence, not debt", () => {
+  const out = formatGateForAgent({
+    action: "recover_certification",
+    snapshot_pending: true,
+    gate: { exit_code: 1 }
+  });
+  assert.ok(out.agent_guidance.next_step.toLowerCase().includes("snapshot"));
+  assert.equal(out.agent_guidance.next_step.toLowerCase().includes("remediation debt"), false);
+});
+
 // ── collecting action ─────────────────────────────────────────────────────────
 
 test("collecting action: next_step tells agent to poll", () => {

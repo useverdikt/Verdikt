@@ -565,4 +565,68 @@ describe("bypass merge prod tracking", () => {
     assert.equal(gate.emergency_release, true);
     assert.equal(gate.remediation_debt_exempt, true);
   });
+
+  it("merge webhook promotes only the release whose commit_sha matches the merged head", async () => {
+    const email = `sha_merge_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "SHA" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    const repo = `ShaMerge${crypto.randomBytes(3).toString("hex")}`;
+    const prNumber = 9600 + (crypto.randomBytes(2).readUInt16BE(0) % 90);
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+
+    const stale = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: `Stale SHA (#${prNumber})`, release_type: "model_update", pr_number: prNumber })
+      .expect(201);
+    const merged = await agent
+      .post(`/api/workspaces/${ws}/releases`)
+      .send({ version: `Merged SHA (#${prNumber})`, release_type: "model_update", pr_number: prNumber })
+      .expect(201);
+
+    const staleSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const mergedSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    await run("UPDATE releases SET commit_sha = $1, status = $2 WHERE id = $3", [
+      staleSha,
+      "CERTIFIED",
+      stale.body.id
+    ]);
+    await seedCertificationSnapshot(stale.body.id, ws, "CERTIFIED");
+    await run("UPDATE releases SET commit_sha = $1, status = $2 WHERE id = $3", [
+      mergedSha,
+      "COLLECTING",
+      merged.body.id
+    ]);
+
+    const signed = signGithubPayload({
+      action: "closed",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: {
+        merged: true,
+        number: prNumber,
+        base: { ref: "main" },
+        head: { sha: mergedSha }
+      }
+    });
+    const hook = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", signed.sig)
+      .send(signed.raw)
+      .expect(200);
+    assert.equal(hook.body.promoted, 1);
+
+    const staleAfter = await queryOne("SELECT environment FROM releases WHERE id = $1", [stale.body.id]);
+    const mergedAfter = await queryOne("SELECT environment FROM releases WHERE id = $1", [merged.body.id]);
+    assert.notEqual(String(staleAfter.environment || "").toLowerCase(), "prod");
+    assert.equal(String(mergedAfter.environment || "").toLowerCase(), "prod");
+  });
 });

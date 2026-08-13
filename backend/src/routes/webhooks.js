@@ -28,6 +28,7 @@ const {
 const { openReleaseSession, buildGithubMappings } = require("../services/releaseIdentity");
 const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
 const { promoteReleaseOnMerge } = require("../services/releaseEnvironment");
+const { commitShaMatches } = require("../lib/releaseIngestPick");
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
 const {
   replayDuplicateSignalIngestIfPresent
@@ -128,10 +129,23 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
       );
       if (!matched.length) return res.json({ ok: true, ignored: "no_matching_release", pr_number: prNumber });
 
+      const mergeHeadSha = String(payload?.pull_request?.head?.sha || "").trim();
+      const toPromote = mergeHeadSha
+        ? matched.filter((rel) => rel.commit_sha && commitShaMatches(rel.commit_sha, mergeHeadSha))
+        : matched;
+      if (!toPromote.length) {
+        return res.json({
+          ok: true,
+          ignored: "no_matching_sha",
+          pr_number: prNumber,
+          commit_sha: mergeHeadSha || null
+        });
+      }
+
       const newEnv = isMainBranch ? "prod" : baseBranch;
       let promoted = 0;
       let shippedWithoutCertification = 0;
-      for (const rel of matched) {
+      for (const rel of toPromote) {
         const result = await promoteReleaseOnMerge(rel, {
           workspaceId,
           prNumber,
