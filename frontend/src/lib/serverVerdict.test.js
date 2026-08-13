@@ -6,7 +6,8 @@ import {
   hasServerFailedSignalList,
   isHardBlockFromRelease,
   serverFailedSignalIds,
-  shouldUseServerFailedSignals
+  shouldUseServerFailedSignals,
+  shouldHoldListDotsForServerFails
 } from "./serverVerdict.js";
 
 describe("displayRecommendationFromStatus", () => {
@@ -75,6 +76,32 @@ describe("server failed-signal lists", () => {
     expect(shouldUseServerFailedSignals({ status: "UNCERTIFIED", ...lastEval })).toBe(true);
     expect(shouldUseServerFailedSignals({ status: "CERTIFIED" })).toBe(false);
     expect(shouldUseServerFailedSignals(null)).toBe(false);
+  });
+
+  it("holds verdicted list dots until a server failed-signal list exists", () => {
+    expect(
+      shouldHoldListDotsForServerFails({
+        backendReleaseId: "rel_1",
+        status: "CERTIFIED",
+        summaryLoaded: true,
+        signals: { accuracy: 92 }
+      })
+    ).toBe(true);
+    expect(
+      shouldHoldListDotsForServerFails({
+        backendReleaseId: "rel_1",
+        status: "CERTIFIED",
+        last_signal_evaluation: { failed_signals: [] }
+      })
+    ).toBe(false);
+    expect(
+      shouldHoldListDotsForServerFails({
+        backendReleaseId: "rel_1",
+        status: "COLLECTING",
+        signals: { accuracy: 92 }
+      })
+    ).toBe(false);
+    expect(shouldHoldListDotsForServerFails({ status: "CERTIFIED", signals: { accuracy: 92 } })).toBe(false);
   });
 
   it("does not freeze collecting failing rows to the last ingest audit", () => {

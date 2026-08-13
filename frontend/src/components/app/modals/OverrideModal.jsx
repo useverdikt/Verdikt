@@ -121,7 +121,7 @@ export default function OverrideModal({
         })() : null}
         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, justifyContent: "flex-end" }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="amber" onClick={() => can && onConfirm(ownerLabel, { justification: reason, impact_summary: impactSummary, mitigation_plan: mitigationPlan, follow_up_due_date: followUpDate })} disabled={!can}>Confirm Override & Ship</Btn>
+          <Btn variant="amber" onClick={() => can && onConfirm(ownerLabel, { justification: reason, impact_summary: impactSummary, mitigation_plan: mitigationPlan, follow_up_due_date: followUpDate, releaseId: release.id, backendReleaseId: release.backendReleaseId })} disabled={!can}>Confirm Override & Ship</Btn>
         </div>
       </div>
     </div>

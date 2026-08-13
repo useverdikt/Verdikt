@@ -52,6 +52,15 @@ describe("pickReleaseForIngestFromList", () => {
     assert.equal(pickReleaseForIngestFromList(releases, { version: "missing" }), null);
   });
 
+  it("does not fall back to PR/version when a supplied SHA misses", () => {
+    const picked = pickReleaseForIngestFromList(releases, {
+      commit_sha: "ffffffffffffffff",
+      pr_number: 42,
+      version: "v1.0.0"
+    });
+    assert.equal(picked, null);
+  });
+
   it("commitShaMatches accepts short sha prefixes", () => {
     assert.equal(commitShaMatches("abc1234567890", "abc1234"), true);
   });

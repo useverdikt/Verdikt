@@ -113,7 +113,9 @@ function buildAgentNote(gate) {
     return "Signals still arriving. Poll check_gate during the grace window; prefer release_brief when blocked after grace.";
   }
   if (action === "recover_certification") {
-    return "Remediation debt active. Ship a clean CERTIFIED prod release or use incident_hotfix with corroborated incident context.";
+    return gate.snapshot_pending
+      ? "Certification snapshot missing. Wait for backfill/retry; do not merge until evidence is frozen."
+      : "Remediation debt active. Ship a clean CERTIFIED prod release or use incident_hotfix with corroborated incident context.";
   }
   if (action === "escalate") {
     return "Threshold failure. Review top_blockers and regression_story, attempt fixes, then escalate if still blocked.";

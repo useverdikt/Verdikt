@@ -220,8 +220,11 @@ export function useReleaseActions({
 
   const handleOverrideConfirm = useCallback(
     async (owner, payload) => {
-      const active = releases.find((r) => r.id === selectedId);
-      const backendId = active?.backendReleaseId;
+      const releaseId = payload?.releaseId || selectedId;
+      const active =
+        releases.find((r) => r.id === releaseId) ||
+        releases.find((r) => r.backendReleaseId && r.backendReleaseId === payload?.backendReleaseId);
+      const backendId = payload?.backendReleaseId || active?.backendReleaseId;
       const justification = payload?.justification ?? "";
       const impact_summary = payload?.impact_summary ?? "";
       const mitigation_plan = payload?.mitigation_plan ?? "";
@@ -254,7 +257,7 @@ export function useReleaseActions({
       }
       setReleases((p) =>
         p.map((r) =>
-          r.id === selectedId
+          r.id === (active?.id || releaseId)
             ? {
                 ...r,
                 status: "overridden",
@@ -268,7 +271,7 @@ export function useReleaseActions({
         addAudit({
           ts: nowTs(),
           event: "Override approved",
-          release: current.version,
+          release: active?.version || current?.version,
           actor: owner,
           detail: "Shipped below threshold. Justification on permanent record."
         });

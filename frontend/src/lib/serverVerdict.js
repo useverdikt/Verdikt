@@ -52,6 +52,17 @@ export function shouldUseServerFailedSignals(release) {
   return hasServerFailedSignalList(release);
 }
 
+/**
+ * Verdicted backend rows must not fall back to live slider math when the
+ * server failed-signal list has not arrived (or summary fetch failed).
+ */
+export function shouldHoldListDotsForServerFails(release) {
+  if (!release?.backendReleaseId) return false;
+  const s = normalizeReleaseStatus(release.status);
+  if (s === UI_RELEASE_STATUS.COLLECTING) return false;
+  return !hasServerFailedSignalList(release);
+}
+
 export function serverFailedSignalIds(release) {
   const records = serverFailedSignalRecords(release);
   if (!records) return new Set();
