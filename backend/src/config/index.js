@@ -84,6 +84,8 @@ const API_REPLICA_COUNT = Number.isFinite(API_REPLICA_COUNT_RAW)
 const REQUIRE_DISTRIBUTED_RATE_LIMITS =
   process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS === "1" || API_REPLICA_COUNT > 1;
 const OUTBOX_MODE = String(process.env.OUTBOX_MODE || "shadow").trim().toLowerCase();
+/** Optional HTTPS witness endpoint for signed audit-chain tips. One POST, no retry. */
+const AUDIT_ANCHOR_URL = (process.env.AUDIT_ANCHOR_URL || "").trim();
 /** Optional PKCS8 PEM. When unset, new certs stay HMAC-SHA256. */
 const CERT_ED25519_PRIVATE_KEY = (process.env.CERT_ED25519_PRIVATE_KEY || "").trim();
 let CERT_ED25519_PUBLIC_KEY_PEM = "";
@@ -161,6 +163,9 @@ if (IS_PROD_LIKE && process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "0") {
     "Refusing to start: DATABASE_SSL_REJECT_UNAUTHORIZED=0 is not allowed in production-like mode."
   );
 }
+if (IS_PROD_LIKE && AUDIT_ANCHOR_URL && !AUDIT_ANCHOR_URL.startsWith("https://")) {
+  throw new Error("Refusing to start: AUDIT_ANCHOR_URL must be https in production-like mode.");
+}
 if (!["off", "shadow", "primary"].includes(OUTBOX_MODE)) {
   throw new Error("Refusing to start: OUTBOX_MODE must be off, shadow, or primary.");
 }
@@ -224,6 +229,7 @@ module.exports = {
   API_REPLICA_COUNT,
   REQUIRE_DISTRIBUTED_RATE_LIMITS,
   OUTBOX_MODE,
+  AUDIT_ANCHOR_URL,
   INTERNAL_WORKSPACE_VIEWER_EMAILS,
   isInternalWorkspaceViewerEmail,
   SUPABASE_JWT_SECRET,

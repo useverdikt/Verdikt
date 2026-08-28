@@ -10,13 +10,23 @@ const {
   CERT_ED25519_PUBLIC_KEY_PEM
 } = require("../config");
 const { getCertificationSnapshot } = require("./certificationSnapshots");
+const {
+  ENGINE_VERSION,
+  CERT_BUNDLE_SCHEMA,
+  computeEvidenceHash
+} = require("@useverdikt/shared/verdictEngine");
+const {
+  buildCanonicalPayload,
+  signEd25519: signEd25519Shared,
+  verifyEd25519: verifyEd25519Shared
+} = require("@useverdikt/shared/independentVerify");
 
 const SIGN_KEY = crypto.createHash("sha256").update(`verdikt:cert-sign:${CERT_SIGNING_KEY}`).digest();
 const LEGACY_SIGN_KEY = crypto.createHash("sha256").update(`verdikt:cert-sign:${JWT_SECRET}`).digest();
 const SIGNING_KEY_HINT = "hmac-sha256/verdikt-cert-signing-key-v2";
 const LEGACY_SIGNING_KEY_HINT = "hmac-sha256/verdikt-cert-signing-key-v1";
 const ED25519_KEY_HINT = "ed25519/verdikt-cert-signing-key-v1";
-const CERT_ENGINE_VERSION = "2026.08.1";
+const CERT_ENGINE_VERSION = ENGINE_VERSION;
 
 function verificationKeyFor(signatureRow) {
   return signatureRow?.public_key_hint === LEGACY_SIGNING_KEY_HINT ? LEGACY_SIGN_KEY : SIGN_KEY;
@@ -24,33 +34,6 @@ function verificationKeyFor(signatureRow) {
 
 function ed25519Configured() {
   return Boolean(CERT_ED25519_PRIVATE_KEY && CERT_ED25519_PUBLIC_KEY_PEM);
-}
-
-/**
- * Canonical HMAC payload. Key order is sorted JSON keys. Do not add fields here —
- * existing hmac-sha256 rows would fail verification.
- */
-function buildCanonicalPayload(release, verdict, signedAt, evidenceHash = null, extra = null) {
-  const fields = {
-    release_id: release.id,
-    workspace_id: release.workspace_id,
-    version: release.version,
-    release_type: release.release_type,
-    environment: release.environment || "",
-    status: release.status,
-    verdict_issued_at: release.verdict_issued_at || signedAt,
-    failed_signal_count: Array.isArray(verdict?.failed_signals)
-      ? verdict.failed_signals.length
-      : Array.isArray(verdict?.likely_failure_modes)
-        ? verdict.likely_failure_modes.length
-        : 0,
-    evidence_hash: evidenceHash || null,
-    signed_at: signedAt
-  };
-  if (extra && typeof extra === "object") {
-    Object.assign(fields, extra);
-  }
-  return JSON.stringify(fields, Object.keys(fields).sort());
 }
 
 function buildFrozenBundle({
@@ -77,13 +60,11 @@ function buildFrozenBundle({
 }
 
 function signEd25519(payload, privateKeyPem = CERT_ED25519_PRIVATE_KEY) {
-  const key = crypto.createPrivateKey(privateKeyPem);
-  return crypto.sign(null, Buffer.from(payload), key).toString("base64");
+  return signEd25519Shared(payload, privateKeyPem);
 }
 
 function verifyEd25519(payload, signatureB64, publicKeyPem) {
-  const key = crypto.createPublicKey(publicKeyPem);
-  return crypto.verify(null, Buffer.from(payload), key, Buffer.from(signatureB64, "base64"));
+  return verifyEd25519Shared(payload, signatureB64, publicKeyPem);
 }
 
 function hmacHexEqual(expectedHex, actualHex) {
@@ -111,6 +92,17 @@ function listPublicCertKeys() {
       }
     ]
   };
+}
+
+function parseJsonObject(raw, fallback = null) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (typeof raw !== "string" || !raw.trim()) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 async function signCertificationRecord(release, verdictIntelligence) {
@@ -253,8 +245,92 @@ async function getCertSignaturePublic(releaseId) {
   };
 }
 
+function evidenceFromStoredBundle(sigRow, snapshot) {
+  const stored = parseJsonObject(sigRow?.bundle_json, {});
+  const thresholds = snapshot?.threshold_map || stored?.thresholds || {};
+  const signals = snapshot?.signal_map || stored?.signals || {};
+  const evidenceHash = snapshot?.evidence_hash || stored?.evidence_hash || computeEvidenceHash(thresholds, signals);
+  return {
+    evidence_hash: evidenceHash || null,
+    frozen_at: snapshot?.frozen_at || stored?.frozen_at || null,
+    thresholds,
+    signals,
+    status_at_verdict: snapshot?.status_at_verdict || null
+  };
+}
+
+/**
+ * Self-contained cert file for `verdikt-verify`. Rebuilds signed_payload from
+ * stored identity so HMAC rows stay field-stable and Ed25519 includes engine_version.
+ */
+async function assembleIndependentCertBundle(releaseId) {
+  const sigRow = await queryOne("SELECT * FROM cert_signatures WHERE release_id = $1", [releaseId]);
+  if (!sigRow) return null;
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
+  if (!release) return null;
+
+  const intel = await queryOne(
+    "SELECT verdict_json, override_json FROM release_intelligence WHERE release_id = $1",
+    [releaseId]
+  );
+  const verdict = parseJsonObject(intel?.verdict_json, {}) || {};
+  const override = parseJsonObject(intel?.override_json, null);
+  const snapshot = await getCertificationSnapshot(releaseId);
+  const evidence = evidenceFromStoredBundle(sigRow, snapshot);
+  const algorithm = String(sigRow.algorithm || "hmac-sha256").toLowerCase();
+  const extra = algorithm === "ed25519" ? { engine_version: sigRow.engine_version || CERT_ENGINE_VERSION } : null;
+  const signedPayload = buildCanonicalPayload(
+    release,
+    verdict,
+    sigRow.signed_at,
+    evidence.evidence_hash || null,
+    extra
+  );
+
+  let chainAnchor = null;
+  try {
+    const { getLatestPublicAnchor } = require("./auditAnchor");
+    chainAnchor = await getLatestPublicAnchor(release.workspace_id);
+  } catch {
+    chainAnchor = null;
+  }
+
+  return {
+    schema: CERT_BUNDLE_SCHEMA,
+    schema_version: 2,
+    engine_version: sigRow.engine_version || CERT_ENGINE_VERSION,
+    algorithm: sigRow.algorithm,
+    public_key_hint: sigRow.public_key_hint || null,
+    public_key_pem: sigRow.public_key_pem || (algorithm === "ed25519" ? CERT_ED25519_PUBLIC_KEY_PEM : null),
+    signature: sigRow.signature,
+    signed_at: sigRow.signed_at,
+    signed_payload: signedPayload,
+    payload_hash: sigRow.payload_hash,
+    release: {
+      id: release.id,
+      workspace_id: release.workspace_id,
+      version: release.version,
+      release_type: release.release_type,
+      environment: release.environment || "",
+      verdict_issued_at: release.verdict_issued_at || null
+    },
+    recorded_status: release.status,
+    failed_signals: Array.isArray(verdict.failed_signals) ? verdict.failed_signals : [],
+    override: override
+      ? {
+          approver_name: override.approver_name || override.owner || null,
+          approver_role: override.approver_role || override.title || null,
+          justification: override.justification || override.reason || null
+        }
+      : null,
+    evidence,
+    chain_anchor: chainAnchor
+  };
+}
+
 module.exports = {
   CERT_ENGINE_VERSION,
+  CERT_BUNDLE_SCHEMA,
   ED25519_KEY_HINT,
   SIGNING_KEY_HINT,
   buildCanonicalPayload,
@@ -264,5 +340,6 @@ module.exports = {
   listPublicCertKeys,
   signCertificationRecord,
   verifyCertificationRecord,
-  getCertSignaturePublic
+  getCertSignaturePublic,
+  assembleIndependentCertBundle
 };

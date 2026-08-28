@@ -1,33 +1,8 @@
 "use strict";
 
-const crypto = require("crypto");
 const { queryOne, run } = require("../database");
 const { nowIso } = require("../lib/time");
-
-function sortDeep(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
-  return Object.keys(value)
-    .sort()
-    .reduce((acc, key) => {
-      acc[key] = sortDeep(value[key]);
-      return acc;
-    }, {});
-}
-
-function stableJson(value) {
-  return JSON.stringify(sortDeep(value));
-}
-
-/**
- * SHA-256 over frozen threshold + signal maps at verdict time.
- */
-function computeEvidenceHash(thresholdMap = {}, signalMap = {}) {
-  const canonical = stableJson({
-    thresholds: thresholdMap,
-    signals: signalMap
-  });
-  return crypto.createHash("sha256").update(canonical).digest("hex");
-}
+const { computeEvidenceHash } = require("@useverdikt/shared/verdictEngine");
 
 /**
  * Persist verdict-time evidence. First write wins unless allowUpdate (override path).

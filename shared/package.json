@@ -1,7 +1,7 @@
 {
   "name": "@useverdikt/shared",
   "version": "1.0.0",
-  "description": "Shared Verdikt config, severity, and release-status helpers",
+  "description": "Shared Verdikt config, severity, release-status, frozen verdict, audit-chain, and independent-verify helpers",
   "main": "./config.cjs",
   "exports": {
     ".": {
@@ -37,6 +37,21 @@
     },
     "./releaseStatus.mjs": "./releaseStatus.mjs",
     "./releaseStatus.cjs": "./releaseStatus.cjs",
+    "./verdictEngine": {
+      "import": "./verdictEngine.mjs",
+      "require": "./verdictEngine.cjs",
+      "default": "./verdictEngine.cjs"
+    },
+    "./auditChain": {
+      "import": "./auditChain.mjs",
+      "require": "./auditChain.cjs",
+      "default": "./auditChain.cjs"
+    },
+    "./independentVerify": {
+      "import": "./independentVerify.mjs",
+      "require": "./independentVerify.cjs",
+      "default": "./independentVerify.cjs"
+    },
     "./config.json": "./config.json"
   },
   "files": [
@@ -46,7 +61,13 @@
     "severity.mjs",
     "severity.cjs",
     "releaseStatus.mjs",
-    "releaseStatus.cjs"
+    "releaseStatus.cjs",
+    "verdictEngine.mjs",
+    "verdictEngine.cjs",
+    "auditChain.mjs",
+    "auditChain.cjs",
+    "independentVerify.mjs",
+    "independentVerify.cjs"
   ],
   "engines": {
     "node": ">=22.12.0"

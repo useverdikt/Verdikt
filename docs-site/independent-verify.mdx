@@ -1,0 +1,38 @@
+---
+title: Independent verify
+description: Replay a Verdikt certificate offline — frozen inputs, ruleset, and engine version, without the Verdikt database.
+---
+
+`verdikt-verify` checks a downloaded certificate **without contacting Verdikt**. It does not only ask “is this blob signed?” It replays the frozen evidence against the pinned engine version and checks that the recorded verdict still follows.
+
+```bash
+npm run verdikt:verify -- path/to/verdikt-cert.json
+npm run verdikt:verify -- chain path/to/audit-export.json
+npm run verdikt:verify -- chain path/to/audit-export.json path/to/anchor.json
+```
+
+Download the cert bundle from the public record (`Download cert bundle`) or `GET /api/releases/:id/cert/bundle`. Download the audit JSON from **Settings → Governance → Export audit**. The latest signed chain tip is also at `GET /api/public/audit-anchors/:workspaceSlug` when the workspace has a public slug.
+
+## What the cert command proves
+
+1. **Schema + engine version** — the file names a known engine (`2026.08.1` today). An unknown engine fails closed.
+2. **Evidence hash** — SHA-256 of the frozen threshold map (the ruleset) plus the frozen signal map. If either map is edited, the hash breaks.
+3. **Engine replay** — absolute thresholds are re-evaluated from those maps. Recorded delta/prior-release failures are folded in as facts (they cannot be re-derived without prior-release data). The recorded status must agree:
+   - `CERTIFIED` ↔ engine CERTIFIED
+   - `UNCERTIFIED` ↔ engine UNCERTIFIED
+   - `CERTIFIED_WITH_OVERRIDE` ↔ engine UNCERTIFIED
+   - `CERTIFICATION_REVOKED` ↔ either engine result (the snapshot is unchanged)
+4. **Signed payload binds the file** — identity, evidence hash, and failed-signal count in the signed bytes must match the rest of the bundle.
+5. **Signature**
+   - **Ed25519** — verified with the public key embedded in the file (also published at `/api/public/cert-keys`). This is independently verifiable.
+   - **HMAC-SHA256** — Verdikt’s default until `CERT_ED25519_PRIVATE_KEY` is set. The engine still replays. The signature cannot be checked without Verdikt’s secret, so the CLI reports `hmac_not_independently_verifiable`.
+
+`ok: true` with `independently_verifiable: false` means the math checks out and the signature is HMAC. Do not treat HMAC as a third-party signature.
+
+## Audit chain
+
+`verdikt-verify chain` recomputes the per-workspace hash chain from the export. JSON exports keep the original `details_json` string so hashes match production. If an anchor file (or `chain_anchor` in the export) is present, the CLI checks that the signed tip matches the export tip.
+
+Verdikt periodically signs the current tip. That is a Verdikt-hosted witness, not a timestamp authority. When `AUDIT_ANCHOR_URL` is set, Verdikt POSTs the signed tip once to that HTTPS URL and stores any receipt. There is no RFC 3161 / RFC 9162 log in this release. Third parties who need an external copy should save the public anchor JSON when it is published.
+
+Anchoring does **not** write an `AUDIT_CHAIN_ANCHORED` audit event — that would move the tip being witnessed.

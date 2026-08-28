@@ -24,7 +24,7 @@
   "navigation": [
     {
       "group": "Getting started",
-      "pages": ["introduction"]
+      "pages": ["introduction", "independent-verify"]
     },
     {
       "group": "EU AI Act",

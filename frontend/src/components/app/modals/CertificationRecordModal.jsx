@@ -14,6 +14,7 @@ import { categoryStatusFromFailedIds, failingSignalsForDisplay, serverFailedSign
 import { calcVerdict } from "../../../app/main/appMainLogic.js";
 import { apiGet } from "../../../lib/apiClient.js";
 import { hasBackend } from "../../../lib/hasBackend.js";
+import { downloadCertBundle } from "../../../lib/fetchPublicCert.js";
 import {
   signatureChipLabel,
   signatureChipTooltip,
@@ -45,6 +46,8 @@ export default function CertificationRecordModal({
   useModalLayer(onClose, panelRef);
   const [isMobile, setIsMobile] = React.useState(() => window.innerWidth <= 900);
   const [fetchedSig, setFetchedSig] = React.useState(null);
+  const [bundleBusy, setBundleBusy] = React.useState(false);
+  const [bundleError, setBundleError] = React.useState(null);
   React.useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 900);
     window.addEventListener("resize", handler);
@@ -153,6 +156,15 @@ export default function CertificationRecordModal({
     publicCertPermalinkPath(backendReleaseId) ||
     (configured ? publicCertSlugPath(slug, release.version) : null);
 
+  const onDownloadBundle = () => {
+    if (!backendReleaseId) return;
+    setBundleBusy(true);
+    setBundleError(null);
+    downloadCertBundle(backendReleaseId, `verdikt-cert-${release.version || backendReleaseId}.json`)
+      .catch((e) => setBundleError(e?.message || "download_failed"))
+      .finally(() => setBundleBusy(false));
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000e0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20, backdropFilter: "blur(6px)" }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div ref={panelRef} className="scale-in" style={{ background: C.raise, border: `1px solid ${C.borderL}`, borderRadius: isMobile ? 12 : 18, maxWidth: 640, width: "100%", boxShadow: "0 32px 100px #00000090", maxHeight: isMobile ? "96vh" : "90vh", overflowY: "auto" }}>
@@ -170,6 +182,26 @@ export default function CertificationRecordModal({
             ) : (
               <span style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>Set a public URL slug in Settings to share</span>
             )}
+            {backendReleaseId ? (
+              <button
+                type="button"
+                onClick={onDownloadBundle}
+                disabled={bundleBusy}
+                style={{
+                  fontSize: 11,
+                  color: C.text,
+                  fontFamily: C.mono,
+                  fontWeight: 700,
+                  background: C.border,
+                  border: `1px solid ${C.borderL}`,
+                  borderRadius: 6,
+                  padding: "5px 12px",
+                  cursor: bundleBusy ? "wait" : "pointer"
+                }}
+              >
+                {bundleBusy ? "Downloading…" : "Download cert bundle"}
+              </button>
+            ) : null}
             {typeof onShareSnapshot === "function" && (
               <button
                 type="button"
@@ -195,6 +227,9 @@ export default function CertificationRecordModal({
         <div style={{ background: "#0a0b0e", borderBottom: `1px solid ${C.border}`, padding: "9px 24px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: C.dim }}>⊠</span>
           <span style={{ fontSize: 11, fontFamily: C.mono, color: C.dim, letterSpacing: "0.06em" }}>This record is permanent. It cannot be edited or deleted.</span>
+          {bundleError ? (
+            <span style={{ fontSize: 11, fontFamily: C.mono, color: C.red }}>{bundleError}</span>
+          ) : null}
           {certSig && (
             <span style={{ marginLeft: "auto", fontSize: 11, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={signatureChipTooltip(certSig.algorithm)}>
               ⊕ {signatureChipLabel(certSig.algorithm)}

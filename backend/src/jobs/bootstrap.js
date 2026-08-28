@@ -22,6 +22,10 @@ const {
   startAuditIntegrityCheckJob,
   stopAuditIntegrityCheckJob
 } = require("./auditIntegrityCheck");
+const {
+  startAuditAnchorJob,
+  stopAuditAnchorJob
+} = require("./auditAnchorSweep");
 
 /**
  * Start background interval jobs (collection sweep, VCS monitor, escalation SLA,
@@ -36,6 +40,7 @@ function startBackgroundJobs() {
     certSnapshotRetryInterval: null,
     outboundEffectInterval: null,
     auditIntegrityHandle: null,
+    auditAnchorHandle: null,
     vcsInitialTimeout: null
   };
 
@@ -46,6 +51,7 @@ function startBackgroundJobs() {
   handles.certSnapshotRetryInterval = startCertificationSnapshotRetrySweepJob();
   handles.outboundEffectInterval = startOutboundEffectShadowSweepJob();
   handles.auditIntegrityHandle = startAuditIntegrityCheckJob();
+  handles.auditAnchorHandle = startAuditAnchorJob();
   void runEscalationSlaSweepJobOnce();
   void runCertificationSnapshotBackfillOnce();
   void runCertificationSnapshotRetrySweepOnce();
@@ -63,6 +69,7 @@ function stopBackgroundJobs(handles) {
   if (handles.certSnapshotRetryInterval) clearInterval(handles.certSnapshotRetryInterval);
   if (handles.outboundEffectInterval) clearInterval(handles.outboundEffectInterval);
   stopAuditIntegrityCheckJob(handles.auditIntegrityHandle);
+  stopAuditAnchorJob(handles.auditAnchorHandle);
   if (handles.vcsInitialTimeout) clearTimeout(handles.vcsInitialTimeout);
 }
 

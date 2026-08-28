@@ -18,6 +18,7 @@ const {
   isSignalRequiredForRelease
 } = require("./signalScope");
 const { listWorkspaceDefinitions, filterThresholdMapForAdopted } = require("./signalDefinitions");
+const { evaluateFrozenEvidence } = require("@useverdikt/shared/verdictEngine");
 
 // ─── Signal value guard ───────────────────────────────────────────────────────
 
@@ -87,28 +88,8 @@ async function computeVerdict(
       ? preloadedLatest
       : await getLatestSignalMap(releaseId);
 
-  const failedSignals = [];
-  for (const [signalId, threshold] of Object.entries(thresholds)) {
-    if (String(signalId).endsWith("_delta")) continue;
-    if (!threshold.required_for_certification) continue;
-    if (latest[signalId] == null) continue;
-    if (threshold.min != null && latest[signalId] < threshold.min) {
-      failedSignals.push({
-        signal_id: signalId,
-        value: latest[signalId],
-        failure_kind: "absolute_threshold",
-        rule: `>= ${threshold.min}`
-      });
-    }
-    if (threshold.max != null && latest[signalId] > threshold.max) {
-      failedSignals.push({
-        signal_id: signalId,
-        value: latest[signalId],
-        failure_kind: "absolute_threshold",
-        rule: `<= ${threshold.max}`
-      });
-    }
-  }
+  const frozen = evaluateFrozenEvidence(latest, thresholds);
+  const failedSignals = [...frozen.failed_signals];
 
   let deltaAnalysis = null;
   if (releaseRow) {

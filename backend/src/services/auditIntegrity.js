@@ -5,27 +5,12 @@
  * Append-only audit log with per-workspace hash chain.
  */
 
-const crypto = require("crypto");
 const { queryAll, transaction } = require("../database");
-
-const GENESIS = "GENESIS";
-
-function canonicalAuditPayload(row, prevHash = GENESIS) {
-  return JSON.stringify({
-    workspace_id: row.workspace_id,
-    release_id: row.release_id || null,
-    event_type: row.event_type,
-    actor_type: row.actor_type,
-    actor_name: row.actor_name,
-    details_json: row.details_json || null,
-    created_at: row.created_at,
-    prev_hash: prevHash
-  });
-}
-
-function computeAuditRowHash(row, prevHash = GENESIS) {
-  return crypto.createHash("sha256").update(canonicalAuditPayload(row, prevHash)).digest("hex");
-}
+const {
+  GENESIS,
+  canonicalAuditPayload,
+  computeAuditRowHash
+} = require("@useverdikt/shared/auditChain");
 
 /**
  * Compute chain fields for a new audit row before INSERT.
