@@ -13,6 +13,8 @@ Minimal API for the first end-to-end release certification flow:
 
 Copy **`backend/.env.example`** to **`backend/.env`** and fill in values. **`DATABASE_URL`** (PostgreSQL) is required. **`backend/.env` is gitignored** — do not commit secrets. If a provider API key was ever committed or leaked, **rotate it in the provider console** and scrub history (see **Committed secrets** below).
 
+Supabase pooler/direct URLs enable TLS automatically and verify against the official **Supabase Root 2021 CA** (bundled). Other TLS hosts: set **`DATABASE_SSL=1`** and **`DATABASE_SSL_CA`**. Do not set **`DATABASE_SSL_REJECT_UNAUTHORIZED=0`** in production.
+
 ```bash
 npm install
 npm start
