@@ -125,10 +125,7 @@ async function buildWorkspaceAuditExport(workspaceId, format = "json") {
     filename: `verdikt-audit-${workspaceId}-${exportedAt.slice(0, 10)}.json`,
     body: {
       ...envelope,
-      events: mapped.map((event) => {
-        const { details_json, ...rest } = event;
-        return rest;
-      })
+      events: mapped.map(({ details_json: _detailsJson, ...rest }) => rest)
     },
     envelope
   };
