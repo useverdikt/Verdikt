@@ -14,7 +14,7 @@ export function ExpandChevron() {
 
 export function SearchIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="search-icon">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="search-icon" aria-hidden="true">
       <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
       <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>

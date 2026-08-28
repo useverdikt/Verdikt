@@ -29,7 +29,7 @@ test.describe("releases dashboard (authenticated)", () => {
     await firstRow.click();
     await page.getByRole("button", { name: /View full record/i }).click({ force: true });
     await expect(page.getByText("CERTIFICATION RECORD").first()).toBeVisible();
-    await page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" }).getByRole("button", { name: "✕" }).click();
+    await page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" }).getByRole("button", { name: /Close/i }).click();
     await expect(page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" })).toHaveCount(0);
   });
 
@@ -42,7 +42,7 @@ test.describe("releases dashboard (authenticated)", () => {
     await expect(page.getByRole("dialog").filter({ hasText: /Certified|Uncertified/i }).first()).toBeVisible({
       timeout: 10_000
     });
-    await page.getByRole("button", { name: "✕" }).last().click();
+    await page.getByRole("button", { name: /Close/i }).last().click();
   });
 });
 

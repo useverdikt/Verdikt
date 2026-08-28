@@ -15,6 +15,7 @@
     "lint": "eslint \"src/**/*.js\"",
     "lint:fix": "eslint \"src/**/*.js\" --fix",
     "db:backup": "node scripts/backup-db.js",
+    "audit:verify": "node scripts/verify-audit-integrity.js",
     "seed:demos": "node scripts/seed-demo-users.js",
     "seed:demos:supabase": "node scripts/ensure-demo-supabase-auth.js",
     "provision:user": "node scripts/provision-user.js",

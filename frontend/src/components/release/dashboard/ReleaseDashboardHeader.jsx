@@ -27,6 +27,7 @@ export default function ReleaseDashboardHeader({
         <input
           type="text"
           placeholder="Search releases…"
+          aria-label="Search releases"
           value={searchQ}
           onChange={(e) => setSearchQ(e.target.value)}
         />

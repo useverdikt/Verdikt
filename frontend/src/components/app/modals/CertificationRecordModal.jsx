@@ -187,14 +187,14 @@ export default function CertificationRecordModal({
                 Share snapshot
               </button>
             )}
-            <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>✕</button>
+            <button type="button" onClick={onClose} aria-label="Close" style={{ background: "transparent", border: "none", color: C.muted, fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>✕</button>
           </div>
         </div>
         <div style={{ background: "#0a0b0e", borderBottom: `1px solid ${C.border}`, padding: "9px 24px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: C.dim }}>⊠</span>
           <span style={{ fontSize: 11, fontFamily: C.mono, color: C.dim, letterSpacing: "0.06em" }}>This record is permanent. It cannot be edited or deleted.</span>
           {certSig && (
-            <span style={{ marginLeft: "auto", fontSize: 10, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={HMAC_SIGNATURE_TOOLTIP}>
+            <span style={{ marginLeft: "auto", fontSize: 11, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={HMAC_SIGNATURE_TOOLTIP}>
               ⊕ {hmacSignatureChipLabel(certSig.algorithm)}
             </span>
           )}
@@ -379,7 +379,7 @@ export default function CertificationRecordModal({
                   <span style={{ fontSize: 12, color: C.text }}>{f.catLabel} · {f.sigLabel}</span>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <span style={{ fontFamily: C.mono, fontSize: 12, fontWeight: 700, color: C.red }}>{fmtVal({ direction: f.direction, unit: f.unit }, f.value)}</span>
-                    <span style={{ fontFamily: C.mono, fontSize: 10, color: C.dim, marginLeft: 6 }}>{f.direction === "above" ? "needs ≥" : "needs ≤"}{f.threshold}{f.unit}</span>
+                    <span style={{ fontFamily: C.mono, fontSize: 11, color: C.dim, marginLeft: 6 }}>{f.direction === "above" ? "needs ≥" : "needs ≤"}{f.threshold}{f.unit}</span>
                   </div>
                 </div>
               ))}

@@ -18,6 +18,10 @@ const {
   runOutboundEffectShadowSweepOnce,
   startOutboundEffectShadowSweepJob
 } = require("./outboundEffectSweep");
+const {
+  startAuditIntegrityCheckJob,
+  stopAuditIntegrityCheckJob
+} = require("./auditIntegrityCheck");
 
 /**
  * Start background interval jobs (collection sweep, VCS monitor, escalation SLA,
@@ -31,6 +35,7 @@ function startBackgroundJobs() {
     escalationSlaInterval: null,
     certSnapshotRetryInterval: null,
     outboundEffectInterval: null,
+    auditIntegrityHandle: null,
     vcsInitialTimeout: null
   };
 
@@ -40,6 +45,7 @@ function startBackgroundJobs() {
   handles.escalationSlaInterval = startEscalationSlaSweepJob();
   handles.certSnapshotRetryInterval = startCertificationSnapshotRetrySweepJob();
   handles.outboundEffectInterval = startOutboundEffectShadowSweepJob();
+  handles.auditIntegrityHandle = startAuditIntegrityCheckJob();
   void runEscalationSlaSweepJobOnce();
   void runCertificationSnapshotBackfillOnce();
   void runCertificationSnapshotRetrySweepOnce();
@@ -56,6 +62,7 @@ function stopBackgroundJobs(handles) {
   if (handles.escalationSlaInterval) clearInterval(handles.escalationSlaInterval);
   if (handles.certSnapshotRetryInterval) clearInterval(handles.certSnapshotRetryInterval);
   if (handles.outboundEffectInterval) clearInterval(handles.outboundEffectInterval);
+  stopAuditIntegrityCheckJob(handles.auditIntegrityHandle);
   if (handles.vcsInitialTimeout) clearTimeout(handles.vcsInitialTimeout);
 }
 

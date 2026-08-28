@@ -325,5 +325,6 @@ module.exports = {
   sendWaitlistLeadEmail,
   sendEscalationRequestedEmail,
   sendEscalationSlaReminderEmail,
-  sendWorkspaceInviteEmail
+  sendWorkspaceInviteEmail,
+  sendResendToMany
 };

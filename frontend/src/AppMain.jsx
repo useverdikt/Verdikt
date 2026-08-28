@@ -95,6 +95,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
     signalsCatalogError,
     loadSignalCatalog,
     adoptLibrarySignal,
+    adoptRecommendedPack,
     createCustomSignal,
     removeSignalDefinition,
     addAudit,
@@ -365,6 +366,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
               onDismissSuggestion={actions.handleDismissSuggestion}
               onSave={actions.handleThresholdSave}
               onAdoptLibrarySignal={adoptLibrarySignal}
+              onAdoptRecommendedPack={adoptRecommendedPack}
               onCreateCustomSignal={createCustomSignal}
               onRemoveSignalDefinition={removeSignalDefinition}
             />

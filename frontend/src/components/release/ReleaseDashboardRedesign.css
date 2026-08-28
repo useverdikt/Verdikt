@@ -7,6 +7,7 @@
 
 /* Container: fills the full main area (AppContentSwitch gives it flex:1 + overflow:hidden) */
 .release-redesign {
+  --c-dim: #658099;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -50,7 +51,7 @@
 
 .rr-header .env-btn {
   padding: 6px 12px;
-  color: #384d60;
+  color: var(--c-dim);
   cursor: pointer;
   transition: background .15s, color .15s;
   border: none;
@@ -83,8 +84,8 @@
   color: #c4d4e8;
   width: 160px;
 }
-.rr-header .header-search input::placeholder { color: #384d60; }
-.rr-header .search-icon { color: #384d60; flex-shrink: 0; }
+.rr-header .header-search input::placeholder { color: var(--c-dim); }
+.rr-header .search-icon { color: var(--c-dim); flex-shrink: 0; }
 
 .rr-header .btn-new {
   display: inline-flex;
@@ -198,11 +199,11 @@
 
 .release-redesign .stat-label {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #384d60;
+  color: var(--c-dim);
   margin-bottom: 10px;
 }
 .release-redesign .stat-value {
@@ -219,7 +220,7 @@
 
 .release-redesign .stat-sub {
   font-size: 11.5px;
-  color: #384d60;
+  color: var(--c-dim);
   font-weight: 300;
   display: flex;
   align-items: center;
@@ -235,7 +236,7 @@
 }
 .release-redesign .panel-title {
   font-family: "JetBrains Mono", monospace;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -259,7 +260,7 @@
 .release-redesign .pf {
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;
-  color: #384d60;
+  color: var(--c-dim);
   cursor: pointer;
   padding: 5px 10px;
   border-radius: 5px;
@@ -289,11 +290,11 @@
 }
 .release-redesign .th {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .09em;
   text-transform: uppercase;
-  color: #384d60;
+  color: var(--c-dim);
   padding: 10px 8px;
 }
 .release-redesign .th.r { text-align: right; }
@@ -328,7 +329,7 @@
 }
 
 .release-redesign .expand-icon {
-  color: #384d60;
+  color: var(--c-dim);
   flex-shrink: 0;
   transition: transform .22s;
 }
@@ -344,13 +345,13 @@
 }
 .release-redesign .release-label {
   font-size: 11.5px;
-  color: #384d60;
+  color: var(--c-dim);
   margin-top: 2px;
   font-weight: 300;
 }
 .release-redesign .release-env {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .06em;
   padding: 2px 6px;
@@ -367,7 +368,7 @@
   align-items: center;
   gap: 6px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .07em;
   padding: 5px 9px;
@@ -424,7 +425,7 @@
 .release-redesign .sig-mini { display: flex; gap: 3px; align-items: center; }
 .release-redesign .sig-overflow {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
+  font-size: 11px;
   color: #6e87a2;
   margin-left: 2px;
 }
@@ -445,8 +446,8 @@
   border: 1px solid #243050;
 }
 .release-redesign .sig-frac--loading {
-  color: #384d60;
-  font-size: 10px;
+  color: var(--c-dim);
+  font-size: 11px;
   letter-spacing: 0.02em;
 }
 
@@ -454,7 +455,7 @@
 .release-redesign .time-cell {
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;
-  color: #384d60;
+  color: var(--c-dim);
   flex-direction: column;
   align-items: flex-end;
   gap: 3px;
@@ -475,11 +476,11 @@
 }
 .release-redesign .dl {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #384d60;
+  color: var(--c-dim);
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid #18243a;
@@ -508,8 +509,8 @@
 .release-redesign .sa.w { color: #f59e0b; }
 .release-redesign .st {
   font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  color: #384d60;
+  font-size: 11px;
+  color: var(--c-dim);
   margin-top: 1px;
 }
 .release-redesign .deadline-copy {
@@ -530,7 +531,7 @@
   gap: 10px;
 }
 .release-redesign .ri:last-of-type { border-bottom: none; }
-.release-redesign .ri::before { content: '·'; color: #384d60; flex-shrink: 0; }
+.release-redesign .ri::before { content: '·'; color: var(--c-dim); flex-shrink: 0; }
 .release-redesign .da {
   display: flex;
   gap: 10px;
@@ -595,15 +596,15 @@
 }
 .release-redesign .loop-card-title {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #384d60;
+  color: var(--c-dim);
 }
 .release-redesign .band-pill {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .08em;
   padding: 3px 8px;
@@ -611,7 +612,7 @@
 }
 .release-redesign .bp-em  { background: rgba(245,158,11,.10); color: #f59e0b; }
 .release-redesign .bp-rel { background: rgba(34,197,94,.10); color: #22c55e; }
-.release-redesign .bp-exp { background: rgba(56,77,96,.30); color: #384d60; }
+.release-redesign .bp-exp { background: rgba(56,77,96,.30); color: var(--c-dim); }
 
 .release-redesign .funnel { padding: 16px; }
 .release-redesign .fs {
@@ -623,8 +624,8 @@
 .release-redesign .fs:not(:last-child) { border-bottom: 1px solid #1e2e42; }
 .release-redesign .fl {
   font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  color: #384d60;
+  font-size: 11px;
+  color: var(--c-dim);
   flex: 1;
 }
 .release-redesign .fb {
@@ -659,7 +660,7 @@
   border-radius: 6px;
   border: 1px solid #18243a;
   font-family: "JetBrains Mono", monospace;
-  font-size: 10.5px;
+  font-size: 11px;
   color: #6e87a2;
   line-height: 1.6;
 }
@@ -672,11 +673,11 @@
 /* ── SIGNAL RELIABILITY ─────────────────────────────────────────────────────── */
 .release-redesign .rp-label {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #384d60;
+  color: var(--c-dim);
   margin-bottom: 14px;
   display: flex;
   align-items: center;
@@ -705,7 +706,7 @@
 }
 .release-redesign .sh-grade {
   font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   padding: 2px 6px;
   border-radius: 3px;
@@ -716,8 +717,8 @@
 .release-redesign .gd { background: rgba(239,68,68,.10);   color: #ef4444; }
 .release-redesign .sh-rate {
   font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  color: #384d60;
+  font-size: 11px;
+  color: var(--c-dim);
   min-width: 32px;
   text-align: right;
 }
@@ -751,7 +752,7 @@
 }
 .release-redesign .act-event { color: #c4d4e8; line-height: 1.5; margin-bottom: 2px; }
 .release-redesign .act-event strong { font-family: "JetBrains Mono", monospace; font-size: 11px; }
-.release-redesign .act-meta { font-family: "JetBrains Mono", monospace; font-size: 10px; color: #384d60; }
+.release-redesign .act-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--c-dim); }
 
 /* ── ANIMATIONS ─────────────────────────────────────────────────────────────── */
 @keyframes fadeIn {

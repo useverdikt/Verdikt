@@ -8,6 +8,7 @@ import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
 import { fetchSignalDefinitions } from "../queries/workspaceFetchers.js";
 import { invalidateThresholdDomain } from "../queries/workspaceMutations.js";
+import { adoptMissingLibrarySignals, missingRecommendedPackIds } from "../lib/recommendedPack.js";
 
 /** Threshold + workspace signal definition state. */
 export function useWorkspaceThresholds(navigate, nav) {
@@ -79,6 +80,11 @@ export function useWorkspaceThresholds(navigate, nav) {
     },
     [navigate, applySignalCatalogFromApi]
   );
+
+  const adoptRecommendedPack = useCallback(async () => {
+    const missing = missingRecommendedPackIds(undefined, signalDefinitions, signalLibrary);
+    return adoptMissingLibrarySignals(missing, adoptLibrarySignal);
+  }, [adoptLibrarySignal, signalDefinitions, signalLibrary]);
 
   const createCustomSignal = useCallback(
     async (payload) => {
@@ -203,6 +209,7 @@ export function useWorkspaceThresholds(navigate, nav) {
     signalsCatalogError,
     loadSignalCatalog,
     adoptLibrarySignal,
+    adoptRecommendedPack,
     createCustomSignal,
     deleteSignalDefinition: removeSignalDefinition,
     removeSignalDefinition

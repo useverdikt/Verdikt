@@ -13,11 +13,11 @@ const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("../services/audit");
 const {
   authMiddleware,
-  signToken,
   publicUser,
   setAuthCookies,
   clearAuthCookies
 } = require("../middleware/auth");
+const { authenticatePassword } = require("../lib/loginPassword");
 const {
   checkLoginRateLimit,
   checkForgotPasswordRateLimit,
@@ -151,8 +151,7 @@ module.exports = function registerAuthRoutes(app) {
       }
       const effectiveRole =
         (await getEffectiveRoleForWorkspace(out.user.id, out.user.workspace_id)) || out.user.role;
-      const tokenJwt = signToken({ ...out.user, role: effectiveRole });
-      setAuthCookies(res, tokenJwt);
+      setAuthCookies(res, { ...out.user, role: effectiveRole });
       return res.json({ ok: true, user: publicUser({ ...out.user, role: effectiveRole }) });
     } catch (e) {
       next(e);
@@ -176,7 +175,7 @@ module.exports = function registerAuthRoutes(app) {
       return sendError(res, req, 429, "Too many login attempts. Please try again shortly.");
     }
     const userRow = await queryOne("SELECT * FROM users WHERE email = $1", [email]);
-    const isValid = userRow ? await bcrypt.compare(password, userRow.password_hash) : false;
+    const isValid = await authenticatePassword(password, userRow);
     if (!isValid) {
       await writeAudit({
         workspaceId: userRow?.workspace_id || "__auth__",
@@ -197,8 +196,7 @@ module.exports = function registerAuthRoutes(app) {
     const effectiveRole =
       (await getEffectiveRoleForWorkspace(userRow.id, userRow.workspace_id)) || userRow.role;
     const sessionUser = { ...userRow, role: effectiveRole };
-    const token = signToken(sessionUser);
-    setAuthCookies(res, token);
+    setAuthCookies(res, sessionUser);
     return res.json({ user: publicUser(sessionUser) });
   });
 
@@ -230,8 +228,7 @@ module.exports = function registerAuthRoutes(app) {
       const effectiveRole =
         (await getEffectiveRoleForWorkspace(userRow.id, userRow.workspace_id)) || userRow.role;
       const sessionUser = { ...userRow, role: effectiveRole };
-      const token = signToken(sessionUser);
-      setAuthCookies(res, token);
+      setAuthCookies(res, sessionUser);
       return res.json({ user: publicUser(sessionUser) });
     } catch (e) {
       console.error(`[${req.requestId}] session-from-supabase`, e);
