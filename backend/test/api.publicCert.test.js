@@ -107,6 +107,10 @@ describe("public certification records", () => {
     assert.ok(typeof pub.body.certification.confidence === "number");
     assert.ok(Array.isArray(pub.body.certification.required_signals_met));
     assert.ok(Array.isArray(pub.body.signal_groups) && pub.body.signal_groups.length > 0);
+
+    const byId = await request(app).get(`/api/public/cert/id/${created.body.id}`).expect(200);
+    assert.equal(byId.body.release.id, created.body.id);
+    assert.equal(byId.body.release.version, "pub-cert-v1");
   });
 
   it("returns 404 when public_cert_records is disabled", async () => {
@@ -140,6 +144,7 @@ describe("public certification records", () => {
       .expect(200);
 
     await request(app).get(`/api/public/cert/${slug}/pub-private-v1`).expect(404);
+    await request(app).get(`/api/public/cert/id/${created.body.id}`).expect(404);
   });
 });
 

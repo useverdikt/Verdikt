@@ -14,6 +14,7 @@
 
 require("../src/config");
 const { Pool } = require("pg");
+const { sslConfig } = require("../src/db/pg");
 
 const DEMOS = [
   { email: "demo@verdikt.local", password: "demo123" },
@@ -136,7 +137,7 @@ async function main() {
 
   const pool = new Pool({
     connectionString: databaseUrl,
-    ssl: /supabase\.co|pooler\.supabase/i.test(databaseUrl) ? { rejectUnauthorized: false } : undefined
+    ssl: sslConfig(databaseUrl)
   });
 
   try {

@@ -26,6 +26,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 
 - Every protected route must resolve both caller identity and workspace/release access. Database RLS is defense in depth; service credentials do not replace application authorization.
 - Human control-plane mutations require the secure cookie session plus CSRF protection. Agent access keys are limited to explicitly audited agent operations.
+- Postgres TLS validates server certificates when SSL is enabled. `DATABASE_SSL_REJECT_UNAUTHORIZED=0` is a non-production emergency only; production-like startup refuses it.
 - `INTERNAL_WORKSPACE_VIEWER_EMAILS` is a local/test convenience only and must be empty in production-like environments.
 - `JWT_SECRET`, `CERT_SIGNING_KEY`, and webhook secrets are separate trust domains. Certification signatures must never be derived from the login secret.
 - Integration and VCS credentials are encrypted at rest with AES-256-GCM through `ENCRYPTION_MASTER_KEY`.
@@ -35,12 +36,12 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 
 - Signal ingestion is idempotent. Retries must not create duplicate evidence, append audits, or re-evaluate verdicts. Every push boundary, including signed CI/eval webhooks, checks duplicate replay before rejecting a verdict-locked release.
 - Push-based manual, API, CI, and mapped-integration signals share `ingestReleaseSignals` for validation-aware persistence, idempotency race handling, and verdict evaluation. Routes retain authentication, release-lock errors, and response decoration. Pull/CSV replacement flows remain separate because they intentionally replace a source snapshot. A supplied `commit_sha` is an integrity boundary for ingest resolution and GitHub merge promotion: do not fall back to another release on the same PR/version, and do not promote every release for that PR.
-- Terminal verdict intelligence persists exact `failed_signals` and `threshold_failed_signals` arrays. Gate reads reuse threshold failures only with frozen snapshot evidence; live UNCERTIFIED gates recalculate so post-verdict threshold changes retain existing semantics. Legacy snapshots without the field also fall back safely.
+- Terminal verdict intelligence persists exact `failed_signals` and `threshold_failed_signals` arrays. Gate reads reuse threshold failures only with frozen snapshot evidence; live UNCERTIFIED gates recalculate so post-verdict threshold changes retain existing semantics. Legacy snapshots without the field also fall back safely. Assistive LLM enrichment may update summary/recommended_actions only when `ifVerdictGeneratedAt` still matches the stored verdict `generated_at`; a newer verdict wins and the stale garnish is dropped.
 - Audit rows are append-only and serialized per workspace with a PostgreSQL advisory transaction lock.
 - Repeated gate polls coalesce only when the recorded result, release, actor, and agent session are unchanged. The first result, every changed result, and an unchanged five-minute heartbeat append hash-chained audit rows; compare-and-append runs under the workspace audit lock.
 - Expanded frontend release detail is owned by the workspace-scoped TanStack `releaseDetail` query. The local release list may keep summary/display projections but must not become a second store for intelligence, certification, or delta detail.
 - Cross-replica release events use PostgreSQL `LISTEN/NOTIFY`; in-process events are insufficient for production coordination.
-- Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent.
+- Multi-replica rate limits require Redis. Set `API_REPLICA_COUNT` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1` so startup fails closed when `REDIS_URL` is absent. After boot, Redis errors in that mode deny the request instead of falling back to per-process memory.
 - Sweeps query only actionable rows, use deterministic ordering, and process bounded batches. A failure for one release must not stop the remainder of the batch.
 - Expired collection-window work uses short PostgreSQL transactions to acquire durable, owner-scoped leases before evaluation. Never hold the claim transaction open during verdict work; failed workers recover through lease expiry. Roll out `observe` before `enforce`.
 - VCS monitoring sweeps acquire durable, owner-scoped leases in short transactions before any provider reads or evidence ingestion. Provider I/O runs after commit; successful scans release their lease, and unexpected failures retain it until expiry for crash-safe recovery.
@@ -63,4 +64,4 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - A successful CI run is necessary but not sufficient: protected release PRs also pass the Verdikt gate.
 - A gate request containing `commit_sha` may resolve only that commit (full or matching 7+ character prefix). It must never fall back to another release for the same PR, ref, or version; CI and MCP clients fail closed when the returned SHA differs.
 - Certification snapshots and signatures are immutable evidence. New records use the independent v2 signing key; legacy v1 JWT-derived records remain read-only verifiable until an explicit retirement migration removes that compatibility path.
-- Public certification records are opt-in per workspace and must expose only the fields allowed by workspace policy.
+- Public certification records are opt-in per workspace and must expose only the fields allowed by workspace policy. Slug/version URLs are convenience; `/cert/id/:releaseId` is the immutable permalink. HMAC signature chips and `/cert/verify` confirm Verdikt's stored record — they are not third-party signatures.

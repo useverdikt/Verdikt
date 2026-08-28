@@ -2,9 +2,20 @@
 
 const { sendError } = require("../lib/apiError");
 
-const { getPublicCertRecord } = require("../services/publicCertRecord");
+const { getPublicCertRecord, getPublicCertRecordByReleaseId } = require("../services/publicCertRecord");
 
 module.exports = function registerRoutes(app) {
+  /** Immutable permalink — register before the slug/version route. */
+  app.get("/api/public/cert/id/:releaseId", async (req, res, next) => {
+    try {
+      const out = await getPublicCertRecordByReleaseId(req.params.releaseId);
+      if (out.error) return sendError(res, req, out.status || 404, "certification record not found");
+      return res.json(out.record);
+    } catch (e) {
+      next(e);
+    }
+  });
+
   /** Public certification record — no auth; gated by workspace public_cert_records policy. */
   app.get("/api/public/cert/:workspaceSlug/:version", async (req, res, next) => {
     try {

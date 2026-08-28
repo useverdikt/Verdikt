@@ -132,6 +132,38 @@ describe("release intelligence recommendation vs user decision (unit)", () => {
     assert.deepEqual(intelligence.verdict, verdict);
     assert.deepEqual(intelligence.recommendation, recommendation);
   });
+
+  it("does not clobber a newer verdict when assistive enrichment CAS misses", async () => {
+    const ws = `ws_intel_cas_${crypto.randomBytes(3).toString("hex")}`;
+    const releaseId = `rel_intel_cas_${crypto.randomBytes(3).toString("hex")}`;
+    const now = nowIso();
+    await ensureWorkspaceSeeded(ws);
+    await run(
+      `INSERT INTO releases
+         (id, workspace_id, version, release_type, environment, status, created_at, updated_at)
+       VALUES ($1, $2, 'v1', 'model_update', 'pre-prod', 'COLLECTING', $3, $3)`,
+      [releaseId, ws, now]
+    );
+
+    const first = { status: "UNCERTIFIED", summary: "first", generated_at: "2026-08-28T12:00:00.000Z" };
+    const second = {
+      status: "CERTIFIED",
+      summary: "second",
+      generated_at: "2026-08-28T12:00:05.000Z",
+      failed_signals: []
+    };
+    await upsertReleaseIntelligence(releaseId, ws, { verdict: first });
+    await upsertReleaseIntelligence(releaseId, ws, { verdict: second });
+    await upsertReleaseIntelligence(releaseId, ws, {
+      verdict: { ...first, summary: "stale llm garnish" },
+      ifVerdictGeneratedAt: first.generated_at
+    });
+
+    const intelligence = await getReleaseIntelligence(releaseId);
+    assert.equal(intelligence.verdict.summary, "second");
+    assert.equal(intelligence.verdict.status, "CERTIFIED");
+    assert.equal(intelligence.verdict.generated_at, second.generated_at);
+  });
 });
 
 describe("analyzeReleaseDeltas regression (unit)", () => {

@@ -11,7 +11,8 @@
  *   - maybeEnrichVerdictIntelligence  — enriches an already-issued intelligence
  *     object with an LLM-generated summary / recommended_actions.
  *   - enqueueVerdictAssistiveEnrichment — fires via setImmediate so it never
- *     adds latency to the signal-ingest response.
+ *     adds latency to the signal-ingest response. Persist uses compare-and-set
+ *     on the deterministic `generated_at` so a newer verdict is not clobbered.
  *   - maybeEnrichSuggestionReason     — produces a human-readable one-liner for
  *     threshold suggestions (used by thresholdAdvisor).
  *
@@ -135,7 +136,13 @@ function enqueueVerdictAssistiveEnrichment({
         });
         trace.model = enriched?.model || trace.model;
         trace.prompt_version = enriched?.prompt_version || trace.prompt_version;
-        await upsertReleaseIntelligence(releaseId, workspaceId, { verdict: enriched, trace });
+        const expectedGeneratedAt = deterministicIntelligence?.generated_at;
+        if (!expectedGeneratedAt) return;
+        await upsertReleaseIntelligence(releaseId, workspaceId, {
+          verdict: enriched,
+          trace,
+          ifVerdictGeneratedAt: expectedGeneratedAt
+        });
       } catch (err) {
         console.error("[verdict_assistive_enrichment]", releaseId, err);
       }

@@ -36,13 +36,20 @@ async function withTimeoutRetry(task, { timeoutMs = AI_CALL_TIMEOUT_MS, retries 
   throw lastErr || new Error("ai_call_failed");
 }
 
+function geminiGenerateContentUrl(model) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+}
+
 async function callIntelligenceModel(prompt, { maxTokens = 140, signal } = {}) {
   if (!AI_PROVIDER_API_KEY || typeof fetch !== "function") return "";
   if (AI_PROVIDER === "gemini") {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(AI_MODEL)}:generateContent?key=${encodeURIComponent(AI_PROVIDER_API_KEY)}`;
+    const url = geminiGenerateContentUrl(AI_MODEL);
     const r = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": AI_PROVIDER_API_KEY
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens }
@@ -94,4 +101,4 @@ function tryParseJsonObject(text) {
   }
 }
 
-module.exports = { withTimeoutRetry, callIntelligenceModel, tryParseJsonObject };
+module.exports = { withTimeoutRetry, callIntelligenceModel, tryParseJsonObject, geminiGenerateContentUrl };
