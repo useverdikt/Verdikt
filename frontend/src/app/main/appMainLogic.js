@@ -376,6 +376,7 @@ const sidebarStatusLabel = (status) => {
   const s = normalizeReleaseStatus(status);
   if (s === UI_RELEASE_STATUS.CERTIFIED) return "Certified";
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return "Override";
+  if (s === UI_RELEASE_STATUS.CERTIFICATION_REVOKED) return "Revoked";
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return "Uncertified";
   if (s === UI_RELEASE_STATUS.COLLECTING) return "Collecting";
   return status ? String(status) : "—";

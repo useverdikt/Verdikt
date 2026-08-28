@@ -227,6 +227,11 @@ Content-Type: application/json
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10, marginBottom: 16 }}>
             {[
               { label: "Prediction accuracy", value: acc != null ? `${acc}%` : "—", color: accColor },
+              {
+                label: "False-certification rate",
+                value: data.false_certification_rate_pct != null ? `${data.false_certification_rate_pct}%` : "—",
+                color: data.false_certification_rate_pct == null ? C.dim : data.false_certification_rate_pct > 0 ? C.red : C.green
+              },
               { label: "Correct predictions", value: data.correct, color: C.green },
               { label: "Misses (certified → incident)", value: data.misses, color: C.red },
               { label: "Cautious blocks (blocked → healthy)", value: data.over_blocks, color: C.amber }

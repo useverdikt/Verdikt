@@ -1,13 +1,14 @@
 /**
  * 1:1 mapping between backend release.status and UI release.status.
- * Backend: COLLECTING | CERTIFIED | UNCERTIFIED | CERTIFIED_WITH_OVERRIDE
+ * Backend: COLLECTING | CERTIFIED | UNCERTIFIED | CERTIFIED_WITH_OVERRIDE | CERTIFICATION_REVOKED
  */
 
 export const UI_RELEASE_STATUS = {
   COLLECTING: "collecting",
   CERTIFIED: "certified",
   UNCERTIFIED: "uncertified",
-  CERTIFIED_WITH_OVERRIDE: "overridden"
+  CERTIFIED_WITH_OVERRIDE: "overridden",
+  CERTIFICATION_REVOKED: "revoked"
 };
 
 /** @param {string | null | undefined} backendStatus */
@@ -31,7 +32,11 @@ export function isIngestLocked(statusOrRelease, environment) {
       ? statusOrRelease
       : { status: statusOrRelease, environment };
   const s = normalizeReleaseStatus(release.status);
-  if (s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) {
+  if (
+    s === UI_RELEASE_STATUS.CERTIFIED ||
+    s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ||
+    s === UI_RELEASE_STATUS.CERTIFICATION_REVOKED
+  ) {
     return true;
   }
   if (s === UI_RELEASE_STATUS.UNCERTIFIED && isProdEnvironment(release.environment)) {
@@ -55,6 +60,7 @@ export function uiStatusLabel(uiStatus) {
   if (s === UI_RELEASE_STATUS.CERTIFIED) return "CERTIFIED";
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return "UNCERTIFIED";
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return "CERTIFIED WITH OVERRIDE";
+  if (s === UI_RELEASE_STATUS.CERTIFICATION_REVOKED) return "CERTIFICATION REVOKED";
   if (s === UI_RELEASE_STATUS.COLLECTING) return "COLLECTING";
   return String(uiStatus || "—").toUpperCase();
 }
@@ -62,6 +68,12 @@ export function uiStatusLabel(uiStatus) {
 export function isCertifiedLike(uiStatus) {
   const s = normalizeReleaseStatus(uiStatus);
   return s === UI_RELEASE_STATUS.CERTIFIED || s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE;
+}
+
+/** Human revoke is offered only while the live status is still cert-like. */
+export function canOfferRevoke(release) {
+  if (!release) return false;
+  return isCertifiedLike(release.status);
 }
 
 function isProdEnvironment(env) {

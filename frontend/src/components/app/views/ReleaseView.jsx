@@ -16,6 +16,7 @@ export default function ReleaseView({
   setShowStartCert,
   onViewFullRecord,
   onBeginOverride,
+  onRevokeCertification,
   releaseVersionPrimarySecondary,
   onCollectingAction,
   onHydrateVisibleSummaries,
@@ -24,6 +25,7 @@ export default function ReleaseView({
   onLoadMoreReleases,
   shippedWithoutCertificationCount = null,
   productionIncidentsCount = null,
+  falseCertificationRatePct = null,
   remediationDebtActive = false,
   navigate
 }) {
@@ -45,6 +47,7 @@ export default function ReleaseView({
       onNewRelease={() => setShowStartCert?.(true)}
       onViewFullRecord={onViewFullRecord}
       onBeginOverride={onBeginOverride}
+      onRevokeCertification={onRevokeCertification}
       onCollectingAction={onCollectingAction}
       onHydrateVisibleSummaries={onHydrateVisibleSummaries}
       setupChecklist={setupChecklist}
@@ -53,6 +56,7 @@ export default function ReleaseView({
       onLoadMoreReleases={onLoadMoreReleases}
       shippedWithoutCertificationCount={shippedWithoutCertificationCount}
       productionIncidentsCount={productionIncidentsCount}
+      falseCertificationRatePct={falseCertificationRatePct}
       remediationDebtActive={remediationDebtActive}
     />
   );

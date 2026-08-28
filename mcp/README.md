@@ -132,7 +132,7 @@ create_release(version: "agent-demo-v1")  # no GitHub anchor — not for product
 | Field | Who uses it | Meaning |
 |-------|-------------|---------|
 | `gate.exit_code` | GHA / CI | `0` = check passes, `1` = blocked |
-| `action` | Agents (MCP) | `merge` \| `self_heal` \| `escalate` |
+| `action` | Agents (MCP) | `merge` \| `collecting` \| `self_heal` \| `recover_certification` \| `escalate` \| `revoked` |
 
 Example: `CERTIFIED_WITH_OVERRIDE` may yield `exit_code: 0` in default mode but `action: escalate` in strict mode — an agent that only checks exit code could merge incorrectly.
 
@@ -141,8 +141,11 @@ After `check_gate`, use the top-level **`action`** field:
 | `action` | Agent behavior |
 |----------|----------------|
 | `merge` | `can_merge` is true — merge/deploy allowed |
-| `self_heal` | Missing signals or still `COLLECTING` — fix code, re-run CI, post signals again |
+| `collecting` | Signals still arriving — poll during the grace window |
+| `self_heal` | Missing signals or still `COLLECTING` after grace — fix code, re-run CI, post signals again |
+| `recover_certification` | Snapshot missing or remediation debt — do not merge |
 | `escalate` | Threshold failures agent cannot fix — call `escalate`, wait for human override |
+| `revoked` | A human revoked certification — do not merge; open a new release to recertify |
 
 Example response:
 

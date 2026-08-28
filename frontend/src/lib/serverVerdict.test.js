@@ -17,6 +17,7 @@ describe("displayRecommendationFromStatus", () => {
     expect(displayRecommendationFromStatus("CERTIFIED_WITH_OVERRIDE")).toBe("SHIP");
     expect(displayRecommendationFromStatus("overridden")).toBe("SHIP");
     expect(displayRecommendationFromStatus("UNCERTIFIED")).toBe("BLOCK");
+    expect(displayRecommendationFromStatus("CERTIFICATION_REVOKED")).toBe("BLOCK");
     expect(displayRecommendationFromStatus("COLLECTING")).toBe("COLLECTING");
   });
 });

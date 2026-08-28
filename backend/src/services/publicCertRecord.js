@@ -9,7 +9,7 @@ const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
 const { listWorkspaceDefinitions } = require("./signalDefinitions");
 
-const VERDICT_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED"]);
+const VERDICT_STATUSES = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE", "UNCERTIFIED", "CERTIFICATION_REVOKED"]);
 
 const RELEASE_TYPE_LABELS = {
   prompt_update: "Prompt / UX Update",

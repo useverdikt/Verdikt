@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from "react";
 import { C } from "../../../theme/tokens.js";
 import RecommendationPanel from "../RecommendationPanel.jsx";
-import { normalizeReleaseStatus, UI_RELEASE_STATUS, uiStatusLabel } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, uiStatusLabel, canOfferRevoke } from "../../../lib/releaseStatus.js";
 import {
   SignalEvidenceBlock,
   SignalSourceBadge,
@@ -15,8 +15,8 @@ import { calcVerdict } from "../../../app/main/appMainLogic.js";
 import { apiGet } from "../../../lib/apiClient.js";
 import { hasBackend } from "../../../lib/hasBackend.js";
 import {
-  HMAC_SIGNATURE_TOOLTIP,
-  hmacSignatureChipLabel,
+  signatureChipLabel,
+  signatureChipTooltip,
   publicCertPermalinkPath,
   publicCertSlugPath,
   readConfiguredWorkspaceSlug
@@ -27,6 +27,7 @@ export default function CertificationRecordModal({
   thresholds,
   onClose,
   onShareSnapshot,
+  onRevokeCertification,
   releaseTypes,
   signalCategories,
   signalDefinitions = [],
@@ -142,6 +143,7 @@ export default function CertificationRecordModal({
   const statusColor = {
     [UI_RELEASE_STATUS.CERTIFIED]: C.green,
     [UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE]: C.amber,
+    [UI_RELEASE_STATUS.CERTIFICATION_REVOKED]: C.red,
     [UI_RELEASE_STATUS.UNCERTIFIED]: C.red,
     [UI_RELEASE_STATUS.COLLECTING]: C.accent
   }[rs] || C.accent;
@@ -194,20 +196,21 @@ export default function CertificationRecordModal({
           <span style={{ fontSize: 11, color: C.dim }}>⊠</span>
           <span style={{ fontSize: 11, fontFamily: C.mono, color: C.dim, letterSpacing: "0.06em" }}>This record is permanent. It cannot be edited or deleted.</span>
           {certSig && (
-            <span style={{ marginLeft: "auto", fontSize: 11, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={HMAC_SIGNATURE_TOOLTIP}>
-              ⊕ {hmacSignatureChipLabel(certSig.algorithm)}
+            <span style={{ marginLeft: "auto", fontSize: 11, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={signatureChipTooltip(certSig.algorithm)}>
+              ⊕ {signatureChipLabel(certSig.algorithm)}
             </span>
           )}
         </div>
         <div style={{ padding: "24px" }}>
           <div style={{ background: statusColor + "10", border: `1px solid ${statusColor}30`, borderRadius: 12, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: statusColor + "15", border: `1px solid ${statusColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: statusColor, flexShrink: 0 }}>{rs === UI_RELEASE_STATUS.CERTIFIED ? "⊕" : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? "⚠" : rs === UI_RELEASE_STATUS.UNCERTIFIED ? "⊗" : "◎"}</div>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: statusColor + "15", border: `1px solid ${statusColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: statusColor, flexShrink: 0 }}>{rs === UI_RELEASE_STATUS.CERTIFIED ? "⊕" : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE ? "⚠" : rs === UI_RELEASE_STATUS.CERTIFICATION_REVOKED ? "⊘" : rs === UI_RELEASE_STATUS.UNCERTIFIED ? "⊗" : "◎"}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: C.mono, fontSize: 11, fontWeight: 700, color: statusColor, letterSpacing: "0.1em", marginBottom: 3 }}>{statusLabel}</div>
               <div style={{ fontSize: 12, color: C.muted }}>
                 {rt && <span style={{ marginRight: 10 }}>{rt.icon} {rt.label}</span>}
                 {rs === UI_RELEASE_STATUS.CERTIFIED && release.shippedBy && <span>Certified by {release.shippedBy}</span>}
                 {rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE && release.overrideBy && <span>Override by {release.overrideBy}</span>}
+                {rs === UI_RELEASE_STATUS.CERTIFICATION_REVOKED && <span>Certification revoked — frozen snapshot is unchanged</span>}
                 {rs === UI_RELEASE_STATUS.UNCERTIFIED && <span>Verdict issued below threshold — additional signals can still be ingested to re-evaluate</span>}
               </div>
             </div>
@@ -217,6 +220,15 @@ export default function CertificationRecordModal({
             <div style={{ background: C.amberDim, border: `1px solid ${C.amber}30`, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: C.amber, fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.1em", marginBottom: 6 }}>OVERRIDE — {release.overrideBy?.toUpperCase()}</div>
               <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7 }}>{release.overrideReason}</div>
+            </div>
+          )}
+
+          {rs === UI_RELEASE_STATUS.CERTIFICATION_REVOKED && (
+            <div style={{ background: C.redDim, border: `1px solid ${C.red}30`, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: C.red, fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.1em", marginBottom: 6 }}>CERTIFICATION REVOKED</div>
+              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7 }}>
+                This release is no longer certified. The frozen snapshot and signature stay on the record; merge is blocked.
+              </div>
             </div>
           )}
 
@@ -383,6 +395,32 @@ export default function CertificationRecordModal({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {canOfferRevoke(release) && onRevokeCertification && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  const justification = window.prompt("Why is this certification no longer valid?");
+                  if (!justification || justification.trim().length < 8) return;
+                  await onRevokeCertification(release, justification.trim());
+                  onClose?.();
+                }}
+                style={{
+                  fontSize: 12,
+                  fontFamily: C.mono,
+                  fontWeight: 700,
+                  color: C.red,
+                  background: "transparent",
+                  border: `1px solid ${C.red}40`,
+                  borderRadius: 6,
+                  padding: "6px 12px",
+                  cursor: "pointer"
+                }}
+              >
+                Revoke certification
+              </button>
             </div>
           )}
         </div>

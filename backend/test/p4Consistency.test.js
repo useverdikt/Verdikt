@@ -49,6 +49,9 @@ describe("shared release status helpers", async () => {
     assert.equal(esm.isCertLikeStatus("CERTIFIED"), true);
     assert.equal(esm.isCertLikeStatus("CERTIFIED_WITH_OVERRIDE"), true);
     assert.equal(esm.isCertLikeStatus("UNCERTIFIED"), false);
+    assert.equal(esm.isCertLikeStatus("CERTIFICATION_REVOKED"), false);
+    assert.equal(esm.isVerdictedStatus("CERTIFICATION_REVOKED"), true);
+    assert.ok(esm.BACKEND_RELEASE_STATUSES.includes("CERTIFICATION_REVOKED"));
   });
 
   it("exports cert-like set", () => {

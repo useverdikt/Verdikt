@@ -66,7 +66,8 @@ describe("outbound effect shadow sweep job", () => {
         claimed: 1,
         mismatched: 0,
         retried: 0,
-        dead_lettered: 0
+        dead_lettered: 0,
+        delivered: 0
       }
     });
   });
@@ -91,5 +92,24 @@ describe("outbound effect shadow sweep job", () => {
     const body = JSON.parse(buildHealthResponse(true, { database: true, jobs_started: true }));
     assert.equal(body.checks.outbox_shadow.last_failed_at, "2026-08-12T00:00:02.000Z");
     assert.equal(body.checks.outbox_shadow.consecutive_failures, 1);
+  });
+
+  it("runs primary processing when outbox mode is primary", async () => {
+    const events = [];
+    const result = await runOutboundEffectShadowSweepOnce({
+      mode: "primary",
+      processFn: async () => ({
+        claimed: 1,
+        delivered: 1,
+        skipped: 0,
+        retried: 0,
+        dead_lettered: 0
+      }),
+      logFn: (_level, event) => events.push(event),
+      incFn: () => {},
+      nowFn: () => new Date("2026-08-12T00:00:03.000Z")
+    });
+    assert.equal(result.delivered, 1);
+    assert.deepEqual(events, ["outbox_primary_sweep_complete"]);
   });
 });

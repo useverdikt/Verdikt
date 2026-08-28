@@ -41,6 +41,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   const [_releasesTotalCount, setReleasesTotalCount] = useState(null);
   const [shippedWithoutCertificationCount, setShippedWithoutCertificationCount] = useState(null);
   const [productionIncidentsCount, setProductionIncidentsCount] = useState(null);
+  const [falseCertificationRatePct, setFalseCertificationRatePct] = useState(null);
   const [remediationDebtActive, setRemediationDebtActive] = useState(false);
   const [releasesNextBefore, setReleasesNextBefore] = useState(null);
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
@@ -119,6 +120,12 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
       }
       if (typeof relData?.production_incidents_count === "number") {
         setProductionIncidentsCount(relData.production_incidents_count);
+      }
+      if (
+        typeof relData?.false_certification_rate_pct === "number" ||
+        relData?.false_certification_rate_pct === null
+      ) {
+        setFalseCertificationRatePct(relData.false_certification_rate_pct);
       }
       if (typeof relData?.remediation_debt_active === "boolean") {
         setRemediationDebtActive(relData.remediation_debt_active);
@@ -239,6 +246,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     hydrateVisibleSummaries,
     shippedWithoutCertificationCount,
     productionIncidentsCount,
+    falseCertificationRatePct,
     remediationDebtActive
   };
 }

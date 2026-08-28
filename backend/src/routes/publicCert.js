@@ -3,8 +3,13 @@
 const { sendError } = require("../lib/apiError");
 
 const { getPublicCertRecord, getPublicCertRecordByReleaseId } = require("../services/publicCertRecord");
+const { listPublicCertKeys } = require("../services/certSigner");
 
 module.exports = function registerRoutes(app) {
+  app.get("/api/public/cert-keys", (_req, res) => {
+    return res.json(listPublicCertKeys());
+  });
+
   /** Immutable permalink — register before the slug/version route. */
   app.get("/api/public/cert/id/:releaseId", async (req, res, next) => {
     try {

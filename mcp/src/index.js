@@ -39,7 +39,7 @@ const server = new McpServer(
   },
   {
     instructions:
-      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | recover_certification | escalate. When action is not merge, call release_brief for blockers, regression story, remediation debt, and suggested_verb — do not poll check_gate alone without that context. Poll check_gate only for CI grace/collecting windows. Pass session_id per agent execution for audit attribution; create_release returns agent_session_id when auto-generated."
+      "Verdikt certifies AI releases before production. Production flow: label verdikt:rc OR create_release with commit_sha, pr_number, github_owner, github_repo → post_signals or integration pull → check_gate. Read action: merge | collecting | self_heal | recover_certification | escalate | revoked. When action is not merge, call release_brief for blockers, regression story, remediation debt, and suggested_verb — do not poll check_gate alone without that context. Poll check_gate only for CI grace/collecting windows. Pass session_id per agent execution for audit attribution; create_release returns agent_session_id when auto-generated."
   }
 );
 
@@ -161,7 +161,7 @@ server.registerTool(
   "check_gate",
   {
     description:
-      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | recover_certification | escalate). Poll on collecting/self_heal; recover_certification when remediation debt blocks; do not fail on the first check while signals are in flight.",
+      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | recover_certification | escalate | revoked). Poll on collecting/self_heal; recover_certification when remediation debt blocks; revoked means a human withdrew certification — do not merge; do not fail on the first check while signals are in flight.",
     inputSchema: {
       session_id: SESSION_ID_FIELD,
       release_id: z.string(),

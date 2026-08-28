@@ -10,10 +10,12 @@ const { isEmergencyReleaseType } = require("../../lib/emergencyReleaseType");
 const { sendError,
   authMiddleware,
   requireNonViewer,
+  requireHumanSession,
   requireWorkspaceMatch,
   verifyAuditIntegrity,
   ALLOWED_RELEASE_TYPES
 } = require("../deps");
+const { buildWorkspaceAuditExport } = require("../../services/auditExport");
 
 module.exports = function registerRoutes(app) {
 app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
@@ -46,6 +48,8 @@ app.get("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspac
       total_count,
       shipped_without_certification_count,
       production_incidents_count: governance.production_incidents_count,
+      false_certification_rate_pct: governance.false_certification_rate_pct,
+      false_certification_sample_count: governance.false_certification_sample_count,
       remediation_debt_active: governance.remediation_debt_active,
       limit,
       next_before,
@@ -158,6 +162,31 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
     next(e);
   }
 });
+
+app.get(
+  "/api/workspaces/:workspaceId/audit/export",
+  authMiddleware,
+  requireHumanSession,
+  requireWorkspaceMatch,
+  async (req, res, next) => {
+    try {
+      const format = String(req.query.format || "json").toLowerCase();
+      if (format !== "json" && format !== "csv") {
+        return sendError(res, req, 400, "format must be json or csv");
+      }
+      const exported = await buildWorkspaceAuditExport(req.params.workspaceId, format);
+      res.setHeader("Content-Disposition", `attachment; filename="${exported.filename}"`);
+      if (exported.format === "csv") {
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        return res.status(200).send(exported.body);
+      }
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      return res.status(200).json(exported.body);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 app.get("/api/workspaces/:workspaceId/audit", authMiddleware, requireWorkspaceMatch, async (req, res, next) => {
   try {

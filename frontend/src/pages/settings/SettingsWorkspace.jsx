@@ -730,6 +730,7 @@ export default function SettingsWorkspace() {
           section={section}
           toast={toast}
           resetThresholds={resetThresholdsToDefaults}
+          wsId={wsId}
         />
         <EmailPreviewsSection section={section} />
       </SettingsWorkspaceShell>

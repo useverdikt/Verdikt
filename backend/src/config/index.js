@@ -2,6 +2,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 function loadDotEnv() {
   const envPath = path.join(__dirname, "..", "..", ".env");
@@ -83,6 +84,20 @@ const API_REPLICA_COUNT = Number.isFinite(API_REPLICA_COUNT_RAW)
 const REQUIRE_DISTRIBUTED_RATE_LIMITS =
   process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS === "1" || API_REPLICA_COUNT > 1;
 const OUTBOX_MODE = String(process.env.OUTBOX_MODE || "shadow").trim().toLowerCase();
+/** Optional PKCS8 PEM. When unset, new certs stay HMAC-SHA256. */
+const CERT_ED25519_PRIVATE_KEY = (process.env.CERT_ED25519_PRIVATE_KEY || "").trim();
+let CERT_ED25519_PUBLIC_KEY_PEM = "";
+if (CERT_ED25519_PRIVATE_KEY) {
+  try {
+    const privateKey = crypto.createPrivateKey(CERT_ED25519_PRIVATE_KEY);
+    CERT_ED25519_PUBLIC_KEY_PEM = crypto
+      .createPublicKey(privateKey)
+      .export({ type: "spki", format: "pem" })
+      .toString();
+  } catch {
+    throw new Error("Refusing to start: CERT_ED25519_PRIVATE_KEY is not a valid PKCS8 PEM.");
+  }
+}
 const INTERNAL_WORKSPACE_VIEWER_EMAILS = String(process.env.INTERNAL_WORKSPACE_VIEWER_EMAILS || "")
   .split(",")
   .map((entry) => entry.trim().toLowerCase())
@@ -146,8 +161,8 @@ if (IS_PROD_LIKE && process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "0") {
     "Refusing to start: DATABASE_SSL_REJECT_UNAUTHORIZED=0 is not allowed in production-like mode."
   );
 }
-if (!["off", "shadow"].includes(OUTBOX_MODE)) {
-  throw new Error("Refusing to start: OUTBOX_MODE must be off or shadow.");
+if (!["off", "shadow", "primary"].includes(OUTBOX_MODE)) {
+  throw new Error("Refusing to start: OUTBOX_MODE must be off, shadow, or primary.");
 }
 if (IS_PROD_LIKE) {
   const hex = ENCRYPTION_MASTER_KEY_RAW.startsWith("0x")
@@ -213,5 +228,7 @@ module.exports = {
   isInternalWorkspaceViewerEmail,
   SUPABASE_JWT_SECRET,
   ENCRYPTION_MASTER_KEY: ENCRYPTION_MASTER_KEY_RAW,
-  CERT_SIGNING_KEY
+  CERT_SIGNING_KEY,
+  CERT_ED25519_PRIVATE_KEY,
+  CERT_ED25519_PUBLIC_KEY_PEM
 };

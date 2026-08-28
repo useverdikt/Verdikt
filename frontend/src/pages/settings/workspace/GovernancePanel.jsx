@@ -352,7 +352,8 @@ export default function GovernancePanel({ section, wsId, toast }) {
           <div>
             <div className="sblock-title">Cryptographic certification signing</div>
             <div className="sblock-desc">
-              Every CERTIFIED or CERTIFIED_WITH_OVERRIDE verdict is automatically signed with HMAC-SHA256 at issuance. Anyone can verify a certificate without credentials at{" "}
+              Every CERTIFIED or CERTIFIED_WITH_OVERRIDE verdict is signed at issuance. HMAC-SHA256 remains the default and is not a third-party signature. When <code style={{ fontSize: 11 }}>CERT_ED25519_PRIVATE_KEY</code> is set, new records use Ed25519 and the public key is published at{" "}
+              <code style={{ fontSize: 11 }}>/api/public/cert-keys</code>. Anyone can verify a certificate without credentials at{" "}
               <code style={{ fontSize: 11 }}>/api/releases/:id/cert/verify</code>.
             </div>
           </div>

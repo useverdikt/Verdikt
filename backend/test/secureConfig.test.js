@@ -64,10 +64,15 @@ describe("production secure configuration", () => {
     assert.match(out.stderr, /CERT_SIGNING_KEY must be independent/);
   });
 
-  it("rejects outbox delivery modes that are not implemented yet", () => {
-    const out = loadConfig({ OUTBOX_MODE: "primary" });
+  it("rejects unknown outbox modes", () => {
+    const out = loadConfig({ OUTBOX_MODE: "send" });
     assert.notEqual(out.status, 0);
-    assert.match(out.stderr, /OUTBOX_MODE must be off or shadow/);
+    assert.match(out.stderr, /OUTBOX_MODE must be off, shadow, or primary/);
+  });
+
+  it("accepts outbox primary delivery mode without flipping the default", () => {
+    const out = loadConfig({ OUTBOX_MODE: "primary" });
+    assert.equal(out.status, 0, out.stderr);
   });
 
   it("rejects disabling database TLS certificate validation in production", () => {

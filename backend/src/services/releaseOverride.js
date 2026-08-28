@@ -18,6 +18,7 @@ const { getLatestSignalMap } = require("./verdictEngine");
 const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
 const { isProdEnvironment } = require("../lib/releaseStatus");
 const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
+const { OUTBOX_MODE } = require("../config");
 
 const OVERRIDE_EFFECT_TYPES = Object.freeze(["outbound_webhook", "release_callback"]);
 
@@ -69,12 +70,14 @@ async function runOverrideSideEffects(release, _overrideAssessment) {
       const intel = await getReleaseIntelligence(release.id);
       overrideCertSig = await signCertificationRecord(freshRelease, intel?.verdict);
 
-      void deliverVerdictWebhook(freshRelease, intel?.verdict, overrideCertSig).catch((err) =>
-        console.error("[override] outbound_webhook delivery error:", release.id, err?.message)
-      );
-      void deliverReleaseCallback(freshRelease, intel?.verdict, {}).catch((err) =>
-        console.error("[override] release_callback delivery error:", release.id, err?.message)
-      );
+      if (OUTBOX_MODE !== "primary") {
+        void deliverVerdictWebhook(freshRelease, intel?.verdict, overrideCertSig).catch((err) =>
+          console.error("[override] outbound_webhook delivery error:", release.id, err?.message)
+        );
+        void deliverReleaseCallback(freshRelease, intel?.verdict, {}).catch((err) =>
+          console.error("[override] release_callback delivery error:", release.id, err?.message)
+        );
+      }
     }
   } catch (err) {
     console.error("[override] side effects failed:", release.id, err?.message || err);

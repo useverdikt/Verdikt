@@ -84,11 +84,11 @@ function signOutboundPayload(body, secret) {
 
 async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, failedSignals = [], certification = null) {
   const webhook = await getOutboundWebhook(release.workspace_id);
-  if (!webhook) return;
+  if (!webhook) return { skipped: true, reason: "no_outbound_webhook" };
 
   const eventType = release.status;
   const subscribedEvents = (webhook.events || "").split(",").map((e) => e.trim());
-  if (!subscribedEvents.includes(eventType)) return;
+  if (!subscribedEvents.includes(eventType)) return { skipped: true, reason: "event_not_subscribed" };
 
   const payload = buildVerdictPayload(release, eventType, verdictIntelligence, certSigRow, failedSignals, certification);
   const bodyStr = JSON.stringify(payload);
@@ -121,7 +121,7 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
   `,
         [webhook.id, release.id, eventType, bodyStr, null, errorMessage, deliveredAt]
       );
-      return;
+      return { delivered: false, ok: false, reason: errorMessage };
     }
     const res = await postJsonWithTimeout(deliveryUrl, bodyStr, {
       headers,
@@ -145,6 +145,8 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
   `,
     [webhook.id, release.id, eventType, bodyStr, responseStatus, errorMessage, deliveredAt]
   );
+  if (errorMessage) return { delivered: false, ok: false, reason: errorMessage };
+  return { delivered: true, ok: true, status: responseStatus };
 }
 
 module.exports = {

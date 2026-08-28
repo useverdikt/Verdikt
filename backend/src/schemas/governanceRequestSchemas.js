@@ -60,8 +60,15 @@ const overrideBodySchema = z
   })
   .passthrough();
 
+const revokeBodySchema = z
+  .object({
+    justification: z.string().min(1)
+  })
+  .passthrough();
+
 module.exports = {
   overrideBodySchema,
+  revokeBodySchema,
   policyBodySchema,
   signalIngestBodySchema,
   thresholdsBodySchema

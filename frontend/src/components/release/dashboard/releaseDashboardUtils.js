@@ -33,6 +33,7 @@ export function verdictMeta(releaseOrStatus) {
   const s = normalizeReleaseStatus(release.status);
   if (s === UI_RELEASE_STATUS.CERTIFIED) return { cls: "v-cert", label: "CERTIFIED", pulse: false };
   if (s === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE) return { cls: "v-ov", label: "WITH OVERRIDE", pulse: false };
+  if (s === UI_RELEASE_STATUS.CERTIFICATION_REVOKED) return { cls: "v-revoked", label: "REVOKED", pulse: false };
   if (s === UI_RELEASE_STATUS.UNCERTIFIED) return { cls: "v-un", label: "UNCERTIFIED", pulse: false };
   if (s === UI_RELEASE_STATUS.COLLECTING) return { cls: "v-col", label: "COLLECTING", pulse: true };
   return { cls: "v-col", label: "COLLECTING", pulse: false };

@@ -73,7 +73,7 @@ export function serverFailedSignalIds(release) {
 export function displayRecommendationFromStatus(status) {
   const s = normalizeReleaseStatus(status);
   if (isCertifiedLike(s)) return "SHIP";
-  if (s === UI_RELEASE_STATUS.UNCERTIFIED) return "BLOCK";
+  if (s === UI_RELEASE_STATUS.UNCERTIFIED || s === UI_RELEASE_STATUS.CERTIFICATION_REVOKED) return "BLOCK";
   return "COLLECTING";
 }
 

@@ -44,3 +44,19 @@ export function hmacSignatureChipLabel(algorithm) {
 
 export const HMAC_SIGNATURE_TOOLTIP =
   "Server-side HMAC. Verification checks Verdikt's stored record; it is not a third-party signature.";
+
+export const ED25519_SIGNATURE_TOOLTIP =
+  "Ed25519. Anyone can verify this signature with the published public key at /api/public/cert-keys.";
+
+export function isEd25519Algorithm(algorithm) {
+  return String(algorithm || "").toLowerCase() === "ed25519";
+}
+
+export function signatureChipLabel(algorithm) {
+  if (isEd25519Algorithm(algorithm)) return "signed · ed25519 (publicly verifiable)";
+  return hmacSignatureChipLabel(algorithm);
+}
+
+export function signatureChipTooltip(algorithm) {
+  return isEd25519Algorithm(algorithm) ? ED25519_SIGNATURE_TOOLTIP : HMAC_SIGNATURE_TOOLTIP;
+}
