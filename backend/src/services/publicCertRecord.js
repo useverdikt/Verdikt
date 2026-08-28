@@ -199,19 +199,43 @@ function buildFailingList(intelligence, remediation, thresholdMap, latest, defin
 
 /**
  * Public certification record for /cert/:slug/:version (no auth).
- * Returns null when not found or not public; throws 404-shaped errors via caller.
+ * Returns { error, status } when not found or not public.
  */
 async function getPublicCertRecord(slugParam, versionParam) {
   const resolved = await resolveWorkspaceByPublicSlug(slugParam);
   if (!resolved) return { error: "not_found", status: 404 };
 
   const { policy, slug } = resolved;
-  const publicEnabled = policy.public_cert_records !== false && policy.public_cert_records !== 0;
-  if (!publicEnabled) return { error: "not_found", status: 404 };
+  if (!publicRecordsEnabled(policy)) return { error: "not_found", status: 404 };
 
   const release = await resolveReleaseByVersion(policy.workspace_id, versionParam);
   if (!release) return { error: "not_found", status: 404 };
 
+  return assemblePublicCertRecord(release, policy, slug);
+}
+
+/**
+ * Immutable permalink: /cert/id/:releaseId. Same public-records gate as the slug URL.
+ */
+async function getPublicCertRecordByReleaseId(releaseId) {
+  const id = String(releaseId || "").trim();
+  if (!id) return { error: "not_found", status: 404 };
+
+  const release = await queryOne("SELECT * FROM releases WHERE id = $1", [id]);
+  if (!release) return { error: "not_found", status: 404 };
+
+  const policy = await queryOne("SELECT * FROM workspace_policies WHERE workspace_id = $1", [release.workspace_id]);
+  if (!policy || !publicRecordsEnabled(policy)) return { error: "not_found", status: 404 };
+
+  const slug = policy.public_slug || "";
+  return assemblePublicCertRecord(release, policy, slug);
+}
+
+function publicRecordsEnabled(policy) {
+  return policy.public_cert_records !== false && policy.public_cert_records !== 0;
+}
+
+async function assemblePublicCertRecord(release, policy, slug) {
   const status = String(release.status || "").toUpperCase();
   if (!VERDICT_STATUSES.has(status) || !release.verdict_issued_at) {
     return { error: "not_found", status: 404 };
@@ -234,7 +258,9 @@ async function getPublicCertRecord(slugParam, versionParam) {
 
   const displayName =
     (policy.public_display_name && String(policy.public_display_name).trim()) ||
-    slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    String(slug || "workspace")
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
   const payload = {
     workspace: {
@@ -283,4 +309,4 @@ async function getPublicCertRecord(slugParam, versionParam) {
   return { record: payload };
 }
 
-module.exports = { getPublicCertRecord, normalizeWorkspaceSlug };
+module.exports = { getPublicCertRecord, getPublicCertRecordByReleaseId, normalizeWorkspaceSlug };

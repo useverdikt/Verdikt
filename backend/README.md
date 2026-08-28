@@ -132,7 +132,7 @@ Writes timestamped **`.sql`** files under **`data/backups/`** (override with `BA
 - **Service events** — Certification snapshot failures, escalation SLA breaches, collection-sweep claims, shadow outbox comparisons/retries, gate actions, post-verdict side effects, gate context build failures, and VCS monitor scan failures all emit structured lines via `src/lib/observability.js` (same `LOG_JSON=1` switch). Process-local counters (`cert_snapshot_*`, `escalation_sla_breach`, `collection_sweep_*`, `outbox_shadow_*`, `gate_action_*`, `post_verdict_*`, `gate_context_*`, `vcs_monitor_*`) are for debugging; rely on log aggregation across API/worker processes.
 - **Graceful shutdown** — **`SIGTERM`** / **`SIGINT`** stop the HTTP server, clear the collection sweep interval, and end the PostgreSQL pool. **`SHUTDOWN_GRACE_MS`** (default **10000**) caps how long to wait before `exit(1)` if connections linger.
 - **Real-time SSE** — `GET /api/releases/:releaseId/stream` delivers Server-Sent Events for signal ingests and verdict updates. Single-replica deployments work out of the box. For multiple API replicas, the backend uses PostgreSQL **`LISTEN/NOTIFY`** on the existing `DATABASE_URL` so every replica forwards events to its local listeners (works with Supabase Postgres as well).
-- **Rate limiting** — Login, register, forgot-password, waitlist, and webhook endpoints are rate-limited. Signal ingest (`POST /api/releases/:id/signals`) and gate polling (`GET /api/releases/:id/gate`, `GET /api/workspaces/:id/gate`) have per-key + per-workspace limits. Redis-backed when `REDIS_URL` is set, otherwise in-memory. Tune with `SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_KEY`, `SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE`, `GATE_RATE_LIMIT_PER_MINUTE_PER_KEY`, `GATE_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE`.
+- **Rate limiting** — Login, register, forgot-password, waitlist, and webhook endpoints are rate-limited. Signal ingest (`POST /api/releases/:id/signals`) and gate polling (`GET /api/releases/:id/gate`, `GET /api/workspaces/:id/gate`) have per-key + per-workspace limits. Redis-backed when `REDIS_URL` is set. If `API_REPLICA_COUNT > 1` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1`, Redis errors after boot deny the request instead of falling back to per-process memory. A single replica may use in-memory counters. Tune with `SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_KEY`, `SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE`, `GATE_RATE_LIMIT_PER_MINUTE_PER_KEY`, `GATE_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE`.
 
 ## CORS, release list pagination, and assistive verdict responses
 
@@ -573,7 +573,7 @@ Override requests must include structured metadata:
 ## Operational notes
 
 - Request IDs are returned as `x-request-id` in responses.
-- Rate limits use Redis when `REDIS_URL` is set. Production-like startup requires Redis when `API_REPLICA_COUNT > 1` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1`; a single replica may use in-memory counters.
+- Rate limits use Redis when `REDIS_URL` is set. Production-like startup requires Redis when `API_REPLICA_COUNT > 1` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1`; a single replica may use in-memory counters. After boot, multi-replica deployments deny the request if Redis is unreachable instead of multiplying limits across processes.
 - Keep `JWT_SECRET`, `CERT_SIGNING_KEY`, and `WEBHOOK_SECRET` independent, rotated, and managed via a secrets store.
 - Define your retention policy before production (recommended: keep release/audit records for at least 12 months for governance evidence).
 

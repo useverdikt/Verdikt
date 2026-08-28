@@ -12,15 +12,15 @@ import { buildCertRecordFailing, buildCertRecordSignalEntries } from "../../../l
 import { useModalLayer } from "../../../hooks/useModalLayer.js";
 import { categoryStatusFromFailedIds, failingSignalsForDisplay, serverFailedSignalIds, shouldUseServerFailedSignals } from "../../../lib/serverVerdict.js";
 import { calcVerdict } from "../../../app/main/appMainLogic.js";
-
-function currentWorkspaceSlug() {
-  const raw = String(localStorage.getItem("vdk3_workspace_slug") || "workspace").trim().toLowerCase();
-  const slug = raw
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || "workspace";
-}
+import { apiGet } from "../../../lib/apiClient.js";
+import { hasBackend } from "../../../lib/hasBackend.js";
+import {
+  HMAC_SIGNATURE_TOOLTIP,
+  hmacSignatureChipLabel,
+  publicCertPermalinkPath,
+  publicCertSlugPath,
+  readConfiguredWorkspaceSlug
+} from "../../../lib/publicCertLinks.js";
 
 export default function CertificationRecordModal({
   release,
@@ -35,7 +35,7 @@ export default function CertificationRecordModal({
   getRegressionRequired,
   evaluateSignal,
   fmtVal,
-  certSig,
+  certSig: certSigProp,
   backendReleaseId,
   certification
 }) {
@@ -43,11 +43,30 @@ export default function CertificationRecordModal({
   const panelRef = useRef(null);
   useModalLayer(onClose, panelRef);
   const [isMobile, setIsMobile] = React.useState(() => window.innerWidth <= 900);
+  const [fetchedSig, setFetchedSig] = React.useState(null);
   React.useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 900);
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
+  React.useEffect(() => {
+    if (certSigProp || !backendReleaseId || !hasBackend()) {
+      setFetchedSig(null);
+      return undefined;
+    }
+    let cancelled = false;
+    apiGet(`/api/releases/${encodeURIComponent(backendReleaseId)}/cert/signature`)
+      .then((sig) => {
+        if (!cancelled) setFetchedSig(sig);
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedSig(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backendReleaseId, certSigProp]);
+  const certSig = certSigProp || fetchedSig;
   const useServerFails = shouldUseServerFailedSignals(release);
   const failedSignalIds = useServerFails ? serverFailedSignalIds(release) : null;
   const legacyFailing = useMemo(
@@ -127,7 +146,10 @@ export default function CertificationRecordModal({
     [UI_RELEASE_STATUS.COLLECTING]: C.accent
   }[rs] || C.accent;
   const statusLabel = uiStatusLabel(rs);
-  const certPath = `/cert/${currentWorkspaceSlug()}/${encodeURIComponent(String(release.version || ""))}`;
+  const { slug, configured } = readConfiguredWorkspaceSlug();
+  const certPath =
+    publicCertPermalinkPath(backendReleaseId) ||
+    (configured ? publicCertSlugPath(slug, release.version) : null);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000e0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: isMobile ? 10 : 20, backdropFilter: "blur(6px)" }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
@@ -141,7 +163,11 @@ export default function CertificationRecordModal({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {certPath ? (
             <a href={certPath} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.accentBright, fontFamily: C.mono, fontWeight: 700, textDecoration: "none", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 6, padding: "5px 12px" }}>View public record →</a>
+            ) : (
+              <span style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>Set a public URL slug in Settings to share</span>
+            )}
             {typeof onShareSnapshot === "function" && (
               <button
                 type="button"
@@ -168,8 +194,8 @@ export default function CertificationRecordModal({
           <span style={{ fontSize: 11, color: C.dim }}>⊠</span>
           <span style={{ fontSize: 11, fontFamily: C.mono, color: C.dim, letterSpacing: "0.06em" }}>This record is permanent. It cannot be edited or deleted.</span>
           {certSig && (
-            <span style={{ marginLeft: "auto", fontSize: 10, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={`Payload hash: ${certSig.payload_hash}`}>
-              ⊕ cryptographically signed · {certSig.algorithm}
+            <span style={{ marginLeft: "auto", fontSize: 10, fontFamily: C.mono, color: C.green, opacity: 0.7, letterSpacing: "0.04em" }} title={HMAC_SIGNATURE_TOOLTIP}>
+              ⊕ {hmacSignatureChipLabel(certSig.algorithm)}
             </span>
           )}
         </div>

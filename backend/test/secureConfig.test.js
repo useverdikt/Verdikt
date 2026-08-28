@@ -23,7 +23,8 @@ function loadConfig(extraEnv = {}) {
     "REQUIRE_DISTRIBUTED_RATE_LIMITS",
     "REDIS_URL",
     "INTERNAL_WORKSPACE_VIEWER_EMAILS",
-    "OUTBOX_MODE"
+    "OUTBOX_MODE",
+    "DATABASE_SSL_REJECT_UNAUTHORIZED"
   ]) {
     if (!(key in extraEnv)) delete env[key];
   }
@@ -67,5 +68,11 @@ describe("production secure configuration", () => {
     const out = loadConfig({ OUTBOX_MODE: "primary" });
     assert.notEqual(out.status, 0);
     assert.match(out.stderr, /OUTBOX_MODE must be off or shadow/);
+  });
+
+  it("rejects disabling database TLS certificate validation in production", () => {
+    const out = loadConfig({ DATABASE_SSL_REJECT_UNAUTHORIZED: "0" });
+    assert.notEqual(out.status, 0);
+    assert.match(out.stderr, /DATABASE_SSL_REJECT_UNAUTHORIZED=0/);
   });
 });

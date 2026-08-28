@@ -280,14 +280,38 @@ async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}, tx 
   const hasRecommendation = patch.recommendation !== undefined;
   const hasOutcome = patch.outcome !== undefined;
   const timestamp = nowIso();
+  const expectedGeneratedAt =
+    hasVerdict && patch.ifVerdictGeneratedAt != null && String(patch.ifVerdictGeneratedAt).trim()
+      ? String(patch.ifVerdictGeneratedAt)
+      : null;
   await runFn(
     `INSERT INTO release_intelligence (release_id, workspace_id, verdict_json, override_json, trace_json, decision_json, recommendation_json, outcome_json, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT(release_id) DO UPDATE SET
        workspace_id = excluded.workspace_id,
-       verdict_json = CASE WHEN $11::boolean THEN excluded.verdict_json ELSE release_intelligence.verdict_json END,
+       verdict_json = CASE
+         WHEN $11::boolean AND (
+           $17::text IS NULL
+           OR (
+             release_intelligence.verdict_json IS NOT NULL
+             AND btrim(release_intelligence.verdict_json) <> ''
+             AND COALESCE((release_intelligence.verdict_json)::jsonb ->> 'generated_at', '') = $17
+           )
+         ) THEN excluded.verdict_json
+         ELSE release_intelligence.verdict_json
+       END,
        override_json = CASE WHEN $12::boolean THEN excluded.override_json ELSE release_intelligence.override_json END,
-       trace_json = CASE WHEN $13::boolean THEN excluded.trace_json ELSE release_intelligence.trace_json END,
+       trace_json = CASE
+         WHEN $13::boolean AND (
+           $17::text IS NULL
+           OR (
+             release_intelligence.verdict_json IS NOT NULL
+             AND btrim(release_intelligence.verdict_json) <> ''
+             AND COALESCE((release_intelligence.verdict_json)::jsonb ->> 'generated_at', '') = $17
+           )
+         ) THEN excluded.trace_json
+         ELSE release_intelligence.trace_json
+       END,
        decision_json = CASE WHEN $14::boolean THEN excluded.decision_json ELSE release_intelligence.decision_json END,
        recommendation_json = CASE WHEN $15::boolean THEN excluded.recommendation_json ELSE release_intelligence.recommendation_json END,
        outcome_json = CASE WHEN $16::boolean THEN excluded.outcome_json ELSE release_intelligence.outcome_json END,
@@ -308,7 +332,8 @@ async function upsertReleaseIntelligence(releaseId, workspaceId, patch = {}, tx 
       hasTrace,
       hasDecision,
       hasRecommendation,
-      hasOutcome
+      hasOutcome,
+      expectedGeneratedAt
     ]
   );
 }

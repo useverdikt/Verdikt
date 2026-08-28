@@ -174,6 +174,7 @@ if (rootEl) {
               />
               <Route path="/badge" element={<BadgePage />} />
               <Route path="/badge/:workspaceSlug/:version" element={<BadgePage />} />
+              <Route path="/cert/id/:releaseId" element={<BadgePage />} />
               <Route path="/cert/:workspaceSlug/:version" element={<BadgePage />} />
               <Route
                 path="/*"

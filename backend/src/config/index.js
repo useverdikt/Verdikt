@@ -141,6 +141,11 @@ if (IS_PROD_LIKE && REQUIRE_DISTRIBUTED_RATE_LIMITS && !REDIS_URL) {
     "Refusing to start without REDIS_URL when API_REPLICA_COUNT > 1 or REQUIRE_DISTRIBUTED_RATE_LIMITS=1."
   );
 }
+if (IS_PROD_LIKE && process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "0") {
+  throw new Error(
+    "Refusing to start: DATABASE_SSL_REJECT_UNAUTHORIZED=0 is not allowed in production-like mode."
+  );
+}
 if (!["off", "shadow"].includes(OUTBOX_MODE)) {
   throw new Error("Refusing to start: OUTBOX_MODE must be off or shadow.");
 }

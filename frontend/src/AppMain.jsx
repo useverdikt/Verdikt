@@ -480,6 +480,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
             evaluateSignal={evaluateSignal}
             getRegressionRequired={getRegressionRequired}
             certification={shareRelease?.certification || null}
+            backendReleaseId={shareRelease?.backendReleaseId || null}
           />
         )}
         {liveStreamRelease && (

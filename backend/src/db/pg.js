@@ -21,6 +21,26 @@ function shouldUseSsl(connectionString) {
   return /supabase\.co|\.pooler\.supabase/i.test(connectionString || "");
 }
 
+function isProdLikeSslGuard() {
+  return process.env.NODE_ENV === "production" || process.env.REQUIRE_SECURE_CONFIG === "1";
+}
+
+/** TLS certificate validation is on by default. Opt out only in non-prod with DATABASE_SSL_REJECT_UNAUTHORIZED=0. */
+function sslRejectUnauthorized() {
+  return process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "0";
+}
+
+function sslConfig(connectionString) {
+  if (!shouldUseSsl(connectionString)) return undefined;
+  const rejectUnauthorized = sslRejectUnauthorized();
+  if (!rejectUnauthorized && isProdLikeSslGuard()) {
+    throw new Error(
+      "Refusing to start: DATABASE_SSL_REJECT_UNAUTHORIZED=0 is not allowed in production-like mode."
+    );
+  }
+  return { rejectUnauthorized };
+}
+
 function getPool() {
   const url = process.env.DATABASE_URL;
   if (!url || !String(url).trim()) {
@@ -32,7 +52,7 @@ function getPool() {
     pool = new Pool({
       connectionString: url,
       max: Number(process.env.PG_POOL_MAX || 10),
-      ssl: shouldUseSsl(url) ? { rejectUnauthorized: false } : undefined
+      ssl: sslConfig(url)
     });
   }
   return pool;
@@ -45,4 +65,4 @@ async function closePool() {
   }
 }
 
-module.exports = { getPool, closePool };
+module.exports = { getPool, closePool, shouldUseSsl, sslConfig };

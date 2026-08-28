@@ -72,3 +72,15 @@ describe("AI request timeout retries", () => {
     assert.equal(attempts, 1);
   });
 });
+
+describe("Gemini request construction", () => {
+  it("does not put the API key in the generateContent URL", () => {
+    const { geminiGenerateContentUrl } = require("../src/services/aiClient");
+    const url = geminiGenerateContentUrl("gemini-2.0-flash");
+    assert.equal(
+      url,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    );
+    assert.equal(url.includes("key="), false);
+  });
+});

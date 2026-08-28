@@ -4,7 +4,9 @@ const { test, describe, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const {
   checkSignalIngestRateLimit,
-  checkGatePollRateLimit
+  checkGatePollRateLimit,
+  resetRateLimitRedisForTests,
+  setRateLimitRedisClientForTests
 } = require("../src/middleware/rateLimit");
 
 describe("rate limiting for signal ingest and gate polling", () => {
@@ -33,6 +35,10 @@ describe("rate limiting for signal ingest and gate polling", () => {
     else process.env.GATE_RATE_LIMIT_PER_MINUTE_PER_KEY = originalGateKeyLimit;
     if (originalGateWsLimit === undefined) delete process.env.GATE_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE;
     else process.env.GATE_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE = originalGateWsLimit;
+    delete process.env.REDIS_URL;
+    delete process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS;
+    delete process.env.API_REPLICA_COUNT;
+    resetRateLimitRedisForTests();
   });
 
   test("signal ingest enforces per-key limit", async () => {
@@ -74,6 +80,35 @@ describe("rate limiting for signal ingest and gate polling", () => {
   test("rate limits are bypassed in test environment", async () => {
     process.env.NODE_ENV = "test";
     const ok = await checkSignalIngestRateLimit("key_1", "ws_1");
+    assert.equal(ok, true);
+  });
+
+  test("denies ingest when Redis fails and distributed limits are required", async () => {
+    process.env.REDIS_URL = "redis://127.0.0.1:1";
+    process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS = "1";
+    resetRateLimitRedisForTests();
+    setRateLimitRedisClientForTests({
+      incr: async () => {
+        throw new Error("ECONNREFUSED");
+      },
+      expire: async () => {},
+      on: () => {}
+    });
+    const ok = await checkSignalIngestRateLimit("key_redis_fail", "ws_redis_fail");
+    assert.equal(ok, false);
+  });
+
+  test("falls back to memory when Redis fails on a single replica", async () => {
+    process.env.REDIS_URL = "redis://127.0.0.1:1";
+    resetRateLimitRedisForTests();
+    setRateLimitRedisClientForTests({
+      incr: async () => {
+        throw new Error("ECONNREFUSED");
+      },
+      expire: async () => {},
+      on: () => {}
+    });
+    const ok = await checkSignalIngestRateLimit("key_mem_fallback", "ws_mem_fallback");
     assert.equal(ok, true);
   });
 });

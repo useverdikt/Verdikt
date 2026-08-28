@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { verdiktMarkInnerPaths, verdictStateToMarkVariant } from "../brand/verdiktMarkSvg.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
-import { fetchPublicCertRecord } from "../lib/fetchPublicCert.js";
+import { fetchPublicCertRecord, fetchPublicCertRecordById, fetchCertVerification } from "../lib/fetchPublicCert.js";
+import { HMAC_SIGNATURE_TOOLTIP, hmacSignatureChipLabel } from "../lib/publicCertLinks.js";
 import { DEMOS, CATS, STATE_META, DEMO_KEYS } from "./badgeDemoData.js";
 import "./BadgePage.css";
 
@@ -253,7 +254,9 @@ function RecordCard({
   waiver,
   signalGroups,
   certification,
-  signature
+  signature,
+  releaseId,
+  permalinkPath
 }) {
   const m = STATE_META[stateKey] || STATE_META.certified;
   const stampLines = m.label.split("\n");
@@ -272,7 +275,7 @@ function RecordCard({
           <div className="rec-header-divider" />
           <div className="rec-header-type">Certification Record</div>
         </div>
-        <div className="rec-header-url">useverdikt.com/cert/{wsSlug}/{esc(certVersion)}</div>
+        <div className="rec-header-url">useverdikt.com{permalinkPath || `/cert/${wsSlug}/${esc(certVersion)}`}</div>
       </div>
 
       <div className={`rec-hero ${m.heroBg}`}>
@@ -324,10 +327,12 @@ function RecordCard({
             letterSpacing: "0.04em",
             borderBottom: "1px solid rgba(255,255,255,0.06)"
           }}
+          title={HMAC_SIGNATURE_TOOLTIP}
         >
-          ⊕ Cryptographically signed · {esc(signature.algorithm)} · {esc(signature.signed_at?.slice(0, 10))}
+          ⊕ {hmacSignatureChipLabel(signature.algorithm)} · {esc(signature.signed_at?.slice(0, 10))}
         </div>
       ) : null}
+      {releaseId ? <CertVerifyControls releaseId={releaseId} /> : null}
 
       {failing?.length > 0 ? (
         <div style={{ paddingTop: 24 }}>
@@ -513,7 +518,76 @@ function EmbedSection({ wsSlug, certVersion, copyLabel, onCopy }) {
   );
 }
 
-function LivePublicCertPage({ wsSlug, certVersion }) {
+function CertVerifyControls({ releaseId }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const verify = () => {
+    setBusy(true);
+    setError(null);
+    fetchCertVerification(releaseId)
+      .then((data) => {
+        setResult(data?.verification || data);
+      })
+      .catch((e) => {
+        setError(e?.message || "verify_failed");
+        setResult(null);
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const valid = result?.valid === true;
+  const reason = result?.reason ? String(result.reason) : null;
+
+  return (
+    <div
+      className="no-print"
+      style={{
+        padding: "12px 20px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        flexWrap: "wrap"
+      }}
+    >
+      <button
+        type="button"
+        onClick={verify}
+        disabled={busy}
+        style={{
+          fontFamily: "var(--mono)",
+          fontSize: 11,
+          padding: "5px 14px",
+          borderRadius: 6,
+          border: "1px solid var(--accent)",
+          background: "rgba(124,58,237,0.06)",
+          color: "var(--accent)",
+          cursor: busy ? "wait" : "pointer",
+          letterSpacing: "0.05em"
+        }}
+      >
+        {busy ? "Verifying…" : "Verify this record"}
+      </button>
+      {valid ? (
+        <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "#059669" }} title={HMAC_SIGNATURE_TOOLTIP}>
+          {"HMAC verified against Verdikt's stored record"}
+        </span>
+      ) : null}
+      {result && !valid ? (
+        <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "#dc2626" }}>
+          Not verified{reason ? ` · ${reason}` : ""}
+        </span>
+      ) : null}
+      {error ? (
+        <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "#dc2626" }}>{error}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function LivePublicCertPage({ wsSlug, certVersion, releaseId }) {
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -523,7 +597,10 @@ function LivePublicCertPage({ wsSlug, certVersion }) {
     let active = true;
     setLoading(true);
     setError(null);
-    fetchPublicCertRecord(wsSlug, certVersion)
+    const loader = releaseId
+      ? fetchPublicCertRecordById(releaseId)
+      : fetchPublicCertRecord(wsSlug, certVersion);
+    loader
       .then((data) => {
         if (!active) return;
         if (!data) setError("not_found");
@@ -539,7 +616,7 @@ function LivePublicCertPage({ wsSlug, certVersion }) {
     return () => {
       active = false;
     };
-  }, [wsSlug, certVersion]);
+  }, [wsSlug, certVersion, releaseId]);
 
   useEffect(() => {
     const title = record?.release?.version
@@ -552,9 +629,12 @@ function LivePublicCertPage({ wsSlug, certVersion }) {
   }, [record]);
 
   const embedMarkdown = useMemo(() => {
-    const v = encodeURIComponent(certVersion);
-    return `[![Verdikt](https://useverdikt.com/badge/${wsSlug}/${v})](https://useverdikt.com/cert/${wsSlug}/${v})`;
-  }, [certVersion, wsSlug]);
+    const slug = record?.workspace?.slug || wsSlug;
+    const version = record?.release?.version || certVersion;
+    if (!slug || !version) return "";
+    const v = encodeURIComponent(version);
+    return `[![Verdikt](https://useverdikt.com/badge/${slug}/${v})](https://useverdikt.com/cert/${slug}/${v})`;
+  }, [record, wsSlug, certVersion]);
 
   const copyEmbed = () => {
     navigator.clipboard?.writeText(embedMarkdown).catch(() => {});
@@ -586,7 +666,7 @@ function LivePublicCertPage({ wsSlug, certVersion }) {
           <li>Release is still collecting signals or public records are disabled in settings</li>
         </ul>
         <p style={{ fontSize: 12, fontFamily: "var(--mono)", color: "#64748b", marginBottom: 16 }}>
-          Tried: /cert/{wsSlug}/{encodeURIComponent(certVersion)}
+          Tried: {releaseId ? `/cert/id/${releaseId}` : `/cert/${wsSlug}/${encodeURIComponent(certVersion || "")}`}
         </p>
         <Link to="/" style={{ color: "#a78bfa", fontSize: 13 }}>
           ← useverdikt.com
@@ -623,8 +703,10 @@ function LivePublicCertPage({ wsSlug, certVersion }) {
         signalGroups={signalGroups}
         certification={record.certification}
         signature={record.signature}
+        releaseId={record.release?.id || releaseId}
+        permalinkPath={record.release?.id ? `/cert/id/${record.release.id}` : null}
       />
-      <EmbedSection wsSlug={wsSlug} certVersion={certVersion} copyLabel={copyLabel} onCopy={copyEmbed} />
+      <EmbedSection wsSlug={record.workspace?.slug || wsSlug} certVersion={record.release?.version || certVersion} copyLabel={copyLabel} onCopy={copyEmbed} />
     </div>
   );
 }
@@ -718,19 +800,24 @@ function DemoBadgePage() {
 }
 
 export default function BadgePage() {
-  const { workspaceSlug: workspaceSlugParam, version: versionParam } = useParams();
-  const isLive = Boolean(workspaceSlugParam && versionParam);
+  const { workspaceSlug: workspaceSlugParam, version: versionParam, releaseId } = useParams();
+  const isLiveBySlug = Boolean(workspaceSlugParam && versionParam);
+  const isLiveById = Boolean(releaseId);
 
   useEffect(() => {
-    if (!isLive) {
+    if (!isLiveBySlug && !isLiveById) {
       document.title = "Verdikt — Public Certification Record";
     }
     return () => {
       document.title = "Verdikt — Release Intelligence System";
     };
-  }, [isLive]);
+  }, [isLiveBySlug, isLiveById]);
 
-  if (isLive) {
+  if (isLiveById) {
+    return <LivePublicCertPage releaseId={decodeURIComponent(String(releaseId))} />;
+  }
+
+  if (isLiveBySlug) {
     const wsSlug = workspaceSlug(workspaceSlugParam);
     const certVersion = decodeURIComponent(String(versionParam));
     return <LivePublicCertPage wsSlug={wsSlug} certVersion={certVersion} />;

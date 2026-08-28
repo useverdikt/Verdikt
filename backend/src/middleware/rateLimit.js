@@ -1,6 +1,6 @@
 "use strict";
 
-const { LOGIN_RATE_LIMIT_PER_MINUTE, WEBHOOK_RATE_LIMIT_PER_MINUTE, REDIS_URL } = require("../config");
+const { LOGIN_RATE_LIMIT_PER_MINUTE, WEBHOOK_RATE_LIMIT_PER_MINUTE } = require("../config");
 const { sendError } = require("../lib/apiError");
 
 const webhookRateWindow = new Map();
@@ -33,15 +33,25 @@ function bypassRateLimit() {
   return process.env.NODE_ENV === "test" || process.env.DISABLE_RATE_LIMIT === "1";
 }
 
+function redisUrl() {
+  return String(process.env.REDIS_URL || "").trim();
+}
+
+function distributedLimitsRequired() {
+  const replicaCount = Number(process.env.API_REPLICA_COUNT || 1);
+  return process.env.REQUIRE_DISTRIBUTED_RATE_LIMITS === "1" || (Number.isFinite(replicaCount) && replicaCount > 1);
+}
+
 let redisClient;
 let redisWarned;
 
 function getRedis() {
-  if (!REDIS_URL) return null;
+  const url = redisUrl();
+  if (!url) return null;
   if (redisClient === undefined) {
     try {
       const Redis = require("ioredis");
-      redisClient = new Redis(REDIS_URL, {
+      redisClient = new Redis(url, {
         maxRetriesPerRequest: 2,
         lazyConnect: true,
         enableOfflineQueue: false
@@ -49,30 +59,46 @@ function getRedis() {
       redisClient.on("error", (err) => {
         if (!redisWarned) {
           redisWarned = true;
-          console.warn("[rateLimit] Redis error; falling back to in-memory:", err.message || err);
+          const msg = distributedLimitsRequired()
+            ? "[rateLimit] Redis error; denying requests while distributed limits are required:"
+            : "[rateLimit] Redis error; falling back to in-memory:";
+          console.warn(msg, err.message || err);
         }
       });
     } catch (e) {
       redisClient = null;
       if (!redisWarned) {
         redisWarned = true;
-        console.warn("[rateLimit] Redis unavailable; using in-memory:", e.message || e);
+        const msg = distributedLimitsRequired()
+          ? "[rateLimit] Redis unavailable; denying requests while distributed limits are required:"
+          : "[rateLimit] Redis unavailable; using in-memory:";
+        console.warn(msg, e.message || e);
       }
     }
   }
   return redisClient;
 }
 
+const REDIS_UNAVAILABLE = Symbol("redis_unavailable");
+
 async function redisIncrWithTtl(key, ttlSeconds) {
   const r = getRedis();
-  if (!r) return null;
+  if (!r) {
+    return distributedLimitsRequired() && redisUrl() ? REDIS_UNAVAILABLE : null;
+  }
   try {
     const n = await r.incr(key);
     if (n === 1) await r.expire(key, ttlSeconds);
     return n;
   } catch {
-    return null;
+    return distributedLimitsRequired() ? REDIS_UNAVAILABLE : null;
   }
+}
+
+function applyRedisCount(n, limit, memoryFallback) {
+  if (n === REDIS_UNAVAILABLE) return false;
+  if (n != null) return n <= limit;
+  return memoryFallback();
 }
 
 function checkLoginRateLimitMemory(ip, email) {
@@ -94,8 +120,7 @@ async function checkLoginRateLimit(ip, email) {
   const window = Math.floor(Date.now() / 60_000);
   const key = `rl:login:v1:${ip || "unknown"}:${email || "unknown"}:${window}`;
   const n = await redisIncrWithTtl(key, 70);
-  if (n != null) return n <= LOGIN_RATE_LIMIT_PER_MINUTE;
-  return checkLoginRateLimitMemory(ip, email);
+  return applyRedisCount(n, LOGIN_RATE_LIMIT_PER_MINUTE, () => checkLoginRateLimitMemory(ip, email));
 }
 
 function checkForgotPasswordRateLimitMemory(ip) {
@@ -117,8 +142,7 @@ async function checkForgotPasswordRateLimit(ip) {
   const window = Math.floor(Date.now() / (15 * 60_000));
   const key = `rl:forgot:v1:${(ip || "unknown").toString()}:${window}`;
   const n = await redisIncrWithTtl(key, 16 * 60);
-  if (n != null) return n <= 8;
-  return checkForgotPasswordRateLimitMemory(ip);
+  return applyRedisCount(n, 8, () => checkForgotPasswordRateLimitMemory(ip));
 }
 
 function checkRegisterRateLimitMemory(ip) {
@@ -140,8 +164,7 @@ async function checkRegisterRateLimit(ip) {
   const window = Math.floor(Date.now() / (60 * 60_000));
   const key = `rl:register:v1:${(ip || "unknown").toString()}:${window}`;
   const n = await redisIncrWithTtl(key, 70 * 60);
-  if (n != null) return n <= REGISTER_RATE_LIMIT_PER_HOUR;
-  return checkRegisterRateLimitMemory(ip);
+  return applyRedisCount(n, REGISTER_RATE_LIMIT_PER_HOUR, () => checkRegisterRateLimitMemory(ip));
 }
 
 function checkWaitlistRateLimitMemory(ip) {
@@ -163,8 +186,7 @@ async function checkWaitlistRateLimit(ip) {
   const window = Math.floor(Date.now() / (60 * 60_000));
   const key = `rl:waitlist:v1:${(ip || "unknown").toString()}:${window}`;
   const n = await redisIncrWithTtl(key, 70 * 60);
-  if (n != null) return n <= WAITLIST_RATE_LIMIT_PER_HOUR;
-  return checkWaitlistRateLimitMemory(ip);
+  return applyRedisCount(n, WAITLIST_RATE_LIMIT_PER_HOUR, () => checkWaitlistRateLimitMemory(ip));
 }
 
 function checkRateLimitMemory(windowMap, key, limit, windowMs) {
@@ -189,6 +211,7 @@ async function checkDualRateLimit({ keyPrefix, keyId, workspaceId, keyLimit, wor
     redisIncrWithTtl(keyKey, 70),
     redisIncrWithTtl(wsKey, 70)
   ]);
+  if (keyCount === REDIS_UNAVAILABLE || wsCount === REDIS_UNAVAILABLE) return false;
   if (keyCount == null || wsCount == null) return null;
   return keyCount <= keyLimit && wsCount <= workspaceLimit;
 }
@@ -271,8 +294,7 @@ async function checkWebhookRateLimit(ip) {
   const window = Math.floor(Date.now() / 60_000);
   const key = `rl:webhook:v1:${ip}:${window}`;
   const n = await redisIncrWithTtl(key, 70);
-  if (n != null) return n <= WEBHOOK_RATE_LIMIT_PER_MINUTE;
-  return checkWebhookRateLimitMemory(ip);
+  return applyRedisCount(n, WEBHOOK_RATE_LIMIT_PER_MINUTE, () => checkWebhookRateLimitMemory(ip));
 }
 
 async function webhookRateLimit(req, res, next) {
@@ -306,6 +328,23 @@ setInterval(() => {
   }
 }, 60_000).unref?.();
 
+function resetRateLimitRedisForTests() {
+  if (redisClient && typeof redisClient.disconnect === "function") {
+    try {
+      redisClient.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }
+  redisClient = undefined;
+  redisWarned = false;
+}
+
+function setRateLimitRedisClientForTests(client) {
+  redisClient = client;
+  redisWarned = true;
+}
+
 module.exports = {
   checkLoginRateLimit,
   checkForgotPasswordRateLimit,
@@ -315,5 +354,7 @@ module.exports = {
   signalIngestRateLimit,
   gatePollRateLimit,
   checkSignalIngestRateLimit,
-  checkGatePollRateLimit
+  checkGatePollRateLimit,
+  resetRateLimitRedisForTests,
+  setRateLimitRedisClientForTests
 };
