@@ -34,6 +34,7 @@ async function reportAuditIntegrity(result, { notify = true, workspaceId = null 
   const fields = {
     workspaceId: workspaceId || "all",
     total: result?.total || 0,
+    issueCount,
     tamperedCount: result?.tampered?.length || 0,
     brokenChainCount: result?.broken_chain?.length || 0,
     missingHashCount: result?.missing_hash?.length || 0,

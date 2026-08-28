@@ -229,7 +229,7 @@ export default function WorkspaceSignalsPanel({
           ) : definitions.length === 0 ? (
             <div style={{ padding: 18 }}>
               <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.55 }}>
-                No workspace signals yet. Adopt the recommended pack to gate on Verdikt's default AI signals, or pick one from the library.
+                No workspace signals yet. Adopt the recommended pack to gate on the default AI signals, or pick one from the library.
               </div>
               {canAct(currentUser) && onAdoptRecommendedPack && packMissing.length > 0 ? (
                 <Btn
