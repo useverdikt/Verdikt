@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { verdiktMarkInnerPaths, verdictStateToMarkVariant } from "../brand/verdiktMarkSvg.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
 import { fetchPublicCertRecord, fetchPublicCertRecordById, fetchCertVerification } from "../lib/fetchPublicCert.js";
-import { HMAC_SIGNATURE_TOOLTIP, hmacSignatureChipLabel } from "../lib/publicCertLinks.js";
+import { signatureChipLabel, signatureChipTooltip, isEd25519Algorithm } from "../lib/publicCertLinks.js";
 import { DEMOS, CATS, STATE_META, DEMO_KEYS } from "./badgeDemoData.js";
 import "./BadgePage.css";
 
@@ -23,6 +23,7 @@ function workspaceSlug(fromPath = "") {
 function statusToStateKey(status) {
   const s = String(status || "").toUpperCase();
   if (s === "CERTIFIED_WITH_OVERRIDE") return "override";
+  if (s === "CERTIFICATION_REVOKED") return "uncertified";
   if (s === "UNCERTIFIED") return "uncertified";
   return "certified";
 }
@@ -327,12 +328,12 @@ function RecordCard({
             letterSpacing: "0.04em",
             borderBottom: "1px solid rgba(255,255,255,0.06)"
           }}
-          title={HMAC_SIGNATURE_TOOLTIP}
+          title={signatureChipTooltip(signature.algorithm)}
         >
-          ⊕ {hmacSignatureChipLabel(signature.algorithm)} · {esc(signature.signed_at?.slice(0, 10))}
+          ⊕ {signatureChipLabel(signature.algorithm)} · {esc(signature.signed_at?.slice(0, 10))}
         </div>
       ) : null}
-      {releaseId ? <CertVerifyControls releaseId={releaseId} /> : null}
+      {releaseId ? <CertVerifyControls releaseId={releaseId} algorithm={signature?.algorithm} /> : null}
 
       {failing?.length > 0 ? (
         <div style={{ paddingTop: 24 }}>
@@ -518,7 +519,7 @@ function EmbedSection({ wsSlug, certVersion, copyLabel, onCopy }) {
   );
 }
 
-function CertVerifyControls({ releaseId }) {
+function CertVerifyControls({ releaseId, algorithm }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -571,8 +572,13 @@ function CertVerifyControls({ releaseId }) {
         {busy ? "Verifying…" : "Verify this record"}
       </button>
       {valid ? (
-        <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "#059669" }} title={HMAC_SIGNATURE_TOOLTIP}>
-          {"HMAC verified against Verdikt's stored record"}
+        <span
+          style={{ fontSize: 11, fontFamily: "var(--mono)", color: "#059669" }}
+          title={signatureChipTooltip(result?.algorithm || algorithm)}
+        >
+          {isEd25519Algorithm(result?.algorithm || algorithm)
+            ? "Ed25519 verified against the published public key"
+            : "HMAC verified against Verdikt's stored record"}
         </span>
       ) : null}
       {result && !valid ? (

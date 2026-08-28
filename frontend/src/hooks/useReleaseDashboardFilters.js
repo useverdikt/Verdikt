@@ -23,6 +23,9 @@ export function useReleaseDashboardFilters(releases) {
     if (activeFilter === "OVERRIDE") {
       list = list.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE);
     }
+    if (activeFilter === "REVOKED") {
+      list = list.filter((r) => normalizeReleaseStatus(r.status) === UI_RELEASE_STATUS.CERTIFICATION_REVOKED);
+    }
     if (activeFilter === "INTEGRATION") {
       list = list.filter((r) => r.evidenceQuality === "INTEGRATION_BACKED");
     }

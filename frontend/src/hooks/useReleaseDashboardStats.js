@@ -14,6 +14,7 @@ export function useReleaseDashboardStats({
   formatReleaseAge,
   shippedWithoutCertificationCount: workspaceBypassCount = null,
   productionIncidentsCount: workspaceIncidentsCount = null,
+  falseCertificationRatePct: workspaceFalseCertRate = null,
   remediationDebtActive = false
 }) {
   const statsReleases = useMemo(
@@ -41,6 +42,8 @@ export function useReleaseDashboardStats({
         : statsReleases.filter((r) => r.shipped_without_certification).length;
     const productionIncidentsCount =
       typeof workspaceIncidentsCount === "number" ? workspaceIncidentsCount : 0;
+    const falseCertificationRatePct =
+      typeof workspaceFalseCertRate === "number" ? workspaceFalseCertRate : null;
     return {
       certRate,
       uncertified,
@@ -50,9 +53,10 @@ export function useReleaseDashboardStats({
       certified,
       shippedWithoutCertificationCount,
       productionIncidentsCount,
+      falseCertificationRatePct,
       remediationDebtActive: remediationDebtActive === true
     };
-  }, [statsReleases, loopReadiness, workspaceBypassCount, workspaceIncidentsCount, remediationDebtActive]);
+  }, [statsReleases, loopReadiness, workspaceBypassCount, workspaceIncidentsCount, workspaceFalseCertRate, remediationDebtActive]);
 
   const releaseCatStatuses = useMemo(() => {
     if (!calcCategoryStatus) return {};
@@ -79,9 +83,11 @@ export function useReleaseDashboardStats({
             ? "#22c55e"
             : rs === UI_RELEASE_STATUS.UNCERTIFIED
               ? "#ef4444"
-              : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
-                ? "#f59e0b"
-                : "#3b82f6",
+                : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
+                  ? "#f59e0b"
+                  : rs === UI_RELEASE_STATUS.CERTIFICATION_REVOKED
+                    ? "#f87171"
+                    : "#3b82f6",
         text: isLiveBypassRisk(r)
           ? "gate bypassed · live in prod"
           : rs === UI_RELEASE_STATUS.COLLECTING
@@ -90,9 +96,11 @@ export function useReleaseDashboardStats({
               ? "UNCERTIFIED"
               : rs === UI_RELEASE_STATUS.CERTIFIED_WITH_OVERRIDE
                 ? "certified with override"
-                : rs === UI_RELEASE_STATUS.CERTIFIED
-                  ? "certified"
-                  : "—",
+                : rs === UI_RELEASE_STATUS.CERTIFICATION_REVOKED
+                  ? "certification revoked"
+                  : rs === UI_RELEASE_STATUS.CERTIFIED
+                    ? "certified"
+                    : "—",
         meta: (formatReleaseAge ? formatReleaseAge(r) : r.date || "—") + " · " + envDisplayLabel(r.environment)
       };
     });

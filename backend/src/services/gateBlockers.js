@@ -42,6 +42,15 @@ function buildGateBlockers({
     });
   }
 
+  if (status === "CERTIFICATION_REVOKED") {
+    push({
+      type: "revoked",
+      code: "certification_revoked",
+      message: gateReason || "Certification was revoked. Merge is blocked.",
+      next_step: "Do not merge. Open a new release if the change should be recertified."
+    });
+  }
+
   for (const signalId of missingRequiredSignals || []) {
     if (!signalId) continue;
     push({

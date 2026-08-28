@@ -1,6 +1,7 @@
 export default function ReleaseDashboardStats({ wsReady, stats }) {
   const bypassCount = stats.shippedWithoutCertificationCount ?? 0;
   const incidents = stats.productionIncidentsCount ?? 0;
+  const falseCert = stats.falseCertificationRatePct;
   const debtActive = stats.remediationDebtActive === true;
 
   return (
@@ -25,6 +26,10 @@ export default function ReleaseDashboardStats({ wsReady, stats }) {
       <div className={`stat-card incident${incidents > 0 ? " incident-active" : " incident-idle"}`}>
         <div className="stat-label">Incidents</div>
         <div className="stat-value">{wsReady ? incidents : "—"}</div>
+      </div>
+      <div className={`stat-card incident${falseCert > 0 ? " incident-active" : " incident-idle"}`}>
+        <div className="stat-label">False-cert rate</div>
+        <div className="stat-value">{wsReady ? (falseCert == null ? "—" : `${falseCert}%`) : "—"}</div>
       </div>
       <div className={`stat-card debt${debtActive ? " debt-active" : " debt-idle"}`}>
         <div className="stat-label">Remediation debt</div>

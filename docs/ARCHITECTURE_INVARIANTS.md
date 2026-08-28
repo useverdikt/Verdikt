@@ -18,8 +18,8 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 1. A release is opened against a stable identity, normally a commit SHA.
 2. Signals are ingested idempotently and validated against workspace definitions.
 3. The backend computes the verdict and freezes certification evidence.
-4. Gate APIs translate that state to `collecting`, `merge`, `self_heal`, or `escalate`.
-5. Overrides require a human session, justification, and an audit record.
+4. Gate APIs translate that state to `collecting`, `merge`, `self_heal`, `escalate`, `recover_certification`, or `revoked`.
+5. Overrides require a human session, justification, and an audit record. Revocation is the same human-only path and does not rewrite frozen snapshots.
 6. Production outcomes can calibrate future thresholds, but auto-application remains explicit policy.
 
 ## Security and tenancy
@@ -48,10 +48,11 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 - VCS monitoring sweeps acquire durable, owner-scoped leases in short transactions before any provider reads or evidence ingestion. Provider I/O runs after commit; successful scans release their lease, and unexpected failures retain it until expiry for crash-safe recovery.
 - Escalation SLA sweeps lease overdue requests before side effects. The first breach transition and its audit append are atomic; reminder timestamps require the active claim owner so worker replicas cannot concurrently notify the same escalation.
 - Certification-snapshot retry completion, rescheduling, and exhaustion require the active lease owner. A newer snapshot enqueue clears any older claim before replacing queued evidence. Startup backfills use a separate owner-scoped lease so replicas cannot reconstruct the same missing snapshot concurrently.
-- External delivery intent is inserted into `outbound_effect_outbox` in the same transaction as the terminal verdict or human override. Each release event records only effects executed by its legacy path and uses a stable idempotency key. Shadow recording must precede any outbox-owned delivery cutover.
+- External delivery intent is inserted into `outbound_effect_outbox` in the same transaction as the terminal verdict, human override, or human revoke. Each release event records only effects executed by its legacy path (or the primary worker after cutover) and uses a stable idempotency key. Default `OUTBOX_MODE` remains `shadow`; do not set production to `primary` until the 7–14 day readiness window passes.
 - Authoritative Slack, release-callback, and outbound-webhook JSON deliveries use the shared bounded HTTP helper and make exactly one network attempt. Do not add automatic POST retries without a receiver-supported idempotency contract.
-- Shadow outbox workers use owner-scoped leases, bounded retries, and dead letters. Shadow processing may compare database evidence but must never perform network delivery. Legacy observation writes are fail-open and store hashes/metadata rather than endpoint URLs or secrets; historical `shadow_unverifiable` rows remain non-certifying evidence.
+- Shadow outbox workers use owner-scoped leases, bounded retries, and dead letters. Shadow processing may compare database evidence but must never perform network delivery. When `OUTBOX_MODE=primary`, the same leased worker performs delivery and legacy post-verdict/override network sends are skipped to avoid double-send.
 - Outbox delivery ownership cannot advance from shadow on worker liveness alone. A 7–14 day workspace-scoped readiness window must have a meaningful eligible sample, zero mismatches/dead letters/stale backlog/failed legacy deliveries, at least 99% legacy observation coverage, and p95 comparison latency below five minutes. Payload equality never converts a non-2xx or failed legacy delivery into a match. Aggregate readiness reads never expose payloads or destinations.
+- Human sessions may export the workspace audit chain (`GET /api/workspaces/:id/audit/export`) including `prev_hash` / `row_hash`. Paginated `/audit` remains hash-free. Writes still go only through `writeAudit`.
 
 ## Database changes
 
@@ -64,5 +65,6 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 
 - A successful CI run is necessary but not sufficient: protected release PRs also pass the Verdikt gate.
 - A gate request containing `commit_sha` may resolve only that commit (full or matching 7+ character prefix). It must never fall back to another release for the same PR, ref, or version; CI and MCP clients fail closed when the returned SHA differs.
-- Certification snapshots and signatures are immutable evidence. New records use the independent v2 signing key; legacy v1 JWT-derived records remain read-only verifiable until an explicit retirement migration removes that compatibility path.
-- Public certification records are opt-in per workspace and must expose only the fields allowed by workspace policy. Slug/version URLs are convenience; `/cert/id/:releaseId` is the immutable permalink. HMAC signature chips and `/cert/verify` confirm Verdikt's stored record — they are not third-party signatures.
+- Certification snapshots and signatures are immutable evidence. HMAC v2 (`CERT_SIGNING_KEY`) is the default; HMAC v1 (`JWT_SECRET`) remains read-only verifiable. When `CERT_ED25519_PRIVATE_KEY` is set, new records use Ed25519 plus a frozen snapshot bundle and `engine_version`. HMAC chips and `/cert/verify` confirm Verdikt's stored record — they are not third-party signatures. Ed25519 keys are published at `/api/public/cert-keys`.
+- Public certification records are opt-in per workspace and must expose only the fields allowed by workspace policy. Slug/version URLs are convenience; `/cert/id/:releaseId` is the immutable permalink.
+- Human revocation sets `CERTIFICATION_REVOKED`, blocks the gate (`action: revoked`), and appends a hash-chained audit event. Frozen `certification_snapshots` are not updated.

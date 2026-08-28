@@ -9,6 +9,7 @@ const {
   DEFAULT_LEASE_MS,
   DEFAULT_MAX_ATTEMPTS
 } = require("../services/outboundEffectShadowWorker");
+const { processDueOutboundPrimaryEffects } = require("../services/outboundEffectPrimaryWorker");
 const { log, inc } = require("../lib/observability");
 
 function boundedInt(raw, fallback, min, max) {
@@ -50,7 +51,7 @@ function timestamp(nowFn) {
 function getOutboundEffectSweepHealth() {
   return {
     mode: OUTBOX_MODE,
-    enabled: OUTBOX_MODE === "shadow",
+    enabled: OUTBOX_MODE === "shadow" || OUTBOX_MODE === "primary",
     ...sweepHealth,
     last_summary: sweepHealth.last_summary ? { ...sweepHealth.last_summary } : null
   };
@@ -58,28 +59,34 @@ function getOutboundEffectSweepHealth() {
 
 async function runOutboundEffectShadowSweepOnce({
   mode = OUTBOX_MODE,
-  processFn = processDueOutboundEffects,
+  processFn = null,
   logFn = log,
   incFn = inc,
   nowFn = () => new Date()
 } = {}) {
-  if (mode !== "shadow") {
+  if (mode !== "shadow" && mode !== "primary") {
     return { disabled: true, mode };
   }
+  const resolvedProcess =
+    processFn || (mode === "primary" ? processDueOutboundPrimaryEffects : processDueOutboundEffects);
+  const eventComplete = mode === "primary" ? "outbox_primary_sweep_complete" : "outbox_shadow_sweep_complete";
+  const eventFailed = mode === "primary" ? "outbox_primary_sweep_failed" : "outbox_shadow_sweep_failed";
+  const counterProcessed = mode === "primary" ? "outbox_primary_processed" : "outbox_shadow_processed";
+  const counterFailed = mode === "primary" ? "outbox_primary_sweep_failed" : "outbox_shadow_sweep_failed";
   sweepHealth.last_attempted_at = timestamp(nowFn);
   try {
-    const result = await processFn({
+    const result = await resolvedProcess({
       limit: BATCH_SIZE,
       workerId: WORKER_ID,
       leaseMs: LEASE_MS,
       maxAttempts: MAX_ATTEMPTS
     });
     if (result.claimed > 0) {
-      logFn("info", "outbox_shadow_sweep_complete", {
+      logFn("info", eventComplete, {
         workerId: WORKER_ID,
         ...result
       });
-      incFn("outbox_shadow_processed", result.claimed);
+      incFn(counterProcessed, result.claimed);
     }
     sweepHealth.last_succeeded_at = timestamp(nowFn);
     sweepHealth.consecutive_failures = 0;
@@ -87,23 +94,24 @@ async function runOutboundEffectShadowSweepOnce({
       claimed: Number(result.claimed || 0),
       mismatched: Number(result.mismatched || 0),
       retried: Number(result.retried || 0),
-      dead_lettered: Number(result.dead_lettered || 0)
+      dead_lettered: Number(result.dead_lettered || 0),
+      delivered: Number(result.delivered || 0)
     };
     return result;
   } catch (error) {
     sweepHealth.last_failed_at = timestamp(nowFn);
     sweepHealth.consecutive_failures += 1;
-    logFn("error", "outbox_shadow_sweep_failed", {
+    logFn("error", eventFailed, {
       workerId: WORKER_ID,
       error: String(error?.message || error).slice(0, 500)
     });
-    incFn("outbox_shadow_sweep_failed");
+    incFn(counterFailed);
     return null;
   }
 }
 
 function startOutboundEffectShadowSweepJob({ mode = OUTBOX_MODE } = {}) {
-  if (mode !== "shadow") return null;
+  if (mode !== "shadow" && mode !== "primary") return null;
   const id = setInterval(() => {
     void runOutboundEffectShadowSweepOnce({ mode });
   }, SWEEP_MS);

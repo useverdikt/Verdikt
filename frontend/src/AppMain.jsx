@@ -108,6 +108,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
     releasesLoadingMore,
     shippedWithoutCertificationCount,
     productionIncidentsCount,
+    falseCertificationRatePct,
     remediationDebtActive,
     loadMoreAudit,
     auditNextBefore,
@@ -325,7 +326,9 @@ function AppMainContent({ navigate, nav, isMobile }) {
               onLoadMoreReleases={loadMoreReleases}
               shippedWithoutCertificationCount={shippedWithoutCertificationCount}
               productionIncidentsCount={productionIncidentsCount}
+              falseCertificationRatePct={falseCertificationRatePct}
               remediationDebtActive={remediationDebtActive}
+              onRevokeCertification={actions.handleRevokeCertification}
               navigate={navigate}
             />
           }
@@ -461,6 +464,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
             fmtVal={fmtVal}
             backendReleaseId={auditDetail.backendReleaseId || auditDetail.id}
             certification={auditDetail.certification || null}
+            onRevokeCertification={actions.handleRevokeCertification}
           />
         )}
         {showShare && shareRelease && (

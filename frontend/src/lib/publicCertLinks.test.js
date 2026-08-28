@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   hmacSignatureChipLabel,
+  signatureChipLabel,
   normalizeWorkspaceSlug,
   publicCertPermalinkPath,
   publicCertSlugPath,
@@ -31,5 +32,7 @@ describe("publicCertLinks", () => {
 
   it("labels HMAC signatures without claiming third-party verifiability", () => {
     expect(hmacSignatureChipLabel("hmac-sha256")).toBe("signed · hmac-sha256");
+    expect(signatureChipLabel("ed25519")).toBe("signed · ed25519 (publicly verifiable)");
+    expect(signatureChipLabel("hmac-sha256")).toBe("signed · hmac-sha256");
   });
 });

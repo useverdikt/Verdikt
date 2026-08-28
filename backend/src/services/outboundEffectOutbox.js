@@ -42,7 +42,7 @@ async function enqueuePostVerdictOutbox({
   if (mode === "off") {
     return { mode, attempted: 0, inserted: [], duplicate_count: 0 };
   }
-  if (mode !== "shadow") throw new Error(`unsupported outbox mode: ${mode}`);
+  if (mode !== "shadow" && mode !== "primary") throw new Error(`unsupported outbox mode: ${mode}`);
   if (!tx || typeof tx.run !== "function") {
     throw new Error("outbox enqueue requires an active transaction");
   }

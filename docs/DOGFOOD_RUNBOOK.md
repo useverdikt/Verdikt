@@ -268,9 +268,11 @@ See also: [docs/INCIDENT_FLOW_DOGFOOD.md](INCIDENT_FLOW_DOGFOOD.md) (tracker che
 
 ## Outbound-effect shadow readiness
 
-The durable outbox remains observation-only while `OUTBOX_MODE=shadow`; legacy
-Slack, callback, webhook, and VCS paths are still the only network senders.
-Do not enable primary delivery from worker uptime alone.
+The durable outbox remains observation-only while `OUTBOX_MODE=shadow` (the
+default). Legacy Slack, callback, webhook, and VCS paths are still the only
+network senders. `OUTBOX_MODE=primary` is implemented as a path — do not set it
+in production until the readiness window below passes. Do not enable primary
+delivery from worker uptime alone.
 
 1. Confirm the dedicated worker returns `200` from `/health/ready`.
 2. Inspect `checks.outbox_shadow` and verify:

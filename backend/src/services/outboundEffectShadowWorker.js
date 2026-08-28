@@ -332,7 +332,13 @@ async function retryOrDeadLetter(
   row,
   workerId,
   error,
-  { maxAttempts = DEFAULT_MAX_ATTEMPTS, runFn = run, auditFn = writeAudit } = {}
+  {
+    maxAttempts = DEFAULT_MAX_ATTEMPTS,
+    runFn = run,
+    auditFn = writeAudit,
+    auditEventType = "OUTBOUND_EFFECT_SHADOW_EXHAUSTED",
+    actorName = "outbound_effect_shadow_worker"
+  } = {}
 ) {
   const message = String(error?.message || error || "shadow comparison failed").slice(0, 1000);
   if (Number(row.attempt_count) >= maxAttempts) {
@@ -352,9 +358,9 @@ async function retryOrDeadLetter(
       await auditFn({
         workspaceId: row.workspace_id,
         releaseId: row.release_id,
-        eventType: "OUTBOUND_EFFECT_SHADOW_EXHAUSTED",
+        eventType: auditEventType,
         actorType: "SYSTEM",
-        actorName: "outbound_effect_shadow_worker",
+        actorName,
         details: {
           outbox_id: row.id,
           effect_type: row.effect_type,

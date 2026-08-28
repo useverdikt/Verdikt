@@ -5,6 +5,7 @@ import {
   isIngestLocked,
   isLiveBypassRisk,
   canOfferOverride,
+  canOfferRevoke,
   shippedWithoutCertificationFlag,
   UI_RELEASE_STATUS
 } from "./releaseStatus.js";
@@ -15,6 +16,7 @@ describe("releaseStatus", () => {
     expect(mapBackendStatusToUi("CERTIFIED")).toBe("certified");
     expect(mapBackendStatusToUi("UNCERTIFIED")).toBe("uncertified");
     expect(mapBackendStatusToUi("CERTIFIED_WITH_OVERRIDE")).toBe("overridden");
+    expect(mapBackendStatusToUi("CERTIFICATION_REVOKED")).toBe("revoked");
   });
 
   it("normalizes UI statuses strictly", () => {
@@ -37,6 +39,7 @@ describe("releaseStatus", () => {
     expect(isIngestLocked("COLLECTING")).toBe(false);
     expect(isIngestLocked("CERTIFIED")).toBe(true);
     expect(isIngestLocked("CERTIFIED_WITH_OVERRIDE")).toBe(true);
+    expect(isIngestLocked("CERTIFICATION_REVOKED")).toBe(true);
   });
 
   it("detects live bypass risk for prod + non-cert-like status", () => {
@@ -66,5 +69,12 @@ describe("releaseStatus", () => {
     expect(canOfferOverride({ status: "UNCERTIFIED", environment: "production" })).toBe(false);
     expect(canOfferOverride({ status: "COLLECTING", environment: "pre-prod" })).toBe(false);
     expect(canOfferOverride({ status: "CERTIFIED", environment: "pre-prod" })).toBe(false);
+  });
+
+  it("offers revoke only for live cert-like statuses", () => {
+    expect(canOfferRevoke({ status: "CERTIFIED" })).toBe(true);
+    expect(canOfferRevoke({ status: "CERTIFIED_WITH_OVERRIDE" })).toBe(true);
+    expect(canOfferRevoke({ status: "CERTIFICATION_REVOKED" })).toBe(false);
+    expect(canOfferRevoke({ status: "UNCERTIFIED" })).toBe(false);
   });
 });

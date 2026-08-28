@@ -25,6 +25,7 @@
 
 const { queryOne } = require("../database");
 const { nowIso } = require("../lib/time");
+const { OUTBOX_MODE } = require("../config");
 const { log, inc } = require("../lib/observability");
 const { classifyFailureModes } = require("./correlationEngine");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
@@ -94,49 +95,55 @@ async function runPostVerdictEffects(releaseId, release, nextStatus, failedSigna
     log("error", "post_verdict_evidence_quality_persist_failed", { releaseId, error: err?.message });
   }
 
-  // 6. VCS status write-back (async — does not block)
-  try {
-    void writeVcsStatus(freshRelease, failedSignals).catch((err) => {
-      inc("post_verdict_vcs_writeback_async_error");
-      log("error", "post_verdict_vcs_writeback_async_error", { releaseId, error: err?.message });
-    });
-  } catch (err) {
-    inc("post_verdict_vcs_writeback_sync_setup_failed");
-    log("error", "post_verdict_vcs_writeback_sync_setup_failed", { releaseId, error: err?.message });
+  const skipLegacyNetwork = OUTBOX_MODE === "primary";
+
+  // 6. VCS status write-back (async — does not block). Primary outbox owns delivery.
+  if (!skipLegacyNetwork) {
+    try {
+      void writeVcsStatus(freshRelease, failedSignals).catch((err) => {
+        inc("post_verdict_vcs_writeback_async_error");
+        log("error", "post_verdict_vcs_writeback_async_error", { releaseId, error: err?.message });
+      });
+    } catch (err) {
+      inc("post_verdict_vcs_writeback_sync_setup_failed");
+      log("error", "post_verdict_vcs_writeback_sync_setup_failed", { releaseId, error: err?.message });
+    }
   }
 
   // 7. Outbound verdict webhook + Slack (async — does not block)
-  try {
-    const { certification: certificationContext } = await buildGateContext(
-      freshRelease,
-      deterministicIntelligence ? { verdict: deterministicIntelligence } : null
-    );
+  if (!skipLegacyNetwork) {
+    try {
+      const { certification: certificationContext } = await buildGateContext(
+        freshRelease,
+        deterministicIntelligence ? { verdict: deterministicIntelligence } : null
+      );
 
-    void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals, certificationContext).catch((err) => {
-      inc("post_verdict_outbound_webhook_delivery_error");
-      log("error", "post_verdict_outbound_webhook_delivery_error", { releaseId, error: err?.message });
-    });
-    const trajectory = await computeReleaseTrajectory({
-      workspaceId: freshRelease.workspace_id,
-      releaseId,
-      releaseRow: freshRelease
-    }).catch(() => null);
-    void deliverReleaseCallback(freshRelease, deterministicIntelligence, {
-      trajectory: trajectory?.trajectory ?? "UNKNOWN",
-      degrading_signals: trajectory?.degrading_signals ?? [],
-      trend_note: trajectory?.trend_note ?? null
-    }, failedSignals, certificationContext).catch((err) => {
-      inc("post_verdict_release_callback_delivery_error");
-      log("error", "post_verdict_release_callback_delivery_error", { releaseId, error: err?.message });
-    });
+      void deliverVerdictWebhook(freshRelease, deterministicIntelligence, certSigRow, failedSignals, certificationContext).catch((err) => {
+        inc("post_verdict_outbound_webhook_delivery_error");
+        log("error", "post_verdict_outbound_webhook_delivery_error", { releaseId, error: err?.message });
+      });
+      const trajectory = await computeReleaseTrajectory({
+        workspaceId: freshRelease.workspace_id,
+        releaseId,
+        releaseRow: freshRelease
+      }).catch(() => null);
+      void deliverReleaseCallback(freshRelease, deterministicIntelligence, {
+        trajectory: trajectory?.trajectory ?? "UNKNOWN",
+        degrading_signals: trajectory?.degrading_signals ?? [],
+        trend_note: trajectory?.trend_note ?? null
+      }, failedSignals, certificationContext).catch((err) => {
+        inc("post_verdict_release_callback_delivery_error");
+        log("error", "post_verdict_release_callback_delivery_error", { releaseId, error: err?.message });
+      });
 
-    void deliverSlackVerdict(freshRelease, failedSignals, certificationContext).catch((err) => {
-      inc("post_verdict_slack_notifier_error");
-      log("error", "post_verdict_slack_notifier_error", { releaseId, error: err?.message });
-    });
-  } catch (err) {
-    inc("post_verdict_outbound_effects_setup_failed");
-    log("error", "post_verdict_outbound_effects_setup_failed", { releaseId, error: err?.message });
+      void deliverSlackVerdict(freshRelease, failedSignals, certificationContext).catch((err) => {
+        inc("post_verdict_slack_notifier_error");
+        log("error", "post_verdict_slack_notifier_error", { releaseId, error: err?.message });
+      });
+    } catch (err) {
+      inc("post_verdict_outbound_effects_setup_failed");
+      log("error", "post_verdict_outbound_effects_setup_failed", { releaseId, error: err?.message });
+    }
   }
 
   // 8. Signal reliability recompute (async — does not block)

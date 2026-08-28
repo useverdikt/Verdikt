@@ -46,6 +46,14 @@ describe("prod uncertified ingest lock", () => {
       releaseVerdictLockedAgainstIngest({ status: "CERTIFIED", environment: "pre-prod", verdict_issued_at: nowIso() }),
       true
     );
+    assert.equal(
+      releaseVerdictLockedAgainstIngest({
+        status: "CERTIFICATION_REVOKED",
+        environment: "pre-prod",
+        verdict_issued_at: nowIso()
+      }),
+      true
+    );
   });
 
   it("releaseIngestLockError distinguishes prod uncertified from certified lock", () => {

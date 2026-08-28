@@ -68,6 +68,7 @@ function verdiktStatusToGitHub(releaseStatus) {
     CERTIFIED: { state: "success", description: "Release certified by Verdikt" },
     CERTIFIED_WITH_OVERRIDE: { state: "success", description: "Certified with override — review required" },
     UNCERTIFIED: { state: "failure", description: "Verdikt: release failed quality gates" },
+    CERTIFICATION_REVOKED: { state: "failure", description: "Verdikt: certification revoked" },
     COLLECTING: { state: "pending", description: "Verdikt: collecting evaluation signals…" }
   };
   return map[releaseStatus] || { state: "pending", description: `Verdikt: ${releaseStatus}` };
@@ -78,6 +79,7 @@ function verdiktStatusToGitLab(releaseStatus) {
     CERTIFIED: "success",
     CERTIFIED_WITH_OVERRIDE: "success",
     UNCERTIFIED: "failed",
+    CERTIFICATION_REVOKED: "failed",
     COLLECTING: "running"
   };
   return map[releaseStatus] || "running";
@@ -182,11 +184,11 @@ async function writeGitLabStatus(cfg, commitSha, releaseStatus, targetUrl, signa
 
 async function writeVcsStatus(release, failedSignals) {
   const cfg = await getVcsIntegration(release.workspace_id);
-  if (!cfg) return;
+  if (!cfg) return { skipped: true, reason: "no_vcs_integration" };
 
   const commitSha = release.commit_sha;
   const prNumber = release.pr_number;
-  if (!commitSha && !prNumber) return;
+  if (!commitSha && !prNumber) return { skipped: true, reason: "no_vcs_target" };
 
   const targetUrl = buildReleaseTargetUrl(release);
 
@@ -259,6 +261,11 @@ async function writeVcsStatus(release, failedSignals) {
       nowIso()
     ]
   );
+
+  if (failed) {
+    return { delivered: false, ok: false, reason: errorMessage || "vcs_writeback_failed" };
+  }
+  return { delivered: true, ok: true };
 }
 
 module.exports = {

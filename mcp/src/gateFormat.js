@@ -33,7 +33,8 @@ export function formatGateForAgent(out) {
     recover_certification: out?.snapshot_pending
       ? "Do not merge. Certification snapshot is missing — wait for snapshot backfill/retry; gate stays blocked until evidence is frozen."
       : "Do not merge. Remediation debt is active — ship a clean CERTIFIED prod release (no override/bypass) to clear the circuit breaker, or use incident_hotfix during corroborated incident context.",
-    escalate: "Do not merge. Call escalate tool; wait for human override in Escalations inbox."
+    escalate: "Do not merge. Call escalate tool; wait for human override in Escalations inbox.",
+    revoked: "Do not merge. A human revoked this certification. Open a new release if the change should be recertified."
   };
   return {
     ...out,
@@ -52,7 +53,7 @@ export function formatGateForAgent(out) {
         "exit_code can be 0 while action is self_heal or escalate (e.g. CERTIFIED_WITH_OVERRIDE in strict mode).",
       next_step_legacy: guidance[action] || "Call check_gate again after signals update.",
       gha_note:
-        "GitHub Actions should poll action: wait on collecting/self_heal, exit 0 on merge, exit 1 on escalate or timeout. gate.exit_code alone is not enough during COLLECTING."
+        "GitHub Actions should poll action: wait on collecting/self_heal, exit 0 on merge, exit 1 on escalate, recover_certification, revoked, or timeout. gate.exit_code alone is not enough during COLLECTING."
     },
     recommended_next: out?.next_step || guidance[action] || null
   };

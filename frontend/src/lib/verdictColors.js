@@ -18,6 +18,11 @@ export const VERDICT_PALETTE = {
     dim: C.redDim,
     label: "UNCERTIFIED"
   },
+  [UI_RELEASE_STATUS.CERTIFICATION_REVOKED]: {
+    fg: C.red,
+    dim: C.redDim,
+    label: "REVOKED"
+  },
   [UI_RELEASE_STATUS.COLLECTING]: {
     fg: C.amber,
     dim: C.amberDim,

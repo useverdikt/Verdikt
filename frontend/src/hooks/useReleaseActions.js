@@ -295,6 +295,31 @@ export function useReleaseActions({
     ]
   );
 
+  const handleRevokeCertification = useCallback(
+    async (release, justification) => {
+      const backendId = resolveBackendReleaseId(release);
+      if (!hasBackend() || !backendId) {
+        showToast("Connect the backend to revoke a certification", toastAmber);
+        return;
+      }
+      try {
+        setApiBanner(null);
+        await apiPost(
+          `/api/releases/${backendId}/revoke-certification`,
+          { justification },
+          { navigate }
+        );
+        await refreshReleaseAfterMutation(backendId);
+        showToast("Certification revoked — merge is blocked. Frozen evidence is unchanged.", toastAmber);
+      } catch (e) {
+        setApiBanner(e.message || "Revoke request failed");
+        showToast("Could not revoke certification", toastRed);
+        throw e;
+      }
+    },
+    [navigate, refreshReleaseAfterMutation, setApiBanner, showToast, toastAmber, toastRed]
+  );
+
   const handleStartCert = useCallback(
     async ({ version, buildRef, relType }) => {
       const id = `rc-${version.replace(/[^a-zA-Z0-9.]/g, "")}`;
@@ -674,6 +699,7 @@ export function useReleaseActions({
     handleIntelligenceDecision,
     handleIntelligenceOutcome,
     handleOverrideConfirm,
+    handleRevokeCertification,
     handleStartCert,
     handleManualAddSingle,
     handleManualImportCSV,

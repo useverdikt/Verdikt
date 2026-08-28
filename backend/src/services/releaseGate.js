@@ -66,7 +66,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     COLLECTING: "release still collecting required signals",
     UNCERTIFIED: "release is uncertified",
     CERTIFIED: "release certified",
-    CERTIFIED_WITH_OVERRIDE: "release certified with override"
+    CERTIFIED_WITH_OVERRIDE: "release certified with override",
+    CERTIFICATION_REVOKED: "certification was revoked; merge is blocked"
   };
   const reason = reasonByStatus[release.status] || `release status is ${release.status}`;
 

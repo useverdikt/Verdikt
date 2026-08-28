@@ -197,6 +197,35 @@ export async function apiDelete(path, options = {}) {
   return {};
 }
 
+function filenameFromDisposition(header, fallback) {
+  const raw = String(header || "");
+  const match = raw.match(/filename="([^"]+)"/i) || raw.match(/filename=([^;]+)/i);
+  return match ? match[1].trim() : fallback;
+}
+
+/**
+ * Cookie-authenticated file download (audit export). Triggers a browser save.
+ * @param {string} path
+ * @param {{ navigate?: import('react-router-dom').NavigateFunction, filename?: string }} [options]
+ */
+export async function apiDownload(path, options = {}) {
+  const { navigate, filename } = options;
+  const res = await fetch(buildUrl(path), apiFetchInit());
+  if (res.status === 401) handleUnauthorized(navigate);
+  if (!res.ok) throw await readErrorMessage(res, path, "GET");
+  const blob = await res.blob();
+  const suggested =
+    filenameFromDisposition(res.headers.get("content-disposition"), filename) || "download";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = suggested;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * Multipart POST (e.g. CSV upload). Do not set Content-Type — browser sets boundary.
  * @param {string} path

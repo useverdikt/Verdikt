@@ -437,6 +437,8 @@ async function getWorkspaceProductionHealth(workspaceId) {
   const unknown = alignments.filter((a) => a.alignment === "UNKNOWN").length;
 
   const predictionAccuracy = total > 0 ? Math.round((correct / total) * 100) : null;
+  const scoredAlignments = correct + misses + overBlocks;
+  const falseCertificationRatePct = computeFalseCertificationRatePct(misses, scoredAlignments);
 
   const deltaAccum = {};
   const deltaCount = {};
@@ -486,6 +488,8 @@ async function getWorkspaceProductionHealth(workspaceId) {
   return {
     total_releases_with_feedback: total,
     prediction_accuracy_pct: predictionAccuracy,
+    false_certification_rate_pct: falseCertificationRatePct,
+    false_certification_sample_count: scoredAlignments,
     correct,
     misses,
     over_blocks: overBlocks,
@@ -573,6 +577,15 @@ async function getOutcomeAlignmentForRelease(releaseId) {
   };
 }
 
+/**
+ * Buyer headline: MISS / (CORRECT + MISS + CAUTIOUS). UNKNOWN rows are excluded.
+ */
+function computeFalseCertificationRatePct(misses, scoredAlignments) {
+  const scored = Number(scoredAlignments) || 0;
+  const miss = Number(misses) || 0;
+  return scored > 0 ? Math.round((miss / scored) * 100) : null;
+}
+
 module.exports = {
   ingestProductionSignals,
   computeOutcomeAlignment,
@@ -582,5 +595,6 @@ module.exports = {
   getProductionObservations,
   getOutcomeAlignmentForRelease,
   setIncidentRef,
+  computeFalseCertificationRatePct,
   OUTCOME_CRITERIA
 };

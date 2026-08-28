@@ -20,6 +20,7 @@ export default function ReleaseDashboardTable({
   releaseVersionPrimarySecondary,
   onViewFullRecord,
   onBeginOverride,
+  onRevokeCertification,
   onCollectingAction,
   hasMoreReleases = false,
   loadingMoreReleases = false,
@@ -31,7 +32,7 @@ export default function ReleaseDashboardTable({
       <div className="panel-header">
         <div className="panel-title">Release history</div>
         <div className="panel-actions">
-          {["All", "CERTIFIED", "UNCERTIFIED", "OVERRIDE", "INTEGRATION", "SIMULATOR"].map((f) => (
+          {["All", "CERTIFIED", "UNCERTIFIED", "OVERRIDE", "REVOKED", "INTEGRATION", "SIMULATOR"].map((f) => (
             <button
               key={f}
               type="button"
@@ -138,6 +139,7 @@ export default function ReleaseDashboardTable({
                     releaseTypes={releaseTypes}
                     onViewFullRecord={onViewFullRecord}
                     onBeginOverride={onBeginOverride}
+                    onRevokeCertification={onRevokeCertification}
                     onCollectingAction={onCollectingAction}
                   />
                 )}

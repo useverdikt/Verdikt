@@ -66,6 +66,18 @@ describe("computeGateAction", () => {
       "recover_certification"
     );
   });
+
+  it("returns revoked for CERTIFICATION_REVOKED even when gate would otherwise merge", () => {
+    assert.equal(
+      computeGateAction({
+        status: "CERTIFICATION_REVOKED",
+        gateAllowed: true,
+        blockingSignals: [],
+        missingRequiredSignals: []
+      }),
+      "revoked"
+    );
+  });
 });
 
 describe("computeCollectionAgeMs", () => {

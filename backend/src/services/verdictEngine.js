@@ -155,7 +155,7 @@ function releaseVerdictLockedAgainstIngest(release) {
   const status = String(release.status || "").toUpperCase();
   if (
     release.verdict_issued_at &&
-    (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")
+    (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE" || status === "CERTIFICATION_REVOKED")
   ) {
     return true;
   }

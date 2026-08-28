@@ -36,6 +36,7 @@ const STATUS_EMOJI = {
   CERTIFIED: ":white_check_mark:",
   CERTIFIED_WITH_OVERRIDE: ":warning:",
   UNCERTIFIED: ":x:",
+  CERTIFICATION_REVOKED: ":no_entry:",
   COLLECTING: ":hourglass_flowing_sand:"
 };
 
@@ -43,6 +44,7 @@ const STATUS_COLOR = {
   CERTIFIED: "#059669",
   CERTIFIED_WITH_OVERRIDE: "#d97706",
   UNCERTIFIED: "#dc2626",
+  CERTIFICATION_REVOKED: "#7f1d1d",
   COLLECTING: "#6366f1"
 };
 
@@ -136,7 +138,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
   try {
     const policy = await getWorkspacePolicy(release.workspace_id);
     const rawUrl = policy?.slack_webhook_url;
-    if (!rawUrl) return;
+    if (!rawUrl) return { skipped: true, reason: "no_slack_webhook" };
     payload = buildSlackPayload(release, failedSignals, certificationContext);
 
     let safeUrl;
@@ -152,7 +154,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
         outcome: "blocked",
         errorCode: "invalid_url"
       });
-      return;
+      return { delivered: false, ok: false, reason: "invalid_url" };
     }
 
     const body = JSON.stringify(payload);
@@ -172,7 +174,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
         responseStatus: res.status,
         errorCode: `http_${res.status}`
       });
-      return;
+      return { delivered: false, ok: false, reason: `http_${res.status}` };
     }
     await recordLegacyEffectObservation({
       release,
@@ -182,6 +184,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
       outcome: "succeeded",
       responseStatus: res.status
     });
+    return { delivered: true, ok: true, status: res.status };
   } catch (err) {
     console.error("[slack_notifier] delivery failed:", release.id, err?.message);
     await recordLegacyEffectObservation({
@@ -192,6 +195,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
       outcome: "failed",
       errorCode: "delivery_failed"
     });
+    return { delivered: false, ok: false, reason: err?.message || "delivery_failed" };
   }
 }
 

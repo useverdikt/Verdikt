@@ -485,6 +485,9 @@ function computeGateAction({
   blockedByRemediationDebt = false,
   snapshotMissing = false
 }) {
+  if (status === "CERTIFICATION_REVOKED") {
+    return "revoked";
+  }
   if (gateAllowed && (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")) {
     return "merge";
   }

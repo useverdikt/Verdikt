@@ -25,6 +25,7 @@ export function ReleaseDashboard({
   onNewRelease,
   onViewFullRecord,
   onBeginOverride,
+  onRevokeCertification,
   onCollectingAction,
   onHydrateVisibleSummaries,
   setupChecklist,
@@ -33,6 +34,7 @@ export function ReleaseDashboard({
   onLoadMoreReleases,
   shippedWithoutCertificationCount = null,
   productionIncidentsCount = null,
+  falseCertificationRatePct = null,
   remediationDebtActive = false
 }) {
   const filters = useReleaseDashboardFilters(releases);
@@ -52,6 +54,7 @@ export function ReleaseDashboard({
     formatReleaseAge,
     workspaceBypassCount: shippedWithoutCertificationCount,
     productionIncidentsCount,
+    falseCertificationRatePct,
     remediationDebtActive
   });
 
@@ -100,6 +103,7 @@ export function ReleaseDashboard({
             releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
             onViewFullRecord={onViewFullRecord}
             onBeginOverride={onBeginOverride}
+            onRevokeCertification={onRevokeCertification}
             onCollectingAction={onCollectingAction}
             hasMoreReleases={hasMoreReleases}
             loadingMoreReleases={loadingMoreReleases}

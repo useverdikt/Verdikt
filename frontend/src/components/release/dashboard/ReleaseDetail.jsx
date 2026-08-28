@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import RemediationDebtBanner from "../../app/RemediationDebtBanner.jsx";
 import { useRemediationDebt } from "../../../hooks/useRemediationDebt.js";
-import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, canOfferOverride } from "../../../lib/releaseStatus.js";
+import { normalizeReleaseStatus, UI_RELEASE_STATUS, isLiveBypassRisk, canOfferOverride, canOfferRevoke } from "../../../lib/releaseStatus.js";
 import IntegrationPullBanner from "../../IntegrationPullBanner.jsx";
 import {
   SignalEvidenceBlock,
@@ -31,6 +32,7 @@ export default function ReleaseDetail({
   releaseTypes,
   onViewFullRecord,
   onBeginOverride,
+  onRevokeCertification,
   onCollectingAction,
   detailLoadError = null,
   onRetryDetail = null
@@ -44,6 +46,10 @@ export default function ReleaseDetail({
   const isCollecting = normalizeReleaseStatus(release.status) === UI_RELEASE_STATUS.COLLECTING;
   const liveBypassRisk = isLiveBypassRisk(release);
   const showOverrideAction = canOfferOverride(release);
+  const showRevokeAction = canOfferRevoke(release);
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [revokeJustification, setRevokeJustification] = useState("");
+  const [revokeBusy, setRevokeBusy] = useState(false);
   const releaseId =
     release.backendReleaseId ||
     (typeof release.id === "string" && release.id.startsWith("rel_") ? release.id : null);
@@ -349,10 +355,51 @@ export default function ReleaseDetail({
                 Override &amp; certify
               </button>
             )}
+            {showRevokeAction && !revokeOpen && (
+              <button type="button" className="dab pr" onClick={() => setRevokeOpen(true)}>
+                Revoke certification
+              </button>
+            )}
             <button type="button" className="dab" onClick={() => onViewFullRecord?.(release)}>
               View full record
             </button>
           </div>
+          {showRevokeAction && revokeOpen && (
+            <div style={{ marginTop: 12, padding: "12px 14px", border: "1px solid rgba(239,68,68,.35)", borderRadius: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#fca5a5", marginBottom: 8 }}>
+                Revoke certification — frozen evidence stays on record
+              </div>
+              <textarea
+                value={revokeJustification}
+                onChange={(e) => setRevokeJustification(e.target.value)}
+                rows={3}
+                placeholder="Why this certification is no longer valid"
+                style={{ width: "100%", fontSize: 12, padding: 8, borderRadius: 6 }}
+              />
+              <div className="da" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="dab pr"
+                  disabled={revokeBusy || revokeJustification.trim().length < 8}
+                  onClick={async () => {
+                    setRevokeBusy(true);
+                    try {
+                      await onRevokeCertification?.(release, revokeJustification.trim());
+                      setRevokeOpen(false);
+                      setRevokeJustification("");
+                    } finally {
+                      setRevokeBusy(false);
+                    }
+                  }}
+                >
+                  {revokeBusy ? "Revoking…" : "Confirm revoke"}
+                </button>
+                <button type="button" className="dab" onClick={() => setRevokeOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
         </>

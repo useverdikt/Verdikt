@@ -129,4 +129,23 @@ describe("post-verdict outbound effect outbox", () => {
       duplicate_count: 0
     });
   });
+
+  it("records intents in primary mode without changing the default", async () => {
+    const { workspaceId, releaseId, timestamp } = await seedDueRelease();
+    const result = await transaction(async (tx) =>
+      enqueuePostVerdictOutbox({
+        mode: "primary",
+        tx,
+        releaseId,
+        workspaceId,
+        verdictStatus: "CERTIFIED",
+        verdictIssuedAt: timestamp,
+        triggerSource: "primary_path_test"
+      })
+    );
+    assert.equal(result.mode, "primary");
+    assert.equal(result.attempted, POST_VERDICT_EFFECT_TYPES.length);
+    const rows = await queryAll("SELECT effect_type FROM outbound_effect_outbox WHERE release_id = $1", [releaseId]);
+    assert.equal(rows.length, POST_VERDICT_EFFECT_TYPES.length);
+  });
 });

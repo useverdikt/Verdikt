@@ -3,12 +3,18 @@
  * Import via `@useverdikt/shared/releaseStatus` (see package.json exports).
  */
 
-export const BACKEND_RELEASE_STATUSES = ["COLLECTING", "CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE"];
+export const BACKEND_RELEASE_STATUSES = [
+  "COLLECTING",
+  "CERTIFIED",
+  "UNCERTIFIED",
+  "CERTIFIED_WITH_OVERRIDE",
+  "CERTIFICATION_REVOKED"
+];
 
 export const CERT_LIKE = new Set(["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
 
 /** Releases with a final verdict (excludes COLLECTING). */
-export const VERDICTED = new Set(["CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE"]);
+export const VERDICTED = new Set(["CERTIFIED", "UNCERTIFIED", "CERTIFIED_WITH_OVERRIDE", "CERTIFICATION_REVOKED"]);
 
 export const BLOCKED_OR_COLLECTING = new Set(["UNCERTIFIED", "COLLECTING"]);
 
