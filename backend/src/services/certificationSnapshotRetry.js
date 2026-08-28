@@ -19,6 +19,7 @@ const {
   BACKFILL_CLAIM_LEASE_MS
 } = require("./certificationSnapshotClaims");
 const { log, inc } = require("../lib/observability");
+const opsAlert = require("../lib/opsAlert");
 
 const MAX_ATTEMPTS = 4;
 /** Delay before retry attempt N (index = attempt after the initial sync failure). */
@@ -34,12 +35,27 @@ function nextAttemptAtIso(attempt) {
 
 async function onFinalFailure(args, err) {
   inc("cert_snapshot_exhausted");
-  log("error", "cert_snapshot_exhausted", {
-    releaseId: args.releaseId,
-    workspaceId: args.workspaceId,
-    status: args.status,
-    attempts: MAX_ATTEMPTS,
-    error: String(err?.message || "persist_failed").slice(0, 200)
+  void opsAlert.notifyOps({
+    event: "cert_snapshot_exhausted",
+    subject: `Verdikt: certification snapshot exhausted (${args.releaseId})`,
+    text: [
+      "Certification snapshot persist failed after all retries.",
+      `Release: ${args.releaseId}`,
+      `Workspace: ${args.workspaceId}`,
+      `Status: ${args.status}`,
+      `Attempts: ${MAX_ATTEMPTS}`,
+      `Error: ${String(err?.message || "persist_failed").slice(0, 200)}`
+    ].join("\n"),
+    fields: {
+      releaseId: args.releaseId,
+      workspaceId: args.workspaceId,
+      status: args.status
+    }
+  }).catch((notifyErr) => {
+    log("error", "ops_alert_unhandled", {
+      event: "cert_snapshot_exhausted",
+      error: String(notifyErr?.message || notifyErr).slice(0, 200)
+    });
   });
   if (!isCertLikeStatus(args.status)) return;
   try {

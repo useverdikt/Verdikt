@@ -303,6 +303,7 @@ outbox recording/processing while leaving legacy delivery authoritative.
 |---------|-----|
 | Gate 404 | Apply `verdikt:rc` first; confirm SHA matches PR head |
 | Gate red, COLLECTING | Post signals or fix integration SHA tags (Settings → probe SHA) |
+| Restore looks like a broken audit chain | Run `docs/PITR_AUDIT_INTEGRITY_DRILL.md` on a clone — dropped tail rows fail `verifyAuditIntegrity` |
 | No commit status on GitHub | Configure VCS write-back PAT (separate from GitHub App) |
 | Label does nothing | GitHub App not installed on repo or label name mismatch |
 | Secrets error in GHA | Add `VERDIKT_API_KEY` + `VERDIKT_WORKSPACE_ID` |

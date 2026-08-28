@@ -26,18 +26,16 @@ function sessionPwdAt(userRow) {
   return userRow.password_changed_at || userRow.created_at || "";
 }
 
-function signToken(userRow) {
-  return jwt.sign(
-    {
-      sub: userRow.id,
-      ws: userRow.workspace_id,
-      email: userRow.email,
-      role: userRow.role,
-      pwd_at: sessionPwdAt(userRow)
-    },
-    JWT_SECRET,
-    { expiresIn: "7d", algorithm: "HS256" }
-  );
+function signToken(userRow, extra = {}) {
+  const payload = {
+    sub: userRow.id,
+    ws: userRow.workspace_id,
+    email: userRow.email,
+    role: userRow.role,
+    pwd_at: sessionPwdAt(userRow)
+  };
+  if (extra.csrf) payload.csrf = extra.csrf;
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d", algorithm: "HS256" });
 }
 
 function publicUser(row) {
@@ -65,11 +63,13 @@ function cookieOpts(httpOnly) {
   return opts;
 }
 
-function setAuthCookies(res, token) {
+function setAuthCookies(res, userRow) {
   const csrf = crypto.randomBytes(32).toString("hex");
+  const token = signToken(userRow, { csrf });
   res.cookie(AUTH_COOKIE_NAME, token, cookieOpts(true));
   // CSRF cookie must be readable by JS — sameSite "none" in prod, "strict" in dev
   res.cookie(CSRF_COOKIE_NAME, csrf, { ...cookieOpts(false), sameSite: IS_PROD_LIKE ? "none" : "strict" });
+  return { token, csrf };
 }
 
 function clearAuthCookies(res) {

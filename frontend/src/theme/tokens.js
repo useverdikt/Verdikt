@@ -35,7 +35,7 @@ export const C = {
   // ── Typography colours ────────────────────────────────────────────────────
   text:  "#c4d4e8",
   muted: "#6e87a2",
-  dim:   "#384d60",
+  dim:   "#658099",
 
   // ── Font stacks ───────────────────────────────────────────────────────────
   serif: "'Cormorant Garamond', Georgia, serif",
@@ -68,7 +68,7 @@ export const T = {
   },
   brandTagline: {
     fontFamily: C.mono,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 500,
     letterSpacing: ".12em",
     lineHeight: 1.25,
@@ -77,7 +77,7 @@ export const T = {
   },
   overline: {
     fontFamily: C.mono,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 500,
     letterSpacing: ".12em",
     lineHeight: 1.2,
@@ -118,7 +118,7 @@ export const T = {
   },
   projectEnv: {
     fontFamily: C.mono,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 500,
     letterSpacing: ".04em",
     lineHeight: 1.35,
@@ -126,7 +126,7 @@ export const T = {
   },
   sectionHeading: {
     fontFamily: C.mono,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 500,
     letterSpacing: ".1em",
     lineHeight: 1.35,
@@ -149,7 +149,7 @@ export const T = {
   },
   labelCaps: {
     fontFamily: C.mono,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 500,
     letterSpacing: ".1em",
     lineHeight: 1.3,

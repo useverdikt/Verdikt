@@ -27,6 +27,7 @@ const {
 } = require("../src/services/certificationSnapshotClaims");
 const { ensureWorkspaceSeeded } = require("../src/services/workspaceConfig");
 const { nowIso } = require("../src/lib/time");
+const opsAlert = require("../src/lib/opsAlert");
 
 before(async () => {
   await initDatabase();
@@ -118,6 +119,7 @@ describe("certification snapshot durable retries", () => {
 
   it("writes CERTIFICATION_SNAPSHOT_FAILED after exhausting retries", async () => {
     const { ws, releaseId } = await seedCertifiedRelease();
+    const notify = mock.method(opsAlert, "notifyOps", async () => ({ skipped: true, reason: "test" }));
 
     mock.method(certificationSnapshots, "persistCertificationSnapshot", async () => {
       throw new Error("always_fail");
@@ -155,6 +157,8 @@ describe("certification snapshot durable retries", () => {
     );
     assert.ok(audit, "expected CERTIFICATION_SNAPSHOT_FAILED audit");
     assert.match(String(audit.details_json || ""), /always_fail/);
+    assert.ok(notify.mock.callCount() >= 1);
+    assert.equal(notify.mock.calls[0].arguments[0].event, "cert_snapshot_exhausted");
   });
 
   it("gives concurrent retry workers disjoint owner-scoped claims", async () => {

@@ -8,6 +8,7 @@ import ReleaseDashboardStats from "./dashboard/ReleaseDashboardStats.jsx";
 import ReleaseDashboardTable from "./dashboard/ReleaseDashboardTable.jsx";
 import ReleaseDashboardSidePanel from "./dashboard/ReleaseDashboardSidePanel.jsx";
 import SetupBanner from "./dashboard/SetupBanner.jsx";
+import FirstCertLanding from "./dashboard/FirstCertLanding.jsx";
 
 export function ReleaseDashboard({
   releases = [],
@@ -54,6 +55,11 @@ export function ReleaseDashboard({
     remediationDebtActive
   });
 
+  const waitingForFirstPr =
+    wsReady && Boolean(setupChecklist?.complete) && !setupChecklist?.loading && releases.length === 0;
+  const setupIncomplete = wsReady && setupChecklist && !setupChecklist.loading && !setupChecklist.complete;
+  const showFirstCertLanding = waitingForFirstPr || (setupIncomplete && releases.length === 0);
+
   return (
     <div className="release-redesign">
       <ReleaseDashboardHeader
@@ -66,8 +72,17 @@ export function ReleaseDashboard({
 
       <div className="body-split">
         <div className="content">
-          <SetupBanner setupChecklist={setupChecklist} />
-          <ReleaseDashboardStats wsReady={wsReady} stats={stats} />
+          {showFirstCertLanding ? (
+            <FirstCertLanding
+              setupChecklist={setupChecklist}
+              waitingForFirstPr={waitingForFirstPr}
+              onNewRelease={onNewRelease}
+            />
+          ) : (
+            <SetupBanner setupChecklist={setupChecklist} />
+          )}
+          {showFirstCertLanding ? null : <ReleaseDashboardStats wsReady={wsReady} stats={stats} />}
+          {showFirstCertLanding ? null : (
           <ReleaseDashboardTable
             wsReady={wsReady}
             releases={releases}
@@ -89,9 +104,12 @@ export function ReleaseDashboard({
             hasMoreReleases={hasMoreReleases}
             loadingMoreReleases={loadingMoreReleases}
             onLoadMoreReleases={onLoadMoreReleases}
+            emptyWedgeLabel={setupChecklist?.triggerLabel}
           />
+          )}
         </div>
 
+        {showFirstCertLanding ? null : (
         <ReleaseDashboardSidePanel
           loopReadiness={sidePanel.loopReadiness}
           loopBand={sidePanel.loopBand}
@@ -102,6 +120,7 @@ export function ReleaseDashboard({
           recentActivity={recentActivity}
           releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
         />
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import React from "react";
 import ReleaseRow from "./ReleaseRow.jsx";
 import ReleaseDetailQuery from "./ReleaseDetailQuery.jsx";
+import { COLLECTING_EXPLAINER, emptyReleasesWedgeCopy } from "../../../lib/firstCertCopy.js";
 
 export default function ReleaseDashboardTable({
   wsReady,
@@ -22,7 +23,8 @@ export default function ReleaseDashboardTable({
   onCollectingAction,
   hasMoreReleases = false,
   loadingMoreReleases = false,
-  onLoadMoreReleases
+  onLoadMoreReleases,
+  emptyWedgeLabel
 }) {
   return (
     <>
@@ -86,19 +88,21 @@ export default function ReleaseDashboardTable({
             style={{
               padding: "40px 24px",
               textAlign: "center",
-              color: "#384d60",
+              color: "var(--c-dim, #658099)",
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 12
+              fontSize: 12,
+              lineHeight: 1.6
             }}
           >
-            No releases yet. Add one to get started.
+            <div>{emptyReleasesWedgeCopy(emptyWedgeLabel)}</div>
+            <div style={{ marginTop: 8, color: "#6e87a2" }}>{COLLECTING_EXPLAINER}</div>
           </div>
         ) : visibleReleases.length === 0 ? (
           <div
             style={{
               padding: "32px 24px",
               textAlign: "center",
-              color: "#384d60",
+              color: "var(--c-dim, #658099)",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12
             }}

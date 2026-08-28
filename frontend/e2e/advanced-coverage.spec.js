@@ -88,7 +88,7 @@ test.describe("modal interaction coverage", () => {
       await expect(shareBtn).toBeVisible();
       await shareBtn.click();
       await expect(page.getByRole("button", { name: /Copy link|✓ Copied/i })).toBeVisible();
-      await page.getByRole("button", { name: "✕" }).first().click();
+      await page.getByRole("button", { name: /Close/i }).first().click();
       await expect(page.getByRole("button", { name: /Copy link|✓ Copied/i })).toBeHidden();
     } else {
       // Collecting-only releases have no share action in current UI.

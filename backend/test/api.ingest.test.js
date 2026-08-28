@@ -122,6 +122,15 @@ describe("API ingest / integrations / GitHub", () => {
     assert.equal(afterDelete.body.enabled, false);
     assert.equal(afterDelete.body.label_name, "verdikt:rc");
   });
+  it("rejects GitHub webhooks with a missing or invalid signature", async () => {
+    const payload = JSON.stringify({ action: "labeled", zen: "nope" });
+    await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .send(payload)
+      .expect(401);
+  });
   it("GitHub label trigger uses PR title and auto-classifies release type", async () => {
     // Use random PR number and SHA so repeated test runs don't hit the stable idempotency key.
     const prNumber = 40000 + crypto.randomInt(9999);

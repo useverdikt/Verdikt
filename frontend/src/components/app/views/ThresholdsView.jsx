@@ -42,6 +42,7 @@ export default function ThresholdsView({
   canAct,
   onSave,
   onAdoptLibrarySignal,
+  onAdoptRecommendedPack,
   onCreateCustomSignal,
   onRemoveSignalDefinition,
   suggestions = [],
@@ -194,12 +195,12 @@ export default function ThresholdsView({
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>FLOOR</span>
+            <span style={{ fontFamily: C.mono, fontSize: 11, color: C.dim, letterSpacing: "0.07em" }}>FLOOR</span>
             <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{val(sig)}</span>
             <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>{sig.unit}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.dim, letterSpacing: "0.07em" }}>MAX DROP</span>
+            <span style={{ fontFamily: C.mono, fontSize: 11, color: C.dim, letterSpacing: "0.07em" }}>MAX DROP</span>
             <span style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.dim }}>{val(`${sig.id}_delta`)}</span>
             <span style={{ fontFamily: C.mono, fontSize: 12, color: C.dim }}>pts</span>
           </div>
@@ -218,7 +219,7 @@ export default function ThresholdsView({
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 920, margin: "0 auto", width: "100%" }}>
       <div style={{ paddingBottom: 18, marginBottom: 4, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ fontFamily: C.mono, fontSize: 10, letterSpacing: "0.11em", textTransform: "uppercase", color: C.dim, marginBottom: 6 }}>Policy</div>
+        <div style={{ fontFamily: C.mono, fontSize: 11, letterSpacing: "0.11em", textTransform: "uppercase", color: C.dim, marginBottom: 6 }}>Policy</div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <h2 style={{ margin: 0, fontFamily: C.serif, fontSize: 28, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.1, flex: "1 1 auto", minWidth: 0 }}>Signals &amp; thresholds</h2>
           {canAct(currentUser) ? (
@@ -231,7 +232,7 @@ export default function ThresholdsView({
               {saving ? "Saving…" : saved ? "✓ Saved" : "Save Thresholds"}
             </Btn>
           ) : (
-            <span style={{ fontSize: 10, color: C.dim, background: C.border, padding: "4px 10px", borderRadius: 5, fontFamily: C.mono, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: C.dim, background: C.border, padding: "4px 10px", borderRadius: 5, fontFamily: C.mono, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
               READ ONLY
             </span>
           )}
@@ -259,6 +260,7 @@ export default function ThresholdsView({
         currentUser={currentUser}
         isMobile={isMobile}
         onAdopt={onAdoptLibrarySignal}
+        onAdoptRecommendedPack={onAdoptRecommendedPack}
         onCreate={onCreateCustomSignal}
         onRemove={onRemoveSignalDefinition}
         renderValueControl={renderValueControl}
@@ -319,7 +321,7 @@ export default function ThresholdsView({
                       />
                     </label>
                   ) : (
-                    <div style={{ fontFamily: C.mono, fontSize: 10, color: localRequired[sig.id] ? C.accent : C.dim }}>
+                    <div style={{ fontFamily: C.mono, fontSize: 11, color: localRequired[sig.id] ? C.accent : C.dim }}>
                       {localRequired[sig.id] ? "Required" : "Optional"}
                     </div>
                   )

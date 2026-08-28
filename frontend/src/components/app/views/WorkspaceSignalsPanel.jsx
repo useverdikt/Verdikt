@@ -3,6 +3,7 @@ import { C } from "../../../theme/tokens.js";
 import { Btn } from "../../ui/Btn.jsx";
 import { definitionToSignalMeta, groupLibraryByCategory, LIBRARY_CATEGORY_LABELS, buildCustomSignalSourceGroups } from "../../../lib/workspaceSignalUi.js";
 import { RELEASE_SOURCE_CATALOG, SIGNAL_SOURCE_SECTIONS } from "../../../lib/releaseSourceLanes.js";
+import { missingRecommendedPackIds } from "../../../lib/recommendedPack.js";
 
 function CustomSignalModal({ open, onClose, onCreate, connectors }) {
   const [signalId, setSignalId] = useState("");
@@ -174,12 +175,18 @@ export default function WorkspaceSignalsPanel({
   currentUser,
   isMobile,
   onAdopt,
+  onAdoptRecommendedPack,
   onCreate,
   onRemove,
   renderValueControl
 }) {
   const [showModal, setShowModal] = useState(false);
+  const [adoptingPack, setAdoptingPack] = useState(false);
   const libraryGroups = useMemo(() => groupLibraryByCategory(library), [library]);
+  const packMissing = useMemo(
+    () => missingRecommendedPackIds(undefined, definitions, library),
+    [definitions, library]
+  );
 
   const customDefs = definitions.filter((d) => !d.from_library || d.source_id === "custom" || d.source_id === "zizkadb");
   const standardDefs = definitions.filter((d) => d.from_library && !customDefs.includes(d));
@@ -220,7 +227,28 @@ export default function WorkspaceSignalsPanel({
               ) : null}
             </div>
           ) : definitions.length === 0 ? (
-            <div style={{ padding: 18, color: C.muted, fontSize: 12 }}>No workspace signals yet. Adopt from the library or add a custom signal.</div>
+            <div style={{ padding: 18 }}>
+              <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.55 }}>
+                No workspace signals yet. Adopt the recommended pack to gate on Verdikt's default AI signals, or pick one from the library.
+              </div>
+              {canAct(currentUser) && onAdoptRecommendedPack && packMissing.length > 0 ? (
+                <Btn
+                  variant="primary"
+                  disabled={adoptingPack}
+                  onClick={async () => {
+                    setAdoptingPack(true);
+                    try {
+                      await onAdoptRecommendedPack();
+                    } finally {
+                      setAdoptingPack(false);
+                    }
+                  }}
+                  style={{ fontSize: 12, padding: "8px 14px", marginTop: 12 }}
+                >
+                  {adoptingPack ? "Adopting pack…" : "Adopt recommended pack"}
+                </Btn>
+              ) : null}
+            </div>
           ) : (
             [...standardDefs, ...customDefs].map((def, i, arr) => {
               const sig = definitionToSignalMeta(def);
@@ -240,21 +268,21 @@ export default function WorkspaceSignalsPanel({
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{def.display_name}</span>
-                      <span style={{ fontFamily: C.mono, fontSize: 10, color: C.dim }}>{def.signal_id}</span>
+                      <span style={{ fontFamily: C.mono, fontSize: 11, color: C.dim }}>{def.signal_id}</span>
                       {localRequired[def.signal_id] ? (
-                        <span style={{ fontSize: 9, fontFamily: C.mono, color: C.accent, background: "rgba(56,189,248,0.08)", padding: "1px 5px", borderRadius: 3 }}>REQUIRED</span>
+                        <span style={{ fontSize: 11, fontFamily: C.mono, color: C.accent, background: "rgba(56,189,248,0.08)", padding: "1px 5px", borderRadius: 3 }}>REQUIRED</span>
                       ) : null}
                       {isCustom ? (
-                        <span style={{ fontSize: 9, fontFamily: C.mono, color: C.pink, padding: "1px 5px", borderRadius: 3, border: `1px solid ${C.border}` }}>CUSTOM</span>
+                        <span style={{ fontSize: 11, fontFamily: C.mono, color: C.pink, padding: "1px 5px", borderRadius: 3, border: `1px solid ${C.border}` }}>CUSTOM</span>
                       ) : null}
                     </div>
                     {def.description ? <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{def.description}</div> : null}
-                    {def.source_id ? <div style={{ color: C.dim, fontSize: 10, fontFamily: C.mono, marginTop: 4 }}>source: {def.source_id}</div> : null}
+                    {def.source_id ? <div style={{ color: C.dim, fontSize: 11, fontFamily: C.mono, marginTop: 4 }}>source: {def.source_id}</div> : null}
                   </div>
                   {renderValueControl(sig)}
                   {canAct(currentUser) ? (
                     <label style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, cursor: "pointer" }}>
-                      <span style={{ fontFamily: C.mono, fontSize: 9, color: C.muted }}>REQUIRED</span>
+                      <span style={{ fontFamily: C.mono, fontSize: 11, color: C.muted }}>REQUIRED</span>
                       <input
                         type="checkbox"
                         checked={!!localRequired[def.signal_id]}
@@ -298,14 +326,14 @@ export default function WorkspaceSignalsPanel({
           ) : (
             [...libraryGroups.entries()].map(([cat, entries]) => (
               <div key={cat} style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 10, fontFamily: C.mono, color: C.dim, marginBottom: 8, textTransform: "uppercase" }}>
+                <div style={{ fontSize: 11, fontFamily: C.mono, color: C.dim, marginBottom: 8, textTransform: "uppercase" }}>
                   {LIBRARY_CATEGORY_LABELS[cat] || cat}
                 </div>
                 {entries.map((entry) => (
                   <div key={entry.signal_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 12, color: C.text }}>{entry.display_name}</div>
-                      <div style={{ fontSize: 10, color: C.dim, fontFamily: C.mono }}>{entry.signal_id}</div>
+                      <div style={{ fontSize: 11, color: C.dim, fontFamily: C.mono }}>{entry.signal_id}</div>
                     </div>
                     {canAct(currentUser) ? (
                       <Btn variant="ghost" onClick={() => onAdopt?.(entry.signal_id)} style={{ fontSize: 10, padding: "4px 8px" }}>

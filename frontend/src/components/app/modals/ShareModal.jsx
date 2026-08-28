@@ -179,7 +179,9 @@ export default function ShareModal({
               {copied ? "✓ Copied" : "⧉ Copy link"}
             </button>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Close"
               style={{ background: "transparent", border: "none", color: C.muted, fontSize: 18, cursor: "pointer", padding: "4px 8px" }}
             >
               ✕

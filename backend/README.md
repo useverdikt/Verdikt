@@ -125,13 +125,21 @@ npm run db:backup
 
 Writes timestamped **`.sql`** files under **`data/backups/`** (override with `BACKUP_DIR=/path/to/dir`). Schedule this on your host (cron, launchd, or platform snapshots) for production.
 
+After any restore, re-run the audit hash chain:
+
+```bash
+npm run audit:verify
+```
+
+Exit `0` only when `valid` is true. Optional `--workspace ws_…` limits the scan. Configure **`OPS_NOTIFY_EMAIL`** (comma-separated) plus **`RESEND_API_KEY`** so snapshot exhaustion and integrity failures email ops; otherwise the events are structured logs only (`cert_snapshot_exhausted`, `audit_integrity_failed`). Full restore steps: [`docs/PITR_AUDIT_INTEGRITY_DRILL.md`](../docs/PITR_AUDIT_INTEGRITY_DRILL.md). Default worker interval is 24h (`AUDIT_INTEGRITY_CHECK_MS`; set `0` to disable).
+
 ### Operations: health, logs, graceful shutdown
 
 - **`GET /health`** — Liveness: returns `{ ok: true }` if the process is running. Use for “is the process up?” probes.
 - **`GET /health/ready`** — Readiness: runs `SELECT 1` against PostgreSQL. Returns **503** if the database is unusable. Point orchestrators / load balancers at this for “can this instance take traffic?”
 - **Worker health** — The dedicated worker (`src/worker.js`) serves `GET /health` and `GET /health/ready` on its own port (`WORKER_PORT`, default 3001). Readiness checks that PostgreSQL is reachable and the sweep jobs have started; `checks.outbox_shadow` distinguishes a live process from a recently successful shadow sweep.
 - **Request logging** — After each response, one line is logged: `[request-id] METHOD path status duration`. Disable with **`LOG_REQUESTS=0`**. For JSON lines (Datadog, CloudWatch, etc.) set **`LOG_JSON=1`**.
-- **Service events** — Certification snapshot failures, escalation SLA breaches, collection-sweep claims, shadow outbox comparisons/retries, gate actions, post-verdict side effects, gate context build failures, and VCS monitor scan failures all emit structured lines via `src/lib/observability.js` (same `LOG_JSON=1` switch). Process-local counters (`cert_snapshot_*`, `escalation_sla_breach`, `collection_sweep_*`, `outbox_shadow_*`, `gate_action_*`, `post_verdict_*`, `gate_context_*`, `vcs_monitor_*`) are for debugging; rely on log aggregation across API/worker processes.
+- **Service events** — Certification snapshot failures, escalation SLA breaches, collection-sweep claims, shadow outbox comparisons/retries, gate actions, post-verdict side effects, gate context build failures, VCS monitor scan failures, and audit-integrity failures all emit structured lines via `src/lib/observability.js` (same `LOG_JSON=1` switch). Process-local counters (`cert_snapshot_*`, `escalation_sla_breach`, `collection_sweep_*`, `outbox_shadow_*`, `gate_action_*`, `post_verdict_*`, `gate_context_*`, `vcs_monitor_*`) are for debugging; rely on log aggregation across API/worker processes. Ops email: `OPS_NOTIFY_EMAIL`.
 - **Graceful shutdown** — **`SIGTERM`** / **`SIGINT`** stop the HTTP server, clear the collection sweep interval, and end the PostgreSQL pool. **`SHUTDOWN_GRACE_MS`** (default **10000**) caps how long to wait before `exit(1)` if connections linger.
 - **Real-time SSE** — `GET /api/releases/:releaseId/stream` delivers Server-Sent Events for signal ingests and verdict updates. Single-replica deployments work out of the box. For multiple API replicas, the backend uses PostgreSQL **`LISTEN/NOTIFY`** on the existing `DATABASE_URL` so every replica forwards events to its local listeners (works with Supabase Postgres as well).
 - **Rate limiting** — Login, register, forgot-password, waitlist, and webhook endpoints are rate-limited. Signal ingest (`POST /api/releases/:id/signals`) and gate polling (`GET /api/releases/:id/gate`, `GET /api/workspaces/:id/gate`) have per-key + per-workspace limits. Redis-backed when `REDIS_URL` is set. If `API_REPLICA_COUNT > 1` or `REQUIRE_DISTRIBUTED_RATE_LIMITS=1`, Redis errors after boot deny the request instead of falling back to per-process memory. A single replica may use in-memory counters. Tune with `SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_KEY`, `SIGNAL_INGEST_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE`, `GATE_RATE_LIMIT_PER_MINUTE_PER_KEY`, `GATE_RATE_LIMIT_PER_MINUTE_PER_WORKSPACE`.
@@ -195,7 +203,7 @@ Human sessions use an **HttpOnly** cookie **`vdk_auth`** (plus a readable CSRF c
 - `POST /api/auth/forgot-password` — body: `{ "email" }` — generic success message whether or not the user exists (no enumeration). If the user exists, a reset token is stored (hashed) and **an email is sent** when **`RESEND_API_KEY`** and **`PUBLIC_APP_URL`** (or **`FRONTEND_URL`**) are set — see **Password reset email** below. On startup in production-like mode, the server **warns** if email is not configured. For local testing or automated tests, set **`PASSWORD_RESET_RETURN_TOKEN=1`** or use **`NODE_ENV=test`** so the response may include **`reset_token`** and **`reset_expires_at`** (never enable token return in production).
 - `POST /api/auth/reset-password` — body: `{ "token", "password" }` — one-time use, expires after 60 minutes.
 - `GET /api/auth/me` — cookie session and/or `Authorization: Bearer <token|api_key>`.
-- `POST /api/hooks/github` — GitHub webhook receiver (PR label trigger; requires `GITHUB_WEBHOOK_SECRET`).
+- `POST /api/hooks/github` — GitHub webhook receiver (PR label trigger; requires `GITHUB_WEBHOOK_SECRET`). This secret is **app-level**: GitHub signs every installation delivery with the same App webhook secret. Tenant routing is repo→workspace **after** signature verification. Rotate immediately if leaked. Per-workspace secrets are used for CI/eval ingest, not this endpoint.
 
 ### `ALLOW_PUBLIC_REGISTRATION` (design-partner / invite-only)
 

@@ -9,6 +9,7 @@ import {
 } from "./releaseDashboardUtils.js";
 import { ExpandChevron } from "./ReleaseDashboardIcons.jsx";
 import { EvidenceQualityFlag } from "../SignalEvidenceProvenance.jsx";
+import { handleActivatableKeyDown } from "../../../lib/keyboardActivate.js";
 
 export default function ReleaseRow({
   release,
@@ -65,12 +66,7 @@ export default function ReleaseRow({
       onClick={onToggle}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
+      onKeyDown={(e) => handleActivatableKeyDown(e, onToggle)}
     >
       <div className="td">
         <ExpandChevron />
