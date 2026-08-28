@@ -33,6 +33,13 @@ test.describe("full-stack smoke — public / no session", () => {
     await expect(page.getByRole("heading", { name: /Get on the list for/i })).toBeVisible();
   });
 
+  test("EU AI Act mapping page loads", async ({ page }) => {
+    await page.goto("/eu-ai-act");
+    await expect(page.getByRole("heading", { name: /Verdikt and the EU AI Act/i })).toBeVisible();
+    await expect(page.getByText(/not a compliance guarantee/i).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /request access/i })).toBeVisible();
+  });
+
   test("marketing landing at /", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByText(/Verdikt/i).first()).toBeVisible();

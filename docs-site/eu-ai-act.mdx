@@ -1,0 +1,42 @@
+---
+title: Verdikt and the EU AI Act
+description: How Verdikt's audit trail, overrides, and incident tracking map to Articles 12, 14, and 73.
+---
+
+Verdikt's audit trail and override system map to key EU AI Act obligations for high-risk AI systems.
+
+High-risk obligations under Articles 8–17, 26, 27, and 73 became applicable on **2 August 2026**. Three of those requirements map closely to things Verdikt already does.
+
+This page shows the mapping. It is not legal advice, and using Verdikt does not by itself make a system compliant — see [What this page is not](#what-this-page-is-not) below.
+
+---
+
+## The mapping
+
+| Requirement | What the law asks for | What Verdikt does today |
+|---|---|---|
+| **Article 12 — Record-keeping** | High-risk systems must automatically log events over their lifetime, so risks and incidents can be traced back after the fact. | Every verdict, signal, threshold, and override is written to an append-only, hash-chained audit trail — frozen at the moment of decision, never editable after. |
+| **Article 14 — Human oversight** | A human must be able to intervene in, and be accountable for, high-risk system decisions. | Every override requires a named approver and a written justification. Bypassed releases are flagged permanently, never silently absorbed. |
+| **Article 73 — Serious incident reporting** | Providers must be able to identify and report serious incidents within strict deadlines — as fast as 2 days for the most serious cases. | Post-deploy monitoring compares what was certified against what actually happened in production, and flags incidents against the release that caused them. |
+
+---
+
+## What this actually looks like
+
+**Article 12, in practice:** open any certified release in Verdikt and you can see exactly what was known at the moment it shipped — every signal, every threshold, every value — frozen and unchangeable, even if your thresholds change later.
+
+**Article 14, in practice:** if a release ships despite failing signals, Verdikt requires a name, a role, and a reason before it certifies. That record cannot be edited, not even by an administrator.
+
+**Article 73, in practice:** Verdikt watches what happens after a release ships and links production incidents back to the specific release and the specific decision that shipped it — the starting point for any incident report.
+
+---
+
+## What this page is not
+
+Verdikt covers *parts* of Article 12 and Article 14, and supports the evidence trail behind Article 73 reporting. It does not cover the full scope of any of these articles, and it does not cover risk management, technical documentation, data governance, or the other obligations under the Act.
+
+This page describes a mapping, not a compliance guarantee. Whether your specific system is in scope, and what your specific obligations are, is a legal question — talk to your own counsel.
+
+---
+
+**See how it works:** [request access](https://useverdikt.com/request-access) or start with the [product overview](/introduction).

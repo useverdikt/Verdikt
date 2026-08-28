@@ -389,6 +389,9 @@ export default memo(function LandingPage() {
                 approver identity, and timestamp — frozen at decision time on an append-only audit trail.
                 Production outcome appended after deploy.
               </div>
+              <Link to="/eu-ai-act" className="record-map-link">
+                How this maps to EU AI Act Articles 12, 14, and 73
+              </Link>
             </div>
             <div className="cert-card reveal reveal-delay-2">
               <div className="cert-card-header">
@@ -487,6 +490,7 @@ export default memo(function LandingPage() {
             <a href="#truth" aria-label="Jump to production truth">Production truth</a>
             <a href="#record" aria-label="Jump to the record section">The record</a>
             <a href="https://docs.useverdikt.com" aria-label="Verdikt documentation">Docs</a>
+            <Link to="/eu-ai-act">EU AI Act</Link>
             <a href={`mailto:${CONTACT_EMAIL}`} aria-label="Email Verdikt">{CONTACT_EMAIL}</a>
           </div>
           <div className="footer-copy">© 2026 Verdikt · Evidence, not hope</div>

@@ -426,6 +426,69 @@
 .vdk-landing .footer-links a:hover{color:var(--fg2)}
 .vdk-landing .footer-copy{font-family:var(--mono);font-size:11px;color:var(--fg3);letter-spacing:.04em}
 
+/* ─── EU AI ACT MAPPING ─── */
+.vdk-landing .eu-act{
+  max-width:860px;margin:0 auto;padding:112px var(--gutter) 72px;
+  position:relative;z-index:1;
+}
+.vdk-landing .eu-act-kicker{
+  font-family:var(--mono);font-size:11px;font-weight:500;
+  color:var(--certified);letter-spacing:.14em;text-transform:uppercase;
+  margin-bottom:20px;
+}
+.vdk-landing .eu-act h1{
+  font-size:clamp(36px,4.4vw,52px);margin-bottom:18px;max-width:16ch;
+}
+.vdk-landing .eu-act-lead{
+  font-family:var(--serif);font-size:clamp(20px,2.2vw,26px);
+  font-style:italic;font-weight:400;color:var(--fg);line-height:1.45;
+  margin-bottom:22px;
+}
+.vdk-landing .eu-act p{
+  font-size:16px;font-weight:300;color:var(--fg2);line-height:1.75;margin-bottom:16px;
+}
+.vdk-landing .eu-act p strong,.vdk-landing .eu-act td strong{color:var(--fg);font-weight:500}
+.vdk-landing .eu-act a{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--border2)}
+.vdk-landing .eu-act a:hover{border-color:var(--fg2)}
+.vdk-landing .eu-act h2{
+  font-size:clamp(24px,2.6vw,32px);margin:40px 0 16px;
+}
+.vdk-landing .eu-act-table-wrap{overflow-x:auto;margin:8px 0 28px;border:1px solid var(--border);border-radius:10px}
+.vdk-landing .eu-act table{width:100%;border-collapse:collapse;min-width:640px}
+.vdk-landing .eu-act th,.vdk-landing .eu-act td{
+  padding:14px 16px;text-align:left;vertical-align:top;
+  font-size:14px;line-height:1.6;border-bottom:1px solid var(--border);
+}
+.vdk-landing .eu-act thead th{
+  font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--fg3);background:var(--bg2);
+}
+.vdk-landing .eu-act tbody th{
+  font-family:var(--sans);font-size:14px;font-weight:500;color:var(--fg);width:22%;
+}
+.vdk-landing .eu-act tbody td{color:var(--fg2);font-weight:300}
+.vdk-landing .eu-act tbody tr:last-child th,
+.vdk-landing .eu-act tbody tr:last-child td{border-bottom:none}
+.vdk-landing .eu-act-disclaimer{
+  padding:20px 22px;border:1px solid var(--border);border-radius:10px;
+  background:var(--bg2);margin-bottom:28px;
+}
+.vdk-landing .eu-act-disclaimer p:last-child{margin-bottom:0}
+.vdk-landing .eu-act-cta{margin-top:8px}
+.vdk-landing .nav-links span[aria-current="page"],
+.vdk-landing .footer-links span[aria-current="page"]{
+  font-size:13.5px;color:var(--fg);
+}
+.vdk-landing .sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+.vdk-landing .record-map-link{
+  display:inline-block;margin-top:16px;font-size:14px;color:var(--fg);
+  text-decoration:none;border-bottom:1px solid var(--border2);
+}
+.vdk-landing .record-map-link:hover{border-color:var(--fg2)}
+
 /* ─── REVEAL ANIMATIONS ─── */
 /* Keep content visible — hidden-until-scroll made sections look like empty voids */
 .vdk-landing .reveal,
