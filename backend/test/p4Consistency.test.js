@@ -75,6 +75,32 @@ describe("shared release status helpers", async () => {
   });
 });
 
+describe("shared verdict engine + independent verify dual exports", async () => {
+  const engineEsm = await import("@useverdikt/shared/verdictEngine");
+  const engineCjs = require("@useverdikt/shared/verdictEngine");
+  const verifyEsm = await import("@useverdikt/shared/independentVerify");
+  const verifyCjs = require("@useverdikt/shared/independentVerify");
+  const chainEsm = await import("@useverdikt/shared/auditChain");
+  const chainCjs = require("@useverdikt/shared/auditChain");
+
+  it("keeps ESM + CJS dual exports in sync", () => {
+    assert.equal(engineEsm.ENGINE_VERSION, engineCjs.ENGINE_VERSION);
+    assert.equal(engineEsm.CERT_BUNDLE_SCHEMA, engineCjs.CERT_BUNDLE_SCHEMA);
+    assert.equal(chainEsm.GENESIS, chainCjs.GENESIS);
+    assert.equal(
+      engineEsm.computeEvidenceHash({ a: { min: 1 } }, { a: 2 }),
+      engineCjs.computeEvidenceHash({ a: { min: 1 } }, { a: 2 })
+    );
+    const replay = engineCjs.evaluateFrozenEvidence(
+      { accuracy: 91 },
+      { accuracy: { min: 90, required_for_certification: true } }
+    );
+    assert.equal(replay.engine_status, "CERTIFIED");
+    assert.equal(typeof verifyEsm.verifyIndependentBundle, "function");
+    assert.equal(typeof verifyCjs.verifyIndependentBundle, "function");
+  });
+});
+
 describe("shared config dual exports", async () => {
   const esm = await import("@useverdikt/shared");
   const cjs = require("@useverdikt/shared");

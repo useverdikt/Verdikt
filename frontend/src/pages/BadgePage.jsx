@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { verdiktMarkInnerPaths, verdictStateToMarkVariant } from "../brand/verdiktMarkSvg.js";
 import { VerdiktMark } from "../components/brand/VerdiktMark.jsx";
-import { fetchPublicCertRecord, fetchPublicCertRecordById, fetchCertVerification } from "../lib/fetchPublicCert.js";
+import { fetchPublicCertRecord, fetchPublicCertRecordById, fetchCertVerification, downloadCertBundle } from "../lib/fetchPublicCert.js";
 import { signatureChipLabel, signatureChipTooltip, isEd25519Algorithm } from "../lib/publicCertLinks.js";
 import { DEMOS, CATS, STATE_META, DEMO_KEYS } from "./badgeDemoData.js";
 import "./BadgePage.css";
@@ -333,7 +333,9 @@ function RecordCard({
           ⊕ {signatureChipLabel(signature.algorithm)} · {esc(signature.signed_at?.slice(0, 10))}
         </div>
       ) : null}
-      {releaseId ? <CertVerifyControls releaseId={releaseId} algorithm={signature?.algorithm} /> : null}
+      {releaseId ? (
+        <CertVerifyControls releaseId={releaseId} algorithm={signature?.algorithm} certVersion={certVersion} />
+      ) : null}
 
       {failing?.length > 0 ? (
         <div style={{ paddingTop: 24 }}>
@@ -519,7 +521,7 @@ function EmbedSection({ wsSlug, certVersion, copyLabel, onCopy }) {
   );
 }
 
-function CertVerifyControls({ releaseId, algorithm }) {
+function CertVerifyControls({ releaseId, algorithm, certVersion }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -534,6 +536,16 @@ function CertVerifyControls({ releaseId, algorithm }) {
       .catch((e) => {
         setError(e?.message || "verify_failed");
         setResult(null);
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const download = () => {
+    setBusy(true);
+    setError(null);
+    downloadCertBundle(releaseId, `verdikt-cert-${certVersion || releaseId}.json`)
+      .catch((e) => {
+        setError(e?.message || "download_failed");
       })
       .finally(() => setBusy(false));
   };
@@ -569,7 +581,25 @@ function CertVerifyControls({ releaseId, algorithm }) {
           letterSpacing: "0.05em"
         }}
       >
-        {busy ? "Verifying…" : "Verify this record"}
+        {busy ? "Working…" : "Verify this record"}
+      </button>
+      <button
+        type="button"
+        onClick={download}
+        disabled={busy}
+        style={{
+          fontFamily: "var(--mono)",
+          fontSize: 11,
+          padding: "5px 14px",
+          borderRadius: 6,
+          border: "1px solid rgba(255,255,255,0.18)",
+          background: "transparent",
+          color: "var(--mid, #94a3b8)",
+          cursor: busy ? "wait" : "pointer",
+          letterSpacing: "0.05em"
+        }}
+      >
+        Download cert bundle
       </button>
       {valid ? (
         <span

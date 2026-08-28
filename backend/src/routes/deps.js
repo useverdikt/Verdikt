@@ -46,7 +46,7 @@ const {
   resolveReleaseForWorkspaceIngest
 } = require("../services/domain");
 const { normalizeCommitSha } = require("../services/releaseIdentity");
-const { verifyCertificationRecord, getCertSignaturePublic, signCertificationRecord } = require("../services/certSigner");
+const { verifyCertificationRecord, getCertSignaturePublic, signCertificationRecord, assembleIndependentCertBundle } = require("../services/certSigner");
 const { verifyAuditIntegrity } = require("../services/auditIntegrity");
 const { getOutboundWebhook, setOutboundWebhook, deleteOutboundWebhook } = require("../services/outboundWebhook");
 const { validateSignalPayload } = require("../services/signalValidator");
@@ -144,6 +144,7 @@ module.exports = {
   verifyCertificationRecord,
   getCertSignaturePublic,
   signCertificationRecord,
+  assembleIndependentCertBundle,
   verifyAuditIntegrity,
   getOutboundWebhook,
   setOutboundWebhook,

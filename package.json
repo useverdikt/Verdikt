@@ -25,6 +25,7 @@
     "test:backend": "npm --prefix backend test",
     "test:frontend": "npm --prefix frontend test",
     "check:migrations": "node scripts/check-migration-parity.js",
+    "verdikt:verify": "node scripts/verdikt-verify.js",
     "mcp": "npm --prefix mcp start",
     "seed:demos": "npm --prefix backend run seed:demos"
   },

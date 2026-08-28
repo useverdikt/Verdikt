@@ -353,8 +353,7 @@ export default function GovernancePanel({ section, wsId, toast }) {
             <div className="sblock-title">Cryptographic certification signing</div>
             <div className="sblock-desc">
               Every CERTIFIED or CERTIFIED_WITH_OVERRIDE verdict is signed at issuance. HMAC-SHA256 remains the default and is not a third-party signature. When <code style={{ fontSize: 11 }}>CERT_ED25519_PRIVATE_KEY</code> is set, new records use Ed25519 and the public key is published at{" "}
-              <code style={{ fontSize: 11 }}>/api/public/cert-keys</code>. Anyone can verify a certificate without credentials at{" "}
-              <code style={{ fontSize: 11 }}>/api/releases/:id/cert/verify</code>.
+              <code style={{ fontSize: 11 }}>/api/public/cert-keys</code>. Download the cert bundle from the public record and run <code style={{ fontSize: 11 }}>npm run verdikt:verify -- bundle.json</code> offline — that replays frozen inputs + this engine version, not just the signature. HMAC bundles still replay the engine; only Ed25519 is independently signed.
             </div>
           </div>
         </div>

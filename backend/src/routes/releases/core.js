@@ -6,6 +6,7 @@ const {
   requireReleaseAccess,
   verifyCertificationRecord,
   getCertSignaturePublic,
+  assembleIndependentCertBundle,
   gatePollRateLimit,
   buildReleaseGateResponse,
   buildReleaseBriefWithAudit,
@@ -97,6 +98,18 @@ module.exports = function registerRoutes(app) {
       const result = await verifyCertificationRecord(req.params.releaseId);
       const sig = await getCertSignaturePublic(req.params.releaseId);
       return res.json({ release_id: req.params.releaseId, verification: result, signature: sig });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  /** Public: self-contained cert bundle for offline `verdikt-verify` (no DB). */
+  app.get("/api/releases/:releaseId/cert/bundle", async (req, res, next) => {
+    try {
+      const bundle = await assembleIndependentCertBundle(req.params.releaseId);
+      if (!bundle) return sendError(res, req, 404, "no signature on record for this release");
+      res.setHeader("Content-Disposition", `attachment; filename="verdikt-cert-${req.params.releaseId}.json"`);
+      return res.json(bundle);
     } catch (e) {
       next(e);
     }
