@@ -5,8 +5,8 @@
 import { getSafeApiBase } from "./apiBase.js";
 import { getCsrfHeader } from "./csrfCookie.js";
 import { signOutSupabase } from "../auth/supabaseAuth.js";
-import { reset as resetHydrationPool } from "./hydrationPool.js";
 import { resetLoopReadinessCache } from "./loopReadinessCache.js";
+import { appQueryClient } from "../queries/queryClient.js";
 import { resetSignalReliabilityCache } from "./signalReliabilityCache.js";
 import { clearThresholdLocalCache } from "./thresholdLocalState.js";
 
@@ -60,7 +60,7 @@ function buildUrl(path) {
 }
 
 function handleUnauthorized(navigate) {
-  resetHydrationPool();
+  appQueryClient.clear();
   resetLoopReadinessCache();
   resetSignalReliabilityCache();
   void signOutSupabase();

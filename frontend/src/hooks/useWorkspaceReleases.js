@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getWorkspaceId } from "../lib/apiClient.js";
 import {
   mergeReleaseIntoList,
-  RELEASE_UPDATED_EVENT,
-  enqueueReleaseHydration,
   mergeListStubsWithExisting,
   isReleaseDetailPending,
-  isSummaryPending,
   initialReleaseTablePendingIds,
-  pendingSummaryIdsForReleases,
-  resetHydrationPool,
-  syncHydratedFromReleases,
-  setHydrationNavigate,
-  setOnEach,
   projectReleaseForList
 } from "../lib/releaseDetailRefresh.js";
 import { hasBackend } from "../lib/hasBackend.js";
@@ -22,10 +14,20 @@ import { appQueryClient } from "../queries/queryClient.js";
 import { workspaceKeys } from "../queries/workspaceKeys.js";
 import { fetchWorkspaceReleases } from "../queries/workspaceFetchers.js";
 import { releaseDetailQueryOptions } from "../queries/useReleaseDetailQuery.js";
+import {
+  uniqueReleaseIds,
+  useOverlaidReleaseSummaries
+} from "../queries/useReleaseSummaryQueries.js";
 
 const RELEASE_PAGE_SIZE = 50;
 
-/** Release list, hydration pool, pagination, and detail fetch helpers. */
+function sameIdList(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  return a.every((id, i) => id === b[i]);
+}
+
+/** Release list, visible-row summary queries, pagination, and detail fetch helpers. */
 export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   const [releases, setReleases] = useState(() => {
     if (hasBackend()) return [];
@@ -45,6 +47,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
   const [remediationDebtActive, setRemediationDebtActive] = useState(false);
   const [releasesNextBefore, setReleasesNextBefore] = useState(null);
   const [releasesLoadingMore, setReleasesLoadingMore] = useState(false);
+  const [summaryIds, setSummaryIds] = useState([]);
 
   const releasesRef = useRef(releases);
   const workspaceIdRef = useRef(getWorkspaceId());
@@ -53,46 +56,18 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     releasesRef.current = releases;
   }, [releases]);
 
-  const scheduleReleaseHydration = useCallback((mergedReleases) => {
-    syncHydratedFromReleases(mergedReleases, isSummaryPending);
-    const pending = initialReleaseTablePendingIds(mergedReleases);
-    if (pending.length) enqueueReleaseHydration(pending, { priority: false });
-  }, []);
-
   const hydrateVisibleSummaries = useCallback((visibleReleases) => {
-    if (!hasBackend() || !visibleReleases?.length) return;
-    const ids = pendingSummaryIdsForReleases(
-      releasesRef.current,
-      visibleReleases.map((r) => r.backendReleaseId)
-    );
-    if (ids.length) enqueueReleaseHydration(ids, { priority: false });
-  }, []);
-
-  useEffect(() => {
     if (!hasBackend()) return;
-    setHydrationNavigate(navigate);
-    setOnEach((mapped) =>
-      setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)))
-    );
-    return () => {
-      setOnEach(null);
-      resetHydrationPool();
-    };
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!hasBackend() || nav !== "release") return;
-    syncHydratedFromReleases(releasesRef.current, isSummaryPending);
-    const pending = initialReleaseTablePendingIds(releasesRef.current);
-    if (pending.length) enqueueReleaseHydration(pending, { priority: false });
-  }, [nav]);
+    const ids = uniqueReleaseIds((visibleReleases || []).map((r) => r.backendReleaseId));
+    setSummaryIds((prev) => (sameIdList(prev, ids) ? prev : ids));
+  }, []);
 
   useEffect(() => {
     if (!hasBackend()) return;
     const wsId = getWorkspaceId();
     if (workspaceIdRef.current !== wsId) {
-      resetHydrationPool();
       workspaceIdRef.current = wsId;
+      setSummaryIds([]);
     }
   }, []);
 
@@ -101,57 +76,42 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     S.set("releases", releases);
   }, [releases]);
 
-  useEffect(() => {
-    const onReleaseUpdated = (event) => {
-      const mapped = event?.detail;
-      if (!mapped?.backendReleaseId) return;
-      setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)));
-    };
-    window.addEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
-    return () => window.removeEventListener(RELEASE_UPDATED_EVENT, onReleaseUpdated);
-  }, []);
-
-  const applyReleaseListFromServer = useCallback(
-    (relData) => {
-      const rows = relData?.releases || [];
-      setReleasesNextBefore(relData?.next_before || null);
-      if (typeof relData?.shipped_without_certification_count === "number") {
-        setShippedWithoutCertificationCount(relData.shipped_without_certification_count);
-      }
-      if (typeof relData?.production_incidents_count === "number") {
-        setProductionIncidentsCount(relData.production_incidents_count);
-      }
-      if (
-        typeof relData?.false_certification_rate_pct === "number" ||
-        relData?.false_certification_rate_pct === null
-      ) {
-        setFalseCertificationRatePct(relData.false_certification_rate_pct);
-      }
-      if (typeof relData?.remediation_debt_active === "boolean") {
-        setRemediationDebtActive(relData.remediation_debt_active);
-      }
-      if (rows.length) {
-        setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
-        const stubs = rows.map(mapBackendListRowToUi);
-        let merged = stubs;
-        setReleases((prev) => {
-          merged = mergeListStubsWithExisting(
-            prev.map(projectReleaseForList),
-            stubs
-          );
-          return merged;
-        });
-        setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
-        scheduleReleaseHydration(merged);
+  const applyReleaseListFromServer = useCallback((relData) => {
+    const rows = relData?.releases || [];
+    setReleasesNextBefore(relData?.next_before || null);
+    if (typeof relData?.shipped_without_certification_count === "number") {
+      setShippedWithoutCertificationCount(relData.shipped_without_certification_count);
+    }
+    if (typeof relData?.production_incidents_count === "number") {
+      setProductionIncidentsCount(relData.production_incidents_count);
+    }
+    if (
+      typeof relData?.false_certification_rate_pct === "number" ||
+      relData?.false_certification_rate_pct === null
+    ) {
+      setFalseCertificationRatePct(relData.false_certification_rate_pct);
+    }
+    if (typeof relData?.remediation_debt_active === "boolean") {
+      setRemediationDebtActive(relData.remediation_debt_active);
+    }
+    if (rows.length) {
+      setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : rows.length);
+      const stubs = rows.map(mapBackendListRowToUi);
+      let merged = stubs;
+      setReleases((prev) => {
+        merged = mergeListStubsWithExisting(prev.map(projectReleaseForList), stubs);
         return merged;
-      }
-      setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
-      setReleases([]);
-      setSelectedId(null);
-      return [];
-    },
-    [scheduleReleaseHydration]
-  );
+      });
+      setSelectedId((sel) => (merged.some((r) => r.id === sel) ? sel : merged[0]?.id ?? null));
+      setSummaryIds(initialReleaseTablePendingIds(merged));
+      return merged;
+    }
+    setReleasesTotalCount(typeof relData?.total_count === "number" ? relData.total_count : 0);
+    setReleases([]);
+    setSelectedId(null);
+    setSummaryIds([]);
+    return [];
+  }, []);
 
   const refreshReleaseFromBackend = useCallback(
     async (backendReleaseId) => {
@@ -163,9 +123,7 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
           releaseDetailQueryOptions(wsId, backendReleaseId, navigate)
         );
         if (mapped) {
-          setReleases((prev) =>
-            mergeReleaseIntoList(prev, projectReleaseForList(mapped))
-          );
+          setReleases((prev) => mergeReleaseIntoList(prev, projectReleaseForList(mapped)));
         }
       } catch (e) {
         setApiBanner?.(e.message || "Failed to refresh release from server");
@@ -189,17 +147,11 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
       setReleasesNextBefore(data?.next_before || null);
       const stubs = rows.map(mapBackendListRowToUi);
       if (stubs.length) {
-        let appended = [];
         setReleases((prev) => {
           const seen = new Set(prev.map((r) => r.backendReleaseId));
-          appended = stubs.filter((s) => !seen.has(s.backendReleaseId));
-          return [...prev, ...appended];
+          const appended = stubs.filter((s) => !seen.has(s.backendReleaseId));
+          return appended.length ? [...prev, ...appended] : prev;
         });
-        if (appended.length) {
-          syncHydratedFromReleases(releasesRef.current, isSummaryPending);
-          const pending = initialReleaseTablePendingIds(appended);
-          if (pending.length) enqueueReleaseHydration(pending, { priority: false });
-        }
       }
     } catch (e) {
       setApiBanner?.(e.message || "Failed to load more releases");
@@ -231,14 +183,20 @@ export function useWorkspaceReleases(navigate, nav, { setApiBanner } = {}) {
     [navigate, setApiBanner]
   );
 
+  const summaryQueryIds = useMemo(() => {
+    if (nav === "release") return summaryIds;
+    return [];
+  }, [nav, summaryIds]);
+
+  const overlaidReleases = useOverlaidReleaseSummaries(releases, summaryQueryIds, navigate);
+
   return {
-    releases,
+    releases: overlaidReleases,
     setReleases,
     selectedId,
     setSelectedId,
     releasesNextBefore,
     releasesLoadingMore,
-    scheduleReleaseHydration,
     applyReleaseListFromServer,
     refreshReleaseFromBackend,
     loadMoreReleases,

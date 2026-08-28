@@ -729,7 +729,7 @@ export default function SignalSimulatorPage() {
         [sourceId]: { ok: true, inserted, status }
       }));
 
-      const mapped = await refreshReleaseDetail(selectedReleaseId, navigate, { emit: true });
+      const mapped = await refreshReleaseDetail(selectedReleaseId, navigate);
       setReleases((prev) => {
         const next = prev.map((r) =>
           r.id === selectedReleaseId
