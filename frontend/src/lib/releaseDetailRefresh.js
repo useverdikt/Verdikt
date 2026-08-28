@@ -1,23 +1,8 @@
-import {
-  enqueue as enqueueReleaseHydration,
-  awaitReleaseDetail,
-  reset as resetHydrationPool,
-  syncHydratedFromReleases,
-  setHydrationNavigate,
-  setOnEach
-} from "./hydrationPool.js";
+import { getWorkspaceId } from "./apiClient.js";
 import { trendChartWindowReleases } from "./trendChart.js";
-
-export const RELEASE_UPDATED_EVENT = "verdikt:release-updated";
-
-export {
-  resetHydrationPool,
-  syncHydratedFromReleases,
-  setHydrationNavigate,
-  setOnEach,
-  enqueueReleaseHydration,
-  awaitReleaseDetail
-};
+import { appQueryClient } from "../queries/queryClient.js";
+import { releaseDetailQueryOptions } from "../queries/useReleaseDetailQuery.js";
+import { workspaceKeys } from "../queries/workspaceKeys.js";
 
 /** Whether a release row still needs summary hydration (signals for trends/list). */
 export function isSummaryPending(release) {
@@ -81,7 +66,7 @@ export function initialReleaseTablePendingIds(releases, { limit = RELEASE_TABLE_
   return allPendingReleaseIds(releases).slice(0, limit);
 }
 
-/** Chart-window release ids that still need summary hydration (for trends priority enqueue). */
+/** Chart-window release ids that still need summary hydration. */
 export function chartWindowPendingIds(releases, windowSize) {
   return trendChartWindowReleases(releases, windowSize)
     .filter(isSummaryPending)
@@ -89,10 +74,11 @@ export function chartWindowPendingIds(releases, windowSize) {
     .filter(Boolean);
 }
 
-/** Notify other views (e.g. release dashboard) that a release row changed. */
-export function emitReleaseUpdated(mapped) {
-  if (typeof window === "undefined" || !mapped) return;
-  window.dispatchEvent(new CustomEvent(RELEASE_UPDATED_EVENT, { detail: mapped }));
+/** All backend ids in the trend chart window (fetched via useQueries). */
+export function chartWindowReleaseIds(releases, windowSize) {
+  return trendChartWindowReleases(releases, windowSize)
+    .map((r) => r.backendReleaseId)
+    .filter(Boolean);
 }
 
 /** Merge mapped detail into a releases array, preserving local row id. */
@@ -125,10 +111,49 @@ export function projectReleaseForList(mapped) {
   };
 }
 
-/** Fetch detail via the global pool, optionally broadcast, return mapped release. */
-export async function refreshReleaseDetail(backendReleaseId, navigate, { emit = true, force = true } = {}) {
-  setHydrationNavigate(navigate);
-  const mapped = await awaitReleaseDetail(backendReleaseId, { priority: true, force });
-  if (mapped && emit) emitReleaseUpdated(mapped);
-  return mapped;
+function lookupSummary(summaryById, id) {
+  if (!id || !summaryById) return undefined;
+  if (typeof summaryById.get === "function") return summaryById.get(id);
+  return summaryById[id];
+}
+
+/** Overlay query-owned signals onto a list stub. Status/version stay on the list row. */
+export function overlayReleaseSummary(release, summary, { failed = false } = {}) {
+  if (!release) return release;
+  if (failed && !summary) {
+    return { ...release, summaryLoaded: true };
+  }
+  if (!summary) return release;
+  const projected = projectReleaseForList(summary);
+  return {
+    ...release,
+    signals: projected.signals ?? release.signals,
+    signalRows: projected.signalRows ?? release.signalRows,
+    alignmentVerdict: projected.alignmentVerdict ?? release.alignmentVerdict,
+    outcomeAlignment: projected.outcomeAlignment ?? release.outcomeAlignment,
+    last_signal_evaluation: projected.last_signal_evaluation ?? release.last_signal_evaluation,
+    evidence_summary: projected.evidence_summary ?? release.evidence_summary,
+    summaryLoaded: true,
+    detailLoaded: false
+  };
+}
+
+export function overlayReleaseSummaries(releases, summaryById, failedIds = []) {
+  if (!Array.isArray(releases)) return releases;
+  const failed = failedIds instanceof Set ? failedIds : new Set(failedIds);
+  return releases.map((release) =>
+    overlayReleaseSummary(release, lookupSummary(summaryById, release.backendReleaseId), {
+      failed: failed.has(release.backendReleaseId)
+    })
+  );
+}
+
+/** Fetch full detail through TanStack Query. */
+export async function refreshReleaseDetail(backendReleaseId, navigate, { force = true } = {}) {
+  const wsId = getWorkspaceId();
+  if (!backendReleaseId || !wsId) return null;
+  if (force) {
+    await appQueryClient.invalidateQueries({ queryKey: workspaceKeys.releaseRoot(wsId, backendReleaseId) });
+  }
+  return appQueryClient.fetchQuery(releaseDetailQueryOptions(wsId, backendReleaseId, navigate));
 }

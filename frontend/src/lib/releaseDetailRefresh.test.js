@@ -9,7 +9,10 @@ import {
   pendingSummaryIdsForReleases,
   initialReleaseTablePendingIds,
   RELEASE_TABLE_INITIAL_HYDRATE,
-  projectReleaseForList
+  projectReleaseForList,
+  overlayReleaseSummary,
+  overlayReleaseSummaries,
+  chartWindowReleaseIds
 } from "./releaseDetailRefresh.js";
 
 describe("mergeReleaseIntoList", () => {
@@ -176,5 +179,66 @@ describe("initialReleaseTablePendingIds", () => {
     }));
     expect(initialReleaseTablePendingIds(releases)).toHaveLength(RELEASE_TABLE_INITIAL_HYDRATE);
     expect(initialReleaseTablePendingIds(releases, { limit: 5 })).toHaveLength(5);
+  });
+});
+
+describe("chartWindowReleaseIds", () => {
+  it("returns every backend id in the chart window", () => {
+    const releases = Array.from({ length: 5 }, (_, i) => ({
+      backendReleaseId: `rel_${i}`,
+      summaryLoaded: i >= 2,
+      signals: i >= 2 ? { smoke: 1 } : {}
+    }));
+    expect(chartWindowReleaseIds(releases, 2)).toEqual(["rel_1", "rel_0"]);
+  });
+});
+
+describe("overlayReleaseSummary", () => {
+  it("keeps list status and copies query-owned signals", () => {
+    const overlaid = overlayReleaseSummary(
+      {
+        id: "rc-local",
+        backendReleaseId: "rel_1",
+        status: "certified",
+        signals: {},
+        summaryLoaded: false
+      },
+      {
+        backendReleaseId: "rel_1",
+        status: "collecting",
+        signals: { accuracy: 91 },
+        signalRows: [{ signal_id: "accuracy", value: 91 }],
+        intelligence: { verdict: { summary: "detail" } },
+        detailLoaded: true,
+        summaryLoaded: true
+      }
+    );
+    expect(overlaid.id).toBe("rc-local");
+    expect(overlaid.status).toBe("certified");
+    expect(overlaid.signals.accuracy).toBe(91);
+    expect(overlaid.summaryLoaded).toBe(true);
+    expect(overlaid.detailLoaded).toBe(false);
+    expect(overlaid.intelligence).toBeUndefined();
+  });
+
+  it("treats exhausted summary fetches as loaded so trends can settle", () => {
+    const overlaid = overlayReleaseSummary(
+      { backendReleaseId: "rel_1", signals: {}, summaryLoaded: false },
+      null,
+      { failed: true }
+    );
+    expect(overlaid.summaryLoaded).toBe(true);
+    expect(isSummaryPending(overlaid)).toBe(false);
+  });
+});
+
+describe("overlayReleaseSummaries", () => {
+  it("looks up summaries by backend id from a Map", () => {
+    const next = overlayReleaseSummaries(
+      [{ backendReleaseId: "rel_1", status: "collecting", signals: {} }],
+      new Map([["rel_1", { backendReleaseId: "rel_1", signals: { smoke: 100 }, summaryLoaded: true }]])
+    );
+    expect(next[0].signals.smoke).toBe(100);
+    expect(next[0].status).toBe("collecting");
   });
 });
