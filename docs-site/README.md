@@ -25,6 +25,7 @@ Configuration: **`docs.json`** (primary). `style.css` overrides navbar/sidebar t
 
 ```
 introduction.mdx              Quick start
+eu-ai-act.mdx                 Articles 12 / 14 / 73 mapping (not a compliance claim)
 connecting-signals/
   overview.mdx                Pull vs push vs CSV
   api-push.mdx                Partner push setup (primary)

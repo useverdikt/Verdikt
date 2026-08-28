@@ -45,6 +45,10 @@
         "pages": ["introduction"]
       },
       {
+        "group": "EU AI Act",
+        "pages": ["eu-ai-act"]
+      },
+      {
         "group": "Connecting signals",
         "pages": [
           "connecting-signals/overview",

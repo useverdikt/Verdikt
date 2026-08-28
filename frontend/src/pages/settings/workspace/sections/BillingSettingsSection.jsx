@@ -1,5 +1,4 @@
 import React from "react";
-import { Link } from "react-router-dom";
 
 export default function BillingSettingsSection({ section }) {
   return (
@@ -10,7 +9,7 @@ export default function BillingSettingsSection({ section }) {
           Plan &amp; <em>Billing</em>
         </h1>
         <p className="section-desc">
-          You are on the Starter plan. Upgrade to Team to unlock multiple projects, advanced intelligence features, and priority support.
+          You are on the Starter plan. Email us if you need another workspace or a Team plan.
         </p>
       </div>
       <div className="sblock">
@@ -21,11 +20,11 @@ export default function BillingSettingsSection({ section }) {
           <div className="plan-card">
             <div>
               <div className="plan-name">Starter</div>
-              <div className="plan-detail">Free forever · 1 workspace · Core release certification</div>
+              <div className="plan-detail">1 workspace · Core release certification</div>
             </div>
-            <Link to="/pricing" className="btn-upgrade">
-              Upgrade to Team →
-            </Link>
+            <a href="mailto:hello@useverdikt.com" className="btn-upgrade">
+              Talk to us →
+            </a>
           </div>
         </div>
       </div>

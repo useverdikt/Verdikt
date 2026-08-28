@@ -19,10 +19,10 @@ test.describe("public & marketing", () => {
     await expect(page.getByRole("link", { name: /Sign in/i }).first()).toBeVisible();
   });
 
-  test("pricing /pricing shows plan content", async ({ page }) => {
+  test("stale /pricing redirects to the marketing home", async ({ page }) => {
     await page.goto("/pricing");
-    await expect(page.getByText(/Pricing/i).first()).toBeVisible();
-    await expect(page.getByText(/Team/i).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: /Ship AI agents with evidence/i })).toBeVisible();
   });
 
   test("public badge demo /badge renders certification record chrome", async ({ page }) => {
