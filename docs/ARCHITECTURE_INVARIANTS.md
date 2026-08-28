@@ -26,7 +26,7 @@ This is the short operating contract for Verdikt. Detailed API and deployment in
 
 - Every protected route must resolve both caller identity and workspace/release access. Database RLS is defense in depth; service credentials do not replace application authorization.
 - Human control-plane mutations require the secure cookie session plus CSRF protection. Agent access keys are limited to explicitly audited agent operations.
-- Postgres TLS validates server certificates when SSL is enabled. `DATABASE_SSL_REJECT_UNAUTHORIZED=0` is a non-production emergency only; production-like startup refuses it.
+- Postgres TLS validates server certificates when SSL is enabled. `DATABASE_SSL_REJECT_UNAUTHORIZED=0` is a non-production emergency only; production-like startup refuses it. Supabase hosts use the bundled official Root 2021 CA. Other providers must set `DATABASE_SSL_CA` (or `DATABASE_SSL_CA_FILE`). `sslmode` is stripped from `DATABASE_URL` so node-postgres cannot discard the `ssl` object.
 - `INTERNAL_WORKSPACE_VIEWER_EMAILS` is a local/test convenience only and must be empty in production-like environments.
 - `JWT_SECRET`, `CERT_SIGNING_KEY`, and webhook secrets are separate trust domains. Certification signatures must never be derived from the login secret.
 - Integration and VCS credentials are encrypted at rest with AES-256-GCM through `ENCRYPTION_MASTER_KEY`.

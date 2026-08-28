@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { getPool } = require("../db/pg");
+const { getPool, annotateDatabaseSslError } = require("../db/pg");
 const { nowIso } = require("../lib/time");
 
 const MIGRATIONS_DIR = path.join(__dirname, "..", "..", "migrations", "postgres");
@@ -23,7 +23,12 @@ async function runMigrations({
   nowFn = nowIso,
   logger = console
 } = {}) {
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (error) {
+    throw annotateDatabaseSslError(error);
+  }
   let transactionOpen = false;
   let destroyClient = false;
   try {
