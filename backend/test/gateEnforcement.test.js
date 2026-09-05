@@ -93,6 +93,8 @@ describe("gate merge enforcement invariants", () => {
     assertGateBlocked(gate.body);
     assert.equal(gate.body.action, "escalate");
     assert.ok(gate.body.blocking_signals.includes("accuracy"));
+    assert.equal(gate.body.governance_brief?.suggested_verb, "escalate");
+    assert.match(gate.body.hub_links.release, new RegExp(`release=${created.body.id}`));
   });
 
   it("CERTIFIED opens merge: can_merge true, exit_code 0, action merge", async () => {

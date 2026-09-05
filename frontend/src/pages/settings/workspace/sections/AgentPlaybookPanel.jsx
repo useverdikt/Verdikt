@@ -14,11 +14,11 @@ const STEPS = [
   },
   {
     title: "Check gate",
-    body: "check_gate(release_id) — read action: merge | self_heal | escalate, plus missing_required_signals and blocking_signals."
+    body: "check_gate(release_id) — read action: merge | collecting | self_heal | recover_certification | escalate | revoked. When blocked, read governance_brief (suggested_verb, top_blockers, hub_links.release)."
   },
   {
     title: "Act or escalate",
-    body: "merge → allowed to ship. self_heal → fix and re-run. escalate → human inbox + email (Settings → Governance)."
+    body: "merge → allowed to ship. self_heal → fix and re-run. escalate → human inbox + email (Settings → Governance). Call release_brief only if you need the full remediation payload."
   }
 ];
 
@@ -33,8 +33,8 @@ Steps:
 1. Ensure cert window exists (verdikt:rc label OR create_release with GitHub identity above).
 2. Wait for integration auto-pull on label, or post_signals for CI-only metrics.
 3. get_verdict — report status and blocking_signals.
-4. check_gate — report action, can_merge, gate.exit_code, trajectory.
-5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool; do not merge.
+4. check_gate — report action, can_merge, gate.exit_code, trajectory. If action is not merge, read governance_brief and open hub_links.release.
+5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool; do not merge. Call release_brief only for the full remediation payload.
 
 Do not invent signal values.`;
 }

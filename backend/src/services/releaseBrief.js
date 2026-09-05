@@ -27,9 +27,9 @@ function appBaseUrl() {
   return base.replace(/\/$/, "") || DEFAULT_APP_BASE;
 }
 
-function buildHubLinks({ workspaceId }) {
+function buildHubLinks({ workspaceId, releaseId } = {}) {
   const base = appBaseUrl();
-  return {
+  const links = {
     releases: `${base}/releases`,
     escalations: `${base}/escalations`,
     thresholds: `${base}/thresholds`,
@@ -37,7 +37,43 @@ function buildHubLinks({ workspaceId }) {
     intelligence_alignment: `${base}/intelligence/alignment`,
     intelligence_correlations: `${base}/intelligence/correlations`,
     intelligence_overrides: `${base}/intelligence/overrides`,
-    workspace_id: workspaceId
+    workspace_id: workspaceId || null
+  };
+  if (releaseId) {
+    const encoded = encodeURIComponent(String(releaseId));
+    links.release = `${base}/releases?release=${encoded}`;
+    links.cert_record = `${base}/cert/id/${encoded}`;
+  }
+  return links;
+}
+
+function buildGovernanceBrief(gate) {
+  const hub_links = buildHubLinks({
+    workspaceId: gate.workspace_id,
+    releaseId: gate.release_id
+  });
+  const story = buildRegressionStory(gate.remediation);
+  return {
+    suggested_verb: mapSuggestedVerb(gate.action),
+    suggested_next_tool: NEXT_TOOL_BY_ACTION[gate.action] || "check_gate",
+    top_blockers: summarizeTopBlockers(gate.blockers),
+    blocker_count: (gate.blockers || []).length,
+    regression_story: {
+      has_regression: story.has_regression,
+      summary: story.summary
+    },
+    agent_note: buildAgentNote(gate),
+    hub_links
+  };
+}
+
+/** Additive handoff on gate responses — no extra audit write. */
+function decorateGateWithHandoff(payload) {
+  const brief = buildGovernanceBrief(payload);
+  return {
+    ...payload,
+    hub_links: brief.hub_links,
+    governance_brief: brief
   };
 }
 
@@ -157,7 +193,7 @@ async function buildReleaseBrief(release, { mode, auth } = {}) {
     remediation: gate.remediation,
     certification: gate.certification,
     calibration: gate.calibration,
-    hub_links: buildHubLinks({ workspaceId: gate.workspace_id }),
+    hub_links: buildHubLinks({ workspaceId: gate.workspace_id, releaseId: gate.release_id }),
     agent_note: buildAgentNote(gate),
     gate: {
       allowed: gate.gate?.allowed ?? gate.can_merge,
@@ -190,6 +226,8 @@ async function buildReleaseBriefWithAudit(release, { mode, auth } = {}) {
 module.exports = {
   BRIEF_VERSION,
   buildHubLinks,
+  buildGovernanceBrief,
+  decorateGateWithHandoff,
   buildRegressionStory,
   summarizeTopBlockers,
   mapSuggestedVerb,

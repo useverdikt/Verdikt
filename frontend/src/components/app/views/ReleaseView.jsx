@@ -20,6 +20,7 @@ export default function ReleaseView({
   releaseVersionPrimarySecondary,
   onCollectingAction,
   onHydrateVisibleSummaries,
+  onEnsureFocusedRelease,
   hasMoreReleases = false,
   loadingMoreReleases = false,
   onLoadMoreReleases,
@@ -50,6 +51,7 @@ export default function ReleaseView({
       onRevokeCertification={onRevokeCertification}
       onCollectingAction={onCollectingAction}
       onHydrateVisibleSummaries={onHydrateVisibleSummaries}
+      onEnsureFocusedRelease={onEnsureFocusedRelease}
       setupChecklist={setupChecklist}
       hasMoreReleases={hasMoreReleases}
       loadingMoreReleases={loadingMoreReleases}

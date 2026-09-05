@@ -62,6 +62,7 @@ export default function ReleaseRow({
   return (
     <div
       className={`release-row${isExpanded ? " expanded" : ""}${verdict.pulse ? " coll-pulse" : ""}${verdict.cls === "v-bypass" ? " bypass-risk" : ""}`}
+      data-release-id={release.backendReleaseId || release.id}
       data-last={isLast ? "true" : undefined}
       onClick={onToggle}
       role="button"

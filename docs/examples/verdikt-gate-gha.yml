@@ -48,7 +48,23 @@ jobs:
           LAST_RESP=""
           for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
             echo "--- Gate poll ${attempt}/${POLL_ATTEMPTS} ---"
-            LAST_RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
+            HTTP_CODE=$(curl -sS -o gate-poll.json -w "%{http_code}" -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}" || true)
+            if [ "$HTTP_CODE" = "404" ]; then
+              echo "No cert window for this SHA yet (HTTP 404)."
+              if [ "$attempt" -lt "${POLL_ATTEMPTS}" ]; then
+                echo "Waiting for the GitHub App / create_release to open a window — sleeping ${POLL_INTERVAL_SEC}s..."
+                sleep "${POLL_INTERVAL_SEC}"
+                continue
+              fi
+              echo "::error::No Verdikt release for this commit yet. Keep verdikt:rc on the PR or create_release with this SHA, then re-run."
+              exit 1
+            fi
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::error::Verdikt gate HTTP ${HTTP_CODE}"
+              cat gate-poll.json || true
+              exit 1
+            fi
+            LAST_RESP=$(cat gate-poll.json)
             ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
             STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
             REASON=$(echo "$LAST_RESP" | jq -r '.gate.reason // ""')
@@ -65,6 +81,11 @@ jobs:
               echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
               NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
               [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+              echo "$LAST_RESP" | jq -r '
+                "Suggested: \(.governance_brief.suggested_verb // "n/a")",
+                (.governance_brief.regression_story.summary // empty | select(length > 0) | "Regression: \(.)"),
+                (.hub_links.release // empty | select(length > 0) | "Open in Verdikt: \(.)")
+              ' || true
               echo "::error::Verdikt gate escalated — human override required."
               exit 1
             fi
@@ -82,6 +103,11 @@ jobs:
           echo "$LAST_RESP" | jq -r '.blockers[]? | "- [\(.type)] \(.signal_id // .code // "release"): \(.message // .next_step // "")"' || true
           NEXT_STEP=$(echo "$LAST_RESP" | jq -r '.next_step // empty')
           [ -n "$NEXT_STEP" ] && echo "Next step: ${NEXT_STEP}"
+          echo "$LAST_RESP" | jq -r '
+            "Suggested: \(.governance_brief.suggested_verb // "n/a")",
+            (.governance_brief.regression_story.summary // empty | select(length > 0) | "Regression: \(.)"),
+            (.hub_links.release // empty | select(length > 0) | "Open in Verdikt: \(.)")
+          ' || true
           ACTION=$(echo "$LAST_RESP" | jq -r '.action // "unknown"')
           STATUS=$(echo "$LAST_RESP" | jq -r '.status // "unknown"')
           if [ "$STATUS" = "COLLECTING" ]; then

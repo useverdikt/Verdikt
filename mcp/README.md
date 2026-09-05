@@ -215,8 +215,8 @@ Steps:
 1. If no release exists: apply label verdikt:rc OR create_release with version, commit_sha, pr_number, github_owner, github_repo (optional callback_url for push verdict).
 2. After label: wait for auto-pull, or post_signals for CI-only metrics (do not invent values).
 3. get_verdict — report status and blocking_signals (or wait for callback_url POST with event verdikt.verdict).
-4. check_gate mode strict — report action, exit_code, can_merge, trajectory.
-5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool, do not merge.
+4. check_gate mode strict — report action, exit_code, can_merge, trajectory. If action is not merge, read governance_brief and hub_links.release.
+5. action merge → merge allowed. self_heal → fix and re-run. escalate → call escalate tool, do not merge. Call release_brief only for the full remediation payload.
 6. GHA gate + branch protection must pass before merge — Verdikt enforces at the button, not only via agent honor system.
 
 Do not invent signal values — use CI output or integration pull results.

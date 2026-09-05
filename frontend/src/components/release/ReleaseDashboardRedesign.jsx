@@ -1,5 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import "./ReleaseDashboardRedesign.css";
+import { matchReleaseByQueryId, readReleaseFocusId } from "../../lib/releaseFocusQuery.js";
 import { useReleaseDashboardFilters } from "../../hooks/useReleaseDashboardFilters.js";
 import { useReleaseDashboardStats } from "../../hooks/useReleaseDashboardStats.js";
 import { useReleaseDashboardSidePanel } from "../../hooks/useReleaseDashboardSidePanel.js";
@@ -28,6 +30,7 @@ export function ReleaseDashboard({
   onRevokeCertification,
   onCollectingAction,
   onHydrateVisibleSummaries,
+  onEnsureFocusedRelease,
   setupChecklist,
   hasMoreReleases = false,
   loadingMoreReleases = false,
@@ -37,8 +40,25 @@ export function ReleaseDashboard({
   falseCertificationRatePct = null,
   remediationDebtActive = false
 }) {
-  const filters = useReleaseDashboardFilters(releases);
+  const [searchParams] = useSearchParams();
+  const focusReleaseId = readReleaseFocusId(searchParams);
+  const filters = useReleaseDashboardFilters(releases, { focusReleaseId });
   const sidePanel = useReleaseDashboardSidePanel({ wsId, prodObservationEnabled, releases });
+
+  const ensuredFocusRef = useRef(null);
+  useEffect(() => {
+    if (!focusReleaseId || !onEnsureFocusedRelease || releases.length === 0) return;
+    if (matchReleaseByQueryId(releases, focusReleaseId)) return;
+    if (ensuredFocusRef.current === focusReleaseId) return;
+    ensuredFocusRef.current = focusReleaseId;
+    onEnsureFocusedRelease(focusReleaseId);
+  }, [focusReleaseId, releases, onEnsureFocusedRelease]);
+
+  useEffect(() => {
+    if (!filters.expandedId || !focusReleaseId) return;
+    const el = document.querySelector(`[data-release-id="${CSS.escape(focusReleaseId)}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [filters.expandedId, focusReleaseId]);
 
   useEffect(() => {
     onHydrateVisibleSummaries?.(filters.visibleReleases);
