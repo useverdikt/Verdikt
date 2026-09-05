@@ -63,7 +63,23 @@ jobs:
           LAST_RESP=""
           for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
             echo "--- Gate poll ${attempt}/${POLL_ATTEMPTS} ---"
-            LAST_RESP=$(curl -sS -f -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}")
+            HTTP_CODE=$(curl -sS -o gate-poll.json -w "%{http_code}" -H "Authorization: Bearer ${VERDIKT_API_KEY}" "${URL}?${QUERY}" || true)
+            if [ "$HTTP_CODE" = "404" ]; then
+              echo "No cert window for this SHA yet (HTTP 404)."
+              if [ "$attempt" -lt "${POLL_ATTEMPTS}" ]; then
+                echo "Waiting for the GitHub App / create_release to open a window — sleeping ${POLL_INTERVAL_SEC}s..."
+                sleep "${POLL_INTERVAL_SEC}"
+                continue
+              fi
+              echo "::error::No Verdikt release for this commit yet. Keep verdikt:rc on the PR or create_release with this SHA, then re-run."
+              exit 1
+            fi
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::error::Verdikt gate HTTP ${HTTP_CODE}"
+              cat gate-poll.json || true
+              exit 1
+            fi
+            LAST_RESP=$(cat gate-poll.json)
             RESPONSE_SHA=$(echo "$LAST_RESP" | jq -r '.commit_sha // empty' | tr '[:upper:]' '[:lower:]')
             EXPECTED_SHA=$(echo "$COMMIT_SHA" | tr '[:upper:]' '[:lower:]')
             if [ "$RESPONSE_SHA" != "$EXPECTED_SHA" ]; then

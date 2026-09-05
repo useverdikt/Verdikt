@@ -70,7 +70,7 @@ After the gate poll, the same workflow **captures a release brief** (`GET /api/r
 | `verdikt:rc` + certified | Green | Enabled |
 | `verdikt:rc` + failed / timeout | Red (Required) | **Disabled** |
 
-**Re-run after fixing signals:** The gate workflow only triggers on PR `opened`, `synchronize`, `reopened`, or `labeled`. Ingesting signals or moving from `self_heal` → certified in Verdikt does **not** re-trigger GitHub Actions. If the gate already failed red, merge stays blocked until you **manually re-run** the check:
+**Re-run after fixing signals:** The gate workflow only triggers on PR `opened`, `synchronize`, `reopened`, or `labeled`. Ingesting signals or moving from `self_heal` → certified in Verdikt does **not** re-trigger GitHub Actions. A new push on a labeled PR opens a **new** cert window for that head SHA — the previous SHA staying CERTIFIED does not pass the gate. If the gate already failed red, merge stays blocked until you **manually re-run** the check:
 
 1. PR → **Checks** → **Verdikt gate / verdikt-gate** → **Re-run failed jobs**, or  
 2. **Actions** → **Verdikt gate** → select the run → **Re-run all jobs**

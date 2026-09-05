@@ -232,6 +232,75 @@ describe("API ingest / integrations / GitHub", () => {
     assert.equal(rel.version, `pr/${prNumber}@${sha.slice(0, 8)}`);
     assert.equal(rel.release_type, "model_update");
   });
+  it("GitHub synchronize opens a new cert window when verdikt:rc is already on the PR", async () => {
+    const prNumber = 60000 + crypto.randomInt(9999);
+    const firstSha = crypto.randomBytes(8).toString("hex");
+    const secondSha = crypto.randomBytes(8).toString("hex");
+    const email = `ghsync_${crypto.randomBytes(6).toString("hex")}@test.local`;
+    const repo = `SyncRepo${crypto.randomBytes(3).toString("hex")}`;
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email, password: "password123", name: "GHSYNC" }).expect(200);
+    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
+    const me = await agent.get("/api/auth/me").expect(200);
+    const ws = me.body.user.workspace_id;
+
+    await agent
+      .put(`/api/workspaces/${ws}/vcs-integration`)
+      .send({ provider: "github", access_token: "ghp_test_token", owner: "useverdikt", repo })
+      .expect(200);
+    await agent
+      .put(`/api/workspaces/${ws}/github-label-trigger`)
+      .send({ label_name: "verdikt:rc", enabled: true })
+      .expect(200);
+
+    const labeled = {
+      action: "labeled",
+      label: { name: "verdikt:rc" },
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: {
+        number: prNumber,
+        title: "Open window on push",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
+        labels: [{ name: "verdikt:rc" }],
+        head: { sha: firstSha, ref: "feat/sync-window" }
+      }
+    };
+    const labeledSigned = signGithubPayload(labeled);
+    const first = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", labeledSigned.sig)
+      .send(labeledSigned.raw)
+      .expect(201);
+
+    const syncPayload = {
+      action: "synchronize",
+      repository: { name: repo, owner: { login: "useverdikt" } },
+      pull_request: {
+        number: prNumber,
+        title: "Open window on push",
+        html_url: `https://github.com/useverdikt/${repo}/pull/${prNumber}`,
+        labels: [{ name: "verdikt:rc" }],
+        head: { sha: secondSha, ref: "feat/sync-window" }
+      }
+    };
+    const syncSigned = signGithubPayload(syncPayload);
+    const second = await request(app)
+      .post("/api/hooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+      .set("x-hub-signature-256", syncSigned.sig)
+      .send(syncSigned.raw)
+      .expect(201);
+
+    assert.notEqual(second.body.release_id, first.body.release_id);
+    const rel = await queryOne("SELECT * FROM releases WHERE id = $1", [second.body.release_id]);
+    assert.equal(rel.workspace_id, ws);
+    assert.equal(String(rel.commit_sha).toLowerCase(), secondSha.toLowerCase());
+  });
   it("GitHub label trigger deduplicates repeated deliveries for the same PR commit", async () => {
     const prNumber = 90000 + crypto.randomInt(9999);
     const sha = crypto.randomBytes(8).toString("hex");

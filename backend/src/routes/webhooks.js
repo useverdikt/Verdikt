@@ -51,6 +51,98 @@ function timingSafeHexEq(aHex, bHex) {
   }
 }
 
+function prHasLabel(payload, labelName) {
+  const labels = payload?.pull_request?.labels || [];
+  return labels.some((row) => String(row?.name || "").trim() === labelName);
+}
+
+async function openCertWindowFromGithubPr(req, res, payload, { sourceAction }) {
+  const owner = payload?.repository?.owner?.login;
+  const repo = payload?.repository?.name;
+  const prNumber = payload?.pull_request?.number;
+  const commitSha = String(payload?.pull_request?.head?.sha || "").trim();
+  const branch = String(payload?.pull_request?.head?.ref || "").trim();
+  if (!owner || !repo || !prNumber || !commitSha) {
+    return sendError(res, req, 400, "Missing required pull_request payload fields");
+  }
+
+  let workspaceId = await resolveWorkspaceForGithubRepo(owner, repo);
+  if (!workspaceId) return res.json({ ok: true, ignored: "repo_not_connected" });
+  const triggerCfg = await getGithubLabelTrigger(workspaceId);
+  const configuredLabel = String(triggerCfg?.label_name || DEFAULT_GITHUB_LABEL_NAME).trim();
+  const triggerEnabled = triggerCfg?.enabled === true;
+  if (!triggerEnabled) return res.json({ ok: true, ignored: "label_trigger_disabled", workspace_id: workspaceId });
+
+  const appliedLabel = String(payload?.label?.name || "").trim();
+  if (sourceAction === "labeled") {
+    if (appliedLabel !== configuredLabel) {
+      return res.json({
+        ok: true,
+        ignored: "label_mismatch",
+        expected_label: configuredLabel,
+        received_label: appliedLabel
+      });
+    }
+  } else if (!prHasLabel(payload, configuredLabel)) {
+    return res.json({ ok: true, ignored: "label_not_present", expected_label: configuredLabel });
+  }
+
+  const labelName = sourceAction === "labeled" ? appliedLabel : configuredLabel;
+  const legacyReleaseRef = `pr/${prNumber}@${commitSha.slice(0, 8)}`;
+  const prTitle = String(payload?.pull_request?.title || "").replace(/\s+/g, " ").trim();
+  const titledWithPr = prTitle ? `${prTitle} (#${prNumber})` : "";
+  const releaseRef = titledWithPr ? titledWithPr.slice(0, 180) : legacyReleaseRef;
+  const releaseType = classifyGithubReleaseType(payload, "model_update");
+  const triggerMode = sourceAction === "synchronize" ? "github_synchronize" : "github_label";
+  const out = await openReleaseSession({
+    workspaceId,
+    version: releaseRef,
+    releaseRef,
+    releaseType,
+    environment: "pre-prod",
+    source: "github_label",
+    mappings: buildGithubMappings({
+      owner,
+      repo,
+      branch,
+      pr_url: payload?.pull_request?.html_url || null
+    }),
+    aiContext: {
+      trigger_mode: triggerMode,
+      label: labelName,
+      pr_title: prTitle || null,
+      legacy_release_ref: legacyReleaseRef,
+      release_type_auto: releaseType
+    },
+    collectionWindowMinutes: DEFAULT_COLLECTION_WINDOW_MINUTES,
+    // Delivery id changes per webhook dispatch; dedupe by logical PR signal identity instead.
+    idempotencyKey: `github:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
+    commitSha,
+    prNumber,
+    githubOwner: owner,
+    githubRepo: repo,
+    githubBranch: branch
+  });
+
+  if (out.reused) {
+    scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
+    return res.status(200).json({ ok: true, reused: true, release_id: out.release?.id || null });
+  }
+  console.log(`[${req.requestId}] github ${triggerMode}`, {
+    workspace_id: workspaceId,
+    repo: `${owner}/${repo}`,
+    pr_number: prNumber,
+    release_id: out.release?.id
+  });
+  scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
+  return res.status(201).json({
+    ok: true,
+    release_id: out.release?.id || null,
+    workspace_id: workspaceId,
+    trigger: triggerMode
+  });
+}
+
 function verifyGitHubWebhookSignature(req) {
   if (!GITHUB_WEBHOOK_SECRET) return false;
   const signature = req.headers["x-hub-signature-256"];
@@ -172,80 +264,12 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
       });
     }
 
+    if (payload.action === "synchronize") {
+      return await openCertWindowFromGithubPr(req, res, payload, { sourceAction: "synchronize" });
+    }
+
     if (payload.action !== "labeled") return res.json({ ok: true, ignored: `action:${payload.action || "unknown"}` });
-
-    const owner = payload?.repository?.owner?.login;
-    const repo = payload?.repository?.name;
-    const labelName = String(payload?.label?.name || "").trim();
-    const prNumber = payload?.pull_request?.number;
-    const commitSha = String(payload?.pull_request?.head?.sha || "").trim();
-    const branch = String(payload?.pull_request?.head?.ref || "").trim();
-    if (!owner || !repo || !labelName || !prNumber || !commitSha) {
-      return sendError(res, req, 400, "Missing required pull_request payload fields");
-    }
-
-    let workspaceId = await resolveWorkspaceForGithubRepo(owner, repo);
-    if (!workspaceId) return res.json({ ok: true, ignored: "repo_not_connected" });
-    const triggerCfg = await getGithubLabelTrigger(workspaceId);
-    const configuredLabel = String(triggerCfg?.label_name || DEFAULT_GITHUB_LABEL_NAME).trim();
-    const triggerEnabled = triggerCfg?.enabled === true;
-    if (!triggerEnabled) return res.json({ ok: true, ignored: "label_trigger_disabled", workspace_id: workspaceId });
-    if (labelName !== configuredLabel) {
-      return res.json({ ok: true, ignored: "label_mismatch", expected_label: configuredLabel, received_label: labelName });
-    }
-
-    const legacyReleaseRef = `pr/${prNumber}@${commitSha.slice(0, 8)}`;
-    const prTitle = String(payload?.pull_request?.title || "").replace(/\s+/g, " ").trim();
-    const titledWithPr = prTitle ? `${prTitle} (#${prNumber})` : "";
-    const releaseRef = titledWithPr ? titledWithPr.slice(0, 180) : legacyReleaseRef;
-    const releaseType = classifyGithubReleaseType(payload, "model_update");
-    const out = await openReleaseSession({
-      workspaceId,
-      version: releaseRef,
-      releaseRef,
-      releaseType,
-      environment: "pre-prod",
-      source: "github_label",
-      mappings: buildGithubMappings({
-        owner,
-        repo,
-        branch,
-        pr_url: payload?.pull_request?.html_url || null
-      }),
-      aiContext: {
-        trigger_mode: "github_label",
-        label: labelName,
-        pr_title: prTitle || null,
-        legacy_release_ref: legacyReleaseRef,
-        release_type_auto: releaseType
-      },
-      collectionWindowMinutes: DEFAULT_COLLECTION_WINDOW_MINUTES,
-      // Delivery id changes per webhook dispatch; dedupe by logical PR signal identity instead.
-      idempotencyKey: `github:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
-      commitSha,
-      prNumber,
-      githubOwner: owner,
-      githubRepo: repo,
-      githubBranch: branch
-    });
-
-    if (out.reused) {
-      scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
-      return res.status(200).json({ ok: true, reused: true, release_id: out.release?.id || null });
-    }
-    console.log(`[${req.requestId}] github label trigger`, {
-      workspace_id: workspaceId,
-      repo: `${owner}/${repo}`,
-      pr_number: prNumber,
-      release_id: out.release?.id
-    });
-    scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
-    return res.status(201).json({
-      ok: true,
-      release_id: out.release?.id || null,
-      workspace_id: workspaceId,
-      trigger: "github_label"
-    });
+    return await openCertWindowFromGithubPr(req, res, payload, { sourceAction: "labeled" });
   } catch (e) {
     return ackGitHubWebhookFailure(req, res, e);
   }
