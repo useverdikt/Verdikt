@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { matchReleaseByQueryId } from "../lib/releaseFocusQuery.js";
 import { normalizeReleaseStatus, UI_RELEASE_STATUS } from "../lib/releaseStatus.js";
 import { envBucket } from "../components/release/dashboard/releaseDashboardUtils.js";
 
-export function useReleaseDashboardFilters(releases) {
+export function useReleaseDashboardFilters(releases, { focusReleaseId = null } = {}) {
   const [activeEnv, setActiveEnv] = useState("All");
   const [activeFilter, setActiveFilter] = useState("All");
   const [expandedId, setExpandedId] = useState(null);
   const [searchQ, setSearchQ] = useState("");
+  const appliedFocusRef = useRef(null);
 
   const visibleReleases = useMemo(() => {
     let list = [...releases];
@@ -38,6 +40,18 @@ export function useReleaseDashboardFilters(releases) {
     }
     return list;
   }, [releases, activeEnv, activeFilter, searchQ]);
+
+  useEffect(() => {
+    if (!focusReleaseId) return;
+    const match = matchReleaseByQueryId(releases, focusReleaseId);
+    if (!match) return;
+    if (appliedFocusRef.current === focusReleaseId) return;
+    appliedFocusRef.current = focusReleaseId;
+    setActiveEnv("All");
+    setActiveFilter("All");
+    setSearchQ("");
+    setExpandedId(match.id);
+  }, [focusReleaseId, releases]);
 
   const toggleRow = (id) => {
     setExpandedId((prev) => (prev === id ? null : id));

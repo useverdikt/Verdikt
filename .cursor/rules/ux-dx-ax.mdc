@@ -1,0 +1,14 @@
+---
+description: Prefer decisions that raise UX, DX, and AX together without breaking invariants
+alwaysApply: true
+---
+
+# UX + DX + AX
+
+When choosing what to build or how to change it, pick the option that raises **user experience (UX)**, **developer experience (DX)**, and **agent experience (AX)** together. Do not trade one for another. Do not break invariants.
+
+- **UX** — humans in the product UI. Deep links must open the named release. The same facts as gate/brief (action, blockers, next step).
+- **DX** — GHA, API, and docs. Failure logs include a working app URL and the next verb. Do not invent a second contract.
+- **AX** — MCP and agent API keys. One payload should carry `action`, why it is blocked, and `hub_links.release`. Prefer an additive field over a mandatory second round-trip.
+
+Prefer shared helpers and additive fields over new endpoints, dead links, or a parallel “agent-only” shape. Frozen verdict math, HMAC canonical payload, human-gated control plane, and no invented signals stay untouched.

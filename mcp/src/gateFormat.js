@@ -36,11 +36,16 @@ export function formatGateForAgent(out) {
     escalate: "Do not merge. Call escalate tool; wait for human override in Escalations inbox.",
     revoked: "Do not merge. A human revoked this certification. Open a new release if the change should be recertified."
   };
+  const brief = out?.governance_brief || null;
+  const hubLinks = out?.hub_links || brief?.hub_links || null;
+  const blocked = action !== "merge" && action !== "unknown";
   return {
     ...out,
     remediation: out?.remediation || null,
     certification: out?.certification || null,
     calibration: out?.calibration || null,
+    hub_links: hubLinks,
+    governance_brief: brief,
     agent_guidance: {
       read_field: "action",
       action,
@@ -53,7 +58,15 @@ export function formatGateForAgent(out) {
         "exit_code can be 0 while action is self_heal or escalate (e.g. CERTIFIED_WITH_OVERRIDE in strict mode).",
       next_step_legacy: guidance[action] || "Call check_gate again after signals update.",
       gha_note:
-        "GitHub Actions should poll action: wait on collecting/self_heal, exit 0 on merge, exit 1 on escalate, recover_certification, revoked, or timeout. gate.exit_code alone is not enough during COLLECTING."
+        "GitHub Actions should poll action: wait on collecting/self_heal, exit 0 on merge, exit 1 on escalate, recover_certification, revoked, or timeout. gate.exit_code alone is not enough during COLLECTING.",
+      governance_brief: brief,
+      hub_links: hubLinks,
+      suggested_verb: brief?.suggested_verb || null,
+      when_blocked: blocked
+        ? brief
+          ? "Read governance_brief (suggested_verb, top_blockers, regression_story, hub_links.release). Call release_brief only if you need the full remediation payload or a RELEASE_BRIEF_READ audit."
+          : "Call release_brief once — do not poll check_gate alone without reading that context."
+        : null
     },
     recommended_next: out?.next_step || guidance[action] || null
   };

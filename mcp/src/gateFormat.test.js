@@ -138,6 +138,24 @@ test("original fields from gate response are preserved", () => {
   assert.equal(out.can_merge, true);
 });
 
+test("blocked gate passes through governance_brief and hub_links", () => {
+  const brief = {
+    suggested_verb: "escalate",
+    top_blockers: [{ signal_id: "accuracy", message: "below min" }],
+    hub_links: { release: "https://useverdikt.com/releases?release=rel_abc" }
+  };
+  const out = formatGateForAgent({
+    action: "escalate",
+    gate: { exit_code: 1 },
+    governance_brief: brief,
+    hub_links: brief.hub_links
+  });
+  assert.equal(out.governance_brief.suggested_verb, "escalate");
+  assert.equal(out.agent_guidance.suggested_verb, "escalate");
+  assert.match(out.agent_guidance.when_blocked, /governance_brief/);
+  assert.equal(out.hub_links.release, brief.hub_links.release);
+});
+
 // ── release brief ─────────────────────────────────────────────────────────────
 
 test("formatReleaseBriefForAgent adds agent_guidance for blocked release", () => {

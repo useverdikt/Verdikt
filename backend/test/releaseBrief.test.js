@@ -6,7 +6,8 @@ const {
   mapSuggestedVerb,
   summarizeTopBlockers,
   buildRegressionStory,
-  buildHubLinks
+  buildHubLinks,
+  decorateGateWithHandoff
 } = require("../src/services/releaseBrief");
 
 describe("releaseBrief helpers", () => {
@@ -60,5 +61,28 @@ describe("releaseBrief helpers", () => {
     const links = buildHubLinks({ workspaceId: "ws_test" });
     assert.match(links.intelligence_alignment, /\/intelligence\/alignment$/);
     assert.equal(links.workspace_id, "ws_test");
+    assert.equal(links.release, undefined);
+  });
+
+  it("buildHubLinks adds a release-scoped deep link", () => {
+    const links = buildHubLinks({ workspaceId: "ws_test", releaseId: "rel_abc" });
+    assert.match(links.release, /\/releases\?release=rel_abc$/);
+    assert.match(links.cert_record, /\/cert\/id\/rel_abc$/);
+  });
+
+  it("decorateGateWithHandoff is additive and does not change action", () => {
+    const gate = {
+      release_id: "rel_abc",
+      workspace_id: "ws_test",
+      action: "escalate",
+      blockers: [{ type: "threshold_failed", signal_id: "accuracy", message: "below min" }],
+      remediation: { failures: [], summary: "accuracy failed" }
+    };
+    const out = decorateGateWithHandoff(gate);
+    assert.equal(out.action, "escalate");
+    assert.equal(out.governance_brief.suggested_verb, "escalate");
+    assert.equal(out.governance_brief.top_blockers[0].signal_id, "accuracy");
+    assert.match(out.hub_links.release, /release=rel_abc/);
+    assert.equal(out.hub_links.release, out.governance_brief.hub_links.release);
   });
 });

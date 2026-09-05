@@ -250,7 +250,9 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     });
   }
 
-  return {
+  // Lazy require avoids a load-time cycle with releaseBrief.js.
+  const { decorateGateWithHandoff } = require("./releaseBrief");
+  return decorateGateWithHandoff({
     release_id: releaseId,
     workspace_id: release.workspace_id,
     commit_sha: release.commit_sha || null,
@@ -282,7 +284,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
       improving_signals: trajectoryInfo.improving_signals,
       trend_note: trajectoryInfo.trend_note
     }
-  };
+  });
 }
 
 module.exports = { buildReleaseGateResponse, resolveGateFailedSignals };

@@ -81,6 +81,8 @@ describe("GET /api/releases/:releaseId/release-brief", () => {
     assert.equal(brief.body.gate_action, "escalate");
     assert.equal(brief.body.verdict.can_merge, false);
     assert.ok(brief.body.hub_links?.intelligence_alignment);
+    assert.match(brief.body.hub_links.release, new RegExp(`release=${created.body.id}`));
+    assert.match(brief.body.hub_links.cert_record, new RegExp(`/cert/id/${created.body.id}`));
     assert.ok(brief.body.regression_story);
     assert.ok(typeof brief.body.agent_note === "string");
 

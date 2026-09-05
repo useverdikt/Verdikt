@@ -321,6 +321,7 @@ function AppMainContent({ navigate, nav, isMobile }) {
               releaseVersionPrimarySecondary={releaseVersionPrimarySecondary}
               onCollectingAction={actions.handleCollectingAction}
               onHydrateVisibleSummaries={hydrateVisibleSummaries}
+              onEnsureFocusedRelease={refreshReleaseFromBackend}
               hasMoreReleases={Boolean(releasesNextBefore)}
               loadingMoreReleases={releasesLoadingMore}
               onLoadMoreReleases={loadMoreReleases}
