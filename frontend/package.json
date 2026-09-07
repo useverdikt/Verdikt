@@ -20,13 +20,13 @@
     "supabase:local": "bash ../scripts/supabase-local-bootstrap.sh"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.112.3",
-    "@tanstack/react-query": "^5.101.2",
+    "@supabase/supabase-js": "2.115.0",
+    "@tanstack/react-query": "^5.102.8",
     "@useverdikt/shared": "file:../shared",
     "@vitejs/plugin-react": "^6.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "7.18.2",
+    "react-router-dom": "7.18.3",
     "vite": "8.2.2"
   },
   "devDependencies": {
@@ -36,7 +36,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.11.0",
+    "globals": "^17.12.0",
     "jsdom": "^26.1.0",
     "vitest": "^4.1.11"
   },
