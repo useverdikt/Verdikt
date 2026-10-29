@@ -29,10 +29,40 @@ async function getVcsIntegration(workspaceId) {
   return { ...row, access_token: decryptToken(tok) };
 }
 
+function githubPathSegment(value, label) {
+  const segment = String(value || "").trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(segment)) {
+    const error = new Error(`${label} must be a single GitHub path segment`);
+    error.status = 400;
+    throw error;
+  }
+  return segment;
+}
+
+function githubRepoApiUrl(owner, repo, suffix) {
+  const safeOwner = githubPathSegment(owner, "owner");
+  const safeRepo = githubPathSegment(repo, "repo");
+  const extra = suffix ? (String(suffix).startsWith("/") ? String(suffix) : `/${suffix}`) : "";
+  if (extra.split("/").some((part) => part === "." || part === "..")) {
+    const error = new Error("GitHub API path is not allowed");
+    error.status = 400;
+    throw error;
+  }
+  return `https://api.github.com/repos/${encodeURIComponent(safeOwner)}/${encodeURIComponent(safeRepo)}${extra}`;
+}
+
 async function setVcsIntegration(workspaceId, { provider, access_token, owner, repo }) {
   const allowed = new Set(["github", "gitlab"]);
   if (!allowed.has(provider)) throw new Error("provider must be github or gitlab");
   if (!access_token || !owner || !repo) throw new Error("access_token, owner, and repo are required");
+  if (provider === "github") {
+    githubPathSegment(owner, "owner");
+    githubPathSegment(repo, "repo");
+  } else if (/[\r\n\\]|\.\./.test(`${owner}/${repo}`)) {
+    const error = new Error("owner and repo must not change the GitLab project path");
+    error.status = 400;
+    throw error;
+  }
   const id = `vcs_${workspaceId}`;
   const now = nowIso();
   const tokenEnc = encryptToken(access_token);
@@ -105,7 +135,7 @@ async function fetchWithRetry(url, options, { signal, retries = 1 } = {}) {
 
 async function writeGitHubStatus(cfg, commitSha, releaseStatus, targetUrl, signal) {
   const { state, description } = verdiktStatusToGitHub(releaseStatus);
-  const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/statuses/${commitSha}`;
+  const url = githubRepoApiUrl(cfg.owner, cfg.repo, `/statuses/${encodeURIComponent(String(commitSha || ""))}`);
   const body = JSON.stringify({
     state,
     description: description.slice(0, 140),
@@ -130,7 +160,7 @@ async function writeGitHubStatus(cfg, commitSha, releaseStatus, targetUrl, signa
 }
 
 async function writeGitHubPRComment(cfg, prNumber, release, failedSignals, targetUrl, signal) {
-  const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/issues/${prNumber}/comments`;
+  const url = githubRepoApiUrl(cfg.owner, cfg.repo, `/issues/${encodeURIComponent(String(prNumber || ""))}/comments`);
   const sigLines = (failedSignals || []).slice(0, 6).map((s) => `- **${s.signal_id}**: ${s.value ?? "missing"} — ${s.rule || "threshold"}`).join("\n");
   const statusEmoji = { CERTIFIED: "✅", CERTIFIED_WITH_OVERRIDE: "⚠️", UNCERTIFIED: "❌" }[release.status] || "⏳";
   const recordLink = targetUrl || "https://verdikt.io";
@@ -274,6 +304,7 @@ module.exports = {
   deleteVcsIntegration,
   writeVcsStatus,
   buildReleaseTargetUrl,
+  githubRepoApiUrl,
   verdiktStatusToGitHub,
   verdiktStatusToGitLab
 };

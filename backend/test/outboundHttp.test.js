@@ -81,4 +81,14 @@ describe("outbound JSON HTTP", () => {
     );
     assert.equal(calls, 1);
   });
+
+  it("refuses a pinned delivery to a loopback address without calling fetch", async () => {
+    global.fetch = async () => {
+      throw new Error("fetch should not run");
+    };
+    await assert.rejects(
+      () => postJsonWithTimeout("http://127.0.0.1/hook", { ok: true }, { pinPublicDns: true, timeoutMs: 100 }),
+      /private|not allowed/i
+    );
+  });
 });

@@ -160,6 +160,7 @@ async function deliverSlackVerdict(release, failedSignals = [], certificationCon
     const body = JSON.stringify(payload);
 
     const res = await postJsonWithTimeout(safeUrl, body, {
+      pinPublicDns: true,
       timeoutMs: SLACK_WEBHOOK_TIMEOUT_MS
     });
 
@@ -306,6 +307,7 @@ async function deliverSlackCalibrationNudge(release, alignmentResult, suggestion
 
     const payload = buildCalibrationSlackPayload(release, alignmentResult, suggestions);
     const res = await postJsonWithTimeout(safeUrl, payload, {
+      pinPublicDns: true,
       timeoutMs: SLACK_WEBHOOK_TIMEOUT_MS
     });
 
@@ -394,6 +396,7 @@ async function deliverSlackBypassMerge(release, statusAtMerge) {
 
     const payload = buildBypassMergeSlackPayload(release, statusAtMerge);
     const res = await postJsonWithTimeout(safeUrl, payload, {
+      pinPublicDns: true,
       timeoutMs: SLACK_WEBHOOK_TIMEOUT_MS
     });
 
