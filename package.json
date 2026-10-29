@@ -34,22 +34,32 @@
   "license": "ISC",
   "description": "",
   "overrides": {
-    "@hono/node-server": "^2.0.5",
-    "hono": "4.13.1",
-    "fast-uri": "3.1.7",
-    "body-parser": "^2.3.0",
-    "shell-quote": "^1.9.0",
+    "@hono/node-server": "2.1.5",
+    "hono": "4.13.14",
+    "fast-uri": "3.1.9",
+    "body-parser": "2.4.0",
+    "shell-quote": "1.11.0",
     "ws": "^8.21.1",
     "postcss": "^8.5.18",
+    "brace-expansion@1": "1.1.21",
     "brace-expansion@2": "2.1.2",
     "brace-expansion@5": "5.0.8",
     "react-router": "7.18.2",
     "react-router-dom": "7.18.2",
     "nanoid": "3.3.18",
-    "ip-address": "10.3.1"
+    "ip-address": "10.7.5",
+    "proxy-addr": "2.0.8",
+    "axios": "1.20.0",
+    "follow-redirects": "1.16.1",
+    "js-yaml": "4.3.2",
+    "multer": "2.5.0",
+    "source-map-js": "1.2.2",
+    "qs": "6.17.1",
+    "joi": "18.2.9",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "brace-expansion": "1.1.18",
-    "js-yaml": "4.3.1"
+    "brace-expansion": "1.1.21",
+    "js-yaml": "4.3.2"
   }
 }

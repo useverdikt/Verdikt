@@ -34,9 +34,9 @@
     "helmet": "^8.2.0",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.1.1",
+    "multer": "2.5.0",
     "pg": "^8.23.0",
-    "zod": "^4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -46,8 +46,16 @@
     "supertest": "^7.1.4"
   },
   "overrides": {
-    "body-parser": "^2.3.0",
-    "brace-expansion": "5.0.9",
-    "js-yaml": "4.3.1"
+    "body-parser": "2.4.0",
+    "brace-expansion@1": "1.1.21",
+    "brace-expansion@5": "5.0.9",
+    "js-yaml": "4.3.2",
+    "proxy-addr": "2.0.8",
+    "axios": "1.20.0",
+    "follow-redirects": "1.16.1",
+    "qs": "6.17.1",
+    "joi": "18.2.9",
+    "multer": "2.5.0",
+    "zod": "4.6.7"
   }
 }
