@@ -17,7 +17,7 @@
 const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { log, inc } = require("../lib/observability");
-const { getVcsIntegration } = require("./vcsWriteback");
+const { getVcsIntegration, githubRepoApiUrl } = require("./vcsWriteback");
 const { ingestProductionSignals } = require("./productionFeedback");
 const {
   emptyFindings,
@@ -42,7 +42,7 @@ class VcsProviderError extends Error {
 }
 
 async function ghFetch(cfg, path) {
-  const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}${path}`;
+  const url = githubRepoApiUrl(cfg.owner, cfg.repo, path);
   const res = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -77,6 +77,9 @@ async function scanGitHub(cfg, commitSha, prNumber, since, until) {
   const defaultBranch = repo.default_branch || "main";
   let scanBranch = defaultBranch;
   if (prNumber) {
+    if (!/^[1-9]\d{0,9}$/.test(String(prNumber))) {
+      throw new VcsProviderError("GitHub", 400, "/pulls");
+    }
     const pr = await ghFetch(cfg, `/pulls/${prNumber}`);
     scanBranch = pr.base?.ref || defaultBranch;
   }

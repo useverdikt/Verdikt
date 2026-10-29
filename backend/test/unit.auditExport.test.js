@@ -9,6 +9,9 @@ describe("audit export formatting", () => {
     assert.equal(csvCell("a,b"), '"a,b"');
     assert.equal(csvCell('say "hi"'), '"say ""hi"""');
     assert.equal(csvCell(null), "");
+    assert.equal(csvCell("=cmd|'/c calc'!A0"), "'=cmd|'/c calc'!A0");
+    assert.equal(csvCell("+1"), "'+1");
+    assert.equal(csvCell("abc123"), "abc123");
   });
 
   it("includes hash-chain columns", () => {

@@ -126,6 +126,7 @@ async function deliverVerdictWebhook(release, verdictIntelligence, certSigRow, f
     const res = await postJsonWithTimeout(deliveryUrl, bodyStr, {
       headers,
       redirect: "error",
+      pinPublicDns: true,
       timeoutMs: OUTBOUND_WEBHOOK_TIMEOUT_MS
     });
     responseStatus = res.status;

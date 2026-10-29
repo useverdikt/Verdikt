@@ -9,7 +9,8 @@ const EXPORT_VERSION = 1;
 const PAGE_SIZE = 500;
 
 function csvCell(value) {
-  const s = value == null ? "" : String(value);
+  let s = value == null ? "" : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

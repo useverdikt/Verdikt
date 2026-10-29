@@ -58,6 +58,31 @@ describe("validateOutboundWebhookUrl (unit)", () => {
     await assert.rejects(() => validateOutboundWebhookUrl("http://127.0.0.1/hook"), /private|not allowed/i);
     await assert.rejects(() => validateOutboundWebhookUrl("http://localhost/hook"), /not allowed/i);
   });
+
+  it("blocks rewritten private addresses that are not plain IPv4", async () => {
+    const { validateOutboundWebhookUrl, isPrivateOrLocalIp } = require("../src/lib/outboundUrl");
+    assert.equal(isPrivateOrLocalIp("::1"), true);
+    assert.equal(isPrivateOrLocalIp("[::ffff:127.0.0.1]"), true);
+    assert.equal(isPrivateOrLocalIp("fe90::1"), true);
+    assert.equal(isPrivateOrLocalIp("64:ff9b::127.0.0.1"), true);
+    assert.equal(isPrivateOrLocalIp("2002:7f00:1::"), true);
+    assert.equal(isPrivateOrLocalIp("93.184.216.34"), false);
+    await assert.rejects(() => validateOutboundWebhookUrl("http://[::1]/hook"), /private|not allowed/i);
+    await assert.rejects(() => validateOutboundWebhookUrl("http://[::ffff:127.0.0.1]/hook"), /private|not allowed/i);
+    await assert.rejects(() => validateOutboundWebhookUrl("http://[fe90::1]/hook"), /private|not allowed/i);
+  });
+});
+
+describe("github repo API urls", () => {
+  it("keeps owner and repo inside the GitHub path", () => {
+    const { githubRepoApiUrl } = require("../src/services/vcsWriteback");
+    assert.equal(
+      githubRepoApiUrl("acme", "app", "/statuses/abc123"),
+      "https://api.github.com/repos/acme/app/statuses/abc123"
+    );
+    assert.throws(() => githubRepoApiUrl("../orgs", "app", "/statuses/abc"), /path segment/);
+    assert.throws(() => githubRepoApiUrl("acme", "app", "/../../user"), /not allowed/);
+  });
 });
 
 describe("webhook delivery unit", () => {

@@ -65,6 +65,7 @@ async function deliverReleaseCallback(release, verdictIntelligence, gateExtras =
         "User-Agent": "Verdikt-Callback/1.0"
       },
       redirect: "error",
+      pinPublicDns: true,
       timeoutMs: RELEASE_CALLBACK_TIMEOUT_MS
     });
     if (!res.ok) {

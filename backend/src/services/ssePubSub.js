@@ -59,8 +59,7 @@ async function connectListener() {
 
 async function publish(releaseId, event, data) {
   const { query } = require("../database");
-  const payload = JSON.stringify({ releaseId, event, data }).replace(/'/g, "''");
-  await query(`NOTIFY ${CHANNEL}, '${payload}'`);
+  await query("SELECT pg_notify($1, $2)", [CHANNEL, JSON.stringify({ releaseId, event, data })]);
 }
 
 async function subscribe(releaseId, handler) {
