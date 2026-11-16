@@ -68,6 +68,14 @@ module.exports = function registerRoutes(app) {
       if (release.status === "CERTIFIED" || release.status === "CERTIFIED_WITH_OVERRIDE") {
         return sendError(res, req, 400, "release is already certified; escalation not needed");
       }
+      if (release.status === "CERTIFICATION_REVOKED") {
+        return sendError(
+          res,
+          req,
+          409,
+          "certification was revoked; push a new commit to open a new release if the change should be recertified"
+        );
+      }
 
       const actorType = req.auth?.authType === "api_key" ? "AGENT" : "USER";
       const actorName =

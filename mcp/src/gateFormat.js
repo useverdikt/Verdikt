@@ -34,7 +34,7 @@ export function formatGateForAgent(out) {
       ? "Do not merge. Certification snapshot is missing — wait for snapshot backfill/retry; gate stays blocked until evidence is frozen."
       : "Do not merge. Remediation debt is active — ship a clean CERTIFIED prod release (no override/bypass) to clear the circuit breaker, or use incident_hotfix during corroborated incident context.",
     escalate: "Do not merge. Call escalate tool; wait for human override in Escalations inbox.",
-    revoked: "Do not merge. A human revoked this certification. Open a new release if the change should be recertified."
+    revoked: "Do not merge. A human revoked this certification. Push a new commit to open a new release if the change should be recertified."
   };
   const brief = out?.governance_brief || null;
   const hubLinks = out?.hub_links || brief?.hub_links || null;

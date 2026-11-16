@@ -1,10 +1,11 @@
 "use strict";
 
 const crypto = require("crypto");
-const { queryOne, queryAll, run } = require("../database");
+const { queryOne, queryAll, run, transaction } = require("../database");
 const { nowIso, toIsoPlusMinutes } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { sendWorkspaceInviteEmail } = require("./email");
+const { ensureWorkspaceSeeded } = require("./workspaceConfig");
 
 /**
  * RBAC source of truth: workspace_members.role
@@ -60,19 +61,34 @@ async function getEffectiveRoleForWorkspace(userId, workspaceId) {
   return null;
 }
 
-async function syncHomeWorkspaceRoleCache(userId, workspaceId, role) {
-  await run("UPDATE users SET role = $1 WHERE id = $2 AND workspace_id = $3", [role, userId, workspaceId]);
+const DEFAULT_DB = { run, queryOne };
+
+async function syncHomeWorkspaceRoleCache(userId, workspaceId, role, db = DEFAULT_DB) {
+  await db.run("UPDATE users SET role = $1 WHERE id = $2 AND workspace_id = $3", [role, userId, workspaceId]);
 }
 
-async function ensureMemberRow({ workspaceId, userId, role, createdAt = null }) {
+async function ensureMemberRow({ workspaceId, userId, role, createdAt = null, db = DEFAULT_DB }) {
   const ts = createdAt || nowIso();
-  await run(
+  await db.run(
     `INSERT INTO workspace_members (workspace_id, user_id, role, created_at)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = excluded.role`,
     [workspaceId, userId, role, ts]
   );
-  await syncHomeWorkspaceRoleCache(userId, workspaceId, role);
+  await syncHomeWorkspaceRoleCache(userId, workspaceId, role, db);
+}
+
+/**
+ * Pending → accepted compare-and-set. Returns the claimed invite, or null when it
+ * was revoked or replaced (row deleted) or accepted concurrently.
+ */
+async function claimPendingInvite(tx, inviteId, userId, ts) {
+  return tx.queryOne(
+    `UPDATE workspace_invites SET accepted_at = $1, accepted_user_id = $2
+      WHERE id = $3 AND accepted_at IS NULL
+      RETURNING id, workspace_id, role`,
+    [ts, userId, inviteId]
+  );
 }
 
 async function listWorkspaceMembersAndInvites(workspaceId) {
@@ -201,31 +217,35 @@ async function acceptWorkspaceInvite({ token, userId, userEmail }) {
   const user = await queryOne("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return { ok: false, statusCode: 404, error: "user_not_found" };
 
-  if (user.workspace_id && user.workspace_id !== invite.workspace_id) {
-    const homeRole =
-      (await getEffectiveRoleForWorkspace(userId, user.workspace_id)) || user.role || "viewer";
-    await ensureMemberRow({ workspaceId: user.workspace_id, userId, role: homeRole });
-  }
+  const homeRole =
+    user.workspace_id && user.workspace_id !== invite.workspace_id
+      ? (await getEffectiveRoleForWorkspace(userId, user.workspace_id)) || user.role || "viewer"
+      : null;
 
-  await ensureMemberRow({ workspaceId: invite.workspace_id, userId, role: invite.role });
-  await run("UPDATE users SET workspace_id = $1 WHERE id = $2", [invite.workspace_id, userId]);
-  await syncHomeWorkspaceRoleCache(userId, invite.workspace_id, invite.role);
-  await run(
-    "UPDATE workspace_invites SET accepted_at = $1, accepted_user_id = $2 WHERE id = $3",
-    [nowIso(), userId, invite.id]
-  );
-
-  await writeAudit({
-    workspaceId: invite.workspace_id,
-    releaseId: null,
-    eventType: "WORKSPACE_INVITE_ACCEPTED",
-    actorType: "USER",
-    actorName: user.email,
-    details: { invite_id: invite.id, role: invite.role }
+  const claimed = await transaction(async (tx) => {
+    const claim = await claimPendingInvite(tx, invite.id, userId, nowIso());
+    if (!claim) return null;
+    if (homeRole) {
+      await ensureMemberRow({ workspaceId: user.workspace_id, userId, role: homeRole, db: tx });
+    }
+    await ensureMemberRow({ workspaceId: claim.workspace_id, userId, role: claim.role, db: tx });
+    await tx.run("UPDATE users SET workspace_id = $1 WHERE id = $2", [claim.workspace_id, userId]);
+    await syncHomeWorkspaceRoleCache(userId, claim.workspace_id, claim.role, tx);
+    await writeAudit({
+      workspaceId: claim.workspace_id,
+      releaseId: null,
+      eventType: "WORKSPACE_INVITE_ACCEPTED",
+      actorType: "USER",
+      actorName: user.email,
+      details: { invite_id: claim.id, role: claim.role },
+      tx
+    });
+    return claim;
   });
+  if (!claimed) return { ok: false, statusCode: 404, error: "not_found" };
 
   const fresh = await queryOne("SELECT * FROM users WHERE id = $1", [userId]);
-  return { ok: true, user: fresh, workspace_id: invite.workspace_id, role: invite.role };
+  return { ok: true, user: fresh, workspace_id: claimed.workspace_id, role: claimed.role };
 }
 
 async function registerUserWithInvite({
@@ -249,26 +269,28 @@ async function registerUserWithInvite({
   if (existing) return { ok: false, statusCode: 409, error: "email_already_registered" };
 
   const ts = nowIso();
-  await run(
-    "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    [userId, normalizeEmail(email), passwordHash, displayName, invite.workspace_id, invite.role, ts]
-  );
-  await ensureMemberRow({ workspaceId: invite.workspace_id, userId, role: invite.role, createdAt: ts });
-  await run(
-    "UPDATE workspace_invites SET accepted_at = $1, accepted_user_id = $2 WHERE id = $3",
-    [ts, userId, invite.id]
-  );
-
-  await writeAudit({
-    workspaceId: invite.workspace_id,
-    releaseId: null,
-    eventType: "WORKSPACE_INVITE_ACCEPTED",
-    actorType: "USER",
-    actorName: normalizeEmail(email),
-    details: { invite_id: invite.id, role: invite.role, via: "register" }
+  const claimed = await transaction(async (tx) => {
+    const claim = await claimPendingInvite(tx, invite.id, userId, ts);
+    if (!claim) return null;
+    await tx.run(
+      "INSERT INTO users (id, email, password_hash, name, workspace_id, role, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [userId, normalizeEmail(email), passwordHash, displayName, claim.workspace_id, claim.role, ts]
+    );
+    await ensureMemberRow({ workspaceId: claim.workspace_id, userId, role: claim.role, createdAt: ts, db: tx });
+    await writeAudit({
+      workspaceId: claim.workspace_id,
+      releaseId: null,
+      eventType: "WORKSPACE_INVITE_ACCEPTED",
+      actorType: "USER",
+      actorName: normalizeEmail(email),
+      details: { invite_id: claim.id, role: claim.role, via: "register" },
+      tx
+    });
+    return claim;
   });
+  if (!claimed) return { ok: false, statusCode: 404, error: "not_found" };
 
-  return { ok: true, workspace_id: invite.workspace_id, role: invite.role };
+  return { ok: true, workspace_id: claimed.workspace_id, role: claimed.role };
 }
 
 async function updateMemberRole({ workspaceId, targetUserId, role, actorEmail }) {
@@ -302,30 +324,75 @@ async function removeMember({ workspaceId, targetUserId, actorUserId, actorEmail
   if (targetUserId === actorUserId) {
     return { ok: false, statusCode: 400, error: "cannot_remove_self" };
   }
-  const count = await queryOne(
-    "SELECT COUNT(*) AS c FROM workspace_members WHERE workspace_id = $1",
-    [workspaceId]
+
+  const outcome = await transaction(async (tx) => {
+    // Lock the workspace's member rows so concurrent removals cannot both pass the last-member check.
+    const members = await tx.queryAll(
+      "SELECT user_id FROM workspace_members WHERE workspace_id = $1 FOR UPDATE",
+      [workspaceId]
+    );
+    if (members.length <= 1) return { ok: false, statusCode: 409, error: "cannot_remove_last_member" };
+    if (!members.some((m) => m.user_id === targetUserId)) {
+      return { ok: false, statusCode: 404, error: "member_not_found" };
+    }
+
+    await tx.run("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [
+      workspaceId,
+      targetUserId
+    ]);
+    const rehomedTo = await rehomeRemovedMember(tx, targetUserId, workspaceId);
+    await writeAudit({
+      workspaceId,
+      releaseId: null,
+      eventType: "WORKSPACE_MEMBER_REMOVED",
+      actorType: "USER",
+      actorName: actorEmail || "user",
+      details: { user_id: targetUserId },
+      tx
+    });
+    return { ok: true, rehomedTo };
+  });
+  if (!outcome.ok) return outcome;
+
+  if (outcome.rehomedTo?.created) {
+    await ensureWorkspaceSeeded(outcome.rehomedTo.workspaceId);
+  }
+  return { ok: true };
+}
+
+/**
+ * users.workspace_id / users.role act as a legacy access fallback (see
+ * userHasWorkspaceAccess), so a removed member whose home is the removed
+ * workspace must be moved: to their oldest remaining membership, or to a new
+ * personal workspace (the same state as a fresh signup) when none remain.
+ */
+async function rehomeRemovedMember(tx, userId, removedWorkspaceId) {
+  const user = await tx.queryOne("SELECT workspace_id FROM users WHERE id = $1", [userId]);
+  if (!user || user.workspace_id !== removedWorkspaceId) return null;
+
+  const other = await tx.queryOne(
+    `SELECT workspace_id, role FROM workspace_members
+      WHERE user_id = $1 AND workspace_id <> $2
+      ORDER BY created_at ASC LIMIT 1`,
+    [userId, removedWorkspaceId]
   );
-  if (Number(count?.c || 0) <= 1) {
-    return { ok: false, statusCode: 409, error: "cannot_remove_last_member" };
+  if (other) {
+    await tx.run("UPDATE users SET workspace_id = $1, role = $2 WHERE id = $3", [
+      other.workspace_id,
+      other.role,
+      userId
+    ]);
+    return { workspaceId: other.workspace_id, created: false };
   }
 
-  const removed = await run(
-    "DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
-    [workspaceId, targetUserId]
-  );
-  if (!removed?.changes) return { ok: false, statusCode: 404, error: "member_not_found" };
-
-  await writeAudit({
-    workspaceId,
-    releaseId: null,
-    eventType: "WORKSPACE_MEMBER_REMOVED",
-    actorType: "USER",
-    actorName: actorEmail || "user",
-    details: { user_id: targetUserId }
-  });
-
-  return { ok: true };
+  const personalWorkspaceId = `ws_${crypto.randomBytes(8).toString("hex")}`;
+  await tx.run("UPDATE users SET workspace_id = $1, role = $2 WHERE id = $3", [
+    personalWorkspaceId,
+    "org_admin",
+    userId
+  ]);
+  await ensureMemberRow({ workspaceId: personalWorkspaceId, userId, role: "org_admin", db: tx });
+  return { workspaceId: personalWorkspaceId, created: true };
 }
 
 async function revokeInvite({ workspaceId, inviteId, actorEmail }) {

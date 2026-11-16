@@ -427,14 +427,24 @@ module.exports = function registerAuthRoutes(app) {
     }
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const pwdChangedAt = nowIso();
-    await transaction(async (tx) => {
+    const consumed = await transaction(async (tx) => {
+      // Single use: a concurrent reset, or a newer forgot-password request, may have
+      // consumed or superseded this token while bcrypt ran.
+      const claimed = await tx.run(
+        "UPDATE password_reset_tokens SET used_at = $1 WHERE id = $2 AND used_at IS NULL",
+        [pwdChangedAt, row.id]
+      );
+      if (claimed.changes !== 1) return false;
       await tx.run("UPDATE users SET password_hash = $1, password_changed_at = $2 WHERE id = $3", [
         password_hash,
         pwdChangedAt,
         row.user_id
       ]);
-      await tx.run("UPDATE password_reset_tokens SET used_at = $1 WHERE id = $2", [pwdChangedAt, row.id]);
+      return true;
     });
+    if (!consumed) {
+      return sendError(res, req, 400, "Invalid or expired reset link");
+    }
     await writeAudit({
       workspaceId: row.workspace_id,
       eventType: "AUTH_PASSWORD_RESET_COMPLETED",
