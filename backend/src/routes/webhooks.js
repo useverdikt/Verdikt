@@ -115,8 +115,6 @@ async function openCertWindowFromGithubPr(req, res, payload, { sourceAction }) {
       release_type_auto: releaseType
     },
     collectionWindowMinutes: DEFAULT_COLLECTION_WINDOW_MINUTES,
-    // Delivery id changes per webhook dispatch; dedupe by logical PR signal identity instead.
-    idempotencyKey: `github:${owner}/${repo}:pr:${prNumber}:sha:${commitSha}:label:${labelName}`,
     commitSha,
     prNumber,
     githubOwner: owner,
@@ -214,14 +212,24 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
       let workspaceId = await resolveWorkspaceForGithubRepo(owner, repo);
       if (!workspaceId) return res.json({ ok: true, ignored: "repo_not_connected" });
 
-      // Find all releases for this workspace triggered by this PR number
+      // A release is one per workspace + commit, so the merged head commit may
+      // belong to a release opened from a different PR in the same repo.
+      const mergeHeadSha = String(payload?.pull_request?.head?.sha || "").trim();
       const matched = await queryAll(
-        `SELECT * FROM releases WHERE workspace_id = $1 AND pr_number = $2 ORDER BY created_at DESC`,
-        [workspaceId, prNumber]
+        `SELECT * FROM releases
+          WHERE workspace_id = $1
+            AND (
+                  pr_number = $2
+               OR ($3 <> '' AND commit_sha IS NOT NULL
+                   AND (github_repo IS NULL OR (LOWER(github_owner) = LOWER($4) AND LOWER(github_repo) = LOWER($5)))
+                   AND (LOWER(commit_sha) = LOWER($3)
+                        OR (LENGTH(commit_sha) >= 7 AND starts_with(LOWER($3), LOWER(commit_sha)))))
+                )
+          ORDER BY created_at DESC`,
+        [workspaceId, prNumber, mergeHeadSha, owner, repo]
       );
       if (!matched.length) return res.json({ ok: true, ignored: "no_matching_release", pr_number: prNumber });
 
-      const mergeHeadSha = String(payload?.pull_request?.head?.sha || "").trim();
       const toPromote = mergeHeadSha
         ? matched.filter((rel) => rel.commit_sha && commitShaMatches(rel.commit_sha, mergeHeadSha))
         : matched;

@@ -92,17 +92,22 @@ Open gaps (not fixed here, see [Reachable defects](#reachable-defects)):
 
 | Source | Key shape |
 |---|---|
-| GitHub label / `synchronize` | `github:{owner}/{repo}:pr:{N}:sha:{S}:label:{L}` |
-| `POST /releases` / MCP `create_release` | `release:{ws}:{owner}/{repo}:pr:{N}:sha:{S}` |
+| Any open with a commit SHA (GitHub label / `synchronize`, `POST /releases` / MCP `create_release`, CI webhook) | `release:{ws}:sha:{S}` (`buildCanonicalReleaseKey`) |
+| Open without a SHA | caller `idempotencyKey`, or none (every call opens a new release) |
+| Legacy, before canonical keys (still in `webhook_events`) | `github:{owner}/{repo}:pr:{N}:sha:{S}:label:{L}`, `release:{ws}:{owner}/{repo}:pr:{N}:sha:{S}` |
 
 States per key: absent → claimed (release id bound, in the release-insert transaction) → reused (later opens return the bound release).
+
+`openReleaseSession` claims the canonical key, then, before inserting, looks for any release in the workspace with the same commit (`findReleaseForCommit`, prefix-aware, COLLECTING first then newest). A hit rebinds the claim to that release and returns `reused: true`; this covers legacy-keyed releases and short/long SHA forms.
 
 Invariants:
 
 - **I1.** Same key → exactly one release (claim and insert share a transaction; a contention loser polls).
 - **I2.** A SHA-bearing gate lookup never falls back to a different SHA.
+- **I3.** One release per workspace + commit across the label trigger, `create_release`, and the CI webhook, including when they race. Revoked releases keep the commit (§1 R3).
+- **I4.** Merge promotion matches the merged head commit as well as the PR number, so a commit opened from another PR in the same repo is promoted.
 
-Open gap: the label key and the `create_release` key differ for the same commit, so labeling **and** calling `create_release` (which the MCP instructions present as alternatives) creates two releases for one SHA. A label racing a CI webhook can also create two.
+Residual (accepted): two *concurrent* first opens that pass different-length forms of the same SHA (a 7-character prefix and the full SHA) claim different keys and can both insert. Sequential opens are caught by the commit lookup. Historical duplicates are left as they are; merging them would rewrite recorded evidence.
 
 ---
 
@@ -317,16 +322,17 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 | E2 | Label redelivery re-runs the integration pull and audit | `webhooks.js` schedules the pull on `reused` | Open, code-read (P3) |
 | E3 | A `production`/`prod` base branch becomes prod without bypass bookkeeping or a monitoring window | `becomingProd` requires `main`/`master` | Open, code-read (P2) |
 | E4 | Merges the gate blocked are not flagged as shipped without certification: strict-mode `CERTIFIED_WITH_OVERRIDE`, a certified release missing its snapshot, `CERTIFIED_WITH_OVERRIDE` under remediation debt | `bypassAtMerge = becomingProd && !isCertLikeStatus(status)` in `releaseEnvironment.js` uses status, not the gate decision | Open, code-read (P2, tracked in #325) |
-| E5 | `POST /releases` on reuse echoes the request (`environment: "pre-prod"`, request `version`/`release_type`/`callback_url`), so a reused prod release reads as pre-prod and a new callback URL looks registered but is not stored | `workspaceReleases.js` response body | Open, code-read (P3) |
+| E5 | `POST /releases` on reuse echoes the request (`environment: "pre-prod"`, request `version`/`release_type`/`callback_url`), so a reused prod release reads as pre-prod and a new callback URL looks registered but is not stored | `workspaceReleases.js` response body. Test: *POST /releases reuse describes the stored release* | Fixed, reproduced |
 
-### Issue F: duplicate releases for one commit (P1, open, #324)
+### Issue F: duplicate releases for one commit (P1, fixed, #324)
 
-| ID | Defect | Evidence |
-|---|---|---|
-| F1 | Label plus `create_release` for the same SHA creates two releases (different identity keys); the gate prefers the COLLECTING one, so a certified commit can read `collecting`, and merge promotes both | Key shapes in §3; no unique index on `releases(commit_sha)` |
-| F2 | A label racing a CI webhook can create two releases | The CI webhook resolves by SHA before either commits |
+| ID | Defect | Evidence | Status |
+|---|---|---|---|
+| F1 | Label plus `create_release` for the same SHA creates two releases (different identity keys); the gate prefers the COLLECTING one, so a certified commit can read `collecting`, and merge promotes both | Key shapes in §3. Tests in `releaseIdentityCanonical.test.js`: *create_release after the label trigger reuses the label's release* and the reverse | Fixed, reproduced |
+| F2 | A label racing a CI webhook (or `create_release`) can create two releases | The CI webhook resolves by SHA before either commits. Test: *concurrent label, create_release, and CI webhook opens create one release* | Fixed, reproduced |
+| F3 | The label key omitted the workspace, so after a repo moved workspaces, relabeling an old commit returned the old workspace's release | `github:{owner}/{repo}:...` key in `webhooks.js` | Fixed (canonical key includes the workspace) |
 
-The fix needs an identity decision (one canonical key per workspace + repo + SHA), not a local guard.
+The fix uses one canonical key per workspace + commit plus a commit lookup for releases opened before canonical keys (§3 I3, I4).
 
 ### Issue G: gate action fall-through (P2, open, #325)
 
@@ -365,7 +371,7 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 | S2 | Snapshot persist is not atomic with the verdict commit; recovery rebuilds from live data at boot only |
 | S3 | The override re-freeze runs after the override commit; a crash leaves the pre-override snapshot |
 
-### Issue J: minor and opt-in (P3, open, #328; also tracks E2, E3, and E5)
+### Issue J: minor and opt-in (P3, open, #328; also tracks E2 and E3)
 
 - Two concurrent forgot-password requests each invalidate then insert, leaving two valid reset tokens (each is still single-use).
 - Live `signals` can change after certification (ingest does not re-check the lock in its transaction; source pulls delete and reinsert). The frozen snapshot protects the gate, but the live table drifts from the certified evidence.
