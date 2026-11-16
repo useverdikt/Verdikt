@@ -189,7 +189,7 @@ Invariants:
 
 Invariants: each effect is sent at most once; shadow mode never sends network traffic; primary stays off in production until the readiness window passes.
 
-Open gaps (all block turning on `primary`; see defects O1–O6): finalize checks the owner but not the lease, so an expired-and-reclaimed row can be sent twice; the dead-letter audit is written even when the update matched no row; primary delivers the release's *current* status rather than the row's `verdict_status`; `release_callback` rows with no callback URL dead-letter; revoke enqueues all effect types although no legacy path delivers them, so in shadow mode they dead-letter and block readiness.
+Open gaps (all block turning on `primary`; see defects O1–O6): finalize checks the owner but not the lease, so an expired-and-reclaimed row can be sent twice; the dead-letter audit is written even when the update matched no row; primary delivers the release's *current* status rather than the row's `verdict_status`; `release_callback` rows with no callback URL dead-letter. Shadow mode marks revoke rows (`source = 'revoke'`) `shadow_skipped` with reason `no_legacy_revoke_delivery`, because legacy never delivers a revoke.
 
 ---
 
@@ -348,7 +348,7 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 | O4 | `release_callback` with no callback URL returns `{ delivered: false }` without `skipped`, so it dead-letters | primary |
 | O5 | Retries and post-send crashes resend (contradicts one-attempt delivery) | primary |
 | O6 | Primary delivers the release's current status, not the row's `verdict_status` | primary |
-| O7 | Revoke enqueues all effect types although no legacy path delivers them; in shadow they dead-letter and block readiness | **shadow (default)** |
+| O7 | Revoke enqueues all effect types although no legacy path delivers them; in shadow they dead-letter and block readiness | **Fixed**: the shadow worker marks `source = 'revoke'` rows `shadow_skipped` (`no_legacy_revoke_delivery`); rows stay as primary-mode intent. Older revoke dead letters age out of the readiness window (7 days by default). Test: *skips revoke intents instead of retrying them* |
 | O8 | Switching modes with a live backlog: shadow → primary redelivers rows legacy already sent (readiness blocks only on *stale* backlog); primary → shadow compares instead of sending, so the effect is lost | cutover / rollback |
 | O9 | A repeat non-prod `UNCERTIFIED` verdict with different failures reuses the first `verdict_issued_at` in its key and is dropped by `ON CONFLICT` | primary |
 

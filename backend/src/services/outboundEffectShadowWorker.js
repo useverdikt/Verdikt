@@ -224,6 +224,9 @@ async function compareSlackVerdict(row, release, envelope, queryOneFn) {
 }
 
 async function compareShadowIntent(row, { queryOneFn = queryOne } = {}) {
+  // Revoke rows record primary-mode intent only; legacy never delivers a revoke,
+  // so waiting for legacy evidence would dead-letter them and block readiness.
+  if (row.source === "revoke") return { outcome: "skipped", reason: "no_legacy_revoke_delivery" };
   const release = await queryOneFn("SELECT * FROM releases WHERE id = $1", [row.release_id]);
   if (!release) return { outcome: "skipped", reason: "release_deleted" };
   const envelope = parseJsonObject(row.envelope_json);
