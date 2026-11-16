@@ -48,6 +48,16 @@ function timestamp(nowFn) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
+async function processBothDeliveryModes(options) {
+  const shadow = await processDueOutboundEffects(options);
+  const primary = await processDueOutboundPrimaryEffects(options);
+  const merged = { ...shadow };
+  for (const [key, value] of Object.entries(primary)) {
+    merged[key] = Number(merged[key] || 0) + Number(value || 0);
+  }
+  return merged;
+}
+
 function getOutboundEffectSweepHealth() {
   return {
     mode: OUTBOX_MODE,
@@ -67,8 +77,9 @@ async function runOutboundEffectShadowSweepOnce({
   if (mode !== "shadow" && mode !== "primary") {
     return { disabled: true, mode };
   }
-  const resolvedProcess =
-    processFn || (mode === "primary" ? processDueOutboundPrimaryEffects : processDueOutboundEffects);
+  // Rows are handled by the mode they were enqueued in, so after a mode switch
+  // the old backlog keeps its semantics (shadow rows compared, primary rows sent).
+  const resolvedProcess = processFn || processBothDeliveryModes;
   const eventComplete = mode === "primary" ? "outbox_primary_sweep_complete" : "outbox_shadow_sweep_complete";
   const eventFailed = mode === "primary" ? "outbox_primary_sweep_failed" : "outbox_shadow_sweep_failed";
   const counterProcessed = mode === "primary" ? "outbox_primary_processed" : "outbox_shadow_processed";
@@ -112,8 +123,13 @@ async function runOutboundEffectShadowSweepOnce({
 
 function startOutboundEffectShadowSweepJob({ mode = OUTBOX_MODE } = {}) {
   if (mode !== "shadow" && mode !== "primary") return null;
+  let running = false;
   const id = setInterval(() => {
-    void runOutboundEffectShadowSweepOnce({ mode });
+    if (running) return;
+    running = true;
+    void runOutboundEffectShadowSweepOnce({ mode }).finally(() => {
+      running = false;
+    });
   }, SWEEP_MS);
   if (typeof id.unref === "function") id.unref();
   return id;

@@ -18,14 +18,20 @@ function normalizeTimestamp(value) {
   return parsed.toISOString();
 }
 
-function buildOutboxIdempotencyKey({ releaseId, effectType, verdictStatus, verdictIssuedAt }) {
+function buildOutboxIdempotencyKey({ releaseId, effectType, verdictStatus, verdictIssuedAt, occurrence = null }) {
   const timestamp = normalizeTimestamp(verdictIssuedAt);
-  return [String(releaseId), String(effectType), String(verdictStatus), timestamp].join(":");
+  const parts = [String(releaseId), String(effectType), String(verdictStatus), timestamp];
+  if (occurrence) parts.push(`at:${normalizeTimestamp(occurrence)}`);
+  return parts.join(":");
 }
 
 /**
  * Writes all intended post-verdict deliveries in the caller's verdict
  * transaction. Shadow mode records intent only; legacy delivery stays active.
+ * The enqueue mode is stored on the row and decides how the worker handles it,
+ * so switching OUTBOX_MODE never re-sends shadow rows or drops primary rows.
+ * `occurrence` distinguishes a repeated verdict with the same status (a
+ * re-evaluation) so primary delivery does not drop it as a duplicate.
  */
 async function enqueuePostVerdictOutbox({
   tx,
@@ -37,7 +43,8 @@ async function enqueuePostVerdictOutbox({
   source = "verdict",
   failedSignals = [],
   mode = OUTBOX_MODE,
-  effectTypes = POST_VERDICT_EFFECT_TYPES
+  effectTypes = POST_VERDICT_EFFECT_TYPES,
+  occurrence = null
 }) {
   if (mode === "off") {
     return { mode, attempted: 0, inserted: [], duplicate_count: 0 };
@@ -53,9 +60,11 @@ async function enqueuePostVerdictOutbox({
   const issuedAt = normalizeTimestamp(verdictIssuedAt);
   const envelope = {
     schema_version: 1,
+    mode,
     trigger_source: String(triggerSource || "verdict_engine"),
     failed_signals: Array.isArray(failedSignals) ? failedSignals : []
   };
+  const keyOccurrence = mode === "primary" ? occurrence : null;
   const rows = [...new Set(effectTypes)].map((effectType) => ({
     id: `oeo_${crypto.randomUUID().replace(/-/g, "")}`,
     workspace_id: String(workspaceId),
@@ -68,7 +77,8 @@ async function enqueuePostVerdictOutbox({
       releaseId,
       effectType,
       verdictStatus,
-      verdictIssuedAt: issuedAt
+      verdictIssuedAt: issuedAt,
+      occurrence: keyOccurrence
     }),
     envelope_json: envelope
   }));
