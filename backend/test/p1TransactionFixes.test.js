@@ -74,6 +74,8 @@ describe("applyPulledSignals atomic delete+insert", () => {
 
     const sourceTag = "integration:braintrust";
     await applyPulledSignals(releaseId, sourceTag, "v1", { accuracy: 88 }, "braintrust");
+    // The first pull certifies the release; reopen it so the second pull is accepted.
+    await run("UPDATE releases SET status = 'COLLECTING', verdict_issued_at = NULL WHERE id = $1", [releaseId]);
     await applyPulledSignals(releaseId, sourceTag, "v1", { accuracy: 92, latency: 120 }, "braintrust");
 
     const signals = await queryAll(

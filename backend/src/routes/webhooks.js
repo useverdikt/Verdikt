@@ -28,6 +28,9 @@ const {
 const { openReleaseSession, buildGithubMappings } = require("../services/releaseIdentity");
 const { scheduleIntegrationPullForRelease } = require("../services/labelTriggerIntegrationPull");
 const { promoteReleaseOnMerge } = require("../services/releaseEnvironment");
+
+/** A merge into one of these base branches ships to production. */
+const PROD_BASE_BRANCHES = new Set(["main", "master", "production", "prod"]);
 const { commitShaMatches } = require("../lib/releaseIngestPick");
 const { ingestIntegrationSignals, resolveIntegrationIdempotencyKey } = require("../services/signalIngest");
 const {
@@ -123,8 +126,18 @@ async function openCertWindowFromGithubPr(req, res, payload, { sourceAction }) {
   });
 
   if (out.reused) {
-    scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
-    return res.status(200).json({ ok: true, reused: true, release_id: out.release?.id || null });
+    // A redelivered label on a release whose verdict is locked must not re-pull
+    // integrations (the ingest would be rejected and only adds audit noise).
+    const locked = releaseVerdictLockedAgainstIngest(out.release);
+    if (!locked) {
+      scheduleIntegrationPullForRelease(out.release, { requestId: req.requestId, trigger: "github_label" });
+    }
+    return res.status(200).json({
+      ok: true,
+      reused: true,
+      release_id: out.release?.id || null,
+      integration_pull: locked ? "skipped_verdict_locked" : "scheduled"
+    });
   }
   console.log(`[${req.requestId}] github ${triggerMode}`, {
     workspace_id: workspaceId,
@@ -205,7 +218,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
       const repo = payload?.repository?.name;
       const prNumber = payload?.pull_request?.number;
       const baseBranch = String(payload?.pull_request?.base?.ref || "").trim();
-      const isMainBranch = ["main", "master"].includes(baseBranch.toLowerCase());
+      const isMainBranch = PROD_BASE_BRANCHES.has(baseBranch.toLowerCase());
       if (!owner || !repo || !prNumber) {
         return res.json({ ok: true, ignored: "merge_missing_fields" });
       }

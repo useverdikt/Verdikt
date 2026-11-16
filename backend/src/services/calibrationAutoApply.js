@@ -11,6 +11,7 @@ const { getThresholdMap } = require("./workspaceConfig");
 const { safeJsonParse } = require("../lib/safeJson");
 const { queryOne } = require("../database");
 const { applyThresholdSuggestion } = require("./thresholdSuggestionApply");
+const { loadDismissedSuggestionKeys, isSuggestionDismissed } = require("./thresholdSuggestionDismissals");
 
 const MIN_AUTO_APPLY_CONFIDENCE = 0.72;
 
@@ -50,8 +51,15 @@ async function maybeAutoApplyCalibrationSuggestions(workspaceId, releaseId, alig
   if (!alignmentRow) return { applied: [], skipped: "alignment_not_found" };
 
   const threshMap = await getThresholdMap(workspaceId);
+  // Same filter as the human suggestion list: a dismissed or already-applied
+  // signal+direction is not re-applied, so repeated MISS alignments cannot
+  // keep raising the floor.
+  const handledKeys = await loadDismissedSuggestionKeys(workspaceId);
   const candidates = suggestionsForAlignment(workspaceId, alignmentRow, threshMap).filter(
-    (s) => s.source === "prod_alignment" && (s.confidence ?? 0) >= MIN_AUTO_APPLY_CONFIDENCE
+    (s) =>
+      s.source === "prod_alignment" &&
+      (s.confidence ?? 0) >= MIN_AUTO_APPLY_CONFIDENCE &&
+      !isSuggestionDismissed(handledKeys, s)
   );
 
   const applied = [];

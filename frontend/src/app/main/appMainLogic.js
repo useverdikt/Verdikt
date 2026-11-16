@@ -36,7 +36,9 @@ const DEFAULT_ROLE_POLICY = {
   tech_lead: { label: "Tech Lead", title: "Tech Lead", canOverride: false, canAct: true, color: C.green },
   release_manager: { label: "Release Manager", title: "Release Manager", canOverride: false, canAct: true, color: C.amber },
   vp_engineering: { label: "VP Engineering", title: "VP Engineering", canOverride: true, canAct: true, color: C.accent },
-  cto: { label: "CTO / Founder", title: "CTO / Founder", canOverride: true, canAct: true, color: C.pink }
+  cto: { label: "CTO / Founder", title: "CTO / Founder", canOverride: true, canAct: true, color: C.pink },
+  org_admin: { label: "Org Admin", title: "Org Admin", canOverride: true, canAct: true, color: C.accent },
+  viewer: { label: "Viewer", title: "Viewer", canOverride: false, canAct: false, color: C.muted }
 };
 const ROLES = (() => {
   try {
@@ -56,6 +58,8 @@ const ROLES = (() => {
   }
 })();
 const canAct = (user) => !user || ROLES[user?.role]?.canAct !== false;
+/** Mirrors backend `OVERRIDE_APPROVER_ROLES` (middleware/auth.js); other roles get 403. */
+const OVERRIDE_APPROVER_ROLES = ["vp_engineering", "cto", "org_admin"];
 const RELEASE_TYPES = shared.releaseTypes;
 const getRegressionRequired = (releaseType) => {
   const t = RELEASE_TYPES.find((r) => r.id === releaseType);
@@ -592,6 +596,7 @@ export {
   DEFAULT_ROLE_POLICY,
   ROLES,
   canAct,
+  OVERRIDE_APPROVER_ROLES,
   RELEASE_TYPES,
   getRegressionRequired,
   SIGNAL_CATEGORIES,

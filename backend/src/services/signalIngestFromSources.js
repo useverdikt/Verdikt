@@ -5,7 +5,7 @@
  * `signals` + `evaluateReleaseAfterSignalIngest` path as manual / webhook ingest.
  */
 
-const { queryOne, queryAll, run, transaction } = require("../database");
+const { queryOne, queryAll, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 const { evaluateReleaseAfterSignalIngest } = require("./domain");
 const { decryptStoredApiKey, normalizeDatadogSite } = require("./signalIntegrations");
@@ -16,6 +16,7 @@ const {
   releaseVerdictLockedAgainstIngest
 } = require("./verdictEngine");
 const { buildIntegrationPullWarnings } = require("./integrationPullStatus");
+const { deleteSourceSignalsForUnlockedReleases } = require("./signalSourceCleanup");
 const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
 const { pickReleaseForIngestFromList, normalizeCommitSha, commitShaMatches } = require("../lib/releaseIngestPick");
 const { metadataMatchesRelease, extractIdentityFromRow } = require("./releaseIdentity");
@@ -459,7 +460,7 @@ async function pullDatadogSignals(apiKey, appKey, site, extra, release = null) {
 }
 
 async function deleteSignalsForCsvImport(importId) {
-  await run("DELETE FROM signals WHERE source = $1", [`csv:${importId}`]);
+  return deleteSourceSignalsForUnlockedReleases(`csv:${importId}`);
 }
 
 async function applyPulledSignals(releaseId, sourceTag, version, signals, outKey) {
@@ -467,14 +468,23 @@ async function applyPulledSignals(releaseId, sourceTag, version, signals, outKey
      VALUES ($1, $2, $3, $4, $5, $6)`;
 
   let n = 0;
-  await transaction(async (tx) => {
+  const applied = await transaction(async (tx) => {
+    // The pull ran outside any lock; a verdict that locked the release meanwhile
+    // must not have its certified evidence deleted and replaced.
+    const locked = await tx.queryOne(
+      "SELECT status, environment, verdict_issued_at FROM releases WHERE id = $1 FOR SHARE",
+      [releaseId]
+    );
+    if (releaseVerdictLockedAgainstIngest(locked)) return false;
     await tx.run("DELETE FROM signals WHERE release_id = $1 AND source = $2", [releaseId, sourceTag]);
     for (const [signalId, value] of Object.entries(signals)) {
       const idem = `pull:${outKey}:${version}:${signalId}`;
       await tx.run(insertSql, [releaseId, signalId, value, sourceTag, nowIso(), idem]);
       n += 1;
     }
+    return true;
   });
+  if (!applied) return { ok: false, error: "release_locked" };
 
   const fresh = await queryOne("SELECT * FROM releases WHERE id = $1", [releaseId]);
   const evalResult = await evaluateReleaseAfterSignalIngest(fresh, releaseId, sourceTag, n);
@@ -551,7 +561,12 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
 
   for (const [releaseId, { release, batches }] of byRelease) {
     let inserted = 0;
-    await transaction(async (tx) => {
+    const applied = await transaction(async (tx) => {
+      const locked = await tx.queryOne(
+        "SELECT status, environment, verdict_issued_at FROM releases WHERE id = $1 FOR SHARE",
+        [releaseId]
+      );
+      if (releaseVerdictLockedAgainstIngest(locked)) return false;
       for (const { rowIndex, signals } of batches) {
         for (const [signalId, value] of Object.entries(signals)) {
           const idem = `csv:${importId}:r${rowIndex}:${signalId}`;
@@ -566,7 +581,14 @@ async function applyCsvImportToWorkspace(workspaceId, importId) {
           inserted += 1;
         }
       }
+      return true;
     });
+    if (!applied) {
+      for (const { rowIndex } of batches) {
+        skipped.push({ row: rowIndex, reason: "release_locked", version: release.version });
+      }
+      continue;
+    }
 
     const evalOut = await evaluateReleaseAfterSignalIngest(release, releaseId, `csv:${importId}`, inserted);
     releasesOut.push({

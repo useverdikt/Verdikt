@@ -3,7 +3,11 @@
 const { nowIso } = require("../lib/time");
 const { transaction } = require("../database");
 const { writeAudit } = require("./audit");
-const { evaluateReleaseAfterSignalIngest } = require("./domain");
+const {
+  evaluateReleaseAfterSignalIngest,
+  releaseVerdictLockedAgainstIngest,
+  releaseIngestLockError
+} = require("./domain");
 const {
   buildIngestReadResponse,
   extractIdempotencyKey,
@@ -61,6 +65,18 @@ async function ingestReleaseSignals({
   let insertedCount = 0;
   if (acceptedEntries.length > 0) {
     await transaction(async (tx) => {
+      // Routes check the lock up front; this re-check under the row lock stops a
+      // certification that commits in between from gaining post-verdict signals.
+      const locked = await tx.queryOne(
+        "SELECT status, environment, verdict_issued_at FROM releases WHERE id = $1 FOR SHARE",
+        [release.id]
+      );
+      if (releaseVerdictLockedAgainstIngest(locked)) {
+        const error = new Error(releaseIngestLockError(locked));
+        error.status = 409;
+        error.details = { status: locked.status, environment: locked.environment || null };
+        throw error;
+      }
       for (const [signalId, value] of acceptedEntries) {
         const result = await tx.query(INSERT_SIGNALS_SQL, [
           release.id,

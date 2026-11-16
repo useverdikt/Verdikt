@@ -4,6 +4,7 @@ import { apiGet, apiPost } from "../../../pages/settings/settingsClient.js";
 import { getWorkspaceId } from "../../../lib/apiClient.js";
 import EscalationOverrideModal from "../modals/EscalationOverrideModal.jsx";
 import ReleaseBriefPanel from "../../release/ReleaseBriefPanel.jsx";
+import { OVERRIDE_APPROVER_ROLES } from "../../../app/main/appMainLogic.js";
 
 function formatTs(iso) {
   if (!iso) return "—";
@@ -23,9 +24,7 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
   const [overrideBusy, setOverrideBusy] = useState(false);
   const [briefReleaseId, setBriefReleaseId] = useState(null);
 
-  const canAcknowledge = ["vp_engineering", "cto", "org_admin", "release_manager"].includes(
-    String(currentUser?.role || "")
-  );
+  const canAcknowledge = OVERRIDE_APPROVER_ROLES.includes(String(currentUser?.role || ""));
 
   const load = useCallback(async () => {
     if (!wsId) return;
@@ -197,7 +196,7 @@ export default function EscalationsView({ isMobile, wsReady = true, onSelectRele
                     Ack &amp; Override
                   </button>
                 ) : (
-                  <span style={{ fontFamily: C.mono, fontSize: 10, color: C.dim }}>VP/RM only</span>
+                  <span style={{ fontFamily: C.mono, fontSize: 10, color: C.dim }}>VP / CTO / admin only</span>
                 )}
               </div>
             </div>
