@@ -22,7 +22,7 @@
  * the modules above). No import paths change when splitting `routes/index.js`.
  */
 
-const { run, queryOne, transaction } = require("../database");
+const { queryOne, transaction } = require("../database");
 const { nowIso } = require("../lib/time");
 const { writeAudit } = require("./audit");
 const { computeEarlyWarnings, persistEarlyWarning } = require("./earlyWarning");
@@ -57,21 +57,34 @@ const { maybeEnrichSuggestionReason } = require("./llmAssist");
 const { enqueuePostVerdictEffects } = require("./postVerdictEffects");
 const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
 const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
+const { resolvePendingEscalationsForRelease } = require("./escalationResolution");
 
 // ─── Core evaluation pipeline ─────────────────────────────────────────────────
 
+/**
+ * Why the verdict engine must not write this release row, or null when it may.
+ * Every engine write re-checks this against a row read under FOR UPDATE.
+ */
+function evaluationSkipReason(row) {
+  if (!row) return "missing";
+  const status = String(row.status || "").toUpperCase();
+  if (status === "CERTIFICATION_REVOKED") return "revoked";
+  if (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE") return "already_certified";
+  if (status === "UNCERTIFIED" && isProdEnvironment(row.environment)) return "prod_locked";
+  return null;
+}
+
+function collectionDeadlinePassed(collectionDeadline) {
+  const deadlineMs = collectionDeadline ? Date.parse(collectionDeadline) : Number.NaN;
+  return Number.isFinite(deadlineMs) ? Date.now() >= deadlineMs : true;
+}
+
 async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
-  // Guard against concurrent verdict commits: skip if another worker already
-  // finalised this release while we were waiting.
-  const freshRow = await queryOne("SELECT status, environment FROM releases WHERE id = $1", [releaseId]);
-  if (!freshRow) return null;
-  const freshStatus = freshRow.status;
-  if (["CERTIFIED", "CERTIFIED_WITH_OVERRIDE"].includes(freshStatus)) {
-    return null;
-  }
-  if (freshStatus === "UNCERTIFIED" && isProdEnvironment(freshRow.environment)) {
-    return null;
-  }
+  const freshRow = await queryOne(
+    "SELECT status, environment, collection_deadline FROM releases WHERE id = $1",
+    [releaseId]
+  );
+  if (evaluationSkipReason(freshRow)) return null;
 
   const [latest, thresholdMap] = await Promise.all([
     getLatestSignalMap(releaseId),
@@ -86,37 +99,45 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   );
   const missingAiSignals = missingRequiredSignals.filter((id) => AI_SIGNAL_IDS.includes(id));
   const missingNonAiSignals = missingRequiredSignals.filter((id) => !AI_SIGNAL_IDS.includes(id));
-  const deadlineMs = release.collection_deadline ? Date.parse(release.collection_deadline) : Number.NaN;
-  const deadlinePassed = Number.isFinite(deadlineMs) ? Date.now() >= deadlineMs : true;
+  const collectionDeadline = freshRow.collection_deadline;
 
   // ── Still collecting: not all signals present and window still open ─────────
-  if (!deadlinePassed && missingRequiredSignals.length > 0) {
-    await run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
-      "COLLECTING",
-      nowIso(),
-      releaseId
-    ]);
-
+  if (!collectionDeadlinePassed(collectionDeadline) && missingRequiredSignals.length > 0) {
     const ewResult = computeEarlyWarnings(release, latest, thresholdMap, null);
+    const collectingCommitted = await transaction(async (tx) => {
+      const locked = await tx.queryOne(
+        "SELECT status, environment FROM releases WHERE id = $1 FOR UPDATE",
+        [releaseId]
+      );
+      if (evaluationSkipReason(locked)) return false;
+      await tx.run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
+        "COLLECTING",
+        nowIso(),
+        releaseId
+      ]);
+      await writeAudit({
+        workspaceId: release.workspace_id,
+        releaseId,
+        eventType: "SIGNALS_INGESTED",
+        actorType: "SYSTEM",
+        actorName: source,
+        details: {
+          signal_count: inputSignalCount,
+          computed_status: "COLLECTING",
+          missing_required_signals: missingRequiredSignals,
+          missing_ai_signals: missingAiSignals,
+          missing_non_ai_signals: missingNonAiSignals,
+          early_warning: { overall_risk: ewResult.overall_risk, warning_count: ewResult.warnings.length }
+        },
+        tx
+      });
+      return true;
+    });
+    if (!collectingCommitted) return null;
+
     try {
       await persistEarlyWarning(releaseId, release.workspace_id, ewResult);
     } catch (_) {}
-
-    await writeAudit({
-      workspaceId: release.workspace_id,
-      releaseId,
-      eventType: "SIGNALS_INGESTED",
-      actorType: "SYSTEM",
-      actorName: source,
-      details: {
-        signal_count: inputSignalCount,
-        computed_status: "COLLECTING",
-        missing_required_signals: missingRequiredSignals,
-        missing_ai_signals: missingAiSignals,
-        missing_non_ai_signals: missingNonAiSignals,
-        early_warning: { overall_risk: ewResult.overall_risk, warning_count: ewResult.warnings.length }
-      }
-    });
 
     try {
       broadcastToRelease(releaseId, "signal_progress", {
@@ -132,7 +153,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
     return {
       release_id: releaseId,
       status: "COLLECTING",
-      collection_deadline: release.collection_deadline,
+      collection_deadline: collectionDeadline,
       missing_required_signals: missingRequiredSignals,
       missing_ai_signals: missingAiSignals,
       failed_signals: [],
@@ -231,19 +252,17 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   // ── Commit verdict atomically (row lock prevents concurrent double-commit) ─
   const commitResult = await transaction(async (tx) => {
     const locked = await tx.queryOne(
-      "SELECT status, environment, verdict_issued_at FROM releases WHERE id = $1 FOR UPDATE",
+      "SELECT status, environment, verdict_issued_at, collection_deadline FROM releases WHERE id = $1 FOR UPDATE",
       [releaseId]
     );
-    if (!locked) return { skipped: true, reason: "missing" };
-    const lockedStatus = locked.status;
-    if (certLike.has(lockedStatus)) {
-      return { skipped: true, reason: "already_certified" };
-    }
-    if (lockedStatus === "UNCERTIFIED" && isProdEnvironment(locked.environment)) {
-      return { skipped: true, reason: "prod_locked" };
+    const skipReason = evaluationSkipReason(locked);
+    if (skipReason) return { skipped: true, reason: skipReason };
+    // A concurrent deadline extension reopened the window; missing signals are not yet a failure.
+    if (missingRequiredSignals.length > 0 && !collectionDeadlinePassed(locked.collection_deadline)) {
+      return { skipped: true, reason: "collection_window_reopened" };
     }
 
-    const prevStatus = lockedStatus;
+    const prevStatus = locked.status;
     const commitTimestamp = nowIso();
     const verdictIssuedAt = locked.verdict_issued_at || commitTimestamp;
     await tx.run(
@@ -299,6 +318,14 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       triggerSource: source,
       failedSignals
     });
+    if (nextStatus === "CERTIFIED") {
+      await resolvePendingEscalationsForRelease(tx, {
+        workspaceId: release.workspace_id,
+        releaseId,
+        releaseStatus: nextStatus,
+        trigger: "verdict_engine"
+      });
+    }
 
     return { skipped: false, prevStatus, verdictIssuedAt };
   });

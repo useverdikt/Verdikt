@@ -5,6 +5,7 @@ const { transaction } = require("../database");
 const { writeAudit } = require("./audit");
 const { evaluateReleaseAfterSignalIngest } = require("./domain");
 const {
+  buildIngestReadResponse,
   extractIdempotencyKey,
   respondToDuplicateSignalIngest,
   replayDuplicateSignalIngestIfPresent
@@ -107,13 +108,15 @@ async function ingestReleaseSignals({
       insertedCount
     });
   }
-  const response = await evaluateReleaseAfterSignalIngest(
+  const evaluated = await evaluateReleaseAfterSignalIngest(
     release,
     release.id,
     source,
     insertedCount
   );
-  if (idempotencyKey && response) response.idempotency_key = idempotencyKey;
+  const response =
+    evaluated ?? { ...(await buildIngestReadResponse(release, release.id)), evaluation_skipped: true };
+  if (idempotencyKey) response.idempotency_key = idempotencyKey;
   return {
     kind: "ingested",
     response,

@@ -19,6 +19,7 @@ const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshot
 const { isProdEnvironment } = require("../lib/releaseStatus");
 const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
 const { OUTBOX_MODE } = require("../config");
+const { resolvePendingEscalationsForRelease } = require("./escalationResolution");
 
 const OVERRIDE_EFFECT_TYPES = Object.freeze(["outbound_webhook", "release_callback"]);
 
@@ -85,9 +86,32 @@ async function runOverrideSideEffects(release, _overrideAssessment) {
   return overrideCertSig;
 }
 
+/** Rejection for overriding a release in `status`, or null when override is allowed. */
+function overrideRejection(status) {
+  const normalized = String(status || "").toUpperCase();
+  if (normalized === "CERTIFIED") {
+    return { ok: false, statusCode: 400, error: "override not needed for certified release" };
+  }
+  if (normalized === "CERTIFIED_WITH_OVERRIDE") {
+    return {
+      ok: false,
+      statusCode: 400,
+      error: "release already has an approved override; create a new release to change certification"
+    };
+  }
+  if (normalized === "CERTIFICATION_REVOKED") {
+    return {
+      ok: false,
+      statusCode: 409,
+      error: "certification was revoked; push a new commit to open a new release if the change should be recertified"
+    };
+  }
+  return null;
+}
+
 async function applyReleaseOverrideDbWrites(
   tx,
-  release,
+  staleRelease,
   {
     approver_type,
     approver_name,
@@ -99,6 +123,11 @@ async function applyReleaseOverrideDbWrites(
     overrideTrace
   }
 ) {
+  const release = await tx.queryOne("SELECT * FROM releases WHERE id = $1 FOR UPDATE", [staleRelease.id]);
+  if (!release) return { ok: false, statusCode: 404, error: "release_not_found" };
+  const rejection = overrideRejection(release.status);
+  if (rejection) return rejection;
+
   const ts = nowIso();
   await tx.run(
     `INSERT INTO override_history (release_id, approver_type, approver_name, approver_role, justification, metadata_json, created_at)
@@ -212,6 +241,13 @@ async function applyReleaseOverrideDbWrites(
       : [],
     effectTypes: OVERRIDE_EFFECT_TYPES
   });
+  await resolvePendingEscalationsForRelease(tx, {
+    workspaceId: release.workspace_id,
+    releaseId: release.id,
+    releaseStatus: "CERTIFIED_WITH_OVERRIDE",
+    trigger: retroactive ? "retroactive_override" : "human_override"
+  });
+  return { ok: true };
 }
 
 /**
@@ -227,16 +263,8 @@ async function applyReleaseOverride(
   const validated = validateOverridePayload({ justification, metadata });
   if (!validated.ok) return validated;
 
-  if (release.status === "CERTIFIED") {
-    return { ok: false, statusCode: 400, error: "override not needed for certified release" };
-  }
-  if (release.status === "CERTIFIED_WITH_OVERRIDE") {
-    return {
-      ok: false,
-      statusCode: 400,
-      error: "release already has an approved override; create a new release to change certification"
-    };
-  }
+  const rejection = overrideRejection(release.status);
+  if (rejection) return rejection;
 
   const retroactive =
     Number(release.shipped_without_certification) === 1 && isProdEnvironment(release.environment);
@@ -270,13 +298,10 @@ async function applyReleaseOverride(
     overrideTrace
   };
 
-  if (outerTx) {
-    await applyReleaseOverrideDbWrites(outerTx, release, dbPayload);
-  } else {
-    await transaction(async (tx) => {
-      await applyReleaseOverrideDbWrites(tx, release, dbPayload);
-    });
-  }
+  const written = outerTx
+    ? await applyReleaseOverrideDbWrites(outerTx, release, dbPayload)
+    : await transaction((tx) => applyReleaseOverrideDbWrites(tx, release, dbPayload));
+  if (!written.ok) return written;
 
   let overrideCertSig = null;
   if (!skipSideEffects && !outerTx) {
@@ -297,5 +322,6 @@ module.exports = {
   applyReleaseOverrideDbWrites,
   runOverrideSideEffects,
   OVERRIDE_EFFECT_TYPES,
+  overrideRejection,
   validateOverridePayload
 };

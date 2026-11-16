@@ -236,6 +236,7 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
 
       const newEnv = isMainBranch ? "prod" : baseBranch;
       let promoted = 0;
+      let alreadyPromoted = 0;
       let shippedWithoutCertification = 0;
       for (const rel of toPromote) {
         const result = await promoteReleaseOnMerge(rel, {
@@ -245,19 +246,22 @@ app.post("/api/hooks/github", webhookRateLimit, async (req, res, _next) => {
           newEnv,
           isMainBranch
         });
-        promoted++;
+        if (result.promoted) promoted++;
+        else alreadyPromoted++;
         if (result.shipped_without_certification) shippedWithoutCertification++;
       }
       console.log(`[${req.requestId}] github merge promotion`, {
         workspace_id: workspaceId,
         pr_number: prNumber,
         releases_promoted: promoted,
+        releases_already_promoted: alreadyPromoted,
         shipped_without_certification: shippedWithoutCertification,
         new_environment: newEnv
       });
       return res.json({
         ok: true,
         promoted,
+        already_promoted: alreadyPromoted,
         shipped_without_certification: shippedWithoutCertification,
         environment: newEnv,
         pr_number: prNumber

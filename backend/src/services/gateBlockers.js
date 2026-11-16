@@ -47,7 +47,7 @@ function buildGateBlockers({
       type: "revoked",
       code: "certification_revoked",
       message: gateReason || "Certification was revoked. Merge is blocked.",
-      next_step: "Do not merge. Open a new release if the change should be recertified."
+      next_step: "Do not merge. Push a new commit to open a new release if the change should be recertified."
     });
   }
 

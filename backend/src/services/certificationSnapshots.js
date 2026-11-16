@@ -5,7 +5,10 @@ const { nowIso } = require("../lib/time");
 const { computeEvidenceHash } = require("@useverdikt/shared/verdictEngine");
 
 /**
- * Persist verdict-time evidence. First write wins unless allowUpdate (override path).
+ * Persist verdict-time evidence. The first cert-like snapshot is frozen; a later
+ * verdict replaces an earlier non-cert-like one (a pre-prod UNCERTIFIED release
+ * re-evaluated to CERTIFIED must freeze the certifying evidence). allowUpdate
+ * (override path) always replaces.
  */
 async function persistCertificationSnapshot({
   releaseId,
@@ -45,7 +48,13 @@ async function persistCertificationSnapshot({
       `INSERT INTO certification_snapshots
          (release_id, workspace_id, status_at_verdict, threshold_snapshot_json, signal_snapshot_json, evidence_hash, frozen_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT(release_id) DO NOTHING`,
+       ON CONFLICT(release_id) DO UPDATE SET
+         status_at_verdict = excluded.status_at_verdict,
+         threshold_snapshot_json = excluded.threshold_snapshot_json,
+         signal_snapshot_json = excluded.signal_snapshot_json,
+         evidence_hash = excluded.evidence_hash,
+         frozen_at = excluded.frozen_at
+       WHERE certification_snapshots.status_at_verdict NOT IN ('CERTIFIED', 'CERTIFIED_WITH_OVERRIDE')`,
       [
         releaseId,
         workspaceId,

@@ -15,9 +15,7 @@ const {
   DEFAULT_LEASE_MS
 } = require("./escalationSlaSweepClaims");
 const { log, inc } = require("../lib/observability");
-
-const PENDING = "pending_human_review";
-const RESOLVED = "resolved";
+const { PENDING, RESOLVED } = require("./escalationResolution");
 
 function parseJsonArray(raw) {
   try {
@@ -86,30 +84,6 @@ async function createEscalationRequest({
   requestedByName,
   releaseStatus
 }) {
-  const existing = await queryOne(
-    `SELECT * FROM escalation_requests WHERE workspace_id = $1 AND release_id = $2 AND state = $3 ORDER BY created_at DESC LIMIT 1`,
-    [workspaceId, releaseId, PENDING]
-  );
-  if (existing) {
-    const now = nowIso();
-    await run(
-      `UPDATE escalation_requests SET reason = $1, blocking_signals_json = $2, attempted_fixes_json = $3,
-       requested_by_type = $4, requested_by_name = $5, release_status = $6, updated_at = $7 WHERE id = $8`,
-      [
-        reason.slice(0, 2000),
-        JSON.stringify(blockingSignals),
-        JSON.stringify(attemptedFixes),
-        requestedByType,
-        requestedByName,
-        releaseStatus,
-        now,
-        existing.id
-      ]
-    );
-    const refreshed = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [existing.id]);
-    return { escalation: rowToEscalation(refreshed), reused: true };
-  }
-
   const policy = await getWorkspacePolicy(workspaceId);
   const slaHours = Number.isFinite(Number(policy?.escalation_sla_hours))
     ? Math.max(1, Math.min(168, Number(policy.escalation_sla_hours)))
@@ -118,11 +92,22 @@ async function createEscalationRequest({
   const now = nowIso();
   const slaDue = toIsoPlusMinutes(slaHours * 60);
 
-  await run(
+  // One pending escalation per release (idx_escalations_one_pending_per_release);
+  // a repeat escalate refreshes the pending row and keeps its id and SLA clock.
+  const row = await queryOne(
     `INSERT INTO escalation_requests (
       id, workspace_id, release_id, state, reason, blocking_signals_json, attempted_fixes_json,
       requested_by_type, requested_by_name, release_status, created_at, updated_at, sla_due_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    ON CONFLICT (release_id) WHERE state = 'pending_human_review' DO UPDATE SET
+      reason = EXCLUDED.reason,
+      blocking_signals_json = EXCLUDED.blocking_signals_json,
+      attempted_fixes_json = EXCLUDED.attempted_fixes_json,
+      requested_by_type = EXCLUDED.requested_by_type,
+      requested_by_name = EXCLUDED.requested_by_name,
+      release_status = EXCLUDED.release_status,
+      updated_at = EXCLUDED.updated_at
+    RETURNING *, (xmax = 0) AS inserted`,
     [
       id,
       workspaceId,
@@ -139,9 +124,7 @@ async function createEscalationRequest({
       slaDue
     ]
   );
-
-  const row = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [id]);
-  return { escalation: rowToEscalation(row), reused: false };
+  return { escalation: rowToEscalation(row), reused: !row.inserted };
 }
 
 async function notifyEscalationCreated({ workspaceId, releaseId, escalation, releaseRow }) {
@@ -186,6 +169,17 @@ async function listEscalationsForWorkspace(workspaceId, { state = PENDING, limit
   }));
 }
 
+/** PENDING → RESOLVED compare-and-set; false when another actor resolved it first. */
+async function resolvePendingEscalation(tx, escalationId, workspaceId, actor, now) {
+  const result = await tx.run(
+    `UPDATE escalation_requests
+        SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $2
+      WHERE id = $4 AND workspace_id = $5 AND state = $6`,
+    [RESOLVED, now, actor, escalationId, workspaceId, PENDING]
+  );
+  return result.changes === 1;
+}
+
 async function acknowledgeEscalation({ workspaceId, escalationId, actorEmail, note = "" }) {
   const row = await queryOne("SELECT * FROM escalation_requests WHERE id = $1 AND workspace_id = $2", [
     escalationId,
@@ -195,19 +189,21 @@ async function acknowledgeEscalation({ workspaceId, escalationId, actorEmail, no
   if (row.state !== PENDING) return { ok: false, error: "not_pending", state: row.state };
 
   const now = nowIso();
-  await run(
-    `UPDATE escalation_requests SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $4 WHERE id = $5`,
-    [RESOLVED, now, actorEmail || "user", now, escalationId]
-  );
-
-  await writeAudit({
-    workspaceId,
-    releaseId: row.release_id,
-    eventType: "ESCALATION_ACKNOWLEDGED",
-    actorType: "USER",
-    actorName: actorEmail || "user",
-    details: { escalation_id: escalationId, note: String(note || "").slice(0, 500) }
+  const transitioned = await transaction(async (tx) => {
+    const won = await resolvePendingEscalation(tx, escalationId, workspaceId, actorEmail || "user", now);
+    if (!won) return false;
+    await writeAudit({
+      workspaceId,
+      releaseId: row.release_id,
+      eventType: "ESCALATION_ACKNOWLEDGED",
+      actorType: "USER",
+      actorName: actorEmail || "user",
+      details: { escalation_id: escalationId, note: String(note || "").slice(0, 500) },
+      tx
+    });
+    return true;
   });
+  if (!transitioned) return { ok: false, error: "not_pending", state: RESOLVED };
 
   const updated = await queryOne("SELECT * FROM escalation_requests WHERE id = $1", [escalationId]);
   return { ok: true, escalation: rowToEscalation(updated) };
@@ -239,6 +235,20 @@ async function acknowledgeEscalationWithOverride({
   let overrideOut;
   try {
     await transaction(async (tx) => {
+      const now = nowIso();
+      const won = await resolvePendingEscalation(
+        tx,
+        escalationId,
+        workspaceId,
+        actorEmail || actorName || "user",
+        now
+      );
+      if (!won) {
+        const err = new Error("not_pending");
+        err.statusCode = 409;
+        throw err;
+      }
+
       overrideOut = await applyReleaseOverride(
         release,
         {
@@ -255,12 +265,6 @@ async function acknowledgeEscalationWithOverride({
         err.statusCode = overrideOut.statusCode || 400;
         throw err;
       }
-
-      const now = nowIso();
-      await tx.run(
-        `UPDATE escalation_requests SET state = $1, acknowledged_at = $2, acknowledged_by = $3, updated_at = $4 WHERE id = $5`,
-        [RESOLVED, now, actorEmail || actorName || "user", now, escalationId]
-      );
 
       await writeAudit({
         workspaceId,
@@ -419,7 +423,7 @@ async function runEscalationSlaSweep({
           }
           const recipients = await recipientsFor(row.workspace_id);
           if (recipients.length) {
-            await sendReminderFn({
+            const sent = await sendReminderFn({
               to: recipients,
               workspaceId: row.workspace_id,
               releaseId: row.release_id,
@@ -427,6 +431,11 @@ async function runEscalationSlaSweep({
               escalationId: row.id,
               slaDueAt: row.sla_due_at
             });
+            // Email helpers report failure as { ok: false } instead of throwing; leave the
+            // reminder unmarked so the claim fails and the next lease retries it.
+            if (sent?.ok === false) {
+              throw new Error(`escalation reminder email failed: ${String(sent.error || "unknown").slice(0, 200)}`);
+            }
           }
           const marked = await markReminderFn(row, workerId, nowIso());
           if (marked.changes === 1) {
