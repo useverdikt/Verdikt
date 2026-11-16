@@ -31,6 +31,7 @@ afterEach(async () => {
   for (const workspaceId of workspacesToClean) {
     await run("DELETE FROM outbound_effect_outbox WHERE workspace_id = $1", [workspaceId]);
     await run("DELETE FROM vcs_status_deliveries WHERE workspace_id = $1", [workspaceId]);
+    await run("DELETE FROM vcs_integrations WHERE workspace_id = $1", [workspaceId]);
     await run("DELETE FROM releases WHERE workspace_id = $1", [workspaceId]);
   }
   workspacesToClean.clear();
@@ -296,6 +297,54 @@ describe("outbound effect shadow worker", () => {
       { effect_type: "release_callback", state: "retry" },
       { effect_type: "slack_verdict", state: "retry" }
     ]);
+  });
+
+  it("skips revoke intents instead of retrying them, since no legacy path delivers revokes", async () => {
+    const release = await seedRelease({ callbackUrl: "https://example.com/callback" });
+    await configureWebhook(release);
+    await run("UPDATE outbound_webhooks SET events = 'CERTIFICATION_REVOKED' WHERE workspace_id = $1", [
+      release.workspaceId
+    ]);
+    await run(
+      "UPDATE workspace_policies SET slack_webhook_url = $1 WHERE workspace_id = $2",
+      ["https://hooks.slack.com/services/T/B/X", release.workspaceId]
+    );
+    await run(
+      `INSERT INTO vcs_integrations (id, workspace_id, provider, access_token, owner, repo, enabled, created_at, updated_at)
+       VALUES ($1, $2, 'github', 'test-token', 'acme', 'repo', 1, $3, $3)`,
+      [`vcs_${release.workspaceId}`, release.workspaceId, nowIso()]
+    );
+    await transaction((tx) =>
+      enqueuePostVerdictOutbox({
+        tx,
+        releaseId: release.releaseId,
+        workspaceId: release.workspaceId,
+        verdictStatus: "CERTIFICATION_REVOKED",
+        verdictIssuedAt: nowIso(),
+        triggerSource: "human_revoke",
+        source: "revoke"
+      })
+    );
+
+    const result = await processDueOutboundEffects({
+      workerId: "shadow-revoke-worker",
+      workspaceId: release.workspaceId
+    });
+    assert.equal(result.skipped, 4);
+    assert.equal(result.retried, 0);
+
+    const rows = await queryAll(
+      `SELECT effect_type, state, shadow_result_json->>'reason' AS reason
+         FROM outbound_effect_outbox
+        WHERE release_id = $1
+        ORDER BY effect_type`,
+      [release.releaseId]
+    );
+    assert.equal(rows.length, 4);
+    for (const row of rows) {
+      assert.equal(row.state, "shadow_skipped", row.effect_type);
+      assert.equal(row.reason, "no_legacy_revoke_delivery", row.effect_type);
+    }
   });
 
   it("retries missing legacy evidence and dead-letters after the bounded attempt count", async () => {
