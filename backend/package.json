@@ -43,7 +43,7 @@
     "eslint": "^9.39.4",
     "globals": "^17.14.0",
     "start-server-and-test": "^2.0.8",
-    "supertest": "^7.1.4"
+    "supertest": "^7.3.2"
   },
   "overrides": {
     "body-parser": "2.4.0",
