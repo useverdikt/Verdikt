@@ -190,16 +190,19 @@ Invariants:
 
 | From | To | Trigger | Code | Guard |
 |---|---|---|---|---|
-| (none) | `pending` | verdict, override, or revoke transaction | `outboundEffectOutbox.enqueuePostVerdictOutbox` | unique `idempotency_key` (`release:effect:status:verdict_issued_at`; revoke uses the revoke timestamp) |
-| `pending`, `retry` (due) or expired `processing` | `processing` | worker claim | `outboundEffectShadowWorker.js` | `SKIP LOCKED`, lease |
+| (none) | `pending` | verdict, override, or revoke transaction | `outboundEffectOutbox.enqueuePostVerdictOutbox` | unique `idempotency_key` (`release:effect:status:verdict_issued_at`; revoke uses the revoke timestamp; primary re-evaluations with the same status append `:at:<commit time>`). `envelope_json.mode` records the enqueue mode |
+| `pending`, `retry` (due) or expired `processing` | `processing` | worker claim, filtered to rows of the processor's mode (rows with no stored mode are shadow) | `outboundEffectShadowWorker.claimDueOutboundEffects` | `SKIP LOCKED`, lease, per-batch owner token |
+| expired `processing` at the attempt cap, or with `delivery_started_at` set | `dead_letter` | claim pre-step (worker crashed or hung) | same | `FOR UPDATE SKIP LOCKED`; `*_EXHAUSTED` audit in the same transaction |
 | `processing` | `shadow_matched` / `shadow_mismatch` / `shadow_skipped` / `shadow_unverifiable` | shadow compare | same | `claimed_by = me` |
-| `processing` | `delivered` | primary send | `outboundEffectPrimaryWorker.js` | `claimed_by = me` |
-| `processing` | `retry` / `dead_letter` | error, below / at max attempts | shadow worker | `claimed_by = me` |
+| `processing` | `processing` (+`delivery_started_at`, lease renewed) | primary, just before the network send | `outboundEffectPrimaryWorker.beginPrimarySend` | `claimed_by = me AND claimed_until > NOW()`; no row → no send |
+| `processing` | `delivered` | primary send succeeded, skipped (no target, superseded by a newer delivered row) | `outboundEffectPrimaryWorker.js` | `claimed_by = me` |
+| `processing` | `retry` / `dead_letter` | error before any send, below / at max attempts | shadow worker `retryOrDeadLetter` | `claimed_by = me`; audit only when the row changed |
+| `processing` | `dead_letter` | primary error after the send started (never retried) | `outboundEffectPrimaryWorker.js` | `claimed_by = me`; audit only when the row changed |
 | `shadow_unverifiable`, `dead_letter` | `pending` | legacy delivery observed later | `outboundEffectLegacyObservation.js` | `legacy_observed_at IS NULL` |
 
 Invariants: each effect is sent at most once; shadow mode never sends network traffic; primary stays off in production until the readiness window passes.
 
-Open gaps (all block turning on `primary`; see defects O1–O6): finalize checks the owner but not the lease, so an expired-and-reclaimed row can be sent twice; the dead-letter audit is written even when the update matched no row; primary delivers the release's *current* status rather than the row's `verdict_status`; `release_callback` rows with no callback URL dead-letter. Shadow mode marks revoke rows (`source = 'revoke'`) `shadow_skipped` with reason `no_legacy_revoke_delivery`, because legacy never delivers a revoke.
+Primary delivers the row's `verdict_status` and `verdict_issued_at`, not the release's current status. The sweep runs both processors each tick (rows keep the semantics of the mode they were enqueued in, so switching `OUTBOX_MODE` never re-sends shadow rows or drops primary rows) and skips a tick while the previous one is still running. Shadow mode marks revoke rows (`source = 'revoke'`) `shadow_skipped` with reason `no_legacy_revoke_delivery`, because legacy never delivers a revoke.
 
 ---
 
@@ -349,19 +352,21 @@ The fix uses one canonical key per workspace + commit plus a commit lookup for r
 
 No new action values: each case maps to an existing action whose meaning matches, so GHA and MCP clients keep working. MCP guidance (`gateFormat.js`) gained strict-mode and prod-locked wording, and the inaccurate `do_not_use_exit_code_alone` example was corrected (package `0.1.5`).
 
-### Issue H: outbox must be fixed before `OUTBOX_MODE=primary` (P2, open, #326)
+### Issue H: outbox must be fixed before `OUTBOX_MODE=primary` (P2, fixed, #326)
+
+All tests below are in `backend/test/outboxDeliveryGuarantees.test.js` unless noted. Migration 050 adds `delivery_started_at`.
 
 | ID | Defect | Mode |
 |---|---|---|
-| O1 | Finalize checks the owner but not the lease; an expired and reclaimed row can be delivered twice (one worker id per process, no in-flight guard) | primary |
-| O2 | `OUTBOUND_EFFECT_*_EXHAUSTED` audit written even when the dead-letter update matched no row | both (needs lease expiry) |
-| O3 | A row that crashes or hangs the worker is never dead-lettered (attempt cap only checked in `catch`) | both |
-| O4 | `release_callback` with no callback URL returns `{ delivered: false }` without `skipped`, so it dead-letters | primary |
-| O5 | Retries and post-send crashes resend (contradicts one-attempt delivery) | primary |
-| O6 | Primary delivers the release's current status, not the row's `verdict_status` | primary |
+| O1 | Finalize checks the owner but not the lease; an expired and reclaimed row can be delivered twice (one worker id per process, no in-flight guard) | **Fixed**: per-batch owner token, sweep in-flight guard, and `beginPrimarySend` re-checks owner and live lease (and renews it) right before the send. Test: *O1: an overlapping batch…* |
+| O2 | `OUTBOUND_EFFECT_*_EXHAUSTED` audit written even when the dead-letter update matched no row | **Fixed**: `retryOrDeadLetter` returns `ownership_lost` and writes nothing when the update changed no row |
+| O3 | A row that crashes or hangs the worker is never dead-lettered (attempt cap only checked in `catch`) | **Fixed**: the claim dead-letters expired `processing` rows at the cap, with audit |
+| O4 | `release_callback` with no callback URL returns `{ delivered: false }` without `skipped`, so it dead-letters | **Fixed**: returns `skipped: true, reason: no_callback_url` |
+| O5 | Retries and post-send crashes resend (contradicts one-attempt delivery) | **Fixed**: an error after `delivery_started_at` is set dead-letters immediately; an expired row with `delivery_started_at` is dead-lettered ("delivery outcome unknown") instead of reclaimed. Errors before any send still retry |
+| O6 | Primary delivers the release's current status, not the row's `verdict_status` | **Fixed**: delivers the row's verdict, and skips (`superseded_by_newer_verdict`) when a newer row for the same effect is already delivered |
 | O7 | Revoke enqueues all effect types although no legacy path delivers them; in shadow they dead-letter and block readiness | **Fixed**: the shadow worker marks `source = 'revoke'` rows `shadow_skipped` (`no_legacy_revoke_delivery`); rows stay as primary-mode intent. Older revoke dead letters age out of the readiness window (7 days by default). Test: *skips revoke intents instead of retrying them* |
-| O8 | Switching modes with a live backlog: shadow → primary redelivers rows legacy already sent (readiness blocks only on *stale* backlog); primary → shadow compares instead of sending, so the effect is lost | cutover / rollback |
-| O9 | A repeat non-prod `UNCERTIFIED` verdict with different failures reuses the first `verdict_issued_at` in its key and is dropped by `ON CONFLICT` | primary |
+| O8 | Switching modes with a live backlog: shadow → primary redelivers rows legacy already sent (readiness blocks only on *stale* backlog); primary → shadow compares instead of sending, so the effect is lost | **Fixed**: `envelope_json.mode` stored at enqueue; each processor claims only its own rows and the sweep runs both |
+| O9 | A repeat non-prod `UNCERTIFIED` verdict with different failures reuses the first `verdict_issued_at` in its key and is dropped by `ON CONFLICT` | **Fixed**: same-status re-evaluations pass `occurrence` (commit time) into the primary key; shadow keys are unchanged |
 
 ### Issue I: background sweeps (P2, open, #327)
 

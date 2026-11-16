@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const { transaction, queryOne, run } = require("../database");
 const { writeAudit } = require("./audit");
 const { log, inc } = require("../lib/observability");
@@ -245,11 +246,35 @@ async function compareShadowIntent(row, { queryOneFn = queryOne } = {}) {
   }
 }
 
+const PRIMARY_ROW_SQL = "COALESCE(envelope_json->>'mode', 'shadow') = 'primary'";
+
+function exhaustedAuditEventType(row) {
+  return row?.envelope_json?.mode === "primary"
+    ? "OUTBOUND_EFFECT_PRIMARY_EXHAUSTED"
+    : "OUTBOUND_EFFECT_SHADOW_EXHAUSTED";
+}
+
+/** A fresh owner per batch, so overlapping sweeps in one process never share a lease. */
+function batchOwner(workerId) {
+  const base = String(workerId || "").trim();
+  if (!base) throw new Error("outbox workerId is required");
+  return `${base}:${crypto.randomBytes(4).toString("hex")}`;
+}
+
+/**
+ * Claims due rows enqueued in `deliveryMode` ("shadow" rows are compared,
+ * "primary" rows are delivered). Expired leases are reclaimed only when
+ * retrying is safe: a row that already used its attempts (worker crashed or
+ * hung) or whose primary send had started is dead-lettered instead, so it can
+ * neither loop forever nor be sent twice.
+ */
 async function claimDueOutboundEffects({
   limit = DEFAULT_BATCH_SIZE,
   workerId,
   leaseMs = DEFAULT_LEASE_MS,
   workspaceId = null,
+  maxAttempts = DEFAULT_MAX_ATTEMPTS,
+  deliveryMode = "shadow",
   transactionFn = transaction
 }) {
   const owner = String(workerId || "").trim();
@@ -257,9 +282,47 @@ async function claimDueOutboundEffects({
   const batchLimit = Math.min(100, Math.max(1, Number(limit) || DEFAULT_BATCH_SIZE));
   const boundedLeaseMs = Math.min(30 * 60_000, Math.max(1_000, Number(leaseMs) || DEFAULT_LEASE_MS));
   const workspaceScope = String(workspaceId || "").trim() || null;
+  const attemptsLimit = Math.min(20, Math.max(1, Math.floor(Number(maxAttempts) || DEFAULT_MAX_ATTEMPTS)));
+  const modeFilter = deliveryMode === "primary" ? PRIMARY_ROW_SQL : `NOT (${PRIMARY_ROW_SQL})`;
 
-  return transactionFn((tx) =>
-    tx.queryAll(
+  return transactionFn(async (tx) => {
+    const abandoned = await tx.queryAll(
+      `UPDATE outbound_effect_outbox
+          SET state = 'dead_letter',
+              claimed_by = NULL,
+              claimed_until = NULL,
+              last_error = CASE
+                WHEN delivery_started_at IS NOT NULL
+                  THEN 'delivery outcome unknown: worker lost the lease after the send started'
+                ELSE 'worker lost the lease on the final attempt'
+              END,
+              updated_at = NOW()
+        WHERE state = 'processing'
+          AND claimed_until <= NOW()
+          AND (attempt_count >= $1 OR delivery_started_at IS NOT NULL)
+          AND ($2::text IS NULL OR workspace_id = $2)
+          AND ${modeFilter}
+       RETURNING id, workspace_id, release_id, effect_type, attempt_count, last_error, envelope_json`,
+      [attemptsLimit, workspaceScope]
+    );
+    for (const row of abandoned) {
+      await writeAudit({
+        workspaceId: row.workspace_id,
+        releaseId: row.release_id,
+        eventType: exhaustedAuditEventType(row),
+        actorType: "SYSTEM",
+        actorName: "outbound_effect_worker",
+        details: {
+          outbox_id: row.id,
+          effect_type: row.effect_type,
+          attempts: Number(row.attempt_count),
+          error: row.last_error
+        },
+        tx
+      });
+    }
+
+    return tx.queryAll(
       `WITH due AS (
          SELECT id
            FROM outbound_effect_outbox
@@ -272,6 +335,7 @@ async function claimDueOutboundEffects({
               AND claimed_until <= NOW()
                 ))
             AND ($4::text IS NULL OR workspace_id = $4)
+            AND ${modeFilter}
           ORDER BY
             CASE WHEN state = 'processing' THEN claimed_until ELSE next_attempt_at END ASC,
             id ASC
@@ -288,8 +352,8 @@ async function claimDueOutboundEffects({
         WHERE outbox.id = due.id
        RETURNING outbox.*`,
       [batchLimit, owner, boundedLeaseMs, workspaceScope]
-    )
-  );
+    );
+  });
 }
 
 function terminalStateForOutcome(outcome) {
@@ -345,7 +409,7 @@ async function retryOrDeadLetter(
 ) {
   const message = String(error?.message || error || "shadow comparison failed").slice(0, 1000);
   if (Number(row.attempt_count) >= maxAttempts) {
-    await runFn(
+    const deadLettered = await runFn(
       `UPDATE outbound_effect_outbox
           SET state = 'dead_letter',
               claimed_by = NULL,
@@ -357,6 +421,7 @@ async function retryOrDeadLetter(
           AND claimed_by = $3`,
       [message, row.id, workerId]
     );
+    if (Number(deadLettered?.changes || 0) !== 1) return "ownership_lost";
     try {
       await auditFn({
         workspaceId: row.workspace_id,
@@ -379,7 +444,7 @@ async function retryOrDeadLetter(
   }
 
   const nextAttemptAt = new Date(Date.now() + backoffMsForAttempt(row.attempt_count)).toISOString();
-  await runFn(
+  const retried = await runFn(
     `UPDATE outbound_effect_outbox
         SET state = 'retry',
             next_attempt_at = $1::timestamptz,
@@ -392,7 +457,7 @@ async function retryOrDeadLetter(
         AND claimed_by = $4`,
     [nextAttemptAt, message, row.id, workerId]
   );
-  return "retry";
+  return Number(retried?.changes || 0) === 1 ? "retry" : "ownership_lost";
 }
 
 async function processDueOutboundEffects({
@@ -408,10 +473,18 @@ async function processDueOutboundEffects({
   logFn = log,
   incFn = inc
 } = {}) {
-  const claimed = await claimFn({ limit, workerId, leaseMs, workspaceId });
+  const owner = batchOwner(workerId);
   const attemptsLimit = Number.isFinite(Number(maxAttempts))
     ? Math.min(20, Math.max(1, Math.floor(Number(maxAttempts))))
     : DEFAULT_MAX_ATTEMPTS;
+  const claimed = await claimFn({
+    limit,
+    workerId: owner,
+    leaseMs,
+    workspaceId,
+    maxAttempts: attemptsLimit,
+    deliveryMode: "shadow"
+  });
   const summary = {
     claimed: claimed.length,
     matched: 0,
@@ -425,7 +498,7 @@ async function processDueOutboundEffects({
   for (const row of claimed) {
     try {
       const result = await compareFn(row);
-      const finalized = await finalizeShadowComparison(row, workerId, result, runFn);
+      const finalized = await finalizeShadowComparison(row, owner, result, runFn);
       if (Number(finalized?.changes || 0) !== 1) {
         incFn("outbox_shadow_ownership_lost");
         logFn("warn", "outbox_shadow_ownership_lost", {
@@ -447,13 +520,13 @@ async function processDueOutboundEffects({
         reason: result.reason
       });
     } catch (error) {
-      const state = await retryOrDeadLetter(row, workerId, error, {
+      const state = await retryOrDeadLetter(row, owner, error, {
         maxAttempts: attemptsLimit,
         runFn,
         auditFn
       });
       if (state === "retry") summary.retried += 1;
-      else summary.dead_lettered += 1;
+      else if (state === "dead_letter") summary.dead_lettered += 1;
       incFn(`outbox_shadow_${state}`);
       logFn(state === "retry" ? "warn" : "error", `outbox_shadow_${state}`, {
         outboxId: row.id,
@@ -480,5 +553,6 @@ module.exports = {
   claimDueOutboundEffects,
   processDueOutboundEffects,
   finalizeShadowComparison,
-  retryOrDeadLetter
+  retryOrDeadLetter,
+  batchOwner
 };

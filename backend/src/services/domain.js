@@ -316,7 +316,8 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       verdictStatus: nextStatus,
       verdictIssuedAt,
       triggerSource: source,
-      failedSignals
+      failedSignals,
+      occurrence: locked.verdict_issued_at && prevStatus === nextStatus ? commitTimestamp : null
     });
     if (nextStatus === "CERTIFIED") {
       await resolvePendingEscalationsForRelease(tx, {

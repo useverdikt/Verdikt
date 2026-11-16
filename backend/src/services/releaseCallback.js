@@ -31,7 +31,7 @@ function buildReleaseCallbackPayload(release, verdictIntelligence, gateExtras = 
 
 async function deliverReleaseCallback(release, verdictIntelligence, gateExtras = {}, failedSignals = [], certification = null) {
   const callbackUrl = String(release.callback_url || "").trim();
-  if (!callbackUrl) return { delivered: false, reason: "no_callback_url" };
+  if (!callbackUrl) return { delivered: false, skipped: true, reason: "no_callback_url" };
   const payload = buildReleaseCallbackPayload(
     release,
     verdictIntelligence,
