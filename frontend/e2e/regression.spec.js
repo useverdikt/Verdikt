@@ -4,10 +4,12 @@
  */
 import { test, expect } from "@playwright/test";
 import { waitForReleaseRows, waitForSessionGate } from "./helpers/shell.js";
-import { ensureE2eCollectingRelease, ensureE2eFixtureRelease } from "./helpers/seedE2eWorkspace.js";
+import {
+  ensureE2eCollectingRelease,
+  seedCertGateSmokeRelease
+} from "./helpers/seedE2eWorkspace.js";
 
 const API = "http://127.0.0.1:8787";
-const FIXTURE_VERSION = "e2e-playwright-fixture";
 
 test.describe("deep link and certification record", () => {
   test("hub_links.release opens the named certified release", async ({ page, context }) => {
@@ -15,38 +17,48 @@ test.describe("deep link and certification record", () => {
     await waitForSessionGate(page);
     const workspaceId = await page.evaluate(() => localStorage.getItem("vdk3_workspace_id"));
     const cookies = await context.cookies();
-    const releaseId = await ensureE2eFixtureRelease({ apiBase: API, cookies, workspaceId });
-    expect(releaseId).toBeTruthy();
+    const seeded = await seedCertGateSmokeRelease({ apiBase: API, cookies, workspaceId });
+    expect(seeded.status).toMatch(/^CERTIFIED/);
 
-    const gate = await page.request.get(`${API}/api/releases/${releaseId}/gate`);
+    const gate = await page.request.get(`${API}/api/releases/${seeded.releaseId}/gate`);
     expect(gate.ok(), await gate.text()).toBeTruthy();
     const gateBody = await gate.json();
+    expect(gateBody.action).toBe("merge");
     const deepLink =
       gateBody.hub_links?.release ||
       gateBody.governance_brief?.hub_links?.release ||
-      `/releases?release=${releaseId}`;
+      `/releases?release=${seeded.releaseId}`;
     const path = deepLink.startsWith("http") ? new URL(deepLink).pathname + new URL(deepLink).search : deepLink;
 
     await page.goto(path);
     await waitForSessionGate(page);
     await waitForReleaseRows(page);
 
-    const detail = page.locator(".release-detail").first();
-    await expect(detail).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.locator(`.release-version[title="${FIXTURE_VERSION}"]`).or(detail.getByText(FIXTURE_VERSION))
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(detail.locator(".vbadge").or(page.locator(".vbadge")).first()).toContainText(/CERTIFIED/i);
+    const row = page
+      .locator(".release-row")
+      .filter({ has: page.locator(`.release-version[title="${seeded.version}"]`) })
+      .first();
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(row.locator(".vbadge")).toContainText(/CERTIFIED/i);
+    await expect(page.locator(".release-detail").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("certification record for the fixture shows its verdict", async ({ page }) => {
+  test("certification record for a certified release shows its verdict", async ({ page, context }) => {
     await page.goto("/releases");
     await waitForSessionGate(page);
+    const workspaceId = await page.evaluate(() => localStorage.getItem("vdk3_workspace_id"));
+    const cookies = await context.cookies();
+    const seeded = await seedCertGateSmokeRelease({ apiBase: API, cookies, workspaceId });
+    expect(seeded.status).toMatch(/^CERTIFIED/);
+
+    await page.goto("/releases");
     await waitForReleaseRows(page);
+    await page.getByRole("button", { name: /Sync workspace/i }).click();
+    await expect(page.getByRole("button", { name: /↻ Sync workspace/i })).toBeVisible({ timeout: 20_000 });
 
     const row = page
       .locator(".release-row")
-      .filter({ has: page.locator(`.release-version[title="${FIXTURE_VERSION}"]`) })
+      .filter({ has: page.locator(`.release-version[title="${seeded.version}"]`) })
       .first();
     await expect(row).toBeVisible({ timeout: 25_000 });
     await row.click();
@@ -54,7 +66,7 @@ test.describe("deep link and certification record", () => {
     const dialog = page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(/CERTIFIED/i);
-    await expect(dialog).toContainText(new RegExp(FIXTURE_VERSION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    await expect(dialog).toContainText(seeded.version);
   });
 });
 

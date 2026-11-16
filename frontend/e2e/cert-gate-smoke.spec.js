@@ -69,8 +69,9 @@ test.describe("cert → signal → gate smoke", () => {
     await expect(page.locator(".release-detail").first()).toBeVisible({ timeout: 15_000 });
     const briefPanel = page.getByRole("region", { name: /Release brief/i });
     await expect(briefPanel).toBeVisible({ timeout: 20_000 });
-    // Assert the server action, not a generic "gate"/"merge" substring that static copy can satisfy.
-    await expect(briefPanel).toContainText(new RegExp(`\\b${brief.gate_action}\\b`, "i"));
+    // Chip value is its own <strong> — exact match avoids "gatemerge" concatenation false negatives
+    // and also rejects unrelated copy that merely mentions "merge".
+    await expect(briefPanel.locator("strong", { hasText: new RegExp(`^${brief.gate_action}$`, "i") })).toBeVisible();
     if (Array.isArray(brief.top_blockers) && brief.top_blockers.length) {
       for (const b of brief.top_blockers.slice(0, 3)) {
         const needle = b.signal_id || b.message;

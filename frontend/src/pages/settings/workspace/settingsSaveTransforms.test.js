@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { THRESH_DEFAULTS } from "../settingsData.js";
 import {
   normalizeThresholdsStateForSave,
-  thresholdNormalizedToApiPayload,
   slugifyWorkspaceSlug,
   normalizeApiBaseOrigin
 } from "./settingsSaveTransforms.js";

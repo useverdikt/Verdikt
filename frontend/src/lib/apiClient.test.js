@@ -98,7 +98,7 @@ describe("apiClient", () => {
     localStorage.setItem("vdk3_currentUser", JSON.stringify({ email: "x@y.z" }));
     appQueryClient.setQueryData(["workspace", "ws"], { ok: true });
     const navigate = vi.fn();
-    const fetchMock = vi.fn(async (url, init) => {
+    const fetchMock = vi.fn(async (url) => {
       if (String(url).includes("/api/auth/logout")) {
         return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
       }
