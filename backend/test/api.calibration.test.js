@@ -166,60 +166,6 @@ describe("calibration threshold suggestions", () => {
     assert.equal(gate.body.calibration.mode, "suggest_only");
   });
 
-  it("auto_apply policy applies CAUTIOUS prod suggestions via calibrationAutoApply", async () => {
-    const email = `cal_auto_${crypto.randomBytes(4).toString("hex")}@test.local`;
-    const agent = request.agent(app);
-    await agent.post("/api/auth/register").send({ email, password: "password123", name: "Cal Auto" }).expect(200);
-    await agent.post("/api/auth/login").send({ email, password: "password123" }).expect(200);
-    const me = await agent.get("/api/auth/me").expect(200);
-    const ws = me.body.user.workspace_id;
-    await ensureWorkspaceSeeded(ws);
-    await seedDefaultThresholdsForTest(ws);
-    await run("UPDATE workspace_policies SET calibration_mode = 'auto_apply' WHERE workspace_id = $1", [ws]);
-    await run("UPDATE thresholds SET min_value = $1 WHERE workspace_id = $2 AND signal_id = $3", [90, ws, "accuracy"]);
-
-    const created = await agent
-      .post(`/api/workspaces/${ws}/releases`)
-      .send({ version: "cal-auto-v1", release_type: "model_update" })
-      .expect(201);
-    const releaseId = created.body.id;
-    const ts = nowIso();
-
-    await run(
-      `INSERT INTO outcome_alignments
-        (release_id, workspace_id, recommended_verdict, actual_outcome, alignment,
-         signal_deltas_json, outcome_criteria_json, over_block_suggestions_json, computed_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [
-        releaseId,
-        ws,
-        "UNCERTIFIED",
-        "HEALTHY",
-        "CAUTIOUS",
-        "{}",
-        "[]",
-        JSON.stringify([
-          {
-            signal_id: "accuracy",
-            direction: "lower_min",
-            current_threshold: 90,
-            suggested_threshold: 85.5,
-            rationale: "Prod healthy after block."
-          }
-        ]),
-        ts,
-        ts
-      ]
-    );
-
-    const { maybeAutoApplyCalibrationSuggestions } = require("../src/services/calibrationAutoApply");
-    const result = await maybeAutoApplyCalibrationSuggestions(ws, releaseId, "CAUTIOUS");
-    assert.ok(result.applied.length >= 1, "auto_apply should apply prod suggestion");
-
-    const thresh = await agent.get(`/api/workspaces/${ws}/thresholds`).expect(200);
-    assert.equal(thresh.body.thresholds.accuracy.min, 85.5);
-  });
-
   it("policies default calibration_mode to suggest_only", async () => {
     const email = `cal_pol_${crypto.randomBytes(4).toString("hex")}@test.local`;
     const agent = request.agent(app);

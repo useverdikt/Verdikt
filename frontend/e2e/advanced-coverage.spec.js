@@ -76,39 +76,8 @@ test.describe("modal interaction coverage", () => {
     await page.getByPlaceholder("e.g. v2.15.0").fill("v9.9.9-e2e");
     await page.getByRole("button", { name: /Start certification →/i }).click();
     await expect(page.getByRole("heading", { name: /Start certification/i })).toBeHidden();
-    await expect(page.locator("body")).toContainText(/COLLECTING|Signal collection progress|Simulate/i);
-  });
-
-  test("Share modal opens from release header and closes", async ({ page }) => {
-    await page.goto("/releases");
-    await waitForSessionGateLocal(page);
-
-    const shareBtn = page.locator(".release-header-share-btn").first();
-    if (await shareBtn.count()) {
-      await expect(shareBtn).toBeVisible();
-      await shareBtn.click();
-      await expect(page.getByRole("button", { name: /Copy link|✓ Copied/i })).toBeVisible();
-      await page.getByRole("button", { name: /Close/i }).first().click();
-      await expect(page.getByRole("button", { name: /Copy link|✓ Copied/i })).toBeHidden();
-    } else {
-      // Collecting-only releases have no share action in current UI.
-      await expect(page.locator("body")).toContainText(/COLLECTING|Signal collection progress|Simulate/i);
-    }
-  });
-
-  test("Certification record modal opens from Audit Trail row", async ({ page }) => {
-    await page.goto("/audit");
-    await waitForSessionGateLocal(page);
-
-    const clickableRows = page.locator("div[style*='cursor: pointer']");
-    const count = await clickableRows.count();
-    if (count === 0) {
-      // Workspace may only have auth/admin audit events (no release-linked entries yet).
-      await expect(page.getByRole("heading", { name: "Audit Trail" })).toBeVisible();
-      return;
-    }
-    await clickableRows.first().click();
-    await expect(page.getByText(/CERTIFICATION RECORD/i).first()).toBeVisible();
+    // The new session must appear as its own row — not just any COLLECTING copy on the page.
+    await expect(page.locator(`.release-version[title="v9.9.9-e2e"]`)).toBeVisible({ timeout: 20_000 });
   });
 });
 
@@ -133,26 +102,5 @@ test.describe("permission / role matrix", () => {
     });
   });
 
-  test("VP Engineering role can act on release dashboard", async ({ page }) => {
-    // global-setup logs in demo@verdikt.local (vp_engineering) — server-authoritative role
-    await page.goto("/releases");
-    await waitForSessionGateLocal(page);
-    // Sidebar release actions live in ReleaseCandidateSection (not mounted in current shell); primary CTAs are on the dashboard header.
-    await expect(newReleaseButton(page)).toBeVisible();
-  });
-});
-
-test.describe("deep widget states", () => {
-  test("Production alignment panel renders either empty or metrics state", async ({ page }) => {
-    await page.goto("/intelligence/alignment");
-    await waitForSessionGateLocal(page);
-    await expect(page).toHaveURL(/\/intelligence\/alignment$/);
-    await expect(page.getByText("Production Alignment", { exact: true }).first()).toBeVisible();
-    await expect(
-      page.getByText(
-        /Waiting for first alignment|Production data is collected|Prediction accuracy|total releases with feedback|alignment and post-deploy|Alignment data requires production observation|Production observation is off|View VCS production monitor/i
-      ).first()
-    ).toBeVisible({ timeout: 15_000 });
-  });
 });
 

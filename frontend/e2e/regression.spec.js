@@ -1,48 +1,72 @@
 /**
- * Regression pack — authenticated flows on real API + Vite (playwright webServer).
- * Complements app.spec.js / full-coverage.spec.js with release-dashboard modals and API checks.
- * Run: npm run test:e2e (from frontend/)
+ * Regression pack — release-dashboard behaviours that journey specs do not cover.
+ * Weak "page loads" / health / Array.isArray API checks live elsewhere or were removed.
  */
 import { test, expect } from "@playwright/test";
-import { newReleaseButton, waitForReleaseRows, waitForSessionGate } from "./helpers/shell.js";
-import { ensureE2eCollectingRelease } from "./helpers/seedE2eWorkspace.js";
+import { waitForReleaseRows, waitForSessionGate } from "./helpers/shell.js";
+import {
+  ensureE2eCollectingRelease,
+  seedCertGateSmokeRelease
+} from "./helpers/seedE2eWorkspace.js";
 
 const API = "http://127.0.0.1:8787";
 
-test.describe("releases dashboard (authenticated)", () => {
-  test.beforeEach(async ({ page }) => {
+test.describe("deep link and certification record", () => {
+  test("hub_links.release opens the named certified release", async ({ page, context }) => {
     await page.goto("/releases");
     await waitForSessionGate(page);
-  });
+    const workspaceId = await page.evaluate(() => localStorage.getItem("vdk3_workspace_id"));
+    const cookies = await context.cookies();
+    const seeded = await seedCertGateSmokeRelease({ apiBase: API, cookies, workspaceId });
+    expect(seeded.status).toMatch(/^CERTIFIED/);
 
-  test("+ New release opens Start certification modal", async ({ page }) => {
-    await newReleaseButton(page).click();
-    await expect(page.getByText("NEW CERTIFICATION SESSION")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Start certification/i })).toBeVisible();
-    await page.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(page.getByText("NEW CERTIFICATION SESSION")).toBeHidden();
-  });
+    const gate = await page.request.get(`${API}/api/releases/${seeded.releaseId}/gate`);
+    expect(gate.ok(), await gate.text()).toBeTruthy();
+    const gateBody = await gate.json();
+    expect(gateBody.action).toBe("merge");
+    const deepLink =
+      gateBody.hub_links?.release ||
+      gateBody.governance_brief?.hub_links?.release ||
+      `/releases?release=${seeded.releaseId}`;
+    const path = deepLink.startsWith("http") ? new URL(deepLink).pathname + new URL(deepLink).search : deepLink;
 
-  test("expand row → View full record opens certification record modal", async ({ page }) => {
+    await page.goto(path);
+    await waitForSessionGate(page);
     await waitForReleaseRows(page);
-    const firstRow = page.locator(".release-row").first();
-    await firstRow.click();
-    await page.getByRole("button", { name: /View full record/i }).click({ force: true });
-    await expect(page.getByText("CERTIFICATION RECORD").first()).toBeVisible();
-    await page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" }).getByRole("button", { name: /Close/i }).click();
-    await expect(page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" })).toHaveCount(0);
+
+    const row = page
+      .locator(".release-row")
+      .filter({ has: page.locator(`.release-version[title="${seeded.version}"]`) })
+      .first();
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(row.locator(".vbadge")).toContainText(/CERTIFIED/i);
+    await expect(page.locator(".release-detail").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("certification record → Share snapshot opens share dialog", async ({ page }) => {
+  test("certification record for a certified release shows its verdict", async ({ page, context }) => {
+    await page.goto("/releases");
+    await waitForSessionGate(page);
+    const workspaceId = await page.evaluate(() => localStorage.getItem("vdk3_workspace_id"));
+    const cookies = await context.cookies();
+    const seeded = await seedCertGateSmokeRelease({ apiBase: API, cookies, workspaceId });
+    expect(seeded.status).toMatch(/^CERTIFIED/);
+
+    await page.goto("/releases");
     await waitForReleaseRows(page);
-    const firstRow = page.locator(".release-row").first();
-    await firstRow.click();
-    await page.getByRole("button", { name: /View full record/i }).click({ force: true });
-    await page.getByRole("button", { name: /Share snapshot/i }).click();
-    await expect(page.getByRole("dialog").filter({ hasText: /Certified|Uncertified/i }).first()).toBeVisible({
-      timeout: 10_000
-    });
-    await page.getByRole("button", { name: /Close/i }).last().click();
+    await page.getByRole("button", { name: /Sync workspace/i }).click();
+    await expect(page.getByRole("button", { name: /↻ Sync workspace/i })).toBeVisible({ timeout: 20_000 });
+
+    const row = page
+      .locator(".release-row")
+      .filter({ has: page.locator(`.release-version[title="${seeded.version}"]`) })
+      .first();
+    await expect(row).toBeVisible({ timeout: 25_000 });
+    await row.click();
+    await page.getByRole("button", { name: /View full record/i }).click();
+    const dialog = page.locator('[role="dialog"]').filter({ hasText: "CERTIFICATION RECORD" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(/CERTIFIED/i);
+    await expect(dialog).toContainText(seeded.version);
   });
 });
 
@@ -58,6 +82,12 @@ test.describe("collecting row actions", () => {
       workspaceId
     });
     expect(collecting?.id).toBeTruthy();
+
+    const beforeRes = await page.request.get(`${API}/api/releases/${collecting.id}`);
+    expect(beforeRes.ok(), await beforeRes.text()).toBeTruthy();
+    const beforeBody = await beforeRes.json();
+    const beforeDeadline =
+      beforeBody.release?.collection_deadline || beforeBody.collection_deadline || null;
 
     await page.goto("/releases");
     await waitForReleaseRows(page);
@@ -83,33 +113,14 @@ test.describe("collecting row actions", () => {
     await expect(collectingDetail).toBeVisible();
     await collectingDetail.getByRole("button", { name: /Extend deadline/i }).click();
     await expect(page.locator("body")).toContainText(/Collection deadline extended/i);
-  });
-});
 
-test.describe("API smoke (authenticated request)", () => {
-  test("login + GET workspace releases returns JSON list", async ({ request }) => {
-    const login = await request.post(`${API}/api/auth/login`, {
-      data: { email: "demo@verdikt.local", password: "demo123" }
-    });
-    expect(login.ok(), await login.text()).toBeTruthy();
-
-    // Auth is cookie-first in this app. Confirm session and use workspace from /me.
-    const me = await request.get(`${API}/api/auth/me`);
-    expect(me.ok(), await me.text()).toBeTruthy();
-    const { user } = await me.json();
-    const ws = user?.workspace_id || "ws_demo";
-
-    const res = await request.get(`${API}/api/workspaces/${ws}/releases?limit=10`);
-    expect(res.ok(), await res.text()).toBeTruthy();
-    const data = await res.json();
-    expect(data).toHaveProperty("releases");
-    expect(Array.isArray(data.releases)).toBeTruthy();
-  });
-
-  test("health + ready", async ({ request }) => {
-    const h = await request.get(`${API}/health`);
-    expect(h.ok()).toBeTruthy();
-    const r = await request.get(`${API}/health/ready`);
-    expect(r.ok()).toBeTruthy();
+    const afterRes = await page.request.get(`${API}/api/releases/${collecting.id}`);
+    expect(afterRes.ok(), await afterRes.text()).toBeTruthy();
+    const afterBody = await afterRes.json();
+    const afterDeadline = afterBody.release?.collection_deadline || afterBody.collection_deadline || null;
+    expect(afterDeadline).toBeTruthy();
+    if (beforeDeadline) {
+      expect(new Date(afterDeadline).getTime()).toBeGreaterThan(new Date(beforeDeadline).getTime());
+    }
   });
 });

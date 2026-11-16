@@ -117,6 +117,38 @@ describe("release governance routes require human session", () => {
     assert.ok(res.body.request_id);
   });
 
+  it("POST /revoke-certification rejects agent API key with 403", async () => {
+    const { human, workspaceId } = await createHumanSession();
+    const apiKey = await createAgentKey(human, workspaceId);
+    const releaseId = await createRelease(human, workspaceId);
+
+    const res = await request(app)
+      .post(`/api/releases/${releaseId}/revoke-certification`)
+      .set("Authorization", `Bearer ${apiKey}`)
+      .send({ justification: "Agent must never revoke certification over the control plane." });
+
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error, "human_session_required");
+  });
+
+  it("POST /collection-deadline/extend leaves the deadline unchanged when agent-keyed", async () => {
+    const { queryOne } = require("../src/database");
+    const { human, workspaceId } = await createHumanSession();
+    const apiKey = await createAgentKey(human, workspaceId);
+    const releaseId = await createRelease(human, workspaceId);
+    const before = await queryOne("SELECT collection_deadline FROM releases WHERE id = $1", [releaseId]);
+
+    const res = await request(app)
+      .post(`/api/releases/${releaseId}/collection-deadline/extend`)
+      .set("Authorization", `Bearer ${apiKey}`)
+      .send({ extend_minutes: 10 });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error, "human_session_required");
+
+    const after = await queryOne("SELECT collection_deadline FROM releases WHERE id = $1", [releaseId]);
+    assert.equal(after.collection_deadline, before.collection_deadline);
+  });
+
   it("POST /intelligence/decision ignores body actor and records the authenticated human", async () => {
     const { human, email, workspaceId } = await createHumanSession();
     const releaseId = await createRelease(human, workspaceId);

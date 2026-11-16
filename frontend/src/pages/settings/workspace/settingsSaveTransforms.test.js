@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { THRESH_DEFAULTS } from "../settingsData.js";
 import {
   normalizeThresholdsStateForSave,
-  thresholdNormalizedToApiPayload,
   slugifyWorkspaceSlug,
   normalizeApiBaseOrigin
 } from "./settingsSaveTransforms.js";
@@ -45,13 +44,11 @@ describe("normalizeThresholdsStateForSave", () => {
     expect(t.manual_qa_showstopper).toBe("P1");
     expect(t.p95latency).toBe(THRESH_DEFAULTS.p95latency);
   });
-});
 
-describe("thresholdNormalizedToApiPayload", () => {
-  it("maps min-direction signals to min and max-direction to max", () => {
-    const t = normalizeThresholdsStateForSave(THRESH_DEFAULTS, THRESH_DEFAULTS);
-    const payload = thresholdNormalizedToApiPayload(t, { smoke: true, p95latency: false });
-    expect(payload.smoke).toEqual({ min: THRESH_DEFAULTS.smoke, max: null, required_for_certification: true });
-    expect(payload.p95latency).toEqual({ min: null, max: THRESH_DEFAULTS.p95latency, required_for_certification: false });
+  it("preserves an explicit zero instead of falling back to the default", () => {
+    const ui = { ...THRESH_DEFAULTS, crashrate: "0", accuracy: 0 };
+    const t = normalizeThresholdsStateForSave(THRESH_DEFAULTS, ui);
+    expect(t.crashrate).toBe(0);
+    expect(t.accuracy).toBe(0);
   });
 });

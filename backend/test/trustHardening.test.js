@@ -109,14 +109,16 @@ describe("audit hash chain", () => {
       [ws]
     );
     assert.ok(row?.row_hash);
+    const originalDetails = row.details_json;
 
-    // Simulate tamper: delete hash so verify reports missing, not silent repair
-    try {
-      await run("UPDATE audit_events SET details_json = $1 WHERE id = $2", ['{"n":999}', row.id]);
-      assert.fail("audit_events should be append-only");
-    } catch (err) {
-      assert.match(String(err.message), /append-only/i);
-    }
+    // Append-only trigger must reject mutation; assert.rejects (not try/catch +
+    // assert.fail) so a successful UPDATE cannot pass via the catch path.
+    await assert.rejects(
+      () => run("UPDATE audit_events SET details_json = $1 WHERE id = $2", ['{"n":999}', row.id]),
+      /append-only/i
+    );
+    const after = await queryOne("SELECT details_json FROM audit_events WHERE id = $1", [row.id]);
+    assert.equal(after.details_json, originalDetails);
   });
 
   it("rejects insert when chain computation fails", async () => {
