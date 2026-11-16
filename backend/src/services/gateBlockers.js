@@ -13,7 +13,8 @@ function buildGateBlockers({
   missingRequiredSignals = [],
   failedSignals = [],
   remediationDebt = null,
-  isEmergencyRelease = false
+  isEmergencyRelease = false,
+  prodLocked = false
 }) {
   if (gateAllowed) {
     return {
@@ -51,14 +52,25 @@ function buildGateBlockers({
     });
   }
 
+  if (prodLocked) {
+    push({
+      type: "prod_locked",
+      code: "prod_uncertified_locked",
+      message: "Release is UNCERTIFIED and live in production; new signals cannot change the verdict.",
+      next_step:
+        "Escalate for a human retroactive override, or push a fix as a new commit and certify that release."
+    });
+  }
+
   for (const signalId of missingRequiredSignals || []) {
     if (!signalId) continue;
     push({
       type: "missing_signal",
       signal_id: signalId,
       message: `Required signal "${signalId}" has no value yet.`,
-      next_step:
-        "Connect the integration for this signal in Settings → Signal sources, verify SHA tagging on the PR head commit, or POST the signal via API/MCP post_signals."
+      next_step: prodLocked
+        ? "Signal ingest is closed for this production release; escalate or certify a new commit."
+        : "Connect the integration for this signal in Settings → Signal sources, verify SHA tagging on the PR head commit, or POST the signal via API/MCP post_signals."
     });
   }
 
@@ -110,7 +122,7 @@ function buildGateBlockers({
       code: "override_not_allowed_in_strict",
       message: "Strict gate mode requires CERTIFIED without override.",
       next_step:
-        "Achieve a clean certification without override, or use default gate mode in Settings → Governance."
+        "Push a new commit that certifies without override, use incident_hotfix with corroborated incident context, or switch to default gate mode in Settings → Governance."
     });
   }
 

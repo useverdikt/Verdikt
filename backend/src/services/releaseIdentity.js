@@ -499,7 +499,9 @@ function computeGateAction({
   collectionAgeMs = null,
   gracePeriodMs = COLLECTION_GRACE_MS,
   blockedByRemediationDebt = false,
-  snapshotMissing = false
+  snapshotMissing = false,
+  strictBlocked = false,
+  prodLocked = false
 }) {
   if (status === "CERTIFICATION_REVOKED") {
     return "revoked";
@@ -510,9 +512,8 @@ function computeGateAction({
   if (snapshotMissing && (status === "CERTIFIED" || status === "CERTIFIED_WITH_OVERRIDE")) {
     return "recover_certification";
   }
-  if (blockedByRemediationDebt) {
-    return "recover_certification";
-  }
+  // Before debt: a collecting release may still certify cleanly, which is
+  // what clears remediation debt, so CI should keep waiting for signals.
   if (status === "COLLECTING") {
     const inGrace =
       collectionAgeMs != null && collectionAgeMs >= 0 && collectionAgeMs < gracePeriodMs;
@@ -520,6 +521,16 @@ function computeGateAction({
       return "collecting";
     }
     return "self_heal";
+  }
+  if (blockedByRemediationDebt) {
+    return "recover_certification";
+  }
+  // Ingest is locked for these, so self_heal could never succeed.
+  if (strictBlocked) {
+    return "recover_certification";
+  }
+  if (prodLocked) {
+    return "escalate";
   }
   if (Array.isArray(missingRequiredSignals) && missingRequiredSignals.length > 0) {
     return "self_heal";

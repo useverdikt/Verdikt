@@ -5,6 +5,8 @@ const { computeReleaseTrajectory } = require("./gateTrajectory");
 const { getMissingRequiredSignals } = require("./verdictEngine");
 const { computeGateAction, computeCollectionAgeMs } = require("./releaseIdentity");
 const { getWorkspacePolicy } = require("./workspaceConfig");
+const { computeGateAllowance, resolveGateMode } = require("./gateAllowance");
+const { isProdEnvironment } = require("../lib/releaseStatus");
 const { getReleaseIntelligence, computeVerdict } = require("./domain");
 const { buildGateBlockers } = require("./gateBlockers");
 const { buildGateRemediation } = require("./gateRemediation");
@@ -88,52 +90,31 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
   // remediation stay useful while merge is blocked with recover_certification.
   const snapshotMissing = isCertifiedSnapshotMissing(release, evidence);
 
-  const mode =
-    modeOverride === "strict"
-      ? "strict"
-      : modeOverride === "default"
-        ? "default"
-        : policy?.gate_mode === "strict"
-          ? "strict"
-          : "default";
-  const strictAllowed = release.status === "CERTIFIED";
-  let gateAllowed = mode === "strict" ? strictAllowed : allowed;
-  let gateReason =
-    mode === "strict" && release.status === "CERTIFIED_WITH_OVERRIDE"
-      ? "strict mode requires CERTIFIED without override"
-      : reason;
+  const mode = resolveGateMode(modeOverride, policy);
 
   // Remediation debt: after an emergency merge without certification, the
   // workspace must clear the debt with a clean CERTIFIED release before
   // non-emergency merges can proceed via override or bypass. Emergency
   // releases (e.g. incident_hotfix) are exempt so teams can keep fighting a
-  // live incident without being blocked by the circuit breaker.
+  // live incident without being blocked by the circuit breaker. Strict mode
+  // normally requires CERTIFIED without override; emergency hotfixes with
+  // corroborated incident context may still merge on override.
   const isEmergencyRelease = isEmergencyReleaseType(release.release_type);
   const incidentCorroboration = isEmergencyRelease
     ? await getWorkspaceIncidentCorroboration(release.workspace_id)
     : null;
-
-  // Strict mode normally requires CERTIFIED without override; emergency hotfixes
-  // with corroborated incident context may still merge on override.
-  if (
-    mode === "strict" &&
-    release.status === "CERTIFIED_WITH_OVERRIDE" &&
-    isEmergencyRelease &&
-    incidentCorroboration?.eligible
-  ) {
-    gateAllowed = true;
-    gateReason = reason;
-  }
-
-  let blockedByRemediationDebt = false;
-  if (remediationDebt.active && !isEmergencyRelease && release.status !== "CERTIFIED") {
-    gateAllowed = false;
-    gateReason = remediationDebt.message;
-    blockedByRemediationDebt = true;
-  }
+  const { gateAllowed, strictBlocked, blockedByRemediationDebt } = computeGateAllowance({
+    status: release.status,
+    mode,
+    isEmergencyRelease,
+    incidentCorroborated: !!incidentCorroboration?.eligible,
+    remediationDebtActive: !!remediationDebt.active,
+    snapshotMissing
+  });
+  let gateReason = strictBlocked ? "strict mode requires CERTIFIED without override" : reason;
+  if (blockedByRemediationDebt) gateReason = remediationDebt.message;
 
   if (snapshotMissing) {
-    gateAllowed = false;
     gateReason = "certification snapshot is missing; gate blocked until evidence is frozen";
     log("warn", "gate_snapshot_missing", {
       releaseId,
@@ -158,6 +139,7 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     thresholdMap
   );
   const collectionAgeMs = computeCollectionAgeMs(release);
+  const prodLocked = release.status === "UNCERTIFIED" && isProdEnvironment(release.environment);
   const action = computeGateAction({
     status: release.status,
     gateAllowed,
@@ -165,7 +147,9 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     missingRequiredSignals,
     collectionAgeMs,
     blockedByRemediationDebt,
-    snapshotMissing
+    snapshotMissing,
+    strictBlocked,
+    prodLocked
   });
   const actionKey = String(action || "unknown").toLowerCase();
   inc(`gate_action_${actionKey}`);
@@ -191,7 +175,8 @@ async function buildReleaseGateResponse(release, { mode: modeOverride, auth, ski
     missingRequiredSignals,
     failedSignals,
     remediationDebt,
-    isEmergencyRelease
+    isEmergencyRelease,
+    prodLocked: prodLocked && !blockedByRemediationDebt
   });
 
   const remediation =
