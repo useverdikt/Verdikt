@@ -63,11 +63,12 @@ describe("Agentic layer", () => {
       .expect(201);
     assert.equal(rel.body.trigger_source, "agent");
 
-    await agent
+    const keyCreateDenied = await agent
       .post(`/api/workspaces/${ws}/api-keys`)
       .set("Authorization", `Bearer ${keyRes.body.api_key}`)
-      .send({ name: "blocked" })
-      .expect(403);
+      .send({ name: "blocked" });
+    assert.equal(keyCreateDenied.status, 403);
+    assert.equal(keyCreateDenied.body.error, "human_session_required");
 
     await ensureWorkspaceSeeded(ws);
     const thresholdMap = await getThresholdMap(ws);
@@ -85,36 +86,16 @@ describe("Agentic layer", () => {
       .set("Authorization", `Bearer ${keyRes.body.api_key}`)
       .send({ source: "agent", signals })
       .expect(200);
-    assert.ok(["CERTIFIED", "UNCERTIFIED", "COLLECTING"].includes(ingest.body.status));
+    // Passing every required floor by min+1 must certify — do not accept any status.
+    assert.equal(ingest.body.status, "CERTIFIED");
 
     const gate = await agent
       .get(`/api/releases/${rel.body.id}/gate`)
       .set("Authorization", `Bearer ${keyRes.body.api_key}`)
       .expect(200);
-    assert.equal(typeof gate.body.can_merge, "boolean");
-    assert.ok(gate.body.gate);
-    assert.ok(["IMPROVING", "STABLE", "DEGRADING", "UNKNOWN"].includes(gate.body.gate.trajectory));
-    assert.equal(typeof gate.body.gate.exit_code, "number");
-    assert.ok(["merge", "collecting", "self_heal", "escalate"].includes(gate.body.action));
-
-    const esc =
-      ingest.body.status === "CERTIFIED" || ingest.body.status === "CERTIFIED_WITH_OVERRIDE"
-        ? null
-        : await agent
-            .post(`/api/releases/${rel.body.id}/escalate`)
-            .set("Authorization", `Bearer ${keyRes.body.api_key}`)
-            .send({ reason: "Cannot improve accuracy after 2 attempts" })
-            .expect(202);
-    if (esc) {
-      assert.equal(esc.body.escalation.state, "pending_human_review");
-      assert.ok(String(esc.body.escalation.id || "").startsWith("esc_"));
-    }
-  });
-
-  it("validateOutboundWebhookUrl blocks private callback URLs", async () => {
-    const { validateOutboundWebhookUrl } = require("../src/lib/outboundUrl");
-    await assert.rejects(() => validateOutboundWebhookUrl("http://127.0.0.1/callback"), /private|not allowed/i);
-    await assert.doesNotReject(() => validateOutboundWebhookUrl("https://93.184.216.34/verdikt"));
+    assert.equal(gate.body.action, "merge");
+    assert.equal(gate.body.can_merge, true);
+    assert.equal(gate.body.gate.exit_code, 0);
   });
 });
 

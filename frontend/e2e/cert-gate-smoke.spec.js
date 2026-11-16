@@ -69,8 +69,28 @@ test.describe("cert → signal → gate smoke", () => {
     await expect(page.locator(".release-detail").first()).toBeVisible({ timeout: 15_000 });
     const briefPanel = page.getByRole("region", { name: /Release brief/i });
     await expect(briefPanel).toBeVisible({ timeout: 20_000 });
-    await expect(briefPanel).toContainText(/gate/i);
-    await expect(briefPanel).toContainText(/merge/i);
+    // Assert the server action, not a generic "gate"/"merge" substring that static copy can satisfy.
+    await expect(briefPanel).toContainText(new RegExp(`\\b${brief.gate_action}\\b`, "i"));
+    if (Array.isArray(brief.top_blockers) && brief.top_blockers.length) {
+      for (const b of brief.top_blockers.slice(0, 3)) {
+        const needle = b.signal_id || b.message;
+        if (needle) await expect(briefPanel).toContainText(String(needle));
+      }
+    }
+
+    // Deep link from hub_links must open this release (not the first row).
+    const deepLink =
+      gateIdBody.hub_links?.release ||
+      brief.hub_links?.release ||
+      `/releases?release=${seeded.releaseId}`;
+    const path = deepLink.startsWith("http") ? new URL(deepLink).pathname + new URL(deepLink).search : deepLink;
+    await page.goto(path);
+    await waitForSessionGate(page);
+    await waitForReleaseRows(page);
+    await expect(page.locator(`.release-version[title="${seeded.version}"]`)).toBeVisible({
+      timeout: 20_000
+    });
+    await expect(page.locator(".release-detail").first()).toBeVisible({ timeout: 15_000 });
 
     // Threshold save (human control-plane) — wait for adopted signal number inputs.
     await page.goto("/thresholds");
@@ -85,12 +105,24 @@ test.describe("cert → signal → gate smoke", () => {
     await expect(saveBtn).toBeVisible();
     const firstNumber = page.locator('input[type="number"]').first();
     await expect(firstNumber).toBeVisible({ timeout: 20_000 });
+    const signalLabel =
+      (await firstNumber.getAttribute("name")) ||
+      (await firstNumber.getAttribute("aria-label")) ||
+      (await firstNumber.evaluate((el) => el.closest("label,tr,div")?.innerText?.split("\n")?.[0] || ""));
     const before = await firstNumber.inputValue();
     const next = String(Number(before || "90") === 91 ? 90 : 91);
     await firstNumber.fill(next);
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
     await expect(page.getByRole("button", { name: /✓ Saved/i })).toBeVisible({ timeout: 15_000 });
+
+    // Persist check: reload and confirm the same input kept the value.
+    await page.reload();
+    await waitForSessionGate(page);
+    await expect(page.getByText("Workspace signals")).toBeVisible({ timeout: 15_000 });
+    const afterReload = page.locator('input[type="number"]').first();
+    await expect(afterReload).toHaveValue(next, { timeout: 15_000 });
+    expect(signalLabel || "threshold-input").toBeTruthy();
 
     // Frozen cert: live threshold edit must not flip a certified release off merge.
     const gateAfter = await page.request.get(`${API}/api/releases/${seeded.releaseId}/gate`);

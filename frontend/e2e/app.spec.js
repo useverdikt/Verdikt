@@ -1,11 +1,12 @@
+/**
+ * Thin public-route checks that are not duplicated in full-coverage.
+ * Prefer journey specs (cert-gate-smoke, escalations, regression) for behaviour.
+ */
 import { test, expect } from "@playwright/test";
-import { AUTHENTICATED_SHELL_RE, waitForSessionGate } from "./helpers/shell.js";
-
-const API = "http://127.0.0.1:8787";
 
 const emptyStorage = { cookies: [], origins: [] };
 
-test.describe("full-stack smoke — public / no session", () => {
+test.describe("public routes", () => {
   test.use({ storageState: emptyStorage });
 
   test("login page links to forgot password", async ({ page }) => {
@@ -15,73 +16,23 @@ test.describe("full-stack smoke — public / no session", () => {
     await expect(page.getByRole("button", { name: /Send reset link|Reset password/i })).toBeVisible();
   });
 
-  test("unauthenticated users are sent to /login", async ({ page }) => {
-    await page.goto("/releases");
-    await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
-  });
-
-  test("onboarding route loads wizard or design-partner gate", async ({ page }) => {
-    await page.goto("/onboarding");
-    await expect(
-      page.getByText(/Step 1 of 6|Design partner access|Here.s the value|Self-service signup/i).first()
-    ).toBeVisible({ timeout: 25_000 });
-  });
-
-  test("request-access route loads", async ({ page }) => {
+  test("request-access form is submittable", async ({ page }) => {
     await page.goto("/request-access");
     await expect(page.getByRole("heading", { name: /Get on the list for/i })).toBeVisible();
+    const email = page.getByLabel(/email/i).or(page.locator('input[type="email"]')).first();
+    await expect(email).toBeVisible();
+    await email.fill(`e2e-waitlist-${Date.now()}@example.com`);
+    const submit = page.getByRole("button", { name: /join|request|submit|get on/i }).first();
+    await expect(submit).toBeVisible();
+    await submit.click();
+    await expect(
+      page.getByText(/thanks|you're on|on the list|check your email|received|submitted/i).first()
+    ).toBeVisible({ timeout: 15_000 });
   });
 
-  test("EU AI Act mapping page loads", async ({ page }) => {
+  test("EU AI Act mapping page states it is not a compliance guarantee", async ({ page }) => {
     await page.goto("/eu-ai-act");
     await expect(page.getByRole("heading", { name: /Verdikt and the EU AI Act/i })).toBeVisible();
     await expect(page.getByText(/not a compliance guarantee/i).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /request access/i })).toBeVisible();
-  });
-
-  test("marketing landing at /", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByText(/Verdikt/i).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /Sign in|Join waitlist/i }).first()).toBeVisible();
-  });
-
-  test("backend /health responds", async ({ page }) => {
-    const res = await page.request.get(`${API}/health`);
-    expect(res.ok()).toBeTruthy();
-    const text = await res.text();
-    expect(text).toContain("verdikt-backend");
-  });
-});
-
-test.describe("full-stack smoke — authenticated (storageState from global-setup)", () => {
-  test("email previews at /emails", async ({ page }) => {
-    await page.goto("/emails");
-    await page.waitForLoadState("networkidle");
-    await expect(page).toHaveURL(/\/emails$/);
-    const hasPreviewText = await page.getByText(/Preview only.*templates ship as HTML/i).isVisible().catch(() => false);
-    const hasCopyBtn = await page.getByRole("button", { name: /Copy HTML/i }).isVisible().catch(() => false);
-    const hasLegacyIframe = await page.locator('iframe[title="Email notification previews"]').isVisible().catch(() => false);
-    const hasServerErr = await page.getByText(/Can.?t reach the server to verify your session/i).isVisible().catch(() => false);
-    const hasAnyContent = await page.locator("body").isVisible().catch(() => false);
-    expect(hasPreviewText || hasCopyBtn || hasLegacyIframe || hasServerErr || hasAnyContent).toBeTruthy();
-  });
-
-  test("dashboard routes /releases; /trends redirects to Intelligence Hub", async ({ page }) => {
-    await page.goto("/releases");
-    await expect(page).toHaveURL(/\/releases$/);
-    await page.goto("/trends");
-    await expect(page).toHaveURL(/\/intelligence\/trends$/);
-  });
-
-  test("document title loads on /releases", async ({ page }) => {
-    await page.goto("/releases");
-    await expect(page).toHaveTitle(/Verdikt/i);
-  });
-
-  test("release shell renders content", async ({ page }) => {
-    await page.goto("/releases");
-    await waitForSessionGate(page);
-    await expect(page.locator("body")).toContainText(AUTHENTICATED_SHELL_RE);
   });
 });

@@ -44,6 +44,7 @@ const AGENT_ALLOWED_AUTHENTICATED_MUTATIONS = new Set([
  */
 const CONTROL_PLANE_MUST_REQUIRE_HUMAN = [
   "POST /api/releases/:releaseId/override",
+  "POST /api/releases/:releaseId/revoke-certification",
   "POST /api/releases/:releaseId/intelligence/decision",
   "POST /api/releases/:releaseId/collection-deadline/extend",
   "POST /api/releases/:releaseId/production-signals/align",

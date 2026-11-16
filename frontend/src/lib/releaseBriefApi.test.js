@@ -8,6 +8,7 @@ describe("gateActionTone", () => {
     expect(gateActionTone("self_heal")).toBe("warn");
     expect(gateActionTone("recover_certification")).toBe("warn");
     expect(gateActionTone("escalate")).toBe("bad");
+    expect(gateActionTone("revoked")).toBe("bad");
     expect(gateActionTone("unknown")).toBe("neutral");
   });
 });

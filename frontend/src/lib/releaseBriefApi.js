@@ -26,6 +26,7 @@ export function gateActionTone(action) {
     case "recover_certification":
       return "warn";
     case "escalate":
+    case "revoked":
       return "bad";
     default:
       return "neutral";

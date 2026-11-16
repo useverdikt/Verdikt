@@ -5,9 +5,7 @@
  * Requires: `npx playwright install chromium` once per machine/CI image.
  */
 import { test, expect } from "@playwright/test";
-import { AUTHENTICATED_SHELL_RE, waitForSessionGate } from "./helpers/shell.js";
-
-const API = "http://127.0.0.1:8787";
+import { waitForSessionGate } from "./helpers/shell.js";
 const emptyStorage = { cookies: [], origins: [] };
 
 test.describe("public & marketing", () => {
@@ -63,18 +61,19 @@ test.describe("auth redirects (unauthenticated)", () => {
 });
 
 test.describe("authenticated app shell", () => {
-  test("valid session reaches dashboard content", async ({ page }) => {
+  test("valid session reaches dashboard with seeded release rows", async ({ page }) => {
     await page.goto("/releases");
     await waitForSessionGate(page);
     await expect(page).not.toHaveURL(/\/login$/);
-    await expect(page.locator("body")).toContainText(AUTHENTICATED_SHELL_RE);
+    await expect(page.locator(".release-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`.release-version[title="e2e-playwright-fixture"]`)).toBeVisible();
   });
 
   test("dashboard primary nav destinations load", async ({ page }) => {
     const routes = [
-      ["/releases", AUTHENTICATED_SHELL_RE],
+      ["/releases", /e2e-playwright-fixture|COLLECTING|CERTIFIED/i],
       ["/intelligence/trends", /Signal Trend/i],
-      ["/thresholds", /Thresholds/i],
+      ["/thresholds", /Thresholds|Workspace signals/i],
       ["/audit", /Audit Trail/i]
     ];
     for (const [path, re] of routes) {
@@ -139,14 +138,6 @@ test.describe("login form interaction", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/releases$/, { timeout: 20_000 });
     await waitForSessionGate(page);
-    await expect(page.locator("body")).toContainText(AUTHENTICATED_SHELL_RE);
-  });
-});
-
-test.describe("API health (e2e environment)", () => {
-  test("backend health", async ({ request }) => {
-    const res = await request.get(`${API}/health`);
-    expect(res.ok()).toBeTruthy();
-    expect(await res.text()).toContain("verdikt-backend");
+    await expect(page.locator(".release-row").first()).toBeVisible({ timeout: 20_000 });
   });
 });

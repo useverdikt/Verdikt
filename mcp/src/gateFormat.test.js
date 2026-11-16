@@ -99,17 +99,45 @@ test("collecting action: next_step tells agent to poll", () => {
 
 // ── safety guarantees ─────────────────────────────────────────────────────────
 
-test("do_not_use_exit_code_alone is always present", () => {
-  for (const action of ["merge", "escalate", "self_heal", "collecting"]) {
-    const out = formatGateForAgent({ action, gate: { exit_code: 0 } });
+test("do_not_use_exit_code_alone is always present for every known action", () => {
+  for (const action of ["merge", "escalate", "self_heal", "collecting", "recover_certification", "revoked"]) {
+    const out = formatGateForAgent({ action, gate: { exit_code: action === "merge" ? 0 : 1 } });
     assert.ok(typeof out.agent_guidance.do_not_use_exit_code_alone === "string");
   }
 });
 
-test("unknown action falls back gracefully", () => {
+test("revoked action tells the agent not to merge", () => {
+  const out = formatGateForAgent({ action: "revoked", gate: { exit_code: 1 } });
+  assert.match(out.agent_guidance.next_step_legacy, /revoked/i);
+  assert.match(out.agent_guidance.when_blocked, /release_brief|governance_brief/i);
+});
+
+test("server next_step takes precedence over built-in guidance", () => {
+  const out = formatGateForAgent({
+    action: "escalate",
+    next_step: "Fix accuracy then re-post signals",
+    gate: { exit_code: 1 }
+  });
+  assert.equal(out.agent_guidance.next_step, "Fix accuracy then re-post signals");
+  assert.match(out.agent_guidance.next_step_legacy, /escalate/i);
+});
+
+test("hub_links fall back to governance_brief.hub_links", () => {
+  const releaseUrl = "https://useverdikt.com/releases?release=rel_nested";
+  const out = formatGateForAgent({
+    action: "escalate",
+    gate: { exit_code: 1 },
+    governance_brief: { suggested_verb: "escalate", hub_links: { release: releaseUrl } }
+  });
+  assert.equal(out.hub_links.release, releaseUrl);
+  assert.equal(out.agent_guidance.hub_links.release, releaseUrl);
+});
+
+test("unknown future action is treated as blocked", () => {
   const out = formatGateForAgent({ action: "unknown_future_action", gate: { exit_code: 1 } });
   assert.equal(out.agent_guidance.action, "unknown_future_action");
   assert.ok(typeof out.agent_guidance.next_step === "string");
+  assert.ok(out.agent_guidance.when_blocked, "unknown actions must not fail open");
 });
 
 test("null input does not throw", () => {

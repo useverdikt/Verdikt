@@ -40,7 +40,11 @@ export function normalizeThresholdsStateForSave(threshDefaults, thresholds) {
     const def = threshDefaults[k];
     const raw = thresholds[k];
     if (typeof def === "string") t[k] = raw != null && raw !== "" ? String(raw) : def;
-    else t[k] = parseFloat(raw) || def;
+    else {
+      const n = parseFloat(raw);
+      // Keep an explicit 0 (parseFloat("0") || def would incorrectly fall through).
+      t[k] = Number.isFinite(n) ? n : def;
+    }
   });
   return t;
 }
