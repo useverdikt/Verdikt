@@ -316,6 +316,8 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 | E1 | Redelivery re-audits, resends the Slack bypass alert, and resets the prod monitoring window (wiping its findings); after a revoke it flags a certified merge as shipped without certification | No CAS on `environment`; bypass computed from the current status. Test: *a redelivered merge event after a revoke does not re-flag a bypass* | Fixed, reproduced |
 | E2 | Label redelivery re-runs the integration pull and audit | `webhooks.js` schedules the pull on `reused` | Open, code-read (P3) |
 | E3 | A `production`/`prod` base branch becomes prod without bypass bookkeeping or a monitoring window | `becomingProd` requires `main`/`master` | Open, code-read (P2) |
+| E4 | Merges the gate blocked are not flagged as shipped without certification: strict-mode `CERTIFIED_WITH_OVERRIDE`, a certified release missing its snapshot, `CERTIFIED_WITH_OVERRIDE` under remediation debt | `bypassAtMerge = becomingProd && !isCertLikeStatus(status)` in `releaseEnvironment.js` uses status, not the gate decision | Open, code-read (P2, tracked in #325) |
+| E5 | `POST /releases` on reuse echoes the request (`environment: "pre-prod"`, request `version`/`release_type`/`callback_url`), so a reused prod release reads as pre-prod and a new callback URL looks registered but is not stored | `workspaceReleases.js` response body | Open, code-read (P3) |
 
 ### Issue F: duplicate releases for one commit (P1, open, #324)
 
@@ -347,6 +349,8 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 | O5 | Retries and post-send crashes resend (contradicts one-attempt delivery) | primary |
 | O6 | Primary delivers the release's current status, not the row's `verdict_status` | primary |
 | O7 | Revoke enqueues all effect types although no legacy path delivers them; in shadow they dead-letter and block readiness | **shadow (default)** |
+| O8 | Switching modes with a live backlog: shadow → primary redelivers rows legacy already sent (readiness blocks only on *stale* backlog); primary → shadow compares instead of sending, so the effect is lost | cutover / rollback |
+| O9 | A repeat non-prod `UNCERTIFIED` verdict with different failures reuses the first `verdict_issued_at` in its key and is dropped by `ON CONFLICT` | primary |
 
 ### Issue I: background sweeps (P2, open, #327)
 
@@ -356,11 +360,15 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 | C2 | No attempt cap on collection or VCS claims; a release that always throws is reclaimed forever |
 | V1 | A VCS scan finishing after a prod promotion overwrites the refreshed window (`markWindow` has no guard) |
 | V2 | Fixed `vcs_<id>_interim` / `_final` ingest keys drop later values |
+| V3 | Retryable provider failures leave the window `scanning`, so closed windows are re-claimed every 5 minutes with no `scan_count` cap |
+| V4 | `error` (401/403/404) and `no_vcs` are dead ends; the repair script only targets `complete` + `HEALTHY` |
 | S2 | Snapshot persist is not atomic with the verdict commit; recovery rebuilds from live data at boot only |
 | S3 | The override re-freeze runs after the override commit; a crash leaves the pre-override snapshot |
 
-### Issue J: minor and opt-in (P3, open, #328; also tracks E2 and E3)
+### Issue J: minor and opt-in (P3, open, #328; also tracks E2, E3, and E5)
 
+- Two concurrent forgot-password requests each invalidate then insert, leaving two valid reset tokens (each is still single-use).
+- Live `signals` can change after certification (ingest does not re-check the lock in its transaction; source pulls delete and reinsert). The frozen snapshot protects the gate, but the live table drifts from the certified evidence.
 - Threshold min/max applied concurrently loses an update; calibration auto-apply ratchets a MISS floor and ignores dismissals.
 - Repeating an API key revoke writes another audit.
 - Escalations inbox shows "Ack & Override" to `release_manager` (the backend returns 403), and `DEFAULT_ROLE_POLICY` lacks `org_admin`/`viewer`.
