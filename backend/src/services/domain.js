@@ -55,7 +55,7 @@ const { assessOverrideJustification } = require("./overrideAssessor");
 const { buildThresholdSuggestions } = require("./thresholdAdvisor");
 const { maybeEnrichSuggestionReason } = require("./llmAssist");
 const { enqueuePostVerdictEffects } = require("./postVerdictEffects");
-const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
+const certificationSnapshots = require("./certificationSnapshots");
 const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
 const { resolvePendingEscalationsForRelease } = require("./escalationResolution");
 
@@ -79,12 +79,19 @@ function collectionDeadlinePassed(collectionDeadline) {
   return Number.isFinite(deadlineMs) ? Date.now() >= deadlineMs : true;
 }
 
-async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount) {
+/**
+ * `expectedStatus` lets a caller that selected the release by status (the
+ * collection sweep) commit only if it is still in that status, so two sweeps
+ * that loaded the same row cannot both commit a verdict.
+ */
+async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inputSignalCount, { expectedStatus = null } = {}) {
+  const skipReason = (row) =>
+    evaluationSkipReason(row) || (expectedStatus && row.status !== expectedStatus ? "status_changed" : null);
   const freshRow = await queryOne(
     "SELECT status, environment, collection_deadline FROM releases WHERE id = $1",
     [releaseId]
   );
-  if (evaluationSkipReason(freshRow)) return null;
+  if (skipReason(freshRow)) return null;
 
   const [latest, thresholdMap] = await Promise.all([
     getLatestSignalMap(releaseId),
@@ -109,7 +116,7 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
         "SELECT status, environment FROM releases WHERE id = $1 FOR UPDATE",
         [releaseId]
       );
-      if (evaluationSkipReason(locked)) return false;
+      if (skipReason(locked)) return false;
       await tx.run("UPDATE releases SET status = $1, updated_at = $2 WHERE id = $3", [
         "COLLECTING",
         nowIso(),
@@ -255,8 +262,8 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       "SELECT status, environment, verdict_issued_at, collection_deadline FROM releases WHERE id = $1 FOR UPDATE",
       [releaseId]
     );
-    const skipReason = evaluationSkipReason(locked);
-    if (skipReason) return { skipped: true, reason: skipReason };
+    const lockedSkipReason = skipReason(locked);
+    if (lockedSkipReason) return { skipped: true, reason: lockedSkipReason };
     // A concurrent deadline extension reopened the window; missing signals are not yet a failure.
     if (missingRequiredSignals.length > 0 && !collectionDeadlinePassed(locked.collection_deadline)) {
       return { skipped: true, reason: "collection_window_reopened" };
@@ -275,6 +282,16 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
       { verdict: deterministicIntelligence, trace },
       tx
     );
+    // Frozen evidence commits with the verdict so the gate never sees a
+    // certified release without its snapshot.
+    await certificationSnapshots.persistCertificationSnapshot({
+      releaseId,
+      workspaceId: release.workspace_id,
+      thresholdMap,
+      signalMap: latest,
+      status: nextStatus,
+      tx
+    });
 
     if (prevStatus !== nextStatus && certLike.has(prevStatus) && nextStatus === "UNCERTIFIED") {
       await writeAudit({
@@ -334,17 +351,6 @@ async function evaluateReleaseAfterSignalIngest(release, releaseId, source, inpu
   if (commitResult.skipped) {
     return null;
   }
-
-  const snapshotArgs = {
-    releaseId,
-    workspaceId: release.workspace_id,
-    thresholdMap,
-    signalMap: latest,
-    status: nextStatus
-  };
-  // Persist the frozen verdict evidence synchronously before returning so the
-  // gate never evaluates a certified release against live thresholds.
-  await enqueueCertificationSnapshotPersist(snapshotArgs);
 
   // ── Post-verdict side effects (async — verdict response returns immediately) ─
   enqueuePostVerdictEffects(releaseId, release, nextStatus, failedSignals, deterministicIntelligence);

@@ -178,13 +178,34 @@ async function scanGitLab(cfg, commitSha, _prNumber, since, until) {
 
 // ─── Main scan function ───────────────────────────────────────────────────────
 
+/** Retryable provider failures on a closed window stop after this many scans. */
+const MAX_CLOSED_WINDOW_SCANS = Number(process.env.VCS_MONITOR_MAX_SCANS || 48);
+
+/**
+ * One key per window and scan: a refreshed window (new start) and each interim
+ * scan record their own observations instead of being dropped as duplicates.
+ */
+function vcsIngestKey(window, windowClosed) {
+  const startMs = Date.parse(window.monitoring_start);
+  const phase = windowClosed ? "final" : `interim_${Number(window.scan_count || 0)}`;
+  return `vcs_${window.release_id}_${Number.isFinite(startMs) ? startMs : "nostart"}_${phase}`;
+}
+
+async function windowStillCurrent(releaseId, monitoringStart) {
+  const row = await queryOne(
+    "SELECT 1 AS ok FROM vcs_monitoring_windows WHERE release_id = $1 AND date_trunc('milliseconds', monitoring_start) = date_trunc('milliseconds', $2::timestamptz)",
+    [releaseId, monitoringStart]
+  );
+  return Boolean(row);
+}
+
 async function scanWindow(window) {
   const { release_id, workspace_id, commit_sha, pr_number, monitoring_start, monitoring_end } = window;
 
   const cfg = await getVcsIntegration(workspace_id);
   if (!cfg) {
-    await markWindow(release_id, "no_vcs", null, null, null);
-    return "no_vcs";
+    const marked = await markWindow(release_id, monitoring_start, "no_vcs", null, null, null);
+    return marked ? "no_vcs" : "superseded";
   }
 
   const now = Date.now();
@@ -205,19 +226,24 @@ async function scanWindow(window) {
       providerStatus >= 400 &&
       providerStatus < 500 &&
       ![408, 429].includes(providerStatus);
-    const failureStatus = terminalProviderError ? "error" : "scanning";
+    const retriesExhausted =
+      !terminalProviderError && windowClosed && Number(window.scan_count || 0) + 1 >= MAX_CLOSED_WINDOW_SCANS;
+    const failureStatus = terminalProviderError || retriesExhausted ? "error" : "scanning";
     log("error", "vcs_monitor_scan_failed", {
       releaseId: release_id,
       provider: cfg.provider,
       providerStatus,
-      retryable: !terminalProviderError,
+      retryable: failureStatus === "scanning",
       error: err.message
     });
-    await run(
-      "UPDATE vcs_monitoring_windows SET status = $1, error_message = $2, last_scanned_at = $3, scan_count = scan_count + 1 WHERE release_id = $4",
-      [failureStatus, err.message.slice(0, 200), nowIso(), release_id]
+    const message = `${retriesExhausted ? "retry limit reached: " : ""}${err.message}`.slice(0, 200);
+    const updated = await run(
+      `UPDATE vcs_monitoring_windows
+          SET status = $1, error_message = $2, last_scanned_at = $3, scan_count = scan_count + 1
+        WHERE release_id = $4 AND date_trunc('milliseconds', monitoring_start) = date_trunc('milliseconds', $5::timestamptz)`,
+      [failureStatus, message, nowIso(), release_id, monitoring_start]
     );
-    return failureStatus;
+    return Number(updated?.changes || 0) === 1 ? failureStatus : "superseded";
   }
 
   const signals = findingsToSignals(findings);
@@ -227,23 +253,29 @@ async function scanWindow(window) {
     signals.vcs_healthy = 1;
   }
 
+  if (!(await windowStillCurrent(release_id, monitoring_start))) return "superseded";
+
   if (shouldIngestSignals(signals, windowClosed)) {
     const summary = buildFindingsSummary(findings, inferredOutcome);
     await ingestProductionSignals(release_id, workspace_id, signals, {
       source: "vcs_inference",
-      idempotencyKey: `vcs_${release_id}_${windowClosed ? "final" : "interim"}`,
+      idempotencyKey: vcsIngestKey(window, windowClosed),
       metadata: { provider: cfg.provider, findings_summary: summary, integrity_model: "v2" }
     });
     console.log(`[vcs_monitor] ${release_id} → ${inferredOutcome} (${JSON.stringify(signals)})`);
   }
 
   const newStatus = windowClosed ? "complete" : "scanning";
-  await markWindow(release_id, newStatus, findings, signals, inferredOutcome);
-  return newStatus;
+  const marked = await markWindow(release_id, monitoring_start, newStatus, findings, signals, inferredOutcome);
+  return marked ? newStatus : "superseded";
 }
 
-async function markWindow(releaseId, status, findings, signals, outcome) {
-  await run(
+/**
+ * Writes scan results only to the window that was scanned. A prod promotion
+ * that re-anchors the window (new monitoring_start) wins over a late scan.
+ */
+async function markWindow(releaseId, monitoringStart, status, findings, signals, outcome) {
+  const result = await run(
     `
     UPDATE vcs_monitoring_windows SET
       status                = $1,
@@ -253,7 +285,7 @@ async function markWindow(releaseId, status, findings, signals, outcome) {
       inferred_signals_json = $4,
       inferred_outcome      = $5,
       error_message         = NULL
-    WHERE release_id = $6
+    WHERE release_id = $6 AND date_trunc('milliseconds', monitoring_start) = date_trunc('milliseconds', $7::timestamptz)
   `,
     [
       status,
@@ -261,9 +293,11 @@ async function markWindow(releaseId, status, findings, signals, outcome) {
       findings ? JSON.stringify(findings) : null,
       signals ? JSON.stringify(signals) : null,
       outcome || null,
-      releaseId
+      releaseId,
+      monitoringStart
     ]
   );
+  return Number(result?.changes || 0) === 1;
 }
 
 // ─── Monitoring windows ─────────────────────────────────────────────────────
@@ -384,6 +418,7 @@ module.exports = {
   openMonitoringWindow,
   refreshMonitoringWindowForProd,
   scanWindow,
+  vcsIngestKey,
   getMonitoringWindow,
   getWorkspaceMonitoringSummary
 };

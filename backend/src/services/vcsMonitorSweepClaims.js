@@ -5,6 +5,8 @@ const { transaction, run } = require("../database");
 const DEFAULT_LEASE_MS = 30 * 60 * 1000;
 const MAX_LEASE_MS = 4 * 60 * 60 * 1000;
 const DEFAULT_RESCAN_MS = 5 * 60 * 1000;
+/** Consecutive failed claims before a window is parked; delete its claim row to retry. */
+const DEFAULT_MAX_ATTEMPTS = 10;
 
 function boundedPositiveInt(value, fallback, max) {
   const parsed = Number(value);
@@ -22,9 +24,11 @@ async function claimDueVcsMonitoringWindows({
   leaseMs = DEFAULT_LEASE_MS,
   minRescanMs = DEFAULT_RESCAN_MS,
   workspaceId = null,
+  maxAttempts = DEFAULT_MAX_ATTEMPTS,
   transactionFn = transaction
 }) {
   const batchLimit = boundedPositiveInt(limit, 20, 100);
+  const attemptCap = boundedPositiveInt(maxAttempts, DEFAULT_MAX_ATTEMPTS, 1000);
   const boundedLeaseMs = boundedPositiveInt(leaseMs, DEFAULT_LEASE_MS, MAX_LEASE_MS);
   const boundedRescanMs = boundedPositiveInt(minRescanMs, DEFAULT_RESCAN_MS, 24 * 60 * 60 * 1000);
   const owner = String(workerId || "").trim();
@@ -54,7 +58,7 @@ async function claimDueVcsMonitoringWindows({
               SELECT 1
                 FROM vcs_monitor_sweep_claims active_claim
                WHERE active_claim.release_id = w.release_id
-                 AND active_claim.lease_until > NOW()
+                 AND (active_claim.lease_until > NOW() OR active_claim.attempt_count >= $6)
             )
           ORDER BY w.monitoring_end ASC, w.release_id ASC
           LIMIT $1
@@ -88,7 +92,7 @@ async function claimDueVcsMonitoringWindows({
          FROM vcs_monitoring_windows w
          JOIN claimed c ON c.release_id = w.release_id
         ORDER BY w.monitoring_end ASC, w.release_id ASC`,
-      [batchLimit, owner, boundedLeaseMs, boundedRescanMs, workspaceScope]
+      [batchLimit, owner, boundedLeaseMs, boundedRescanMs, workspaceScope, attemptCap]
     );
   });
 }
@@ -118,5 +122,6 @@ module.exports = {
   recordVcsMonitorSweepClaimFailure,
   DEFAULT_LEASE_MS,
   DEFAULT_RESCAN_MS,
+  DEFAULT_MAX_ATTEMPTS,
   MAX_LEASE_MS
 };
