@@ -317,7 +317,7 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 | E2 | Label redelivery re-runs the integration pull and audit | `webhooks.js` schedules the pull on `reused` | Open, code-read (P3) |
 | E3 | A `production`/`prod` base branch becomes prod without bypass bookkeeping or a monitoring window | `becomingProd` requires `main`/`master` | Open, code-read (P2) |
 
-### Issue F: duplicate releases for one commit (P1, open)
+### Issue F: duplicate releases for one commit (P1, open, #324)
 
 | ID | Defect | Evidence |
 |---|---|---|
@@ -326,7 +326,7 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 
 The fix needs an identity decision (one canonical key per workspace + repo + SHA), not a local guard.
 
-### Issue G: gate action fall-through (P2, open)
+### Issue G: gate action fall-through (P2, open, #325)
 
 | ID | Defect | Evidence |
 |---|---|---|
@@ -336,7 +336,7 @@ The fix needs an identity decision (one canonical key per workspace + repo + SHA
 
 This changes the GHA/MCP contract, so it should land as its own reviewed change.
 
-### Issue H: outbox must be fixed before `OUTBOX_MODE=primary` (P2, open)
+### Issue H: outbox must be fixed before `OUTBOX_MODE=primary` (P2, open, #326)
 
 | ID | Defect | Mode |
 |---|---|---|
@@ -348,7 +348,7 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 | O6 | Primary delivers the release's current status, not the row's `verdict_status` | primary |
 | O7 | Revoke enqueues all effect types although no legacy path delivers them; in shadow they dead-letter and block readiness | **shadow (default)** |
 
-### Issue I: background sweeps (P2, open)
+### Issue I: background sweeps (P2, open, #327)
 
 | ID | Defect |
 |---|---|
@@ -359,7 +359,7 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 | S2 | Snapshot persist is not atomic with the verdict commit; recovery rebuilds from live data at boot only |
 | S3 | The override re-freeze runs after the override commit; a crash leaves the pre-override snapshot |
 
-### Issue J: minor and opt-in (P3, open)
+### Issue J: minor and opt-in (P3, open, #328; also tracks E2 and E3)
 
 - Threshold min/max applied concurrently loses an update; calibration auto-apply ratchets a MISS floor and ignores dismissals.
 - Repeating an API key revoke writes another audit.
