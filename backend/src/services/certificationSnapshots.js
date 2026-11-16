@@ -16,14 +16,16 @@ async function persistCertificationSnapshot({
   thresholdMap,
   signalMap,
   status,
-  allowUpdate = false
+  allowUpdate = false,
+  tx = null
 }) {
+  const runFn = tx ? (sql, params) => tx.run(sql, params) : run;
   const evidenceHash = computeEvidenceHash(thresholdMap, signalMap);
   const frozenAt = nowIso();
   const statusAtVerdict = String(status || "").toUpperCase();
 
   if (allowUpdate) {
-    await run(
+    await runFn(
       `INSERT INTO certification_snapshots
          (release_id, workspace_id, status_at_verdict, threshold_snapshot_json, signal_snapshot_json, evidence_hash, frozen_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -44,7 +46,7 @@ async function persistCertificationSnapshot({
       ]
     );
   } else {
-    await run(
+    await runFn(
       `INSERT INTO certification_snapshots
          (release_id, workspace_id, status_at_verdict, threshold_snapshot_json, signal_snapshot_json, evidence_hash, frozen_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)

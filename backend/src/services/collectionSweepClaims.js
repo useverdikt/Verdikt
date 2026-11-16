@@ -4,6 +4,8 @@ const { transaction, run } = require("../database");
 
 const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 const MAX_LEASE_MS = 60 * 60 * 1000;
+/** Consecutive failed claims before a release is parked; delete its claim row to retry. */
+const DEFAULT_MAX_ATTEMPTS = 10;
 
 function boundedPositiveInt(value, fallback, max) {
   const parsed = Number(value);
@@ -20,9 +22,11 @@ async function claimDueCollectionReleases({
   workerId,
   leaseMs = DEFAULT_LEASE_MS,
   workspaceId = null,
+  maxAttempts = DEFAULT_MAX_ATTEMPTS,
   transactionFn = transaction
 }) {
   const batchLimit = boundedPositiveInt(limit, 100, 1000);
+  const attemptCap = boundedPositiveInt(maxAttempts, DEFAULT_MAX_ATTEMPTS, 1000);
   const boundedLeaseMs = boundedPositiveInt(leaseMs, DEFAULT_LEASE_MS, MAX_LEASE_MS);
   const owner = String(workerId || "").trim();
   if (!owner) throw new Error("collection sweep workerId is required");
@@ -50,7 +54,7 @@ async function claimDueCollectionReleases({
               SELECT 1
                 FROM collection_sweep_claims active_claim
                WHERE active_claim.release_id = r.id
-                 AND active_claim.lease_until > NOW()
+                 AND (active_claim.lease_until > NOW() OR active_claim.attempt_count >= $5)
             )
           ORDER BY r.collection_deadline ASC, r.id ASC
           LIMIT $1
@@ -84,7 +88,7 @@ async function claimDueCollectionReleases({
          FROM releases r
          JOIN claimed c ON c.release_id = r.id
         ORDER BY r.collection_deadline ASC, r.id ASC`,
-      [batchLimit, owner, boundedLeaseMs, workspaceScope]
+      [batchLimit, owner, boundedLeaseMs, workspaceScope, attemptCap]
     );
   });
 }
@@ -113,5 +117,6 @@ module.exports = {
   completeCollectionSweepClaim,
   recordCollectionSweepClaimFailure,
   DEFAULT_LEASE_MS,
+  DEFAULT_MAX_ATTEMPTS,
   MAX_LEASE_MS
 };

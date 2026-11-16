@@ -73,7 +73,7 @@ async function runCollectionDeadlineSweep({
   let failed = 0;
   for (const rel of rows) {
     try {
-      await evaluateFn(rel, rel.id, "collection_deadline_sweep", 0);
+      await evaluateFn(rel, rel.id, "collection_deadline_sweep", 0, { expectedStatus: "COLLECTING" });
       succeeded += 1;
       incFn("collection_sweep_succeeded");
       if (mode === "enforce") {

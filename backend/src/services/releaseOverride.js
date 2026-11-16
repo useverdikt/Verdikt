@@ -15,7 +15,7 @@ const { deliverVerdictWebhook } = require("./outboundWebhook");
 const { deliverReleaseCallback } = require("./releaseCallback");
 const { getThresholdMap } = require("./workspaceConfig");
 const { getLatestSignalMap } = require("./verdictEngine");
-const { enqueueCertificationSnapshotPersist } = require("./certificationSnapshotRetry");
+const certificationSnapshots = require("./certificationSnapshots");
 const { isProdEnvironment } = require("../lib/releaseStatus");
 const { enqueuePostVerdictOutbox } = require("./outboundEffectOutbox");
 const { OUTBOX_MODE } = require("../config");
@@ -55,19 +55,6 @@ async function runOverrideSideEffects(release, _overrideAssessment) {
   try {
     const freshRelease = await queryOne("SELECT * FROM releases WHERE id = $1", [release.id]);
     if (freshRelease) {
-      const [thresholdMap, latest] = await Promise.all([
-        getThresholdMap(freshRelease.workspace_id),
-        getLatestSignalMap(freshRelease.id)
-      ]);
-      await enqueueCertificationSnapshotPersist({
-        releaseId: freshRelease.id,
-        workspaceId: freshRelease.workspace_id,
-        thresholdMap,
-        signalMap: latest,
-        status: "CERTIFIED_WITH_OVERRIDE",
-        allowUpdate: true
-      });
-
       const intel = await getReleaseIntelligence(release.id);
       overrideCertSig = await signCertificationRecord(freshRelease, intel?.verdict);
 
@@ -185,6 +172,20 @@ async function applyReleaseOverrideDbWrites(
     override: overrideAssessment,
     trace: overrideTrace
   }, tx);
+
+  const [thresholdMap, latest] = await Promise.all([
+    getThresholdMap(release.workspace_id),
+    getLatestSignalMap(release.id)
+  ]);
+  await certificationSnapshots.persistCertificationSnapshot({
+    releaseId: release.id,
+    workspaceId: release.workspace_id,
+    thresholdMap,
+    signalMap: latest,
+    status: "CERTIFIED_WITH_OVERRIDE",
+    allowUpdate: true,
+    tx
+  });
 
   await writeAudit({
     workspaceId: release.workspace_id,

@@ -80,6 +80,16 @@ async function setVcsIntegration(workspaceId, { provider, access_token, owner, r
   `,
     [id, workspaceId, provider, tokenEnc, owner, repo, now, now]
   );
+  // Windows that stopped for lack of (or a broken) integration get another scan.
+  await run(
+    `UPDATE vcs_monitoring_windows
+        SET status = 'pending', error_message = NULL, last_scanned_at = NULL, scan_count = 0
+      WHERE workspace_id = $1
+        AND status IN ('no_vcs', 'error')
+        AND commit_sha IS NOT NULL
+        AND monitoring_end > NOW() - INTERVAL '30 days'`,
+    [workspaceId]
+  );
 }
 
 async function deleteVcsIntegration(workspaceId) {

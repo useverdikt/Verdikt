@@ -146,11 +146,11 @@ Remaining design choice: `UNCERTIFIED` under remediation debt returns `recover_c
 
 | From | To | Trigger | Code | Guard |
 |---|---|---|---|---|
-| absent | present (`status_at_verdict` = verdict) | every verdict commit, synchronously after commit | `domain.js` → `certificationSnapshotRetry.enqueueCertificationSnapshotPersist` | none |
+| absent | present (`status_at_verdict` = verdict) | every verdict commit, in the verdict transaction | `domain.js` → `certificationSnapshots.persistCertificationSnapshot({ tx })` | release row lock; a failed write rolls back the verdict |
 | present, **not** cert-like | replaced | a later verdict (for example pre-prod `UNCERTIFIED` → `CERTIFIED`) | `certificationSnapshots.persistCertificationSnapshot` | `ON CONFLICT ... DO UPDATE ... WHERE status_at_verdict NOT IN (cert-like)` |
 | present, cert-like | unchanged | any later non-override persist | same | the WHERE clause above |
-| present | replaced | override (`allowUpdate`) | `releaseOverride.runOverrideSideEffects` | override committed; status was not revoked |
-| persist failed | queued retry (attempt 1..4, backoff 0/2/10/30 s) | persist error | `certificationSnapshotRetry.enqueueRetryJob` | upsert; clears any claim (invariant 19 in `AGENT_CONTEXT`) |
+| present | replaced | override (`allowUpdate`), in the override transaction | `releaseOverride.applyReleaseOverrideDbWrites` | release row lock; status was not revoked; a failed write rolls back the override |
+| persist failed | queued retry (attempt 1..4, backoff 0/2/10/30 s) | persist error on the non-transactional path (`enqueueCertificationSnapshotPersist`, used by the boot backfill) | `certificationSnapshotRetry.enqueueRetryJob` | upsert; clears any claim (invariant 19 in `AGENT_CONTEXT`) |
 | queued | claimed → deleted / requeued / exhausted | retry sweep | `certificationSnapshotClaims.js` | owner-scoped lease |
 
 Invariants:
@@ -158,7 +158,7 @@ Invariants:
 - **S1.** The first cert-like snapshot is frozen. Revoke never touches it.
 - **S2.** A cert-like release's snapshot status matches its verdict, so `verdikt-verify` engine replay reproduces the recorded status. (This was violated before: a pre-prod release that went `UNCERTIFIED` → `CERTIFIED` kept the `UNCERTIFIED` evidence.)
 
-Open gaps: the snapshot persist is not atomic with the verdict commit (a crash in between leaves a cert-like release without a snapshot until the boot backfill rebuilds it from *live* data); the override re-freeze runs after the override commit.
+- **S3.** A verdict or override commits together with its snapshot. The boot backfill only covers releases certified before this held.
 
 ---
 
@@ -209,12 +209,13 @@ Open gaps (all block turning on `primary`; see defects O1–O6): finalize checks
 
 | From | To | Code | Guard |
 |---|---|---|---|
-| absent or expired | active (attempt +1) | `collectionSweepClaims.claimDueCollectionReleases` (enforce only) | release `COLLECTING` and due, `FOR UPDATE SKIP LOCKED` |
+| absent or expired | active (attempt +1) | `collectionSweepClaims.claimDueCollectionReleases` (enforce only) | release `COLLECTING` and due, `FOR UPDATE SKIP LOCKED`, `attempt_count` below the cap (10) |
+| expired at the cap | parked (never reclaimed) | same | delete the claim row to retry; removed when the release leaves `COLLECTING` |
 | active | deleted | `completeCollectionSweepClaim` | owner |
 | active | active + `last_error` | `recordCollectionSweepClaimFailure` | owner |
 | any, release not `COLLECTING` | deleted | claim-transaction cleanup | status |
 
-The verdict itself is protected by the release row lock (§1), so a duplicate sweep cannot write an invalid status. It can still commit a second identical non-prod `UNCERTIFIED` verdict and resend legacy post-verdict effects when more than one process runs jobs in `observe` mode (open defect C1).
+The verdict itself is protected by the release row lock (§1). The sweep passes `expectedStatus: "COLLECTING"`, so the commit re-checks under that lock that the release is still collecting; a second sweep that loaded the same row (any mode, including `observe`) skips instead of committing a duplicate verdict.
 
 ---
 
@@ -226,10 +227,12 @@ The verdict itself is protected by the release row lock (§1), so a duplicate sw
 |---|---|---|---|
 | (none) | `pending` / `no_sha` | post-verdict effects; prod route | `ON CONFLICT DO NOTHING` |
 | any | `pending` (window reset) | `vcsMonitor.refreshMonitoringWindowForProd` on a real prod promotion (§2) | promotion CAS (redelivery no longer resets) |
-| `pending` / `scanning` | claimed | `vcsMonitorSweepClaims.js` | status, rescan gap, lease |
-| claimed | `scanning` / `complete` / `error` / `no_vcs` | `vcsMonitor.js` `markWindow` | **none** (`WHERE release_id` only) |
+| `pending` / `scanning` | claimed | `vcsMonitorSweepClaims.js` | status, rescan gap, lease, claim `attempt_count` below the cap (10) |
+| claimed | `scanning` / `complete` / `error` / `no_vcs` | `vcsMonitor.js` `markWindow` and the failure update | `monitoring_start` equals the scanned window's (ms precision); otherwise the scan returns `superseded` and ingests nothing |
+| closed window, retryable provider failure | `error` ("retry limit reached") | `vcsMonitor.scanWindow` | `scan_count` reaches `VCS_MONITOR_MAX_SCANS` (48) |
+| `no_vcs` / `error` (ended within 30 days, has SHA) | `pending`, `scan_count = 0` | `vcsWriteback.setVcsIntegration` | integration saved |
 
-Open gaps: a scan that finishes after a prod promotion overwrites the refreshed window with old findings (V1); fixed interim/final ingest keys drop later values (V2); retryable provider failures loop with no cap (V3).
+Ingest keys are `vcs_<release>_<window start ms>_final` or `..._interim_<scan_count>`, so a refreshed window and each interim scan record their own observations.
 
 ---
 
@@ -363,18 +366,20 @@ No new action values: each case maps to an existing action whose meaning matches
 | O8 | Switching modes with a live backlog: shadow → primary redelivers rows legacy already sent (readiness blocks only on *stale* backlog); primary → shadow compares instead of sending, so the effect is lost | cutover / rollback |
 | O9 | A repeat non-prod `UNCERTIFIED` verdict with different failures reuses the first `verdict_issued_at` in its key and is dropped by `ON CONFLICT` | primary |
 
-### Issue I: background sweeps (P2, open, #327)
+### Issue I: background sweeps (P2, fixed, #327)
 
-| ID | Defect |
-|---|---|
-| C1 | `observe` (default) takes no collection claims; with more than one job-running process, two sweeps can commit the same non-prod `UNCERTIFIED` verdict and resend legacy effects |
-| C2 | No attempt cap on collection or VCS claims; a release that always throws is reclaimed forever |
-| V1 | A VCS scan finishing after a prod promotion overwrites the refreshed window (`markWindow` has no guard) |
-| V2 | Fixed `vcs_<id>_interim` / `_final` ingest keys drop later values |
-| V3 | Retryable provider failures leave the window `scanning`, so closed windows are re-claimed every 5 minutes with no `scan_count` cap |
-| V4 | `error` (401/403/404) and `no_vcs` are dead ends; the repair script only targets `complete` + `HEALTHY` |
-| S2 | Snapshot persist is not atomic with the verdict commit; recovery rebuilds from live data at boot only |
-| S3 | The override re-freeze runs after the override commit; a crash leaves the pre-override snapshot |
+Tests are in `backend/test/sweepGuarantees.test.js`.
+
+| ID | Defect | Fix |
+|---|---|---|
+| C1 | `observe` (default) takes no collection claims; with more than one job-running process, two sweeps can commit the same non-prod `UNCERTIFIED` verdict and resend legacy effects | The sweep evaluates with `expectedStatus: "COLLECTING"`, re-checked under the row lock |
+| C2 | No attempt cap on collection or VCS claims; a release that always throws is reclaimed forever | Claims at `attempt_count >= 10` are parked (delete the claim row to retry) |
+| V1 | A VCS scan finishing after a prod promotion overwrites the refreshed window (`markWindow` has no guard) | Writes require the scanned `monitoring_start`; a stale scan returns `superseded` and skips ingest |
+| V2 | Fixed `vcs_<id>_interim` / `_final` ingest keys drop later values | Keys include the window start and, for interim scans, `scan_count` |
+| V3 | Retryable provider failures leave the window `scanning`, so closed windows are re-claimed every 5 minutes with no `scan_count` cap | A closed window becomes `error` ("retry limit reached") at `VCS_MONITOR_MAX_SCANS` (48) |
+| V4 | `error` (401/403/404) and `no_vcs` are dead ends; the repair script only targets `complete` + `HEALTHY` | Saving a VCS integration reopens those windows (ended within 30 days) |
+| S2 | Snapshot persist is not atomic with the verdict commit; recovery rebuilds from live data at boot only | The snapshot is written in the verdict transaction |
+| S3 | The override re-freeze runs after the override commit; a crash leaves the pre-override snapshot | The snapshot is written in the override transaction |
 
 ### Issue J: minor and opt-in (P3, open, #328; also tracks E2 and E3)
 
