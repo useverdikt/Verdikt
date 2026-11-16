@@ -75,14 +75,16 @@ module.exports = function registerApiKeyRoutes(app) {
       try {
         const result = await revokeWorkspaceApiKey(req.params.workspaceId, req.params.keyId);
         if (!result) return sendError(res, req, 404, "API key not found");
-        await writeAudit({
-          workspaceId: req.params.workspaceId,
-          releaseId: null,
-          eventType: "API_KEY_REVOKED",
-          actorType: "USER",
-          actorName: req.auth.email || "user",
-          details: { api_key_id: req.params.keyId }
-        });
+        if (!result.already_revoked) {
+          await writeAudit({
+            workspaceId: req.params.workspaceId,
+            releaseId: null,
+            eventType: "API_KEY_REVOKED",
+            actorType: "USER",
+            actorName: req.auth.email || "user",
+            details: { api_key_id: req.params.keyId }
+          });
+        }
         return res.json({ ok: true, ...result });
       } catch (e) {
         next(e);

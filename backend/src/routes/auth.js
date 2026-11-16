@@ -253,25 +253,30 @@ module.exports = function registerAuthRoutes(app) {
     try {
       if (userRow) {
         const now = nowIso();
-        await run("UPDATE password_reset_tokens SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL", [
-          now,
-          userRow.id
-        ]);
         const rawToken = crypto.randomBytes(32).toString("base64url");
         const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
         const tokenId = `prt_${crypto.randomBytes(8).toString("hex")}`;
         const expiresAt = toIsoPlusMinutes(60);
-        await run(
-          `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at)
-         VALUES ($1, $2, $3, $4, NULL, $5)`,
-          [tokenId, userRow.id, tokenHash, expiresAt, now]
-        );
-        await writeAudit({
-          workspaceId: userRow.workspace_id,
-          eventType: "AUTH_PASSWORD_RESET_REQUESTED",
-          actorType: "USER",
-          actorName: email,
-          details: { ip: req.ip, request_id: req.requestId }
+        // The user row lock serializes concurrent requests so only one reset token stays valid.
+        await transaction(async (tx) => {
+          await tx.queryOne("SELECT id FROM users WHERE id = $1 FOR UPDATE", [userRow.id]);
+          await tx.run("UPDATE password_reset_tokens SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL", [
+            now,
+            userRow.id
+          ]);
+          await tx.run(
+            `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at)
+           VALUES ($1, $2, $3, $4, NULL, $5)`,
+            [tokenId, userRow.id, tokenHash, expiresAt, now]
+          );
+          await writeAudit({
+            workspaceId: userRow.workspace_id,
+            eventType: "AUTH_PASSWORD_RESET_REQUESTED",
+            actorType: "USER",
+            actorName: email,
+            details: { ip: req.ip, request_id: req.requestId },
+            tx
+          });
         });
         if (leakToken) {
           payload.reset_token = rawToken;

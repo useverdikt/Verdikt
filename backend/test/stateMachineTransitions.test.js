@@ -213,13 +213,15 @@ describe("signal ingest: skipped evaluation still answers with release state", (
     const release = await insertRelease(wsId);
     await insertSignal(release.id, "accuracy", 90);
     await insertSignal(release.id, "safety", 90);
-    await run("UPDATE releases SET status = 'CERTIFIED', verdict_issued_at = $2 WHERE id = $1", [release.id, nowIso()]);
 
+    // The concurrent certification lands after the insert commits and before evaluation.
     const out = await ingestReleaseSignals({
       release,
       signals: { accuracy: 91 },
       source: "test",
-      idempotencyKey: rid("idem")
+      idempotencyKey: rid("idem"),
+      beforeEvaluate: () =>
+        run("UPDATE releases SET status = 'CERTIFIED', verdict_issued_at = $2 WHERE id = $1", [release.id, nowIso()])
     });
 
     assert.equal(out.kind, "ingested");

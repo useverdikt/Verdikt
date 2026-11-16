@@ -71,9 +71,13 @@ async function revokeWorkspaceApiKey(workspaceId, keyId) {
     [keyId, workspaceId]
   );
   if (!row) return null;
-  if (row.revoked_at) return { id: row.id, already_revoked: true };
+  if (row.revoked_at) return { id: row.id, revoked_at: row.revoked_at, already_revoked: true };
   const ts = nowIso();
-  await run("UPDATE workspace_api_keys SET revoked_at = $1 WHERE id = $2 AND workspace_id = $3", [ts, keyId, workspaceId]);
+  const result = await run(
+    "UPDATE workspace_api_keys SET revoked_at = $1 WHERE id = $2 AND workspace_id = $3 AND revoked_at IS NULL",
+    [ts, keyId, workspaceId]
+  );
+  if (Number(result?.changes || 0) !== 1) return { id: keyId, already_revoked: true };
   return { id: keyId, revoked_at: ts };
 }
 

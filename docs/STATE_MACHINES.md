@@ -79,10 +79,7 @@ Invariants:
 - **D1. Promotion is once per release.** A redelivered merge event must not re-audit, resend the Slack bypass alert, reset the production monitoring window (§9), or recompute the bypass flag from a later status (for example revoked after a certified merge).
 - **D2. Bypass is judged at merge time** from the status under the lock, not the status of the webhook's stale row.
 
-Open gaps (not fixed here, see [Reachable defects](#reachable-defects)):
-
-- A merge to a base branch named `production`/`prod` gets `environment = "production"`. That counts as prod for `isProdEnvironment`, but `becomingProd` requires `main`/`master`, so no bypass bookkeeping or monitoring window is created.
-- Label redelivery re-runs the integration pull and writes another `SIGNAL_SOURCES_PULL` audit.
+A merge into `main`, `master`, `production` or `prod` (`PROD_BASE_BRANCHES` in `webhooks.js`) promotes to `environment = "prod"` with bypass bookkeeping and a monitoring window; any other base branch becomes that branch's environment. A redelivered label on a release whose verdict is locked skips the integration pull (`integration_pull: "skipped_verdict_locked"` on the response).
 
 ---
 
@@ -256,11 +253,11 @@ Invariant: **M1.** After removal, `userHasWorkspaceAccess(user, ws)` is false. (
 
 ### Password reset tokens (`password_reset_tokens`)
 
-States: issued → used (`used_at`), superseded (`used_at` set by a newer forgot-password request), or expired. Consumption is a CAS `used_at IS NULL` in the same transaction as the password update, so one token changes the password at most once.
+States: issued → used (`used_at`), superseded (`used_at` set by a newer forgot-password request), or expired. Issuing supersedes earlier tokens and inserts the new one in one transaction under the user row lock, so at most one token is valid. Consumption is a CAS `used_at IS NULL` in the same transaction as the password update, so one token changes the password at most once.
 
 ### API keys
 
-active → revoked (`revoked_at`). Auth filters `revoked_at IS NULL`. Repeating a revoke writes another `API_KEY_REVOKED` audit (minor, open).
+active → revoked (`revoked_at`), CAS on `revoked_at IS NULL`. Auth filters `revoked_at IS NULL`. Only the request that changed the row writes `API_KEY_REVOKED`; a repeat returns `already_revoked: true`.
 
 ---
 
@@ -268,11 +265,13 @@ active → revoked (`revoked_at`). Auth filters `revoked_at IS NULL`. Repeating 
 
 Per `(release_id, signal_id, idempotency_key)`: absent → inserted (`INSERT ... ON CONFLICT DO NOTHING RETURNING id`). A duplicate is replayed read-only before the lock check. A zero-row insert with a key is a race loser and is replayed read-only, with no audit and no evaluation. See `AGENT_CONTEXT` "Signal ingest & idempotency".
 
+Locked releases (`releaseVerdictLockedAgainstIngest`) take no new signals. Routes check up front, and every write path re-checks under `FOR SHARE` on the release row inside its insert transaction: `signalIngest.ingestReleaseSignals` (409, same body as the route check), source pulls (`release_locked`), CSV apply (rows skipped as `release_locked`), and CSV replace/delete (`signalSourceCleanup`) keep a locked release's rows, because they are its certified evidence.
+
 ---
 
 ## 12. Threshold suggestions (derived)
 
-There is no state column. A suggestion is hidden when its id, `signal:direction:source`, or `signal:direction:any` appears in dismissals or recent APPLIED/DISMISSED audits. Open gaps: applying min and max concurrently loses one update (read-modify-write with no transaction), and `calibration_mode=auto_apply` ignores dismissals and ratchets a MISS floor on every new production signal.
+There is no state column. A suggestion is hidden when its id, `signal:direction:source`, or `signal:direction:any` appears in dismissals or recent APPLIED/DISMISSED audits. `calibration_mode=auto_apply` uses the same filter, so it never applies a dismissed suggestion or re-applies a signal+direction it already applied. `applyThresholdSuggestion` locks the threshold row, reads after the lock, updates only the bound being changed, and audits in the same transaction.
 
 ---
 
@@ -324,8 +323,8 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 | ID | Defect | Evidence | Status |
 |---|---|---|---|
 | E1 | Redelivery re-audits, resends the Slack bypass alert, and resets the prod monitoring window (wiping its findings); after a revoke it flags a certified merge as shipped without certification | No CAS on `environment`; bypass computed from the current status. Test: *a redelivered merge event after a revoke does not re-flag a bypass* | Fixed, reproduced |
-| E2 | Label redelivery re-runs the integration pull and audit | `webhooks.js` schedules the pull on `reused` | Open, code-read (P3) |
-| E3 | A `production`/`prod` base branch becomes prod without bypass bookkeeping or a monitoring window | `becomingProd` requires `main`/`master` | Open, code-read (P2) |
+| E2 | Label redelivery re-runs the integration pull and audit | `webhooks.js` schedules the pull on `reused`. Test: *E2: a redelivered label on a locked release…* | Fixed (#328), reproduced |
+| E3 | A `production`/`prod` base branch becomes prod without bypass bookkeeping or a monitoring window | `becomingProd` required `main`/`master`. Test: *E3: merging into a production branch…* | Fixed (#328), reproduced |
 | E4 | Merges the gate blocked are not flagged as shipped without certification: strict-mode `CERTIFIED_WITH_OVERRIDE`, a certified release missing its snapshot, `CERTIFIED_WITH_OVERRIDE` under remediation debt | `bypassAtMerge = becomingProd && !isCertLikeStatus(status)` in `releaseEnvironment.js` used status, not the gate decision. Now uses `loadMergePolicyAllowance` (strict mode, remediation debt); a missing snapshot is deliberately excluded because it is a transient evidence gap and would open remediation debt. Tests in `gateActionTransitions.test.js` | Fixed, reproduced (policy cases) |
 | E5 | `POST /releases` on reuse echoes the request (`environment: "pre-prod"`, request `version`/`release_type`/`callback_url`), so a reused prod release reads as pre-prod and a new callback URL looks registered but is not stored | `workspaceReleases.js` response body. Test: *POST /releases reuse describes the stored release* | Fixed, reproduced |
 
@@ -376,10 +375,14 @@ No new action values: each case maps to an existing action whose meaning matches
 | S2 | Snapshot persist is not atomic with the verdict commit; recovery rebuilds from live data at boot only |
 | S3 | The override re-freeze runs after the override commit; a crash leaves the pre-override snapshot |
 
-### Issue J: minor and opt-in (P3, open, #328; also tracks E2 and E3)
+### Issue J: minor and opt-in (P3, fixed, #328; also tracks E2 and E3)
 
-- Two concurrent forgot-password requests each invalidate then insert, leaving two valid reset tokens (each is still single-use).
-- Live `signals` can change after certification (ingest does not re-check the lock in its transaction; source pulls delete and reinsert). The frozen snapshot protects the gate, but the live table drifts from the certified evidence.
-- Threshold min/max applied concurrently loses an update; calibration auto-apply ratchets a MISS floor and ignores dismissals.
-- Repeating an API key revoke writes another audit.
-- Escalations inbox shows "Ack & Override" to `release_manager` (the backend returns 403), and `DEFAULT_ROLE_POLICY` lacks `org_admin`/`viewer`.
+Backend tests are in `backend/test/minorStateDefects.test.js`; the role test is `frontend/src/app/main/appMainLogic.roles.test.js`.
+
+| Defect | Fix |
+|---|---|
+| Two concurrent forgot-password requests each invalidate then insert, leaving two valid reset tokens (each is still single-use) | Supersede + insert + audit in one transaction under the user row lock |
+| Live `signals` can change after certification (ingest does not re-check the lock in its transaction; source pulls delete and reinsert). The frozen snapshot protects the gate, but the live table drifts from the certified evidence | Every signal write path re-checks the lock under `FOR SHARE` (§11); CSV replace/delete keeps locked releases' rows |
+| Threshold min/max applied concurrently loses an update; calibration auto-apply ratchets a MISS floor and ignores dismissals | Row lock + single-column update; auto-apply uses the shared dismissed/applied filter |
+| Repeating an API key revoke writes another audit | CAS on `revoked_at IS NULL`; audit only on change |
+| Escalations inbox shows "Ack & Override" to `release_manager` (the backend returns 403), and `DEFAULT_ROLE_POLICY` lacks `org_admin`/`viewer` | Inbox uses `OVERRIDE_APPROVER_ROLES` (mirrors the backend); `org_admin` and `viewer` added, so viewers no longer see action buttons |

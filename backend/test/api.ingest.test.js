@@ -421,16 +421,29 @@ describe("API ingest / integrations / GitHub", () => {
     );
     assert.ok(Number(signalCount?.c || 0) > 0);
 
-    const reused = await request(app)
-      .post("/api/hooks/github")
-      .set("content-type", "application/json")
-      .set("x-github-event", "pull_request")
-      .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
-      .set("x-hub-signature-256", signed.sig)
-      .send(signed.raw)
-      .expect(200);
+    const redeliver = () =>
+      request(app)
+        .post("/api/hooks/github")
+        .set("content-type", "application/json")
+        .set("x-github-event", "pull_request")
+        .set("x-github-delivery", `test-${crypto.randomBytes(6).toString("hex")}`)
+        .set("x-hub-signature-256", signed.sig)
+        .send(signed.raw)
+        .expect(200);
 
+    // The pulled signals certified the release, so a redelivered label must not re-pull.
+    const locked = await queryOne("SELECT status FROM releases WHERE id = $1", [hook.body.release_id]);
+    assert.equal(locked.status, "CERTIFIED");
+    const skipped = await redeliver();
+    assert.equal(skipped.body.reused, true);
+    assert.equal(skipped.body.integration_pull, "skipped_verdict_locked");
+
+    await run("UPDATE releases SET status = 'COLLECTING', verdict_issued_at = NULL WHERE id = $1", [
+      hook.body.release_id
+    ]);
+    const reused = await redeliver();
     assert.equal(reused.body.reused, true);
+    assert.equal(reused.body.integration_pull, "scheduled");
     const pullCount = await waitForAuditEventCount(hook.body.release_id, "SIGNAL_SOURCES_PULL", 2);
     assert.ok(pullCount >= 2, `expected 2 async pulls on reuse, got ${pullCount}`);
   });

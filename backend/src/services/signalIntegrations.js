@@ -10,6 +10,7 @@ const { queryOne, queryAll, run } = require("../database");
 const { nowIso } = require("../lib/time");
 const { encryptToken, decryptToken, looksEncrypted, migratePlaintextFieldIfNeeded } = require("../lib/encryption");
 const { fetchWithTimeout } = require("../lib/fetchWithTimeout");
+const { deleteSourceSignalsForUnlockedReleases } = require("./signalSourceCleanup");
 
 const ALLOWED = new Set(["braintrust", "langsmith", "browserstack", "sentry", "datadog"]);
 
@@ -318,7 +319,7 @@ async function importCsv(workspaceId, buffer, filename) {
 async function deleteCsvImports(workspaceId) {
   const ids = await queryAll("SELECT id FROM signal_csv_imports WHERE workspace_id = $1", [workspaceId]);
   for (const { id } of ids) {
-    await run("DELETE FROM signals WHERE source = $1", [`csv:${id}`]);
+    await deleteSourceSignalsForUnlockedReleases(`csv:${id}`);
   }
   await run("DELETE FROM signal_csv_imports WHERE workspace_id = $1", [workspaceId]);
 }
