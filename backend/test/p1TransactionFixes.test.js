@@ -12,7 +12,7 @@ const assert = require("node:assert/strict");
 
 const { initDatabase, run, queryOne, queryAll } = require("../src/database");
 const { ensureWorkspaceSeeded, evaluateReleaseAfterSignalIngest } = require("../src/services/domain");
-const { openReleaseSession } = require("../src/services/releaseIdentity");
+const { buildCanonicalReleaseKey, openReleaseSession } = require("../src/services/releaseIdentity");
 const { applyPulledSignals } = require("../src/services/signalIngestFromSources");
 const { nowIso } = require("../src/lib/time");
 
@@ -25,7 +25,7 @@ describe("openReleaseSession idempotency transaction", () => {
     const wsId = `ws_open_${crypto.randomBytes(4).toString("hex")}`;
     await ensureWorkspaceSeeded(wsId);
     const sha = crypto.randomBytes(20).toString("hex");
-    const key = `release:${wsId}:useverdikt/verdikt:pr:42:sha:${sha}`;
+    const key = buildCanonicalReleaseKey({ workspaceId: wsId, commitSha: sha });
 
     const params = {
       workspaceId: wsId,
@@ -34,7 +34,6 @@ describe("openReleaseSession idempotency transaction", () => {
       releaseType: "model_update",
       environment: "staging",
       source: "test",
-      idempotencyKey: key,
       commitSha: sha,
       prNumber: 42,
       githubOwner: "useverdikt",

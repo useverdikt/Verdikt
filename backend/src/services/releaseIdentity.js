@@ -77,20 +77,36 @@ function metadataMatchesRelease(release, meta) {
   return false;
 }
 
-function buildReleaseIdentityKey({ workspaceId, githubOwner, githubRepo, prNumber, commitSha }) {
+/**
+ * One certification session per workspace + commit, whichever path opens it
+ * (label trigger, create_release, CI webhook). PR number, repo, and label are
+ * deliberately excluded so every path claims the same key.
+ */
+function buildCanonicalReleaseKey({ workspaceId, commitSha }) {
   const ws = String(workspaceId || "").trim();
   const sha = normalizeCommitSha(commitSha);
   if (!ws || !sha) return null;
-  const owner = String(githubOwner || "").trim().toLowerCase();
-  const repo = String(githubRepo || "").trim().toLowerCase();
-  const pr = Number.isFinite(Number(prNumber)) ? Number(prNumber) : null;
-  if (owner && repo && pr != null) {
-    return `release:${ws}:${owner}/${repo}:pr:${pr}:sha:${sha}`;
-  }
-  if (pr != null) {
-    return `release:${ws}:pr:${pr}:sha:${sha}`;
-  }
   return `release:${ws}:sha:${sha}`;
+}
+
+// Releases opened before canonical keys (or with a short/long form of the SHA)
+// hold other webhook_events keys, so the claim alone cannot see them.
+async function findReleaseForCommit(workspaceId, commitSha, queryOneFn = queryOne) {
+  const sha = normalizeCommitSha(commitSha);
+  if (!workspaceId || !sha) return null;
+  return queryOneFn(
+    `SELECT * FROM releases
+      WHERE workspace_id = $1
+        AND commit_sha IS NOT NULL
+        AND (
+              LOWER(commit_sha) = $2
+           OR (LENGTH(commit_sha) >= 7 AND LENGTH($2) >= 7
+               AND (starts_with(LOWER(commit_sha), $2) OR starts_with($2, LOWER(commit_sha))))
+            )
+      ORDER BY CASE WHEN status = 'COLLECTING' THEN 0 ELSE 1 END, created_at DESC
+      LIMIT 1`,
+    [workspaceId, sha]
+  );
 }
 
 function parseGithubFromMappings(releaseRow) {
@@ -233,7 +249,9 @@ async function claimReleaseIdempotency(idempotencyKey, provisionalReleaseId, tx 
 }
 
 /**
- * Open or reuse a certification session keyed by GitHub identity when idempotencyKey is set.
+ * Open or reuse a certification session. With a commit SHA the session is keyed
+ * by workspace + commit (`idempotencyKey` is ignored); without one, by
+ * `idempotencyKey` when set.
  */
 async function openReleaseSession({
   workspaceId,
@@ -256,15 +274,7 @@ async function openReleaseSession({
   auditActorType = "SYSTEM",
   auditActorName = null
 }) {
-  const key =
-    idempotencyKey ||
-    buildReleaseIdentityKey({
-      workspaceId,
-      githubOwner: githubOwner || mappings.owner,
-      githubRepo: githubRepo || mappings.repo,
-      prNumber,
-      commitSha
-    });
+  const key = buildCanonicalReleaseKey({ workspaceId, commitSha }) || idempotencyKey || null;
 
   const releaseId = `rel_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
   const now = nowIso();
@@ -292,6 +302,12 @@ async function openReleaseSession({
             };
           }
           throw new IdempotencyContentionError(key);
+        }
+
+        const existing = sha ? await findReleaseForCommit(workspaceId, sha, tx.queryOne.bind(tx)) : null;
+        if (existing) {
+          await tx.run("UPDATE webhook_events SET release_id = $1 WHERE idempotency_key = $2", [existing.id, key]);
+          return { reused: true, release: existing, collection_deadline: existing.collection_deadline };
         }
 
         await tx.run(
@@ -522,7 +538,8 @@ module.exports = {
   commitShaMatches,
   extractCommitShaFromMetadata,
   metadataMatchesRelease,
-  buildReleaseIdentityKey,
+  buildCanonicalReleaseKey,
+  findReleaseForCommit,
   parseGithubFromMappings,
   buildGithubMappings,
   resolveReleaseForWorkspaceIngest,

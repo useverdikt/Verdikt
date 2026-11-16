@@ -144,9 +144,9 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
     return res.status(statusCode).json({
       id: release.id,
       workspace_id: req.params.workspaceId,
-      version,
-      release_type,
-      environment: "pre-prod",
+      version: release.version,
+      release_type: release.release_type,
+      environment: release.environment,
       commit_sha: release.commit_sha || null,
       pr_number: release.pr_number ?? null,
       github_owner: release.github_owner || null,
@@ -154,7 +154,7 @@ app.post("/api/workspaces/:workspaceId/releases", authMiddleware, requireWorkspa
       github_branch: release.github_branch || null,
       status: release.status,
       collection_deadline: out.collection_deadline,
-      callback_url: normalizedCallbackUrl,
+      callback_url: release.callback_url || null,
       trigger_source: triggerSource,
       reused: out.reused
     });
