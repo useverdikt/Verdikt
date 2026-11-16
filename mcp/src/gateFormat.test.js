@@ -71,6 +71,25 @@ test("recover_certification action: snapshot_pending points at frozen evidence, 
   assert.equal(out.agent_guidance.next_step.toLowerCase().includes("remediation debt"), false);
 });
 
+test("recover_certification action: strict_mode blocker points at a clean certification, not debt", () => {
+  const out = formatGateForAgent({
+    action: "recover_certification",
+    blockers: [{ type: "strict_mode" }],
+    gate: { exit_code: 1 }
+  });
+  assert.ok(out.agent_guidance.next_step_legacy.toLowerCase().includes("strict"));
+  assert.equal(out.agent_guidance.next_step_legacy.toLowerCase().includes("remediation debt"), false);
+});
+
+test("escalate action: prod_locked blocker explains signals cannot change the verdict", () => {
+  const out = formatGateForAgent({
+    action: "escalate",
+    blockers: [{ type: "prod_locked" }],
+    gate: { exit_code: 1 }
+  });
+  assert.ok(out.agent_guidance.next_step_legacy.toLowerCase().includes("locked"));
+});
+
 // ── collecting action ─────────────────────────────────────────────────────────
 
 test("collecting action: next_step tells agent to poll", () => {

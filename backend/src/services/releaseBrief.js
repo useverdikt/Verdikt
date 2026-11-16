@@ -148,10 +148,18 @@ function buildAgentNote(gate) {
   if (action === "collecting") {
     return "Signals still arriving. Poll check_gate during the grace window; prefer release_brief when blocked after grace.";
   }
+  const blockerTypes = new Set((gate.blockers || []).map((b) => b.type));
   if (action === "recover_certification") {
-    return gate.snapshot_pending
-      ? "Certification snapshot missing. Wait for backfill/retry; do not merge until evidence is frozen."
-      : "Remediation debt active. Ship a clean CERTIFIED prod release or use incident_hotfix with corroborated incident context.";
+    if (gate.snapshot_pending) {
+      return "Certification snapshot missing. Wait for backfill/retry; do not merge until evidence is frozen.";
+    }
+    if (blockerTypes.has("strict_mode") && !blockerTypes.has("remediation_debt")) {
+      return "Strict mode requires CERTIFIED without override. Push a new commit that certifies cleanly, or use incident_hotfix with corroborated incident context.";
+    }
+    return "Remediation debt active. Ship a clean CERTIFIED prod release or use incident_hotfix with corroborated incident context.";
+  }
+  if (action === "escalate" && blockerTypes.has("prod_locked")) {
+    return "Production release is locked as UNCERTIFIED; signals cannot change the verdict. Escalate for a human retroactive override or certify a new commit.";
   }
   if (action === "escalate") {
     return "Threshold failure. Review top_blockers and regression_story, attempt fixes, then escalate if still blocked.";

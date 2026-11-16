@@ -72,7 +72,7 @@ Fields: `releases.environment`, `shipped_without_certification`, `shipped_withou
 | From | To | Trigger | Code | Guard |
 |---|---|---|---|---|
 | `pre-prod` (or any env ≠ target) | `prod` (base `main`/`master`) or base branch name | GitHub `pull_request.closed` with `merged=true`, head SHA matches | `routes/webhooks.js` → `releaseEnvironment.js` `promoteReleaseOnMerge` | locked `environment` differs from the target (CAS); otherwise no-op `already_promoted` |
-| `shipped_without_certification` 0 | 1 | the same promotion, when it lands on main and the **locked** status is not cert-like | same | set once; never cleared |
+| `shipped_without_certification` 0 | 1 | the same promotion, when it lands on main and the gate's policy blocked merge: the **locked** status is not cert-like, or (status unchanged since the policy read) strict mode or remediation debt blocked an override (`bypass_reason` in the audit) | same | set once; never cleared. A missing snapshot is not a bypass |
 
 Invariants:
 
@@ -120,18 +120,23 @@ Residual (accepted): two *concurrent* first opens that pass different-length for
 | 1 | status `CERTIFICATION_REVOKED` | `revoked` |
 | 2 | `gateAllowed` and status cert-like | `merge` |
 | 3 | status cert-like and snapshot missing | `recover_certification` |
-| 4 | blocked by remediation debt | `recover_certification` |
-| 5 | `COLLECTING` within the 60 s grace period | `collecting` |
-| 6 | `COLLECTING` after grace | `self_heal` |
-| 7 | missing required signals | `self_heal` |
-| 8 | `UNCERTIFIED` with blocking signals | `escalate` |
-| 9 | anything else | `self_heal` |
+| 4 | `COLLECTING` within the 60 s grace period | `collecting` |
+| 5 | `COLLECTING` after grace | `self_heal` |
+| 6 | blocked by remediation debt | `recover_certification` |
+| 7 | strict mode blocks a `CERTIFIED_WITH_OVERRIDE` (not a corroborated emergency) | `recover_certification` |
+| 8 | prod `UNCERTIFIED` (ingest locked) | `escalate` (blocker `prod_locked`) |
+| 9 | missing required signals | `self_heal` |
+| 10 | `UNCERTIFIED` with blocking signals | `escalate` |
+| 11 | anything else | `self_heal` |
 
-`exit_code` is `gateAllowed ? 0 : 1` (`releaseGate.js`). Open gaps in this table:
+`gateAllowed`, `strictBlocked`, and `blockedByRemediationDebt` come from `computeGateAllowance` (`gateAllowance.js`), shared with merge promotion (§2). `exit_code` is `gateAllowed ? 0 : 1` (`releaseGate.js`), so it is 1 for every blocked state.
 
-- `CERTIFIED_WITH_OVERRIDE` under strict mode (not an emergency) falls through to row 9 (`self_heal`), but ingest is locked, so self-heal cannot succeed.
-- `COLLECTING` under remediation debt hits row 4 first, so GHA fails on its first poll before the clean release that would clear the debt can certify.
-- Prod `UNCERTIFIED` with missing signals gets `self_heal`, but prod ingest is locked.
+Invariants:
+
+- **G-1.** A blocked action names a step that can succeed: `self_heal` is only returned when signal ingest is open (rows 7–8 cover the locked cases).
+- **G-2.** `COLLECTING` is decided before remediation debt (rows 4–6), because a collecting release that certifies cleanly is what clears the debt.
+
+Remaining design choice: `UNCERTIFIED` under remediation debt returns `recover_certification` (row 6), which hides `escalate`; an override would still be blocked by the debt.
 
 ---
 
@@ -321,7 +326,7 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 | E1 | Redelivery re-audits, resends the Slack bypass alert, and resets the prod monitoring window (wiping its findings); after a revoke it flags a certified merge as shipped without certification | No CAS on `environment`; bypass computed from the current status. Test: *a redelivered merge event after a revoke does not re-flag a bypass* | Fixed, reproduced |
 | E2 | Label redelivery re-runs the integration pull and audit | `webhooks.js` schedules the pull on `reused` | Open, code-read (P3) |
 | E3 | A `production`/`prod` base branch becomes prod without bypass bookkeeping or a monitoring window | `becomingProd` requires `main`/`master` | Open, code-read (P2) |
-| E4 | Merges the gate blocked are not flagged as shipped without certification: strict-mode `CERTIFIED_WITH_OVERRIDE`, a certified release missing its snapshot, `CERTIFIED_WITH_OVERRIDE` under remediation debt | `bypassAtMerge = becomingProd && !isCertLikeStatus(status)` in `releaseEnvironment.js` uses status, not the gate decision | Open, code-read (P2, tracked in #325) |
+| E4 | Merges the gate blocked are not flagged as shipped without certification: strict-mode `CERTIFIED_WITH_OVERRIDE`, a certified release missing its snapshot, `CERTIFIED_WITH_OVERRIDE` under remediation debt | `bypassAtMerge = becomingProd && !isCertLikeStatus(status)` in `releaseEnvironment.js` used status, not the gate decision. Now uses `loadMergePolicyAllowance` (strict mode, remediation debt); a missing snapshot is deliberately excluded because it is a transient evidence gap and would open remediation debt. Tests in `gateActionTransitions.test.js` | Fixed, reproduced (policy cases) |
 | E5 | `POST /releases` on reuse echoes the request (`environment: "pre-prod"`, request `version`/`release_type`/`callback_url`), so a reused prod release reads as pre-prod and a new callback URL looks registered but is not stored | `workspaceReleases.js` response body. Test: *POST /releases reuse describes the stored release* | Fixed, reproduced |
 
 ### Issue F: duplicate releases for one commit (P1, fixed, #324)
@@ -334,15 +339,15 @@ Priority: **P0** breaks a security or governance guarantee; **P1** corrupts reco
 
 The fix uses one canonical key per workspace + commit plus a commit lookup for releases opened before canonical keys (§3 I3, I4).
 
-### Issue G: gate action fall-through (P2, open, #325)
+### Issue G: gate action fall-through (P2, fixed, #325)
 
-| ID | Defect | Evidence |
-|---|---|---|
-| G1 | Strict-mode `CERTIFIED_WITH_OVERRIDE` → `self_heal` (unfixable; ingest is locked) | Row 9 in §4 |
-| G2 | `COLLECTING` under remediation debt → `recover_certification`, so GHA fails on the first poll | Row 4 precedes row 5 |
-| G3 | Prod `UNCERTIFIED` with missing signals → `self_heal` (unfixable) | Row 7; prod ingest lock |
+| ID | Defect | Evidence | Status |
+|---|---|---|---|
+| G1 | Strict-mode `CERTIFIED_WITH_OVERRIDE` → `self_heal` (unfixable; ingest is locked) | Fell through to the last row. Now `recover_certification` with a strict-mode note. Test: *strict-mode override returns recover_certification* | Fixed, reproduced |
+| G2 | `COLLECTING` under remediation debt → `recover_certification`, so GHA fails on the first poll | Debt was checked before `COLLECTING`. Test: *a collecting release under remediation debt keeps collecting* | Fixed, reproduced |
+| G3 | Prod `UNCERTIFIED` with missing signals (or no live failures) → `self_heal` (unfixable) | Prod ingest lock. Now `escalate` with a `prod_locked` blocker. Test: *a production UNCERTIFIED release with missing signals escalates* | Fixed, reproduced |
 
-This changes the GHA/MCP contract, so it should land as its own reviewed change.
+No new action values: each case maps to an existing action whose meaning matches, so GHA and MCP clients keep working. MCP guidance (`gateFormat.js`) gained strict-mode and prod-locked wording, and the inaccurate `do_not_use_exit_code_alone` example was corrected (package `0.1.5`).
 
 ### Issue H: outbox must be fixed before `OUTBOX_MODE=primary` (P2, open, #326)
 
@@ -378,4 +383,3 @@ This changes the GHA/MCP contract, so it should land as its own reviewed change.
 - Threshold min/max applied concurrently loses an update; calibration auto-apply ratchets a MISS floor and ignores dismissals.
 - Repeating an API key revoke writes another audit.
 - Escalations inbox shows "Ack & Override" to `release_manager` (the backend returns 403), and `DEFAULT_ROLE_POLICY` lacks `org_admin`/`viewer`.
-- MCP `do_not_use_exit_code_alone` (`mcp/src/gateFormat.js`) cites strict-mode `CERTIFIED_WITH_OVERRIDE` as an `exit_code` 0 + `self_heal` case, but `exit_code` is `gateAllowed ? 0 : 1` (`releaseGate.js`), and strict mode makes `gateAllowed` false, so that example returns 1.

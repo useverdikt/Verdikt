@@ -161,7 +161,7 @@ server.registerTool(
   "check_gate",
   {
     description:
-      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | recover_certification | escalate | revoked). When blocked, read governance_brief and hub_links.release. Poll on collecting/self_heal; recover_certification when remediation debt blocks; revoked means a human withdrew certification — do not merge; do not fail on the first check while signals are in flight.",
+      "CI gate decision. IMPORTANT: read top-level action (merge | collecting | self_heal | recover_certification | escalate | revoked). When blocked, read governance_brief and hub_links.release. Poll on collecting/self_heal; recover_certification when remediation debt or strict mode blocks an override (needs a clean CERTIFIED commit); escalate also covers production releases locked as UNCERTIFIED; revoked means a human withdrew certification — do not merge; do not fail on the first check while signals are in flight.",
     inputSchema: {
       session_id: SESSION_ID_FIELD,
       release_id: z.string(),

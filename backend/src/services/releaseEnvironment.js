@@ -12,14 +12,37 @@ const { refreshMonitoringWindowForProd } = require("./vcsMonitor");
 const { deliverSlackBypassMerge } = require("./slackNotifier");
 const { computeAndPersistRecommendation } = require("./recommendationEngine");
 const { CERT_LIKE, isProdEnvironment, isCertLikeStatus } = require("../lib/releaseStatus");
+const { loadMergePolicyAllowance } = require("./gateAllowance");
+
+function bypassReasonAtMerge(status, policyView) {
+  if (!isCertLikeStatus(status)) return "not_cert_like";
+  // The policy view was computed for a status read before the row lock; it
+  // only applies if the status is unchanged.
+  if (!policyView || policyView.status !== status || policyView.gateAllowed) return null;
+  if (policyView.blockedByRemediationDebt) return "remediation_debt";
+  if (policyView.strictBlocked) return "strict_mode";
+  return null;
+}
+
+const BYPASS_MESSAGES = {
+  not_cert_like: "Code merged to main while governance status was not cert-like.",
+  remediation_debt: "Code merged to main while remediation debt blocked this override.",
+  strict_mode: "Code merged to main while strict gate mode blocked this override."
+};
 
 /**
  * Promote release environment on VCS merge. Sets shipped_without_certification once when
- * merge lands on main/master while status is not cert-like (frozen at merge time).
+ * merge lands on main/master while the gate's policy decision blocked merge (frozen at merge time).
  */
 async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranch, newEnv, isMainBranch }) {
   const now = nowIso();
   const becomingProd = isMainBranch && isProdEnvironment(newEnv);
+  const policyView = becomingProd
+    ? {
+        status: String(release.status || "").toUpperCase(),
+        ...(await loadMergePolicyAllowance(release))
+      }
+    : null;
 
   // Promotion is one-way and happens once per merge: a redelivered merge event
   // for a release already in newEnv must not re-audit, re-flag a bypass from a
@@ -32,7 +55,8 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
     if (!locked || locked.environment === newEnv) return null;
 
     const relStatus = String(locked.status || "").toUpperCase();
-    const bypassAtMerge = becomingProd && !isCertLikeStatus(relStatus);
+    const bypassReason = becomingProd ? bypassReasonAtMerge(relStatus, policyView) : null;
+    const bypassAtMerge = !!bypassReason;
     const fresh = await tx.queryOne(
       `UPDATE releases
        SET environment = $1,
@@ -63,7 +87,9 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
         to_environment: newEnv,
         release_status: relStatus,
         merged: true,
-        shipped_without_certification: bypassAtMerge
+        shipped_without_certification: bypassAtMerge,
+        bypass_reason: bypassReason,
+        gate_mode: policyView?.mode || null
       },
       tx
     });
@@ -80,7 +106,9 @@ async function promoteReleaseOnMerge(release, { workspaceId, prNumber, baseBranc
           release_status: relStatus,
           environment: newEnv,
           shipped_without_certification_at: fresh.shipped_without_certification_at || now,
-          message: "Code merged to main while governance status was not cert-like."
+          bypass_reason: bypassReason,
+          gate_mode: policyView?.mode || null,
+          message: BYPASS_MESSAGES[bypassReason]
         },
         tx
       });
